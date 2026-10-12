@@ -1,0 +1,29 @@
+ENGINE PROMETHEUS - EDITOR COM TERRENO (visual da referencia)
+
+1. Extraia este zip DENTRO da pasta engine-prometheus (raiz, onde esta o package.json)
+   e aceite substituir os arquivos existentes.
+
+2. (Opcional, limpeza) apague os arquivos que nao sao mais usados:
+      engine/view/IsometricCamera.ts
+      engine/model/object/Cube.ts
+
+3. Nao ha dependencias novas se voce ja instalou @tauri-apps/api, @tauri-apps/plugin-dialog
+   e rodou "cargo add tauri-plugin-dialog". Caso contrario:
+      npm install @tauri-apps/api @tauri-apps/plugin-dialog
+      cd src-tauri && cargo add tauri-plugin-dialog && cd ..
+
+4. Titulo da janela: em src-tauri/tauri.conf.json troque "title" para "Engine Prometheus".
+
+5. Rode:
+      npm run build
+      npm run tauri dev
+
+CONTROLES
+  Botao esquerdo : ferramenta atual (em area vazia, orbita a camera)
+  Botao direito  : mover a camera      Roda: zoom      Botao do meio: orbitar
+  Editar terreno : clique/segure para elevar, Shift para rebaixar
+  Atalhos        : Q selecionar | B construir | T terreno | W mover | E rotacionar | R escalar
+                   Del exclui | Ctrl+S salva | Ctrl+Shift+S salvar como
+
+PROJETO: pasta com project.json + scenes/main.scene.json (formato v2).
+Projetos salvos na versao anterior (v1) abrem normalmente, com terreno plano.

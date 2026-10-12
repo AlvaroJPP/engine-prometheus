@@ -1,0 +1,66 @@
+import * as THREE from 'three'
+import { createPrimitive } from '../model/object/Primitives'
+import type { GameObject } from '../model/object/GameObject'
+import { ENGINE_VERSION, FORMAT_VERSION, MAIN_SCENE_PATH } from './format'
+import type { CameraData, ProjectBundle, SceneObjectData, TerrainData } from './format'
+
+export interface ProjectMeta {
+  id: string
+  name: string
+}
+
+export function buildBundle(
+  objects: GameObject[],
+  terrain: TerrainData,
+  camera: CameraData,
+  meta: ProjectMeta,
+): ProjectBundle {
+  const data: SceneObjectData[] = objects.map((o) => {
+    const m = o.mesh
+    return {
+      id: o.id,
+      name: o.name,
+      type: o.type,
+      position: [m.position.x, m.position.y, m.position.z],
+      rotation: [m.rotation.x, m.rotation.y, m.rotation.z],
+      scale: [m.scale.x, m.scale.y, m.scale.z],
+      visible: m.visible,
+      color: (m.material as THREE.MeshStandardMaterial).color.getHex(),
+    }
+  })
+
+  return {
+    project: {
+      formatVersion: FORMAT_VERSION,
+      id: meta.id,
+      name: meta.name,
+      template: 'empty-world',
+      engineVersion: ENGINE_VERSION,
+      settings: { cameraMode: 'orbit', multiplayer: { enabled: false, maxPlayers: 4 } },
+      modules: [],
+      scenes: [MAIN_SCENE_PATH],
+    },
+    scenes: {
+      [MAIN_SCENE_PATH]: {
+        formatVersion: FORMAT_VERSION,
+        id: 'main',
+        name: 'Mundo principal',
+        camera,
+        terrain,
+        objects: data,
+      },
+    },
+  }
+}
+
+export function objectFromData(d: SceneObjectData): GameObject {
+  return createPrimitive(d.type, {
+    id: d.id,
+    name: d.name,
+    color: d.color,
+    position: d.position,
+    rotation: d.rotation,
+    scale: d.scale,
+    visible: d.visible,
+  })
+}

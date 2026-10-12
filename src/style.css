@@ -1,0 +1,12 @@
+/* base global; os estilos do editor ficam no App.vue */
+html, body, #app { margin: 0; height: 100%; }
+body { background: #12151c; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 13px; overflow: hidden; }
+* { box-sizing: border-box; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2c3340; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Controles da malha e do gizmo 3D */
+.grid-toggle { white-space: nowrap; }
+.grid-toggle.active { border-color: #547eaa; color: #c6e2ff; background: #23364a; }
+.grid-state { color: #a9c9ec; }

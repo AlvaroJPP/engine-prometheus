@@ -1,0 +1,30 @@
+export type RuleTrigger =
+  | { type: 'object_clicked'; objectId: string }
+  | { type: 'enter_area'; center: [number, number, number]; radius: number }
+
+export type RuleCondition = { type: 'variable'; name: string; operator: 'equals'; value: boolean | number | string }
+
+export type RuleAction =
+  | { type: 'move'; objectId: string; x?: number; y?: number; z?: number }
+  | { type: 'rotate'; objectId: string; degrees: number }
+  | { type: 'set_visible'; objectId: string; visible: boolean }
+  | { type: 'set_variable'; name: string; value: boolean | number | string }
+
+export interface LogicRule {
+  id: string
+  name: string
+  enabled: boolean
+  trigger: RuleTrigger
+  conditions: RuleCondition[]
+  actions: RuleAction[]
+  /** Interno: evita disparar continuamente enquanto permanece na área. */
+  lastInside?: boolean
+}
+
+export interface LogicEventsFile {
+  formatVersion: 1
+  variables: Record<string, boolean | number | string>
+  events: LogicRule[]
+}
+
+export const EMPTY_LOGIC: LogicEventsFile = { formatVersion: 1, variables: {}, events: [] }
