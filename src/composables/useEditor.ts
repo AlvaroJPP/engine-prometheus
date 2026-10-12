@@ -241,6 +241,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh(); dirty.value = true
   }
 
+  function updateLogicRule(rule: LogicRule) {
+    engine?.upsertRule(rule)
+    refresh(); dirty.value = true
+  }
+
   // ---- projeto ----
   async function newProject() {
     const eng = engine
@@ -341,7 +346,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule,
+    toggleLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
     markDirty,
     setTool,
     setTransform,
