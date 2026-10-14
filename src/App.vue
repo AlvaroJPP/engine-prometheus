@@ -101,15 +101,14 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 }))
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
-  // Os conectores ficam no centro das portas: a lista começa em y=50,
-  // tem cabeçalho de 35px e cada linha ocupa 58px (48px + margens).
+  // Centro do conector dourado em cada linha do painel de eventos.
   const eventY = 117 + index * 58
-  // As portas dos nós ficam no rodapé; alinhar as curvas ao centro desse rodapé.
-  const conditionPortY = layout.condition.y + 112
-  const actionPortY = layout.action.y + 112
+  // Os conectores laterais ficam centralizados no rodapé dos blocos.
+  const conditionPortY = layout.condition.y + 119
+  const actionPortY = layout.action.y + 119
   return [
-    { id: rule.id + '-a', kind: 'trigger-condition', x1: 293, y1: eventY, x2: layout.condition.x, y2: conditionPortY },
-    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: conditionPortY, x2: layout.action.x, y2: actionPortY },
+    { id: rule.id + '-a', kind: 'trigger-condition', x1: 299, y1: eventY, x2: layout.condition.x + 1, y2: conditionPortY },
+    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: conditionPortY, x2: layout.action.x + 1, y2: actionPortY },
   ]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
@@ -1061,6 +1060,9 @@ input:focus { outline: none; border-color: var(--accent); }
 .graph-library,.graph-inspector { padding:18px 14px; background:#171b24; overflow:auto; } .graph-library { border-right:1px solid #2a303d; } .graph-inspector { border-left:1px solid #2a303d; } .graph-library h3,.graph-inspector h3 { font-size:14px; margin:10px 0 14px; } .graph-library p { font-size:12px; line-height:1.6; color:#8993a6; }
 .node-legend { padding:10px 12px; margin:8px 0; border-radius:6px; background:#202632; font-size:12px; border-left:3px solid; } .node-legend.trigger { border-color:#d8a34a; } .node-legend.condition { border-color:#6c9de6; } .node-legend.action { border-color:#65bf91; } .graph-tip { margin-top:26px; padding-top:14px; border-top:1px solid #2a303d; font-size:11px; line-height:1.6; color:#7f899c; }
 .graph-canvas { position:relative; flex:1; overflow:hidden; min-width:0; min-height:0; background-color:#11151d; background-image:radial-gradient(#343b49 1px,transparent 1px); background-size:22px 22px; touch-action:none; cursor:grab; } .graph-canvas.is-panning { cursor:grabbing; } .graph-stage { position:absolute; inset:0 auto auto 0; width:1800px; height:6000px; transform-origin:0 0; will-change:transform; } .graph-zoom-controls { position:absolute; z-index:5; top:12px; right:12px; display:flex; align-items:center; gap:5px; padding:5px; border:1px solid #414141; border-radius:5px; background:#303030ee; box-shadow:0 3px 10px #0005; cursor:default; } .graph-zoom-controls button { width:29px; height:28px; border:1px solid #4b4b4b; border-radius:3px; background:#3b3b3b; color:#eee; font-size:18px; line-height:1; } .graph-zoom-controls button:hover { background:#51402f; border-color:#e98524; } .graph-zoom-controls span { min-width:42px; text-align:center; color:#ccc; font-size:10px; font-variant-numeric:tabular-nums; } .graph-wires { position:absolute; inset:0; width:1800px; height:6000px; pointer-events:none; overflow:visible; } .graph-wires path { fill:none; stroke:#8a96ad; stroke-width:3; }
+.graph-wires { z-index:2; }
+.graph-node { z-index:1; }
+.graph-node .node-port, .event-row-port { z-index:3; }
 .graph-node { position:absolute; width:300px; min-height:120px; border:1px solid #3b4352; background:#1c222d; border-radius:8px; box-shadow:0 10px 24px #0004; cursor:grab; user-select:none; z-index:1; } .graph-node:active { cursor:grabbing; } .graph-node.chosen { outline:2px solid #d36a55; outline-offset:2px; } .graph-node.trigger { border-top:3px solid #d8a34a; } .graph-node.condition { border-top:3px solid #6c9de6; } .graph-node.action { border-top:3px solid #65bf91; } .node-head { display:flex; justify-content:space-between; padding:10px 12px 8px; font-size:9px; letter-spacing:.13em; color:#aab4c5; border-bottom:1px solid #303746; } .node-title { padding:13px 12px; min-height:44px; font-size:12px; line-height:1.5; } .node-foot { position:relative; display:flex; align-items:center; justify-content:center; padding:7px; border-top:1px solid #303746; color:#7f899c; font-size:10px; } .node-port { position:absolute; left:-5px; top:50%; width:9px; height:9px; border-radius:50%; background:#8a96ad; border:2px solid #1c222d; } .node-port.out { left:auto; right:-5px; } .graph-empty { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:min(360px,90%); } .graph-empty h2 { font-size:18px; } .graph-empty p { color:#8e98aa; font-size:12px; line-height:1.6; } .empty-icon { font-size:32px; color:#d36a55; } .graph-rule-count { border-top:1px solid #2a303d; margin-top:24px; padding-top:12px; font-size:11px; color:#8e98aa; }
 @media(max-width:800px) { .graph-body { grid-template-columns:150px minmax(0,1fr); } .graph-inspector { display:none; } .graph-subtitle { display:none; } }
 </style>
@@ -1657,7 +1659,7 @@ input[type='range'] { accent-color: #e98524; }
 .graph-node.condition .node-head { color:#d7c4ff; background:#30283f; }
 .graph-node.action .node-head { color:#ffb4a9; background:#3d292d; }
 .graph-node.trigger .node-head { color:#ffe39a; background:#3a3323; }
-.graph-node .node-port { width:11px; height:11px; border-width:2px; background:#f3c34e; border-color:#252934; box-shadow:0 0 7px currentColor; }
+.graph-node .node-port { z-index:3; width:11px; height:11px; border-width:2px; background:#f3c34e; border-color:#252934; box-shadow:0 0 7px currentColor; }
 .graph-node.condition .node-port { background:#a27aff; }
 .graph-node.action .node-port { background:#f07868; }
 .graph-wires path { stroke-width:3; filter:drop-shadow(0 0 3px currentColor); }
