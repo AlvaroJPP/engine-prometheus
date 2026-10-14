@@ -25,6 +25,12 @@ fn project_exists(dir: String) -> bool {
 }
 
 #[tauri::command]
+fn project_file_exists(dir: String, rel: String) -> Result<bool, String> {
+    let path = project_path(&dir, &rel)?;
+    Ok(path.is_file())
+}
+
+#[tauri::command]
 fn read_project_file(dir: String, rel: String) -> Result<String, String> {
     let path = project_path(&dir, &rel)?;
     fs::read_to_string(&path).map_err(|e| format!("Não foi possível ler {rel}: {e}"))
@@ -36,27 +42,40 @@ fn write_project_file(dir: String, rel: String, contents: String) -> Result<(), 
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Não foi possível criar a pasta: {e}"))?;
     }
-    // Escreve num arquivo temporário e troca no final, para não corromper o projeto se algo falhar.
+    // Escreve em arquivo temporário antes de substituir o destino.
     let mut tmp_name = target.as_os_str().to_owned();
     tmp_name.push(".tmp");
     let tmp = PathBuf::from(tmp_name);
+    let mut backup_name = target.as_os_str().to_owned();
+    backup_name.push(".bak");
+    let backup = PathBuf::from(backup_name);
     fs::write(&tmp, contents).map_err(|e| format!("Não foi possível gravar {rel}: {e}"))?;
 
-    // No Windows, rename não substitui um destino existente. Isso fazia o segundo
-    // salvamento falhar para project.json, cenas e logic/events.json.
-    match fs::rename(&tmp, &target) {
-        Ok(()) => Ok(()),
-        Err(first_error) if target.exists() => {
-            fs::remove_file(&target)
-                .map_err(|e| format!("Não foi possível substituir {rel}: {e}"))?;
-            fs::rename(&tmp, &target)
-                .map_err(|e| format!("Não foi possível finalizar {rel}: {e}"))
-        }
-        Err(e) => {
+    // O Windows não substitui um destino existente com fs::rename. Preservamos
+    // o arquivo anterior como backup e restauramos se a troca não for concluída.
+    let had_target = target.exists();
+    if had_target {
+        let _ = fs::remove_file(&backup);
+        if let Err(e) = fs::rename(&target, &backup) {
             let _ = fs::remove_file(&tmp);
-            Err(format!("Não foi possível finalizar {rel}: {e}"))
+            return Err(format!("Não foi possível preparar a substituição de {rel}: {e}"));
         }
     }
+
+    if let Err(e) = fs::rename(&tmp, &target) {
+        let _ = fs::remove_file(&tmp);
+        if had_target {
+            if let Err(restore_error) = fs::rename(&backup, &target) {
+                return Err(format!("Falha ao salvar {rel}: {e}. Também não foi possível restaurar o arquivo anterior: {restore_error}. O backup está em {}", backup.display()));
+            }
+        }
+        return Err(format!("Não foi possível finalizar {rel}: {e}"));
+    }
+
+    if had_target {
+        let _ = fs::remove_file(&backup);
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -65,6 +84,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             project_exists,
+            project_file_exists,
             read_project_file,
             write_project_file
         ])
