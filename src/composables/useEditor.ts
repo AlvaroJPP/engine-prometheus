@@ -234,17 +234,32 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   // ---- motor de regras ----
   function createLogicVariable(name: string, rawValue: string) {
     if (!engine) return
-    const key = name.trim()
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) { say('Use um nome de variável sem espaços, começando por letra ou _.'); return }
-    if (Object.prototype.hasOwnProperty.call(logicVariables.value, key)) { say('Já existe uma variável com esse nome.'); return }
-    let value: boolean | number | string = rawValue
-    if (rawValue === 'true') value = true
-    else if (rawValue === 'false') value = false
-    else if (rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) value = Number(rawValue)
+
+    // Aceita tanto os campos separados (nome: click, valor: false)
+    // quanto uma atribuição digitada inteira no campo de nome (click = false).
+    const assignment = name.match(/^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(.*?)\\s*$/)
+    const key = (assignment?.[1] ?? name).trim()
+    const parsedRawValue = assignment ? assignment[2] : rawValue
+
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      say('Use nome = valor (ex.: click = false) ou informe o nome sem espaços.')
+      return
+    }
+    if (Object.prototype.hasOwnProperty.call(logicVariables.value, key)) {
+      say('Já existe uma variável com esse nome.')
+      return
+    }
+
+    const normalizedValue = parsedRawValue.trim()
+    let value: boolean | number | string = normalizedValue
+    if (normalizedValue === 'true') value = true
+    else if (normalizedValue === 'false') value = false
+    else if (normalizedValue !== '' && Number.isFinite(Number(normalizedValue))) value = Number(normalizedValue)
+
     engine.setLogicVariable(key, value)
     logicVariables.value = engine.logicVariables()
     dirty.value = true
-    say(`Variável "${key}" criada.`)
+    say(`Variável "${key}" criada com valor ${String(value)}.`)
   }
 
   function setLogicVariableValue(name: string, rawValue: string) {
