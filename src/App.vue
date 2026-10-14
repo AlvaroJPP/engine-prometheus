@@ -109,8 +109,14 @@ onMounted(() => {
   if (graphStage.value) graphPortObserver.observe(graphStage.value)
   measureGraphPorts()
 })
+watch(graphOpen, async (open) => {
+  if (!open) return
+  await nextTick()
+  if (graphViewport.value) graphPortObserver?.observe(graphViewport.value)
+  if (graphStage.value) graphPortObserver?.observe(graphStage.value)
+  measureGraphPorts()
+})
 onUpdated(measureGraphPorts)
-watch([graphNodes, graphVisibleRules, graphZoom, graphPan], measureGraphPorts, { deep: true })
 onBeforeUnmount(() => graphPortObserver?.disconnect())
 const graphObjectFilter = ref<'selected' | 'all'>('selected')
 const graphVisibleRules = computed(() => {
@@ -158,6 +164,7 @@ const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule) => {
     { id: rule.id + '-b', kind: 'condition-action', d: redPath },
   ]
 }))
+watch([graphNodes, graphVisibleRules, graphZoom, graphPan], measureGraphPorts, { deep: true })
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
 const globalConditionVariables = computed(() => Object.fromEntries(Object.entries(globalLogicVariables.value).filter(([name]) => !Object.prototype.hasOwnProperty.call(logicVariables.value, name))))
 
