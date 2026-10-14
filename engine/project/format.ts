@@ -16,6 +16,9 @@ export interface SceneObjectData {
   scale: Vec3
   visible: boolean
   color: number
+  locked?: boolean
+  wireframeVisible?: boolean
+  groupId?: string | null
 }
 
 export interface TerrainData {
