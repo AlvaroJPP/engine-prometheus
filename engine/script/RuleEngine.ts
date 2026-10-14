@@ -64,8 +64,23 @@ export class RuleEngine {
     for (const action of rule.actions) this.apply(action)
   }
 
+  /** Resolve o marcador para o ID do objeto atualmente selecionado no mundo. */
+  private resolveObjectIdToken(source: string, javascript = false): string {
+    if (!source.includes('{ID_OBJECT}')) return source
+    const objectId = this.world.getSelectedId()
+    if (!objectId || !this.world.get(objectId)) {
+      throw new Error('Não há um objeto selecionado para resolver {ID_OBJECT}. Selecione um objeto antes de executar o script.')
+    }
+    if (!javascript) return source.replaceAll('{ID_OBJECT}', objectId)
+    // Dentro de aspas, substitui apenas o conteúdo; sem aspas, injeta uma string JS válida.
+    return source
+      .replace(/(['"])\{ID_OBJECT\}\1/g, (_match, quote: string) => `${quote}${objectId}${quote}`)
+      .replaceAll('{ID_OBJECT}', JSON.stringify(objectId))
+  }
+
   /** Executa uma linguagem de comandos limitada; não usa eval nem executa JavaScript arbitrário. */
   private executeScript(source: string): void {
+    source = this.resolveObjectIdToken(source)
     const lines = source.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
     for (const line of lines) {
       let match = line.match(/^set\s+([A-Za-z_][\w]*)\s*=\s*(.+)$/)
@@ -94,6 +109,7 @@ export class RuleEngine {
 
   /** Executa JavaScript autorado pelo criador do projeto após as condições passarem. */
   private executeJavaScript(source: string): void {
+    source = this.resolveObjectIdToken(source, true)
     const vars = this.data.variables
     const api = {
       get: (name: string) => vars[name],
