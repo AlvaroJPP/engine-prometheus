@@ -259,7 +259,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   // ---- motor de regras ----
-  function createLogicVariable(name: string, rawValue: string, scope: 'global' | 'object' = 'object') {
+  function createLogicVariable(name: string, rawValue: string, scope: 'global' | 'object' = 'object', requestedType: 'string' | 'number' | 'boolean' = 'boolean') {
     if (!engine) return
     const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
     if (scope === 'object' && !objectId) { say('Selecione um objeto para criar uma variável própria.'); return }
@@ -281,10 +281,22 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
 
     const normalizedValue = parsedRawValue.trim()
-    let value: boolean | number | string = normalizedValue
-    if (normalizedValue === 'true') value = true
-    else if (normalizedValue === 'false') value = false
-    else if (normalizedValue !== '' && Number.isFinite(Number(normalizedValue))) value = Number(normalizedValue)
+    let value: boolean | number | string
+    if (requestedType === 'boolean') {
+      if (normalizedValue !== 'true' && normalizedValue !== 'false') {
+        say('Para uma variável boolean, selecione true ou false.')
+        return
+      }
+      value = normalizedValue === 'true'
+    } else if (requestedType === 'number') {
+      if (normalizedValue === '' || !Number.isFinite(Number(normalizedValue))) {
+        say('Informe um número válido para a variável.')
+        return
+      }
+      value = Number(normalizedValue)
+    } else {
+      value = parsedRawValue
+    }
 
     engine.setLogicVariable(key, value, objectId)
     logicVariables.value = engine.logicVariables(selectedId.value)
