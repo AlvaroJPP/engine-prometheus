@@ -31,7 +31,8 @@ export class HumanoidAvatar {
   private firstPersonMode = false
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (this.firstPersonMode && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+    // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
       if (event.code === 'Space') event.preventDefault()
       this.pressed.add(event.code)
     }
