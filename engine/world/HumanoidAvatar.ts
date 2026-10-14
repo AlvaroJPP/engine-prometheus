@@ -149,6 +149,10 @@ export class HumanoidAvatar {
     this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.12)
   }
 
+  setFirstPersonMode(enabled: boolean): void {
+    this.visualRoot.visible = !enabled
+  }
+
   setEnabled(enabled: boolean): void {
     this.enabled = enabled
     this.pressed.clear()
