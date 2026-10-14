@@ -119,12 +119,15 @@ watch(graphOpen, async (open) => {
 onUpdated(measureGraphPorts)
 onBeforeUnmount(() => graphPortObserver?.disconnect())
 const graphObjectFilter = ref<'selected' | 'all'>('selected')
+function ownerOfRule(rule: LogicRule): string | undefined {
+  return rule.ownerObjectId ??
+    (rule.trigger.type === 'object_clicked'
+      ? rule.trigger.objectId
+      : rule.actions.find(action => 'objectId' in action)?.objectId)
+}
 const graphVisibleRules = computed(() => {
   if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
-  return logicRules.value.filter(rule =>
-    (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
-    rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
-  )
+  return logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value)
 })
 function defaultGraphLayout(index: number) {
   const top = 70 + index * 250
@@ -349,10 +352,7 @@ function returnToEdit() {
   executionMode.value = 'edit'
   status.value = 'Modo de edição'
 }
-const selectedObjectRules = computed(() => logicRules.value.filter(rule =>
-  (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
-  rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
-))
+const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
 function openObjectRule(rule: LogicRule) {
   graphSelection.value = {
     ruleId: rule.id,
@@ -367,9 +367,7 @@ function importPublicRule(rule: LogicRule) {
   graphSelection.value = { ruleId: importedId, part: 'trigger' }
   graphOpen.value = true
 }
-const publicLogicRules = computed(() => logicRules.value.filter(rule =>
-  rule.trigger.type === 'object_clicked' && rule.trigger.objectId !== selectedId.value
-))
+const publicLogicRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) !== selectedId.value))
 const cameraLabel = computed(() => CAMERA_LABELS[cameraPreset.value])
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
