@@ -605,10 +605,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       </aside>
     </div>
     <footer class="execution-dock" aria-label="Controles de execução">
-      <button class="dock-action" :class="{ active: executionMode === 'running' }" @click="runWorld" title="Executar cena"><span>▶</span><small>Run</small></button>
-      <button class="dock-action stop" :class="{ active: executionMode === 'stopped' }" @click="stopWorld" title="Parar execução"><span>■</span><small>Stop</small></button>
-      <span class="dock-divider"></span>
-      <button class="dock-home" :class="{ active: executionMode === 'edit' }" @click="returnToEdit" title="Voltar ao modo de edição"><span>⌂</span><small>Editar</small></button>
+      <button class="media-orb media-stop" :class="{ active: executionMode === 'stopped' }" @click="stopWorld" title="Parar execução" aria-label="Stop"><span class="orb-glyph">■</span><small>Stop</small></button>
+      <button class="media-orb media-run" :class="{ active: executionMode === 'running' }" @click="runWorld" title="Executar cena" aria-label="Run"><span class="orb-glyph">▶</span><small>Run</small></button>
+      <button class="media-orb media-edit" :class="{ active: executionMode === 'edit' }" @click="returnToEdit" title="Voltar ao modo de edição" aria-label="Edit"><span class="orb-glyph">✎</span><small>Edit</small></button>
       <span class="dock-state"><i :class="executionMode"></i>{{ executionMode === 'running' ? 'EM EXECUÇÃO' : executionMode === 'stopped' ? 'INTERROMPIDO' : 'MODO DE EDIÇÃO' }}</span>
     </footer>
     <div v-if="graphOpen" class="graph-overlay">
@@ -1368,16 +1367,26 @@ input[type='range'] { accent-color: #e98524; }
 .object-meta code,.object-meta strong{min-width:0;overflow:hidden;color:#d3d3d3;font-size:10px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
 .object-meta code{flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .meta-copy{padding:2px 5px;border:1px solid #484848;border-radius:3px;background:#333;color:#bbb;cursor:pointer}
-.execution-dock{position:absolute;z-index:12;left:50%;bottom:25px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;min-height:58px;padding:7px 10px;border:1px solid #4a4a4a;border-radius:8px;background:#252525f5;box-shadow:0 8px 28px #0006;backdrop-filter:blur(12px)}
-.dock-action,.dock-home{display:flex;align-items:center;justify-content:center;gap:7px;min-width:70px;height:40px;padding:0 11px;border:1px solid #414141;border-radius:4px;background:#303030;color:#d7d7d7;cursor:pointer}
-.dock-action>span{color:#91c78a;font-size:13px}.dock-action.stop>span{color:#e58a83}
-.dock-action small,.dock-home small{font-size:10px;font-weight:650}.dock-action:hover,.dock-home:hover{background:#3a3a3a}
-.dock-action.active{border-color:#668b5e;background:#2d3b2a}.dock-action.stop.active{border-color:#995a54;background:#422b29}
-.dock-home{min-width:88px;border-radius:5px;background:#3b3025;border-color:#72502e;color:#f2c18d}.dock-home>span{font-size:19px;line-height:1}
-.dock-home.active{background:#4a3828;border-color:#d0833c}.dock-divider{width:1px;height:28px;background:#4b4b4b;margin:0 2px}
-.dock-state{display:flex;align-items:center;gap:6px;margin-left:5px;padding:0 5px;color:#999;font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
-.dock-state i{width:6px;height:6px;border-radius:50%;background:#9c9c9c}.dock-state i.running{background:#83bd77;box-shadow:0 0 0 3px #83bd771a}.dock-state i.stopped{background:#d36e65}.dock-state i.edit{background:#df984f}
-@media(max-width:850px){.execution-dock{bottom:32px;gap:4px;padding:6px}.dock-state{display:none}.dock-action,.dock-home{min-width:57px;padding:0 8px}.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
+.execution-dock{position:absolute;z-index:12;left:50%;bottom:25px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:12px;min-height:86px;padding:9px 15px 7px;border:1px solid #454b53;border-radius:48px;background:linear-gradient(180deg,#3c4148 0%,#24282e 48%,#171a1f 100%);box-shadow:inset 0 1px 1px #ffffff35,inset 0 -2px 3px #0008,0 8px 28px #0009;backdrop-filter:blur(12px)}
+.media-orb{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;width:57px;height:57px;padding:0;border:1px solid #77818d;border-radius:50%;color:#f5f7fa;cursor:pointer;box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 2px 4px #0009;transition:transform .12s ease,filter .12s ease}
+.media-orb::before{position:absolute;content:"";top:3px;left:7px;right:7px;height:43%;border-radius:50% 50% 45% 45%;background:linear-gradient(180deg,#ffffff6b,#ffffff08);pointer-events:none}
+.media-orb:hover{filter:brightness(1.18);transform:translateY(-1px)}
+.media-orb:active{transform:translateY(1px);box-shadow:inset 0 3px 7px #0008,0 1px 2px #0008}
+.media-orb .orb-glyph{position:relative;z-index:1;font-size:17px;line-height:1;text-shadow:0 1px 2px #0009}
+.media-orb small{position:relative;z-index:1;font-size:9px;font-weight:750;line-height:1;text-shadow:0 1px 2px #000}
+.media-stop{width:49px;height:49px;background:linear-gradient(180deg,#e8f0f6 0%,#8398aa 17%,#465d70 52%,#263747 100%);border-color:#a8bac8;margin-top:4px}
+.media-stop .orb-glyph{color:#fff;font-size:13px}
+.media-run{width:69px;height:69px;background:linear-gradient(180deg,#e9ffd9 0%,#9bd76d 15%,#4caa35 48%,#216b20 100%);border:2px solid #c7f3a9;box-shadow:inset 0 2px 3px #ffffffc2,inset 0 -7px 9px #174c16b8,0 0 0 3px #1b241d,0 3px 8px #000b}
+.media-run .orb-glyph{font-size:23px}
+.media-edit{width:49px;height:49px;margin-top:4px;background:linear-gradient(180deg,#fff1d4 0%,#e9b86d 17%,#b97a31 53%,#70431e 100%);border-color:#f0c58b}
+.media-edit .orb-glyph{font-size:17px}
+.media-orb.active{filter:brightness(1.2);outline:1px solid #ffffff80;outline-offset:2px}
+.media-stop.active{box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 0 0 2px #d8e6f2,0 2px 5px #0009}
+.media-run.active{box-shadow:inset 0 2px 3px #ffffffc2,inset 0 -7px 9px #174c16b8,0 0 0 3px #1b241d,0 0 0 5px #8be36d,0 3px 8px #000b}
+.media-edit.active{box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 0 0 2px #f0c58b,0 2px 5px #0009}
+.dock-state{display:flex;align-items:center;gap:6px;margin-left:3px;padding:0 3px;color:#b8bec7;font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+.dock-state i{width:6px;height:6px;border-radius:50%;background:#9c9c9c}.dock-state i.running{background:#83e46f;box-shadow:0 0 0 3px #83bd771a}.dock-state i.stopped{background:#ed786f}.dock-state i.edit{background:#efb567}
+@media(max-width:850px){.execution-dock{bottom:32px;gap:8px;min-height:72px;padding:7px 10px}.media-orb{width:45px;height:45px}.media-run{width:59px;height:59px}.media-orb .orb-glyph{font-size:14px}.media-run .orb-glyph{font-size:20px}.media-orb small{font-size:8px}.dock-state{display:none}.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
 </style>
 
 <style>
