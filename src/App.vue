@@ -23,7 +23,7 @@ const {
   brushRadius,
   gridVisible,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-  toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+  toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
   setTool,
   setTransform,
@@ -417,24 +417,26 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </div>
             <div class="component-caption">VARIÁVEIS DO OBJETO · VALORES INDEPENDENTES</div>
             <div class="variable-table-head" aria-hidden="true">
-              <span>ID</span><span>TYPE</span><span>VALUE</span>
+              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span>
             </div>
-            <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row">
+            <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row object-variable-row">
               <code class="variable-id" :title="String(name)">{{ name }}</code>
               <span class="variable-type">{{ typeof value }}</span>
               <input class="variable-value" :aria-label="'Valor de ' + String(name)" :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'object')" />
+              <button class="variable-delete" :aria-label="'Excluir variável do objeto ' + String(name)" title="Excluir variável deste objeto" @click="deleteLogicVariable(String(name), 'object')">×</button>
             </div>
             <p v-if="!Object.keys(logicVariables).length" class="muted">Nenhuma variável própria neste objeto.</p>
             <div class="component-caption">VARIÁVEIS GLOBAIS REUTILIZÁVEIS</div>
             <p class="muted">Adicione uma cópia ao objeto para que cada objeto mantenha seu próprio valor.</p>
             <div class="variable-table-head global-variable-head" aria-hidden="true">
-              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span>
+              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span><span></span>
             </div>
             <div v-for="(value, name) in globalLogicVariables" :key="'global-' + name" class="variable-row global-variable-row">
               <code class="variable-id" :title="String(name)">{{ name }}</code>
               <span class="variable-type">{{ typeof value }}</span>
               <input class="variable-value" :aria-label="'Valor global de ' + String(name)" :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'global')" />
               <button class="ghost variable-copy" title="Copiar para este objeto" :disabled="Object.prototype.hasOwnProperty.call(logicVariables, name)" @click="useGlobalVariableOnObject(String(name))">＋</button>
+              <button class="variable-delete" :aria-label="'Excluir variável global ' + String(name)" title="Excluir variável global" @click="deleteLogicVariable(String(name), 'global')">×</button>
             </div>
             <div class="variable-create">
               <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
@@ -1393,7 +1395,7 @@ input[type='range'] { accent-color: #e98524; }
 .variable-table-head,
 .variable-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(54px, .72fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr) minmax(48px, .65fr) minmax(0, 1fr) 27px;
   align-items: center;
   gap: 6px;
 }
@@ -1444,8 +1446,24 @@ input[type='range'] { accent-color: #e98524; }
 .variable-row .variable-value:focus { border-color: #a66a32; outline: none; }
 .global-variable-head,
 .global-variable-row {
-  grid-template-columns: minmax(0, 1fr) minmax(48px, .65fr) minmax(0, 1fr) 27px;
+  grid-template-columns: minmax(0, 1fr) minmax(48px, .65fr) minmax(0, 1fr) 27px 27px;
 }
+.variable-delete {
+  width: 27px;
+  min-width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid #50302d;
+  border-radius: 3px;
+  background: #342624;
+  color: #ef9b91;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.variable-delete:hover { background: #63332e; color: #fff; }
+.variable-delete:focus-visible { outline: 1px solid #ef9b91; outline-offset: 1px; }
+
 .variable-row .variable-copy {
   min-width: 0;
   padding: 4px 5px;
