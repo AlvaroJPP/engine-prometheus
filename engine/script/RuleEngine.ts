@@ -50,7 +50,16 @@ export class RuleEngine {
   }
 
   private run(rule: LogicRule): void {
-    if (!rule.conditions.every((c) => this.data.variables[c.name] === c.value)) return
+    if (!rule.conditions.every((c) => {
+      const actual = this.data.variables[c.name]
+      switch (c.operator) {
+        case 'not_equals': return actual !== c.value
+        case 'greater_than': return typeof actual === 'number' && typeof c.value === 'number' && actual > c.value
+        case 'less_than': return typeof actual === 'number' && typeof c.value === 'number' && actual < c.value
+        case 'equals':
+        default: return actual === c.value
+      }
+    })) return
     for (const action of rule.actions) this.apply(action)
   }
 
