@@ -305,6 +305,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say(`Variável ${scope === 'global' ? 'global ' : ''}"${key}" criada com valor ${String(value)}.`)
   }
 
+  function deleteLogicVariable(name: string, scope: 'global' | 'object' = 'object') {
+    const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (!engine || (scope === 'object' && !objectId)) return
+    const removed = engine.removeLogicVariable(name, objectId)
+    if (!removed) return
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
+    dirty.value = true
+    say(`Variável "${name}" removida ${scope === 'global' ? 'das variáveis globais' : 'deste objeto'}.`)
+  }
+
   function setLogicVariableValue(name: string, rawValue: string, scope: 'global' | 'object' = 'object') {
     const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
     const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
@@ -563,7 +574,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
