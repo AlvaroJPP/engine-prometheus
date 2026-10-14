@@ -52,6 +52,11 @@ export interface ProjectFile {
   settings: {
     cameraMode: 'orbit'
     multiplayer: { enabled: boolean; maxPlayers: number }
+    editor: {
+      gridVisible: boolean
+      brushStrength: number
+      brushRadius: number
+    }
   }
   modules: Array<{ id: string; version: string }>
   scenes: string[]
