@@ -117,6 +117,7 @@ export class World {
       if (overlay) overlay.visible = patch.wireframeVisible
     }
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
+    if (patch.mass !== undefined && Number.isFinite(patch.mass)) m.userData.mass = Math.max(0, patch.mass)
     this.events.emit('objectChanged', { id })
   }
 
@@ -183,6 +184,7 @@ export class World {
       locked: o.mesh.userData.locked === true,
       wireframeVisible: o.mesh.userData.wireframeVisible !== false,
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
+      mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
       color: (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
   }
