@@ -52,11 +52,10 @@ export class CollisionSystem {
       for (let i = 0; i < objects.length; i += 1) {
         const a = objects[i]
         if (!a) continue
-        const shapeA = this.buildShape(a)
-        if (!shapeA) continue
-        const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
-
         for (let j = i + 1; j < objects.length; j += 1) {
+          const shapeA = this.buildShape(a)
+          if (!shapeA) break
+          const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
           const b = objects[j]
           if (!b) continue
           const shapeB = this.buildShape(b)
