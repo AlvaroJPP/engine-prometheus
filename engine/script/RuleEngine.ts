@@ -105,7 +105,7 @@ export class RuleEngine {
       setVisible: (objectId: string, visible: boolean) => this.apply({ type: 'set_visible', objectId, visible }),
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
-    const run = new Function('api', 'vars', 'world', 'console', '"use strict";\\n' + source) as (api: typeof api, vars: typeof vars, world: World, console: Console) => void
+    const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (api: typeof api, vars: typeof vars, world: World, console: Console) => void
     run(api, vars, this.world, console)
   }
 
