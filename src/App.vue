@@ -118,7 +118,7 @@ watch(graphOpen, async (open) => {
 })
 onUpdated(measureGraphPorts)
 onBeforeUnmount(() => graphPortObserver?.disconnect())
-const graphObjectFilter = ref<'selected' | 'all'>('selected')
+const graphObjectFilter = ref<'selected' | 'all'>('all')
 function ownerOfRule(rule: LogicRule): string | undefined {
   return rule.ownerObjectId ??
     (rule.trigger.type === 'object_clicked'
@@ -709,25 +709,20 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     </div>
     <ExecutionDock :mode="executionMode" @run="runWorld" @stop="stopWorld" @edit="returnToEdit" />
     <div v-if="graphOpen" class="graph-overlay">
-      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="selected">Objeto selecionado</option><option value="all">Todos os objetos</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
+      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library property-source">
-          <div class="eyebrow">OBJETO SELECIONADO</div>
-          <h3>PROPRIEDADE</h3>
-          <div class="property-event-list">
-            <div class="property-event active"><span class="event-icon">↖</span><span>Ao Clicar</span><i></i></div>
-            <div class="property-event muted"><span class="event-icon">⌁</span><span>Ao Pressionar</span></div>
-            <div class="property-event muted"><span class="event-icon">⌖</span><span>Ao Passar o Mouse</span></div>
-            <div class="property-event muted"><span class="event-icon">▶</span><span>Iniciar</span></div>
-            <div class="property-event muted"><span class="event-icon">↻</span><span>Ao Alterar</span></div>
+          <div class="eyebrow">HIERARQUIA DA CENA</div>
+          <h3>OBJETOS</h3>
+          <div class="graph-object-picker">
+            <button v-for="object in objects" :key="object.id" class="graph-object-picker-row" :class="{ active: selectedId === object.id }" @click="selectItem(object.id)">
+              <span class="object-picker-icon">◇</span>
+              <span class="object-picker-name">{{ object.name }}</span>
+              <span class="object-picker-count">{{ logicRules.filter(rule => ownerOfRule(rule) === object.id).length }}</span>
+            </button>
+            <p v-if="!objects.length" class="event-list-empty">Nenhum objeto na cena</p>
           </div>
-          <div class="property-character" aria-hidden="true">
-            <div class="character-shadow"></div><div class="character-head"><span class="character-hair"></span><span class="character-face"></span></div>
-            <div class="character-body"></div><div class="character-arm left-arm"></div><div class="character-arm right-arm"></div>
-            <div class="character-leg left-leg"></div><div class="character-leg right-leg"></div><div class="character-shoe left-shoe"></div><div class="character-shoe right-shoe"></div>
-          </div>
-          <div class="property-object-name">{{ selected?.name ?? 'Objeto da cena' }}</div>
-          <div class="graph-tip">O evento inicia o fluxo. Conecte-o a requisitos e ações para definir o comportamento do objeto.</div>
+          <div class="graph-tip">Selecione um objeto para destacá-lo na hierarquia. No modo “Todos os objetos”, os fluxos de toda a cena continuam visíveis.</div>
         </aside>
         <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
@@ -1721,4 +1716,15 @@ input[type='range'] { accent-color: #e98524; }
 .graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
 .graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
 
+</style>
+
+<style>
+.graph-object-picker{display:flex;flex-direction:column;gap:5px;max-height:48%;overflow:auto;margin-top:2px}
+.graph-object-picker-row{display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 8px;border:1px solid #353a48;border-radius:4px;background:#292d37;color:#c5cad5;text-align:left;cursor:pointer}
+.graph-object-picker-row:hover{background:#343946;border-color:#555d70}
+.graph-object-picker-row.active{border-color:#e98524;background:#3b3025;color:#fff}
+.object-picker-icon{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:3px;background:#20232c;color:#e98524;font-size:16px}
+.object-picker-name{flex:1;min-width:0;overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.object-picker-count{flex:none;min-width:20px;padding:2px 5px;border-radius:9px;background:#20232c;color:#aeb5c2;text-align:center;font-size:9px}
+.graph-object-picker-row.active .object-picker-count{background:#523a27;color:#ffc27c}
 </style>
