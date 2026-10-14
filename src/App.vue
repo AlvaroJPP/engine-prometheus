@@ -45,6 +45,9 @@ const {
 const newVariableName = ref('')
 const newVariableValue = ref('false')
 const sidebarScriptDraft = ref("// Cole seu JavaScript aqui\napi.set('has_key', true)")
+const conditionVariable = ref('has_key')
+const conditionOperator = ref<'equals' | 'not_equals' | 'greater_than' | 'less_than'>('equals')
+const conditionValue = ref('true')
 function submitVariable() {
   createLogicVariable(newVariableName.value, newVariableValue.value)
   newVariableName.value = ''
@@ -367,14 +370,33 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <label class="field">Ação
               <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
-            <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir has_key = true</label>
+            <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir condição baseada em variável</label>
+            <template v-if="ruleConditionEnabled">
+              <label class="field">Variável
+                <select v-model="conditionVariable">
+                  <option v-for="(value, name) in logicVariables" :key="name" :value="String(name)">{{ name }} ({{ String(value) }})</option>
+                </select>
+              </label>
+              <label class="field">Comparação
+                <select v-model="conditionOperator">
+                  <option value="equals">É igual a</option>
+                  <option value="not_equals">É diferente de</option>
+                  <option value="greater_than">É maior que</option>
+                  <option value="less_than">É menor que</option>
+                </select>
+              </label>
+              <label class="field">Valor esperado
+                <input v-model="conditionValue" placeholder="true, false, 10 ou texto" />
+              </label>
+              <p class="muted">A ação só será executada se a variável escolhida atender à comparação.</p>
+            </template>
             <template v-if="ruleAction === 'javascript'">
               <label class="field">Código JavaScript
                 <textarea v-model="sidebarScriptDraft" class="script-editor" spellcheck="false" rows="8" placeholder="// Cole seu código JavaScript aqui"></textarea>
               </label>
               <p class="muted">O código será salvo na ação da nova regra e executado quando o gatilho e as condições forem satisfeitos.</p>
             </template>
-            <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined)">+ Adicionar regra ao objeto selecionado</button>
+            <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined, ruleConditionEnabled ? { type: 'variable', name: conditionVariable, operator: conditionOperator, value: ruleValueFromInput(conditionValue) } : undefined)">+ Adicionar regra ao objeto selecionado</button>
             <div v-if="logicRules.length" class="rule-list">
               <div v-for="rule in logicRules" :key="rule.id" class="rule-item">
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
