@@ -41,7 +41,22 @@ fn write_project_file(dir: String, rel: String, contents: String) -> Result<(), 
     tmp_name.push(".tmp");
     let tmp = PathBuf::from(tmp_name);
     fs::write(&tmp, contents).map_err(|e| format!("Não foi possível gravar {rel}: {e}"))?;
-    fs::rename(&tmp, &target).map_err(|e| format!("Não foi possível finalizar {rel}: {e}"))
+
+    // No Windows, rename não substitui um destino existente. Isso fazia o segundo
+    // salvamento falhar para project.json, cenas e logic/events.json.
+    match fs::rename(&tmp, &target) {
+        Ok(()) => Ok(()),
+        Err(first_error) if target.exists() => {
+            fs::remove_file(&target)
+                .map_err(|e| format!("Não foi possível substituir {rel}: {e}"))?;
+            fs::rename(&tmp, &target)
+                .map_err(|e| format!("Não foi possível finalizar {rel}: {e}"))
+        }
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(format!("Não foi possível finalizar {rel}: {e}"))
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
