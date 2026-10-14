@@ -101,14 +101,30 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 }))
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
-  // Centro do conector dourado em cada linha do painel de eventos.
+  // Centro de cada porta do painel de eventos.
   const eventY = 117 + index * 58
-  // Os conectores laterais ficam centralizados no rodapé dos blocos.
+  // Portas laterais no rodapé dos nós de condição/ação.
   const conditionPortY = layout.condition.y + 119
   const actionPortY = layout.action.y + 119
+  // Cada conexão amarela ganha sua própria faixa vertical para evitar
+  // que as curvas se amontoem no mesmo corredor.
+  const routeX = 320 + index * 22
+  const conditionInX = layout.condition.x + 1
+  const conditionOutX = layout.condition.x + 232
+  const actionInX = layout.action.x + 1
+  const yellowPath = [
+    `M ${299} ${eventY}`,
+    `C ${routeX - 16} ${eventY}, ${routeX} ${eventY}, ${routeX} ${eventY}`,
+    `L ${routeX} ${conditionPortY}`,
+    `C ${routeX} ${conditionPortY}, ${conditionInX - 24} ${conditionPortY}, ${conditionInX} ${conditionPortY}`,
+  ].join(' ')
+  const redPath = [
+    `M ${conditionOutX} ${conditionPortY}`,
+    `C ${conditionOutX + 28} ${conditionPortY}, ${actionInX - 28} ${actionPortY}, ${actionInX} ${actionPortY}`,
+  ].join(' ')
   return [
-    { id: rule.id + '-a', kind: 'trigger-condition', x1: 299, y1: eventY, x2: layout.condition.x + 1, y2: conditionPortY },
-    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: conditionPortY, x2: layout.action.x + 1, y2: actionPortY },
+    { id: rule.id + '-a', kind: 'trigger-condition', d: yellowPath },
+    { id: rule.id + '-b', kind: 'condition-action', d: redPath },
   ]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
@@ -731,7 +747,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
-            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 70} ${edge.y1}, ${edge.x2 - 70} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
+            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="edge.d" /></svg>
             <article class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
               <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ graphVisibleRules.length }}</span></div>
               <button v-for="(rule, index) in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
