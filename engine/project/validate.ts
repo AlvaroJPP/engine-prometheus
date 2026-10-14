@@ -186,6 +186,9 @@ export function parseScene(text: string, label = 'cena'): SceneFile {
       scale,
       visible: item.visible !== false,
       color,
+      locked: item.locked === true,
+      wireframeVisible: item.wireframeVisible !== false,
+      groupId: typeof item.groupId === 'string' && item.groupId.trim() !== '' ? item.groupId : null,
     })
   }
 
