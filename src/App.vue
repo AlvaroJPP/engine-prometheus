@@ -180,7 +180,8 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
 const inspectorMode = computed(() => selected.value ? 'object' : selectedId.value === TERRAIN_ID ? 'terrain' : 'environment')
 const selectedObjectRules = computed(() => logicRules.value.filter(rule =>
-  (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
+  (rule.trigger.type === 'object_clicked' &&
+    (rule.trigger.objectId === selectedId.value || rule.trigger.objectIds?.includes(selectedId.value ?? ''))) ||
   rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
 ))
 function openObjectRule(rule: LogicRule) {
