@@ -168,8 +168,17 @@ export class Engine {
     return this.orbit.preset
   }
 
+  setFirstPersonMode(enabled: boolean): void {
+    this.orbit.setFirstPersonMode(enabled)
+    this.avatar.setFirstPersonMode(enabled)
+    if (!enabled) this.orbit.update()
+    this.events.emit('cameraChanged', { preset: this.orbit.preset })
+  }
+
   cycleCameraPreset(): CameraPreset {
     const next = PRESET_ORDER[(PRESET_ORDER.indexOf(this.orbit.preset) + 1) % PRESET_ORDER.length] ?? 'free'
+    this.orbit.setFirstPersonMode(false)
+    this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset(next)
     this.events.emit('cameraChanged', { preset: next })
     return next
@@ -268,6 +277,8 @@ export class Engine {
   newProject(name = 'Novo Mundo'): void {
     resetIds()
     this.meta = { id: uuid(), name }
+    this.orbit.setFirstPersonMode(false)
+    this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
