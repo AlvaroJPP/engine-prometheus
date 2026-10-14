@@ -239,7 +239,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
-  function addLogicRule() {
+  function addLogicRule(scriptCode?: string) {
     if (!engine) return
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
@@ -254,7 +254,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         : ruleAction.value === 'set_visible'
           ? { type: 'set_visible', objectId: target, visible: false }
           : ruleAction.value === 'javascript'
-            ? { type: 'javascript', code: "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
+            ? { type: 'javascript', code: scriptCode?.trim() || "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
               : { type: 'set_variable', name: 'has_key', value: true }
