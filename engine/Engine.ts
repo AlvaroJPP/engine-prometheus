@@ -15,7 +15,7 @@ import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
-import type { LogicEventsFile, LogicRule } from './script/types'
+import type { LogicRule } from './script/types'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
 
@@ -55,7 +55,7 @@ export class Engine {
       this.transformControls.enabled = tool === 'select'
     })
     this.events.on('objectChanged', ({ id }) => {
-      if (this.world.getSelectedId() === id) this.transformControls.updateMatrixWorld()
+      if (this.world.getSelectedId() === id) this.transformControls.getHelper().updateMatrixWorld()
     })
     this.viewport.start((dt) => {
       this.input.update(dt)
