@@ -32,6 +32,7 @@ export class Engine {
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
+  private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
@@ -43,11 +44,50 @@ export class Engine {
     this.transformControls.setSpace('world')
     this.transformControls.addEventListener('objectChange', () => {
       const id = this.world.getSelectedId()
-      if (id) this.world.notifyChanged(id)
+      const selected = id ? this.world.get(id) : undefined
+      if (!id || !selected) return
+      const mesh = selected.mesh
+      const current = {
+        position: [mesh.position.x, mesh.position.y, mesh.position.z] as [number, number, number],
+        rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z] as [number, number, number],
+        scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] as [number, number, number],
+      }
+      const previous = this.groupTransformSnapshot
+      if (previous && typeof mesh.userData.groupId === 'string') {
+        const groupId = mesh.userData.groupId as string
+        const dx = current.position[0] - previous.position[0]
+        const dy = current.position[1] - previous.position[1]
+        const dz = current.position[2] - previous.position[2]
+        const drx = current.rotation[0] - previous.rotation[0]
+        const dry = current.rotation[1] - previous.rotation[1]
+        const drz = current.rotation[2] - previous.rotation[2]
+        const ratios = current.scale.map((v, i) => previous.scale[i] === 0 ? 1 : v / previous.scale[i]) as [number, number, number]
+        const pivot = new (mesh.position.constructor as typeof import('three').Vector3)(previous.position[0], previous.position[1], previous.position[2])
+        const deltaRotation = new (mesh.rotation.constructor as typeof import('three').Euler)(drx, dry, drz, mesh.rotation.order)
+        const rotationMatrix = new (mesh.matrix.constructor as typeof import('three').Matrix4)().makeRotationFromEuler(deltaRotation)
+        for (const sibling of this.world.list()) {
+          if (sibling.id === id || sibling.mesh.userData.groupId !== groupId || sibling.mesh.userData.locked === true) continue
+          const other = sibling.mesh
+          other.position.sub(pivot)
+          other.position.applyMatrix4(rotationMatrix)
+          other.position.add(pivot)
+          other.position.x += dx; other.position.y += dy; other.position.z += dz
+          other.rotation.x += drx; other.rotation.y += dry; other.rotation.z += drz
+          other.scale.x *= ratios[0]; other.scale.y *= ratios[1]; other.scale.z *= ratios[2]
+          this.world.notifyChanged(sibling.id)
+        }
+      }
+      this.groupTransformSnapshot = current
+      this.world.notifyChanged(id)
     })
     this.transformControls.addEventListener('dragging-changed', (event) => {
       // O PointerController consulta este estado para não competir com o gizmo.
-      if (event.value) this.state.tool = 'select'
+      if (event.value) {
+        this.state.tool = 'select'
+        const id = this.world.getSelectedId()
+        const mesh = id ? this.world.get(id)?.mesh : undefined
+        this.groupTransformSnapshot = mesh ? { position: [mesh.position.x, mesh.position.y, mesh.position.z], rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z], scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] } : null
+      } else this.groupTransformSnapshot = null
     })
     this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging)
     this.events.on('selectionChanged', ({ id }) => {
@@ -174,6 +214,17 @@ export class Engine {
       if (object.mesh.userData.locked === true) this.transformControls.detach()
       else this.transformControls.attach(object.mesh)
     }
+  }
+
+  groupObjects(ids: string[]): void {
+    const unique = [...new Set(ids)].filter(id => this.world.get(id))
+    if (unique.length < 2) return
+    const groupId = uuid()
+    for (const id of unique) this.world.update(id, { groupId })
+  }
+
+  ungroupObjects(ids: string[]): void {
+    for (const id of ids) if (this.world.get(id)) this.world.update(id, { groupId: null })
   }
 
   toggleObjectWireframe(id: string): void {
