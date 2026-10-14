@@ -8,6 +8,10 @@ export interface EngineEvents {
   /** posição, rotação, escala, cor ou visibilidade mudaram */
   objectChanged: { id: string }
   objectClicked: { id: string }
+  /** Dois objetos começaram a se sobrepor no sistema de colisão. */
+  collisionStarted: { a: string; b: string }
+  /** Dois objetos deixaram de se sobrepor no sistema de colisão. */
+  collisionEnded: { a: string; b: string }
   selectionChanged: { id: string | null }
   terrainChanged: { edits: number }
   worldReset: { count: number }
