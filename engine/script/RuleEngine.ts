@@ -108,13 +108,9 @@ export class RuleEngine {
   }
 
   triggerObjectClicked(objectId: string): void {
-    // Cada clique alterna a variável booleana local antes de avaliar os eventos.
-    // Se ainda não existir, o primeiro clique cria click=true.
-    const clickValue = this.getVariable('click', objectId)
-    this.setVariable('click', clickValue === true ? false : true, objectId)
-
-    // Avalia todas as condições usando o mesmo estado inicial do clique.
-    // Assim, ações de um evento não alteram as condições dos eventos seguintes.
+    // Primeiro determina quais eventos correspondem ao estado atual das variáveis.
+    // A execução de um script não pode alterar a condição de um evento seguinte
+    // durante o mesmo clique.
     const matchingRules = this.rulesInHierarchyOrder().filter((rule) =>
       rule.enabled &&
       rule.ownerObjectId === objectId &&
@@ -123,8 +119,7 @@ export class RuleEngine {
       this.conditionsMatch(rule, objectId)
     )
 
-    // Executa na ordem configurada; se vários eventos verdadeiros mudarem a cor,
-    // prevalece a ação do último evento correspondente.
+    // Executa somente os eventos elegíveis, na ordem configurada.
     for (const rule of matchingRules) this.run(rule, objectId, true)
   }
 
