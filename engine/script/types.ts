@@ -10,6 +10,7 @@ export type RuleAction =
   | { type: 'set_visible'; objectId: string; visible: boolean }
   | { type: 'set_variable'; name: string; value: boolean | number | string }
   | { type: 'script'; code: string }
+  | { type: 'javascript'; code: string }
 
 export interface LogicRule {
   id: string
