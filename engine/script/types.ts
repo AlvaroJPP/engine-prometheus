@@ -9,6 +9,7 @@ export type RuleAction =
   | { type: 'rotate'; objectId: string; degrees: number }
   | { type: 'set_visible'; objectId: string; visible: boolean }
   | { type: 'set_variable'; name: string; value: boolean | number | string }
+  | { type: 'script'; code: string }
 
 export interface LogicRule {
   id: string
