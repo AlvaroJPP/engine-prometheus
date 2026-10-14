@@ -108,14 +108,24 @@ export class RuleEngine {
   }
 
   triggerObjectClicked(objectId: string): void {
-    // Cada evento do objeto é independente. A ordenação global segue a Hierarquia,
-    // preservando a ordem em que eventos do mesmo objeto foram configurados.
-    for (const rule of this.rulesInHierarchyOrder()) {
-      if (rule.enabled && rule.ownerObjectId === objectId && rule.trigger.type === 'object_clicked' &&
-        rule.trigger.objectId === objectId) {
-        this.run(rule, objectId)
-      }
-    }
+    // Cada clique alterna a variável booleana local antes de avaliar os eventos.
+    // Se ainda não existir, o primeiro clique cria click=true.
+    const clickValue = this.getVariable('click', objectId)
+    this.setVariable('click', clickValue === true ? false : true, objectId)
+
+    // Avalia todas as condições usando o mesmo estado inicial do clique.
+    // Assim, ações de um evento não alteram as condições dos eventos seguintes.
+    const matchingRules = this.rulesInHierarchyOrder().filter((rule) =>
+      rule.enabled &&
+      rule.ownerObjectId === objectId &&
+      rule.trigger.type === 'object_clicked' &&
+      rule.trigger.objectId === objectId &&
+      this.conditionsMatch(rule, objectId)
+    )
+
+    // Executa na ordem configurada; se vários eventos verdadeiros mudarem a cor,
+    // prevalece a ação do último evento correspondente.
+    for (const rule of matchingRules) this.run(rule, objectId, true)
   }
 
   update(): void {
@@ -134,15 +144,13 @@ export class RuleEngine {
     }
   }
 
-  private run(rule: LogicRule, eventObjectId?: string): boolean {
-    const scopeId = rule.ownerObjectId ?? eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
-    if (!rule.conditions.every((c) => {
+  private conditionsMatch(rule: LogicRule, scopeId?: string): boolean {
+    return rule.conditions.every((c) => {
       const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
       const hasScoped = !!scoped && Object.prototype.hasOwnProperty.call(scoped, c.name)
       if (!hasScoped && !Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
       const actual = hasScoped ? scoped![c.name]! : this.data.variables[c.name]!
-      // Valores vindos de projetos antigos ou campos de texto podem chegar como
-      // "false"/"true"/"10". Normalize-os para comparar com o tipo real da variável.
+      // Normalize valores antigos/campos de texto antes de comparar.
       const expected = normalizeConditionValue(c.value, actual)
       switch (c.operator) {
         case 'not_equals': return actual !== expected
@@ -151,7 +159,12 @@ export class RuleEngine {
         case 'equals':
         default: return actual === expected
       }
-    })) return false
+    })
+  }
+
+  private run(rule: LogicRule, eventObjectId?: string, conditionsAlreadyChecked = false): boolean {
+    const scopeId = rule.ownerObjectId ?? eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
+    if (!conditionsAlreadyChecked && !this.conditionsMatch(rule, scopeId)) return false
     const sourceObjectId = rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined
     for (const action of rule.actions) this.apply(action, eventObjectId, sourceObjectId)
     return true
