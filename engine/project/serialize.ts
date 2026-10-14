@@ -26,6 +26,9 @@ export function buildBundle(
       rotation: [m.rotation.x, m.rotation.y, m.rotation.z],
       scale: [m.scale.x, m.scale.y, m.scale.z],
       visible: m.visible,
+      locked: m.userData.locked === true,
+      wireframeVisible: m.userData.wireframeVisible !== false,
+      groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
       color: (m.material as THREE.MeshStandardMaterial).color.getHex(),
     }
   })
@@ -71,5 +74,8 @@ export function objectFromData(d: SceneObjectData): GameObject {
     rotation: d.rotation,
     scale: d.scale,
     visible: d.visible,
+    locked: d.locked ?? false,
+    wireframeVisible: d.wireframeVisible ?? true,
+    groupId: d.groupId ?? null,
   })
 }
