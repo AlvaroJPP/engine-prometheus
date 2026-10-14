@@ -371,8 +371,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       say('Por enquanto, só é possível importar eventos de clique em objetos.')
       return
     }
+    // logicRules vem de um estado reativo do Vue: sourceRule pode ser um Proxy,
+    // e structuredClone(proxy) lança DataCloneError em navegadores. Converta a regra
+    // para dados JSON simples antes de copiá-la para o motor.
+    const source = JSON.parse(JSON.stringify(sourceRule)) as LogicRule
     const targetId = selectedId.value
-    const sourceId = sourceRule.trigger.objectId
+    const sourceId = source.trigger.type === 'object_clicked' ? source.trigger.objectId : ''
+    if (!sourceId) {
+      say('O evento selecionado não possui um objeto de origem válido.')
+      return
+    }
+
     // Copia apenas valores iniciais que ainda não existem no destino; depois cada
     // objeto altera suas próprias variáveis sem afetar o objeto de origem.
     const sourceVariables = engine.logicVariables(sourceId)
@@ -383,13 +392,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       }
     }
     const imported: LogicRule = {
-      ...structuredClone(sourceRule),
+      ...source,
       id: `rule-${Date.now().toString(36)}-import`,
-      name: `${sourceRule.name} (importado)`,
+      name: `${source.name} (importado)`,
       enabled: true,
       trigger: { type: 'object_clicked', objectId: targetId },
-      conditions: structuredClone(sourceRule.conditions),
-      actions: sourceRule.actions.map(action => {
+      conditions: source.conditions.map(condition => ({ ...condition })),
+      actions: source.actions.map(action => {
         if ('objectId' in action && action.objectId === sourceId) {
           return { ...action, objectId: targetId }
         }
@@ -401,7 +410,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine.upsertRule(imported)
     refresh()
     dirty.value = true
-    say(`Evento "${sourceRule.name}" importado para este objeto como uma cópia independente.`)
+    say(`Evento "${source.name}" importado para este objeto como uma cópia independente.`)
     return imported.id
   }
 
