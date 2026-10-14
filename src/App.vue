@@ -102,8 +102,8 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
   return [
-    { id: rule.id + '-a', x1: layout.trigger.x + 300, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 },
-    { id: rule.id + '-b', x1: layout.condition.x + 300, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 },
+    { id: rule.id + '-a', kind: 'trigger-condition', x1: layout.trigger.x + 232, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 },
+    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 },
   ]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
@@ -699,7 +699,24 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     <div v-if="graphOpen" class="graph-overlay">
       <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="selected">Objeto selecionado</option><option value="all">Todos os objetos</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
-        <aside class="graph-library"><div class="eyebrow">BIBLIOTECA</div><h3>Nós disponíveis</h3><p>Crie um fluxo pelo painel Motor de regras e ele aparecerá aqui como nós conectados.</p><div class="node-legend trigger">● Evento</div><div class="node-legend condition">◆ Condição</div><div class="node-legend action">▶ Ação</div><div class="graph-tip">Cada evento aparece em sua própria linha. As conexões seguem da esquerda para a direita: evento, condição e ação.</div></aside>
+        <aside class="graph-library property-source">
+          <div class="eyebrow">OBJETO SELECIONADO</div>
+          <h3>PROPRIEDADE</h3>
+          <div class="property-event-list">
+            <div class="property-event active"><span class="event-icon">↖</span><span>Ao Clicar</span><i></i></div>
+            <div class="property-event muted"><span class="event-icon">⌁</span><span>Ao Pressionar</span></div>
+            <div class="property-event muted"><span class="event-icon">⌖</span><span>Ao Passar o Mouse</span></div>
+            <div class="property-event muted"><span class="event-icon">▶</span><span>Iniciar</span></div>
+            <div class="property-event muted"><span class="event-icon">↻</span><span>Ao Alterar</span></div>
+          </div>
+          <div class="property-character" aria-hidden="true">
+            <div class="character-shadow"></div><div class="character-head"><span class="character-hair"></span><span class="character-face"></span></div>
+            <div class="character-body"></div><div class="character-arm left-arm"></div><div class="character-arm right-arm"></div>
+            <div class="character-leg left-leg"></div><div class="character-leg right-leg"></div><div class="character-shoe left-shoe"></div><div class="character-shoe right-shoe"></div>
+          </div>
+          <div class="property-object-name">{{ selected?.name ?? 'Objeto da cena' }}</div>
+          <div class="graph-tip">O evento inicia o fluxo. Conecte-o a requisitos e ações para definir o comportamento do objeto.</div>
+        </aside>
         <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
             <button title="Aproximar" aria-label="Aproximar" @click="zoomGraph(0.15)">＋</button>
@@ -709,7 +726,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
-            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 70} ${edge.y1}, ${edge.x2 - 70} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
+            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 70} ${edge.y1}, ${edge.x2 - 70} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
             <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'trigger' ? 'EVENTO' : node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
           </div>
         </div>
@@ -1593,4 +1610,47 @@ input[type='range'] { accent-color: #e98524; }
 .variable-create .variable-initial-value input,
 .variable-create .variable-initial-value select { display:block; width:100%; box-sizing:border-box; margin-top:4px; }
 .variable-create > button { min-width:0; white-space:normal; line-height:1.4; }
+</style>
+
+<style>
+
+/* Visual Script: propriedade à esquerda, requisitos e ações com conexões coloridas. */
+.graph-library.property-source { padding:16px 12px; display:flex; flex-direction:column; background:#20232c; }
+.property-source h3 { margin:7px 0 14px!important; font-size:14px!important; letter-spacing:.11em; color:#f0f1f5; }
+.property-event-list { display:flex; flex-direction:column; gap:7px; }
+.property-event { min-height:38px; display:flex; align-items:center; gap:9px; padding:0 9px; border:1px solid #353a48; border-radius:5px; background:#292d37; color:#b4bac7; font-size:11px; }
+.property-event .event-icon { width:20px; text-align:center; font-size:15px; }
+.property-event.active { border-color:#f3c34e; box-shadow:0 0 0 1px #f3c34e,0 0 13px #f3c34e25; color:#fff2c5; background:#393426; }
+.property-event.active i { margin-left:auto; width:6px; height:6px; border-radius:50%; background:#f3c34e; box-shadow:0 0 8px #f3c34e; }
+.property-event.muted { opacity:.48; }
+.property-character { height:178px; position:relative; margin:20px 0 5px; overflow:hidden; border-radius:7px; background:radial-gradient(ellipse at 50% 70%,#363e50 0, #252a34 50%,#20232c 78%); }
+.character-shadow { position:absolute; bottom:14px; left:50%; width:85px; height:15px; transform:translateX(-50%); border-radius:50%; background:#11151c; }
+.character-head { position:absolute; z-index:3; left:calc(50% - 20px); top:22px; width:40px; height:45px; border-radius:45% 45% 43% 43%; background:#dca77c; box-shadow:inset -6px -2px #bd805b; }
+.character-hair { position:absolute; left:-2px; top:-5px; width:43px; height:20px; border-radius:55% 45% 20% 20%; background:#68432e; box-shadow:inset 0 -4px #4a3024; }
+.character-face { position:absolute; left:9px; top:23px; width:4px; height:4px; border-radius:50%; background:#392b25; box-shadow:16px 0 #392b25,7px 10px 0 -1px #9a5147; }
+.character-body { position:absolute; z-index:2; left:calc(50% - 25px); top:65px; width:50px; height:55px; border-radius:12px 12px 7px 7px; background:linear-gradient(90deg,#245b9d,#377fc4 55%,#1f548e); }
+.character-arm { position:absolute; z-index:1; top:69px; width:14px; height:48px; border-radius:8px; background:#dca77c; }
+.left-arm { left:calc(50% - 34px); transform:rotate(12deg); }.right-arm { left:calc(50% + 20px); transform:rotate(-12deg); }
+.character-leg { position:absolute; z-index:1; top:113px; width:18px; height:43px; border-radius:4px 4px 7px 7px; background:linear-gradient(90deg,#24476f,#4775a5); }
+.left-leg { left:calc(50% - 20px); }.right-leg { left:calc(50% + 2px); }
+.character-shoe { position:absolute; z-index:2; bottom:12px; width:22px; height:9px; border-radius:5px 7px 3px 3px; background:#d9dce2; }
+.left-shoe { left:calc(50% - 23px); }.right-shoe { left:calc(50% + 1px); }
+.property-object-name { text-align:center; color:#dce1eb; font-size:11px; font-weight:600; }
+.property-source .graph-tip { margin-top:auto; padding-top:13px; }
+.graph-node { width:232px; min-height:130px; border-radius:7px; background:#252934; border:1px solid #414756; overflow:visible; }
+.graph-node.trigger { border:1px solid #f1bd45; box-shadow:0 0 0 1px #f1bd4544,0 5px 18px #0005; }
+.graph-node.condition { border:1px solid #9a6cf0; box-shadow:0 0 0 1px #9a6cf055,0 5px 18px #0005; }
+.graph-node.action { border:1px solid #e86659; box-shadow:0 0 0 1px #e8665944,0 5px 18px #0005; }
+.graph-node.condition .node-head { color:#d7c4ff; background:#30283f; }
+.graph-node.action .node-head { color:#ffb4a9; background:#3d292d; }
+.graph-node.trigger .node-head { color:#ffe39a; background:#3a3323; }
+.graph-node .node-port { width:11px; height:11px; border-width:2px; background:#f3c34e; border-color:#252934; box-shadow:0 0 7px currentColor; }
+.graph-node.condition .node-port { background:#a27aff; }
+.graph-node.action .node-port { background:#f07868; }
+.graph-wires path { stroke-width:3; filter:drop-shadow(0 0 3px currentColor); }
+.graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
+.graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
+.graph-node .node-foot { color:#c1c6d1; }
+@media(max-width:800px) { .property-character { height:130px; } }
+
 </style>
