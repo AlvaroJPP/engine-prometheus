@@ -372,7 +372,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
               : { type: 'set_variable', name: 'has_key', value: true }
-    const rule: LogicRule = { id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
+    const rule: LogicRule = { ownerObjectId: target, id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
     dirty.value = true
@@ -430,6 +430,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
     const imported: LogicRule = {
       ...source,
+      ownerObjectId: targetId,
       id: createUniqueRuleId(),
       name: source.name,
       enabled: true,
