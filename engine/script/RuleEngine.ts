@@ -9,6 +9,7 @@ type ScriptApi = {
   set: (name: string, value: boolean | number | string) => void
   add: (name: string, amount: number) => void
   toggle: (name: string) => void
+  global: { get: (name: string) => boolean | number | string | undefined; set: (name: string, value: boolean | number | string) => void; add: (name: string, amount: number) => void; toggle: (name: string) => void }
   move: (objectId: string, x: number, y: number, z: number) => void
   rotate: (objectId: string, degrees: number) => void
   setVisible: (objectId: string, visible: boolean) => void
@@ -160,6 +161,12 @@ export class RuleEngine {
     const api = {
       get: (name: string) => getScoped(name),
       set: (name: string, value: boolean | number | string) => this.setVariable(name, value, scopeId),
+      global: {
+        get: (name: string) => this.data.variables[name],
+        set: (name: string, value: boolean | number | string) => this.setVariable(name, value),
+        add: (name: string, amount: number) => { const current = this.data.variables[name]; if (typeof current !== 'number') throw new Error(`A variável global "${name}" precisa ser numérica.`); this.setVariable(name, current + amount) },
+        toggle: (name: string) => { const current = this.data.variables[name]; if (typeof current !== 'boolean') throw new Error(`A variável global "${name}" precisa ser booleana.`); this.setVariable(name, !current) },
+      },
       add: (name: string, amount: number) => { const current = getScoped(name); if (typeof current !== 'number') throw new Error(`A variável "${name}" precisa ser numérica.`); this.setVariable(name, current + amount, scopeId) },
       toggle: (name: string) => { const current = getScoped(name); if (typeof current !== 'boolean') throw new Error(`A variável "${name}" precisa ser booleana.`); this.setVariable(name, !current, scopeId) },
       move: (objectId: string, x: number, y: number, z: number) => this.apply({ type: 'move', objectId, x, y, z }),
@@ -185,7 +192,7 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'set_variable': this.setVariable(action.name, action.value, action.objectId ?? eventObjectId); break
+      case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
