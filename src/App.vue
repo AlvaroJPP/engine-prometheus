@@ -79,19 +79,21 @@ const graphVisibleRules = computed(() => {
   )
 })
 function defaultGraphLayout(index: number) {
-  const top = 70 + index * 400
+  const top = 70 + index * 250
   return {
-    trigger: { x: 340, y: top },
-    condition: { x: 340, y: top + 140 },
-    action: { x: 340, y: top + 280 },
+    trigger: { x: 70, y: top },
+    condition: { x: 430, y: top },
+    action: { x: 790, y: top },
   }
 }
 function layoutForGraph(rule: LogicRule, index: number) {
   const saved = rule.graphLayout
-  const isVerticalLayout = !!saved &&
-    saved.trigger.y < saved.condition.y &&
-    saved.condition.y < saved.action.y
-  return isVerticalLayout ? saved! : defaultGraphLayout(index)
+  const isHorizontalLayout = !!saved &&
+    saved.trigger.x < saved.condition.x &&
+    saved.condition.x < saved.action.x &&
+    Math.abs(saved.trigger.y - saved.condition.y) < 100 &&
+    Math.abs(saved.condition.y - saved.action.y) < 100
+  return isHorizontalLayout ? saved! : defaultGraphLayout(index)
 }
 const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
@@ -100,8 +102,8 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
   return [
-    { id: rule.id + '-a', x1: layout.trigger.x + 110, y1: layout.trigger.y + 120, x2: layout.condition.x + 110, y2: layout.condition.y },
-    { id: rule.id + '-b', x1: layout.condition.x + 110, y1: layout.condition.y + 120, x2: layout.action.x + 110, y2: layout.action.y },
+    { id: rule.id + '-a', x1: layout.trigger.x + 300, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 },
+    { id: rule.id + '-b', x1: layout.condition.x + 300, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 },
   ]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
@@ -695,9 +697,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <span class="dock-state"><i :class="executionMode"></i>{{ executionMode === 'running' ? 'EM EXECUÇÃO' : executionMode === 'stopped' ? 'INTERROMPIDO' : 'MODO DE EDIÇÃO' }}</span>
     </footer>
     <div v-if="graphOpen" class="graph-overlay">
-      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Fluxos separados por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="selected">Objeto selecionado</option><option value="all">Todos os objetos</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
+      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="selected">Objeto selecionado</option><option value="all">Todos os objetos</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
-        <aside class="graph-library"><div class="eyebrow">BIBLIOTECA</div><h3>Nós disponíveis</h3><p>Crie um fluxo pelo painel Motor de regras e ele aparecerá aqui como nós conectados.</p><div class="node-legend trigger">● Evento</div><div class="node-legend condition">◆ Condição</div><div class="node-legend action">▶ Ação</div><div class="graph-tip">Cada fluxo é uma sequência vertical: evento, condição e ação. Arraste os nós para ajustar a posição.</div></aside>
+        <aside class="graph-library"><div class="eyebrow">BIBLIOTECA</div><h3>Nós disponíveis</h3><p>Crie um fluxo pelo painel Motor de regras e ele aparecerá aqui como nós conectados.</p><div class="node-legend trigger">● Evento</div><div class="node-legend condition">◆ Condição</div><div class="node-legend action">▶ Ação</div><div class="graph-tip">Cada evento aparece em sua própria linha. As conexões seguem da esquerda para a direita: evento, condição e ação.</div></aside>
         <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
             <button title="Aproximar" aria-label="Aproximar" @click="zoomGraph(0.15)">＋</button>
@@ -707,7 +709,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
-            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1} ${edge.y1 + 32}, ${edge.x2} ${edge.y2 - 32}, ${edge.x2} ${edge.y2}`" /></svg>
+            <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 70} ${edge.y1}, ${edge.x2 - 70} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
             <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'trigger' ? 'EVENTO' : node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
           </div>
         </div>
@@ -1021,7 +1023,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .graph-title-group { display:flex; align-items:center; gap:14px; min-width:0; }
 .graph-object-filter { display:flex; align-items:center; gap:6px; color:#9aa4b7; font-size:11px; }
 .graph-object-filter select { max-width:180px; border:1px solid #414958; border-radius:4px; padding:5px 7px; background:#222833; color:#e1e5ed; font-size:11px; }
-.graph-node { left:340px; width:300px; min-height:120px; }
+.graph-node { width:300px; min-height:120px; }
 .graph-node .node-title { font-size:13px; }
 .graph-node .node-foot { justify-content:center; }
 .graph-top strong { letter-spacing:.12em; font-size:13px; } .graph-subtitle { margin-left:16px; color:#8e98aa; font-size:12px; } .graph-actions { display:flex; gap:8px; }
