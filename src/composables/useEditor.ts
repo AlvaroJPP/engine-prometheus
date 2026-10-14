@@ -50,7 +50,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const logicRules = ref<LogicRule[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area'>('object_clicked')
-  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable'>('rotate')
+  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
   const ruleConditionEnabled = ref(true)
 
   let engine: Engine | null = null
@@ -250,7 +250,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         ? { type: 'move', objectId: target, x: 2 }
         : ruleAction.value === 'set_visible'
           ? { type: 'set_visible', objectId: target, visible: false }
-          : { type: 'set_variable', name: 'has_key', value: true }
+          : ruleAction.value === 'javascript'
+            ? { type: 'javascript', code: "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
+            : ruleAction.value === 'script'
+              ? { type: 'script', code: 'set has_key = true' }
+              : { type: 'set_variable', name: 'has_key', value: true }
     const rule: LogicRule = { id, name: `Regra ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
