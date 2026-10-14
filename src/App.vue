@@ -337,7 +337,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
             </label>
             <label class="field">Ação
-              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option></select>
+              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir has_key = true</label>
             <button class="ghost full" @click="addLogicRule">+ Adicionar regra ao objeto selecionado</button>
