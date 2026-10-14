@@ -90,11 +90,16 @@ export class World {
     if (ok(patch.x)) m.position.x = clamp(patch.x, -50, 50)
     if (ok(patch.y)) m.position.y = clamp(patch.y, -50, 100)
     if (ok(patch.z)) m.position.z = clamp(patch.z, -50, 50)
+    if (ok(patch.rotationX)) m.rotation.x = (patch.rotationX * Math.PI) / 180
     if (ok(patch.rotationY)) m.rotation.y = (patch.rotationY * Math.PI) / 180
+    if (ok(patch.rotationZ)) m.rotation.z = (patch.rotationZ * Math.PI) / 180
     if (ok(patch.scale)) {
       const s = clamp(patch.scale, 0.1, 20)
       m.scale.set(s, s, s)
     }
+    if (ok(patch.scaleX)) m.scale.x = clamp(patch.scaleX, 0.1, 20)
+    if (ok(patch.scaleY)) m.scale.y = clamp(patch.scaleY, 0.1, 20)
+    if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, 20)
     if (ok(patch.color)) (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
     if (patch.visible !== undefined) m.visible = patch.visible
     this.events.emit('objectChanged', { id })
@@ -152,8 +157,13 @@ export class World {
       x: o.mesh.position.x,
       y: o.mesh.position.y,
       z: o.mesh.position.z,
+      rotationX: (o.mesh.rotation.x * 180) / Math.PI,
       rotationY: (o.mesh.rotation.y * 180) / Math.PI,
+      rotationZ: (o.mesh.rotation.z * 180) / Math.PI,
       scale: o.mesh.scale.x,
+      scaleX: o.mesh.scale.x,
+      scaleY: o.mesh.scale.y,
+      scaleZ: o.mesh.scale.z,
       visible: o.mesh.visible,
       color: (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
