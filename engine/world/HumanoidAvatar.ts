@@ -349,6 +349,15 @@ export class HumanoidAvatar {
     this.playAnimation(state)
     this.mixer?.update(dt)
 
+    // Alguns clipes de corrida animam novamente os ossos da cabeça depois
+    // que o modo primeira pessoa os esconde. Reaplica a máscara após o mixer
+    // em todos os frames para impedir que a cabeça volte a aparecer ao correr.
+    if (this.firstPersonMode && this.firstPersonHiddenBones.size > 0) {
+      for (const bone of this.firstPersonHiddenBones.keys()) {
+        bone.scale.set(0, 0, 0)
+      }
+    }
+
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
     const hasStateClip = this.animationActions.has(state)
