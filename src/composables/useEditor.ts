@@ -282,7 +282,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   async function newProject() {
     const eng = engine
     if (!eng || !(await confirmDiscard(dirty.value))) return
-    eng.newProject()
+    applyingProjectSettings = true
+    try {
+      eng.newProject()
+      brushStrength.value = 1.5
+      brushRadius.value = 4
+      gridVisible.value = true
+    } finally {
+      applyingProjectSettings = false
+    }
     projectName.value = eng.projectName
     projectDir.value = null
     dirty.value = false
