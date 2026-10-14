@@ -160,7 +160,16 @@ export class HumanoidAvatar {
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
-    this.visualRoot.visible = !enabled
+    // Em primeira pessoa, mantém o corpo visível para que o jogador veja
+    // tronco, pernas e pés ao olhar para baixo, escondendo cabeça/cabelo
+    // para evitar que a câmera fique dentro dessas partes.
+    this.visualRoot.visible = true
+    this.visualRoot.traverse((child) => {
+      const partName = child.name.toLowerCase()
+      if (/head|hair|face|cabe[cç]a|cabelo|rosto/.test(partName)) {
+        child.visible = !enabled
+      }
+    })
     this.pressed.clear()
     if (enabled) {
       this.cameraTarget.x = this.mesh.position.x
