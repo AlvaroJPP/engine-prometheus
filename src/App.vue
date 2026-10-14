@@ -19,7 +19,7 @@ const {
   brushStrength,
   brushRadius,
   gridVisible,
-  logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
+  logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
   toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
   markDirty,
   setTool,
@@ -45,12 +45,13 @@ const {
 
 const newVariableName = ref('')
 const newVariableValue = ref('false')
+const newEventName = ref('')
 const sidebarScriptDraft = ref("// Cole seu JavaScript aqui\napi.set('has_key', true)")
 const conditionVariable = ref('has_key')
 const conditionOperator = ref<'equals' | 'not_equals' | 'greater_than' | 'less_than'>('equals')
 const conditionValue = ref('true')
-function submitVariable() {
-  createLogicVariable(newVariableName.value, newVariableValue.value)
+function submitVariable(scope: 'global' | 'object' = 'object') {
+  createLogicVariable(newVariableName.value, newVariableValue.value, scope)
   newVariableName.value = ''
 }
 
@@ -357,15 +358,24 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <section v-if="inspectorMode === 'object' && selected">
             <h4>Variáveis e eventos · {{ selected.name }}</h4>
             <p class="muted">Gatilhos, condições e ações são executados durante a edição e salvos em <span class="mono">logic/events.json</span>.</p>
-            <div class="component-caption">VARIÁVEIS DESTE OBJETO</div>
-            <div v-for="(value, name) in logicVariables" :key="name" class="variable-row">
-              <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value)" /></label>
-              <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name))">↻</button>
+            <div class="component-caption">VARIÁVEIS DESTE OBJETO · VALORES INDEPENDENTES</div>
+            <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row">
+              <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'object')" /></label>
+              <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name), 'object')">↻</button>
+            </div>
+            <p v-if="!Object.keys(logicVariables).length" class="muted">Nenhuma variável própria neste objeto.</p>
+            <div class="component-caption">VARIÁVEIS GLOBAIS REUTILIZÁVEIS</div>
+            <p class="muted">Adicione uma cópia ao objeto para que cada objeto mantenha seu próprio valor.</p>
+            <div v-for="(value, name) in globalLogicVariables" :key="'global-' + name" class="variable-row">
+              <label class="field">{{ name }} · global<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'global')" /></label>
+              <button class="ghost" title="Copiar para este objeto" :disabled="Object.prototype.hasOwnProperty.call(logicVariables, name)" @click="useGlobalVariableOnObject(String(name))">＋</button>
+              <button class="ghost" title="Alternar variável global" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name), 'global')">↻</button>
             </div>
             <div class="variable-create">
               <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
               <input v-model="newVariableValue" placeholder="valor inicial (false, 0, texto)" />
-              <button class="ghost full" @click="submitVariable">+ Criar variável neste objeto</button>
+              <button class="ghost" @click="submitVariable('object')">+ Variável do objeto</button>
+              <button class="ghost" @click="submitVariable('global')">+ Variável global</button>
             </div>
             <label class="field">Gatilho
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
@@ -399,7 +409,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               </label>
               <p class="muted">O código será salvo na ação da nova regra e executado quando o gatilho e as condições forem satisfeitos.</p>
             </template>
-            <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined, ruleConditionEnabled ? { type: 'variable', name: conditionVariable, operator: conditionOperator, value: ruleValueFromInput(conditionValue) } : undefined)">+ Adicionar regra ao objeto selecionado</button>
+            <label class="field">Nome do evento
+              <input v-model="newEventName" placeholder="Ex.: Clique para abrir porta" spellcheck="false" />
+            </label>
+            <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined, ruleConditionEnabled ? { type: 'variable', name: conditionVariable, operator: conditionOperator, value: ruleValueFromInput(conditionValue) } : undefined, newEventName); newEventName = ''">+ Adicionar evento ao objeto selecionado</button>
             <div v-if="logicRules.length" class="rule-list">
               <div v-for="rule in logicRules" :key="rule.id" class="rule-item">
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
