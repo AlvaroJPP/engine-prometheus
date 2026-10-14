@@ -36,6 +36,8 @@ const {
   cycleCamera,
   selectItem,
   toggleVisible,
+  toggleObjectLock,
+  toggleObjectWireframe,
   toggleTerrain,
   toggleGrid,
   removeSelected,
@@ -437,6 +439,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @select-item="selectItem"
         @toggle-terrain="toggleTerrain"
         @toggle-visible="toggleVisible"
+        @toggle-lock="toggleObjectLock"
+        @toggle-wireframe="toggleObjectWireframe"
       />
 
       <!-- Viewport -->
