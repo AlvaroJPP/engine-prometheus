@@ -78,6 +78,52 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : `Definir ${action.name} = ${String(action.value)}`
 }
 
+function patchSelectedAction(patch: Record<string, unknown>) {
+  const rule = selectedGraphRule.value
+  const action = rule?.actions[0]
+  if (!rule || !action) return
+  updateLogicRule({ ...rule, actions: [{ ...action, ...patch } as LogicRule['actions'][number], ...rule.actions.slice(1)] })
+}
+function patchSelectedTrigger(patch: Record<string, unknown>) {
+  const rule = selectedGraphRule.value
+  if (!rule) return
+  updateLogicRule({ ...rule, trigger: { ...rule.trigger, ...patch } as LogicRule['trigger'] })
+}
+function patchSelectedCondition(patch: Record<string, unknown>) {
+  const rule = selectedGraphRule.value
+  if (!rule) return
+  const current = rule.conditions[0] ?? { type: 'variable' as const, name: 'has_key', operator: 'equals' as const, value: true }
+  updateLogicRule({ ...rule, conditions: [{ ...current, ...patch } as LogicRule['conditions'][number], ...rule.conditions.slice(1)] })
+}
+function setSelectedTriggerType(type: 'object_clicked' | 'enter_area') {
+  const rule = selectedGraphRule.value
+  if (!rule) return
+  const trigger: LogicRule['trigger'] = type === 'object_clicked'
+    ? { type, objectId: objects.value.find(o => o.id === (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : ''))?.id ?? objects.value[0]?.id ?? '' }
+    : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
+  updateLogicRule({ ...rule, trigger })
+}
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable') {
+  const rule = selectedGraphRule.value
+  if (!rule) return
+  const old = rule.actions[0]
+  const target = old && 'objectId' in old ? old.objectId : selectedId.value ?? objects.value[0]?.id ?? ''
+  const action: LogicRule['actions'][number] = type === 'move'
+    ? { type, objectId: target, x: 2, y: 0, z: 0 }
+    : type === 'rotate'
+      ? { type, objectId: target, degrees: 45 }
+      : type === 'set_visible'
+        ? { type, objectId: target, visible: false }
+        : { type, name: 'has_key', value: true }
+  updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
+}
+function ruleValueFromInput(value: string): boolean | number | string {
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (value.trim() !== '' && Number.isFinite(Number(value))) return Number(value)
+  return value
+}
+
 const TOOLS: Array<{ id: ToolMode; icon: string; label: string }> = [
   { id: 'select', icon: '↖', label: 'Selecionar' },
   { id: 'build', icon: '◇', label: 'Construir' },
@@ -336,7 +382,95 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <svg class="graph-wires" width="1800" height="1200" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 65} ${edge.y1}, ${edge.x2 - 65} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
           <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'trigger' ? 'EVENTO' : node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
         </div>
-        <aside class="graph-inspector"><div class="eyebrow">INSPETOR DO NÓ</div><template v-if="selectedGraphRule && graphSelection"><h3>{{ graphSelection.part === 'trigger' ? 'Evento' : graphSelection.part === 'condition' ? 'Condição' : 'Ação' }}</h3><label class="field">Nome do fluxo<input :value="selectedGraphRule.name" @change="updateLogicRule({ ...selectedGraphRule, name: ($event.target as HTMLInputElement).value })" /></label><label class="checkline"><input type="checkbox" :checked="selectedGraphRule.enabled" @change="toggleLogicRule(selectedGraphRule)" /> Fluxo habilitado</label><p class="muted">{{ nodeTitle(selectedGraphRule, graphSelection.part) }}</p><button class="danger" @click="deleteLogicRule(selectedGraphRule.id); graphSelection = null">Excluir fluxo</button></template><p v-else class="muted">Selecione um nó para ver suas propriedades.</p><div class="graph-rule-count">{{ logicRules.length }} fluxo(s) · {{ graphNodes.length }} nós</div></aside>
+        <aside class="graph-inspector">
+          <div class="eyebrow">INSPECTOR</div>
+          <template v-if="selectedGraphRule && graphSelection">
+            <h3>{{ graphSelection.part === 'trigger' ? 'Evento' : graphSelection.part === 'condition' ? 'Condição' : 'Ação' }}</h3>
+            <label class="field">Nome do fluxo
+              <input :value="selectedGraphRule.name" spellcheck="false" @change="updateLogicRule({ ...selectedGraphRule, name: ($event.target as HTMLInputElement).value })" />
+            </label>
+            <label class="checkline"><input type="checkbox" :checked="selectedGraphRule.enabled" @change="toggleLogicRule(selectedGraphRule)" /> Fluxo habilitado</label>
+            <template v-if="graphSelection.part === 'trigger'">
+              <label class="field">Tipo de evento
+                <select :value="selectedGraphRule.trigger.type" @change="setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area')">
+                  <option value="object_clicked">Ao clicar no objeto</option>
+                  <option value="enter_area">Ao entrar em uma área</option>
+                </select>
+              </label>
+              <template v-if="selectedGraphRule.trigger.type === 'object_clicked'">
+                <label class="field">Objeto-alvo
+                  <select :value="selectedGraphRule.trigger.objectId" @change="patchSelectedTrigger({ objectId: ($event.target as HTMLSelectElement).value })">
+                    <option v-for="obj in objects" :key="obj.id" :value="obj.id">{{ obj.name }}</option>
+                  </select>
+                </label>
+              </template>
+              <template v-else>
+                <div class="component-caption">CENTRO DA ÁREA</div>
+                <div class="grid3">
+                  <label class="field">X<input type="number" :value="selectedGraphRule.trigger.center[0]" @change="patchSelectedTrigger({ center: [Number(($event.target as HTMLInputElement).value), selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[1] : 1, selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[2] : 0] })" /></label>
+                  <label class="field">Y<input type="number" :value="selectedGraphRule.trigger.center[1]" @change="patchSelectedTrigger({ center: [selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[0] : 0, Number(($event.target as HTMLInputElement).value), selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[2] : 0] })" /></label>
+                  <label class="field">Z<input type="number" :value="selectedGraphRule.trigger.center[2]" @change="patchSelectedTrigger({ center: [selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[0] : 0, selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[1] : 1, Number(($event.target as HTMLInputElement).value)] })" /></label>
+                </div>
+                <label class="field">Raio da área
+                  <input type="number" min="0.1" step="0.1" :value="selectedGraphRule.trigger.radius" @change="patchSelectedTrigger({ radius: Math.max(0.1, Number(($event.target as HTMLInputElement).value)) })" />
+                </label>
+              </template>
+            </template>
+            <template v-else-if="graphSelection.part === 'condition'">
+              <label class="checkline"><input type="checkbox" :checked="selectedGraphRule.conditions.length > 0" @change="updateLogicRule({ ...selectedGraphRule, conditions: ($event.target as HTMLInputElement).checked ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [] })" /> Exigir condição</label>
+              <template v-if="selectedGraphRule.conditions.length">
+                <label class="field">Variável
+                  <input :value="selectedGraphRule.conditions[0]?.name ?? 'has_key'" spellcheck="false" @change="patchSelectedCondition({ name: ($event.target as HTMLInputElement).value })" />
+                </label>
+                <label class="field">Comparação
+                  <select :value="selectedGraphRule.conditions[0]?.operator ?? 'equals'" @change="patchSelectedCondition({ operator: ($event.target as HTMLSelectElement).value })">
+                    <option value="equals">É igual a</option><option value="not_equals">É diferente de</option><option value="greater_than">Maior que</option><option value="less_than">Menor que</option>
+                  </select>
+                </label>
+                <label class="field">Valor
+                  <input :value="String(selectedGraphRule.conditions[0]?.value ?? true)" @change="patchSelectedCondition({ value: ruleValueFromInput(($event.target as HTMLInputElement).value) })" />
+                </label>
+                <p class="muted">Use true/false para booleanos ou um número para comparações numéricas.</p>
+              </template>
+              <p v-else class="muted">Sem condição: o evento executa sempre que for disparado.</p>
+            </template>
+            <template v-else>
+              <label class="field">Tipo de ação
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable')">
+                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option>
+                </select>
+              </label>
+              <template v-if="selectedGraphRule.actions[0] && 'objectId' in selectedGraphRule.actions[0]">
+                <label class="field">Objeto afetado
+                  <select :value="selectedGraphRule.actions[0].objectId" @change="patchSelectedAction({ objectId: ($event.target as HTMLSelectElement).value })">
+                    <option v-for="obj in objects" :key="obj.id" :value="obj.id">{{ obj.name }}</option>
+                  </select>
+                </label>
+              </template>
+              <div v-if="selectedGraphRule.actions[0]?.type === 'move'" class="component-box">
+                <div class="component-caption">POSIÇÃO DE DESTINO</div>
+                <div class="grid3">
+                  <label class="field">X<input type="number" step="0.1" :value="selectedGraphRule.actions[0].x ?? 0" @change="patchSelectedAction({ x: Number(($event.target as HTMLInputElement).value) })" /></label>
+                  <label class="field">Y<input type="number" step="0.1" :value="selectedGraphRule.actions[0].y ?? 0" @change="patchSelectedAction({ y: Number(($event.target as HTMLInputElement).value) })" /></label>
+                  <label class="field">Z<input type="number" step="0.1" :value="selectedGraphRule.actions[0].z ?? 0" @change="patchSelectedAction({ z: Number(($event.target as HTMLInputElement).value) })" /></label>
+                </div>
+              </div>
+              <label v-else-if="selectedGraphRule.actions[0]?.type === 'rotate'" class="field">Ângulo (graus)
+                <input type="number" step="1" :value="selectedGraphRule.actions[0].degrees" @change="patchSelectedAction({ degrees: Number(($event.target as HTMLInputElement).value) })" />
+              </label>
+              <label v-else-if="selectedGraphRule.actions[0]?.type === 'set_visible'" class="field">Visibilidade
+                <select :value="String(selectedGraphRule.actions[0].visible)" @change="patchSelectedAction({ visible: ($event.target as HTMLSelectElement).value === 'true' })"><option value="true">Mostrar</option><option value="false">Ocultar</option></select>
+              </label>
+              <template v-else-if="selectedGraphRule.actions[0]?.type === 'set_variable'">
+                <label class="field">Nome da variável<input :value="selectedGraphRule.actions[0].name" @change="patchSelectedAction({ name: ($event.target as HTMLInputElement).value })" /></label>
+                <label class="field">Valor<input :value="String(selectedGraphRule.actions[0].value)" @change="patchSelectedAction({ value: ruleValueFromInput(($event.target as HTMLInputElement).value) })" /></label>
+              </template>
+            </template>
+            <button class="danger" @click="deleteLogicRule(selectedGraphRule.id); graphSelection = null">Excluir fluxo</button>
+          </template>
+          <p v-else class="muted">Selecione um nó no gráfico para editar suas propriedades.</p>
+          <div class="graph-rule-count">{{ logicRules.length }} fluxo(s) · {{ graphNodes.length }} nós</div>
+        </aside>
       </div>
     </div>
   </div>
@@ -698,4 +832,36 @@ input[type='range'] { accent-color: #e98524; }
 @media (max-width: 860px) {
   .tool { height: 29px; padding: 0 6px; }
 }
+</style>
+
+<style>
+/* Workspace de lógica inspirado no Unity: hierarquia de nós, inspector por componente e controles editáveis. */
+.graph-overlay { background:#202020; color:#e6e6e6; }
+.graph-top { height:38px; padding:0 10px; background:#303030; border-bottom:1px solid #171717; }
+.graph-top strong { font-size:11px; letter-spacing:.08em; }
+.graph-subtitle { font-size:10px; margin-left:10px; }
+.graph-body { grid-template-columns:190px minmax(0,1fr) 285px; }
+.graph-library,.graph-inspector { padding:12px 10px; background:#303030; }
+.graph-library { border-right:1px solid #191919; }
+.graph-inspector { border-left:1px solid #191919; }
+.graph-library h3,.graph-inspector h3 { margin:8px 0 12px; font-size:13px; }
+.graph-canvas { background-color:#252525; background-image:linear-gradient(#303030 1px,transparent 1px),linear-gradient(90deg,#303030 1px,transparent 1px); background-size:20px 20px; }
+.graph-wires path { stroke:#a4a4a4; stroke-width:2; }
+.graph-node { width:232px; min-height:122px; border-radius:4px; background:#383838; border-color:#1d1d1d; box-shadow:0 3px 8px #0005; }
+.graph-node.chosen { outline:2px solid #e98524; outline-offset:0; }
+.graph-node.trigger { border-top:3px solid #b98b48; }
+.graph-node.condition { border-top:3px solid #6b9ecb; }
+.graph-node.action { border-top:3px solid #70a878; }
+.node-head { padding:8px 10px 7px; background:#303030; border-bottom-color:#242424; font-size:9px; }
+.node-title { padding:12px 10px; min-height:40px; font-size:11px; }
+.node-foot { background:#303030; border-top-color:#242424; }
+.graph-inspector .field { margin:10px 0; font-size:10px; }
+.graph-inspector .field input,.graph-inspector .field select { margin-top:4px; width:100%; }
+.graph-inspector .grid3 { gap:5px; }
+.graph-inspector .component-caption { margin:10px 0 7px; color:#aaa; font-size:9px; font-weight:700; letter-spacing:.09em; }
+.graph-inspector .component-box { border:1px solid #202020; background:#292929; padding:8px; margin:8px 0 12px; }
+.graph-inspector .checkline { margin:10px 0; color:#d0d0d0; }
+.graph-inspector .ghost,.graph-inspector .danger { border-radius:3px; }
+.graph-rule-count { border-top-color:#1d1d1d; }
+@media(max-width:900px) { .graph-body { grid-template-columns:145px minmax(0,1fr); } .graph-inspector { display:none; } }
 </style>
