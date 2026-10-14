@@ -12,6 +12,9 @@ export interface PrimitiveInit {
   rotation?: Vec3
   scale?: Vec3
   visible?: boolean
+  locked?: boolean
+  wireframeVisible?: boolean
+  groupId?: string | null
 }
 
 export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): GameObject {
@@ -37,6 +40,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   polygons.name = 'polygon-wireframe'
   polygons.userData.editorOverlay = true
   polygons.renderOrder = 1
+  polygons.visible = init.wireframeVisible ?? true
   mesh.add(polygons)
 
   const [px, py, pz] = init.position ?? [0, h / 2, 0]
@@ -47,6 +51,9 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   mesh.scale.set(sx, sy, sz)
   mesh.visible = init.visible ?? true
   mesh.userData.id = id
+  mesh.userData.locked = init.locked ?? false
+  mesh.userData.groupId = init.groupId ?? null
+  mesh.userData.wireframeVisible = init.wireframeVisible ?? true
   const name = init.name ?? `${def.label} ${id.split('_')[1] ?? ''}`.trim()
   return { id, name, type, mesh }
 }
