@@ -44,6 +44,7 @@ const {
 
 const newVariableName = ref('')
 const newVariableValue = ref('false')
+const sidebarScriptDraft = ref("// Cole seu JavaScript aqui\napi.set('has_key', true)")
 function submitVariable() {
   createLogicVariable(newVariableName.value, newVariableValue.value)
   newVariableName.value = ''
@@ -367,7 +368,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir has_key = true</label>
-            <button class="ghost full" @click="addLogicRule">+ Adicionar regra ao objeto selecionado</button>
+            <template v-if="ruleAction === 'javascript'">
+              <label class="field">Código JavaScript
+                <textarea v-model="sidebarScriptDraft" class="script-editor" spellcheck="false" rows="8" placeholder="// Cole seu código JavaScript aqui"></textarea>
+              </label>
+              <p class="muted">O código será salvo na ação da nova regra e executado quando o gatilho e as condições forem satisfeitos.</p>
+            </template>
+            <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined)">+ Adicionar regra ao objeto selecionado</button>
             <div v-if="logicRules.length" class="rule-list">
               <div v-for="rule in logicRules" :key="rule.id" class="rule-item">
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
