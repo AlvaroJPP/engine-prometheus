@@ -5,13 +5,16 @@ defineProps<{
   objects: ObjectInfo[]
   terrain: TerrainInfo
   selectedId: string | null
+  groupSelection: string[]
   terrainId: string
   rootOpen: boolean
 }>()
 
 const emit = defineEmits<{
   'update:rootOpen': [value: boolean]
-  'select-item': [id: string]
+  'select-item': [id: string, additive?: boolean]
+  'group-selected': []
+  'ungroup-selected': []
   'toggle-terrain': []
   'toggle-visible': [id: string]
   'toggle-lock': [id: string]
@@ -27,6 +30,11 @@ const emit = defineEmits<{
         <div class="h">Hierarquia</div>
       </div>
       <span class="badge">{{ objects.length + 1 }}</span>
+    </div>
+
+    <div class="hierarchy-actions">
+      <button :disabled="groupSelection.length < 2" @click="emit('group-selected')">Agrupar ({{ groupSelection.length }})</button>
+      <button :disabled="groupSelection.length === 0" @click="emit('ungroup-selected')">Desagrupar</button>
     </div>
 
     <div class="tree">
@@ -49,8 +57,8 @@ const emit = defineEmits<{
           v-for="object in objects"
           :key="object.id"
           class="row child"
-          :class="{ active: object.id === selectedId, hidden: !object.visible }"
-          @click="emit('select-item', object.id)"
+          :class="{ active: object.id === selectedId, 'group-selected': groupSelection.includes(object.id), hidden: !object.visible }"
+          @click="emit('select-item', object.id, $event.ctrlKey || $event.metaKey)"
         >
           <span class="ico" :class="object.type" />
           <span class="name">{{ object.name }}</span>
@@ -67,3 +75,7 @@ const emit = defineEmits<{
     </div>
   </aside>
 </template>
+
+<style scoped>
+.hierarchy-actions{display:flex;gap:5px;padding:0 10px 9px}.hierarchy-actions button{flex:1;min-width:0;padding:6px 4px;border:1px solid #414756;border-radius:4px;background:#292d37;color:#cbd2de;font-size:10px;cursor:pointer}.hierarchy-actions button:disabled{opacity:.4;cursor:default}.row.group-selected{outline:1px solid #b78048;outline-offset:-1px}.row-action{border:0;background:transparent;color:#8f99aa;cursor:pointer;padding:2px 3px;font-size:12px}.row-action.active{color:#f3c34e}
+</style>
