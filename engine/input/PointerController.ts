@@ -97,8 +97,24 @@ export class PointerController {
     return this.raycaster.intersectObject(this.world.terrain.mesh)[0]
   }
 
+  /**
+   * Inclui os filhos do mesh (como as linhas da malha poligonal).
+   * O clique pode atingir uma linha em vez da malha sólida; nesse caso,
+   * sobe pela hierarquia até encontrar o GameObject que possui o ID.
+   */
   private objectHit(): THREE.Intersection | undefined {
-    return this.raycaster.intersectObjects(this.world.pickables())[0]
+    const hits = this.raycaster.intersectObjects(this.world.pickables(), true)
+    return hits.find((hit) => this.objectIdFromHit(hit.object) !== null)
+  }
+
+  private objectIdFromHit(object: THREE.Object3D): string | null {
+    let current: THREE.Object3D | null = object
+    while (current) {
+      const id = current.userData.id
+      if (typeof id === 'string' && this.world.get(id)) return id
+      current = current.parent
+    }
+    return null
   }
 
   private moveRing(point: THREE.Vector3): void {
@@ -139,11 +155,9 @@ export class PointerController {
       }
     } else if (this.state.tool === 'select') {
       const hit = this.objectHit()
-      const id = hit ? (hit.object.userData.id as string) : null
+      const id = hit ? this.objectIdFromHit(hit.object) : null
       const obj = id ? this.world.get(id) : undefined
       if (obj) {
-        // Atualiza a seleção antes do evento para que scripts antigos que usam
-        // a seleção como fallback também enxerguem o objeto clicado.
         this.world.select(obj.id)
         this.world.events.emit('objectClicked', { id: obj.id })
         this.beginTransform(obj.id, e)
