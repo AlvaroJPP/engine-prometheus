@@ -8,7 +8,7 @@ export type RuleAction =
   | { type: 'move'; objectId: string; x?: number; y?: number; z?: number }
   | { type: 'rotate'; objectId: string; degrees: number }
   | { type: 'set_visible'; objectId: string; visible: boolean }
-  | { type: 'set_variable'; name: string; value: boolean | number | string; objectId?: string }
+  | { type: 'set_variable'; name: string; value: boolean | number | string; objectId?: string; scope?: 'global' | 'object' }
   | { type: 'script'; code: string }
   | { type: 'javascript'; code: string }
 
