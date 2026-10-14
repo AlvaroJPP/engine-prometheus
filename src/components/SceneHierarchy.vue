@@ -14,6 +14,8 @@ const emit = defineEmits<{
   'select-item': [id: string]
   'toggle-terrain': []
   'toggle-visible': [id: string]
+  'toggle-lock': [id: string]
+  'toggle-wireframe': [id: string]
 }>()
 </script>
 
@@ -52,7 +54,9 @@ const emit = defineEmits<{
         >
           <span class="ico" :class="object.type" />
           <span class="name">{{ object.name }}</span>
-          <button class="eye" :class="{ off: !object.visible }" title="Mostrar/ocultar" @click.stop="emit('toggle-visible', object.id)" />
+          <button class="eye" :class="{ off: !object.visible }" title="Mostrar/ocultar objeto" @click.stop="emit('toggle-visible', object.id)" />
+          <button class="row-action" :class="{ active: object.locked }" :title="object.locked ? 'Desbloquear posição' : 'Bloquear posição'" @click.stop="emit('toggle-lock', object.id)">{{ object.locked ? '🔒' : '🔓' }}</button>
+          <button class="row-action" :class="{ active: !object.wireframeVisible }" :title="object.wireframeVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'" @click.stop="emit('toggle-wireframe', object.id)">{{ object.wireframeVisible ? '▱' : '▰' }}</button>
         </div>
       </template>
     </div>
