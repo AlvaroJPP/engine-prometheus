@@ -201,6 +201,24 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (engine && obj) engine.updateObject(id, { visible: !obj.visible })
   }
 
+  function toggleObjectLock(id: string) {
+    const obj = objects.value.find((o) => o.id === id)
+    if (!engine || !obj) return
+    engine.toggleObjectLock(id)
+    dirty.value = true
+    refresh()
+    say(obj.locked ? 'Objeto desbloqueado para transformação.' : 'Posição do objeto bloqueada.')
+  }
+
+  function toggleObjectWireframe(id: string) {
+    const obj = objects.value.find((o) => o.id === id)
+    if (!engine || !obj) return
+    engine.toggleObjectWireframe(id)
+    dirty.value = true
+    refresh()
+    say(obj.wireframeVisible ? 'Linhas dos polígonos ocultadas.' : 'Linhas dos polígonos exibidas.')
+  }
+
   function toggleTerrain() {
     engine?.setTerrainVisible(!terrain.value.visible)
   }
@@ -584,6 +602,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     cycleCamera,
     selectItem,
     toggleVisible,
+    toggleObjectLock,
+    toggleObjectWireframe,
     toggleTerrain,
     toggleGrid,
     removeSelected,
