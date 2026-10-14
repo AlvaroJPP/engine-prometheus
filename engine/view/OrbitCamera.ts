@@ -71,8 +71,20 @@ export class OrbitCamera {
 
   update(): void {
     if (this.firstPerson) {
-      this.camera.position.set(this.target.x, this.target.y + 0.72, this.target.z)
-      const direction = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch))
+      // Mantém a câmera numa altura de olhos estável, independente do balanço
+      // da animação, e ligeiramente à frente do centro do avatar para evitar
+      // interseção com o tronco sem afastá-la tanto que esconda braços e pernas.
+      const forwardOffset = 0.07
+      this.camera.position.set(
+        this.target.x - Math.sin(this.yaw) * forwardOffset,
+        this.target.y + 0.65,
+        this.target.z - Math.cos(this.yaw) * forwardOffset,
+      )
+      const direction = new THREE.Vector3(
+        -Math.sin(this.yaw) * Math.cos(this.pitch),
+        Math.sin(this.pitch),
+        -Math.cos(this.yaw) * Math.cos(this.pitch),
+      )
       this.camera.lookAt(this.camera.position.clone().add(direction))
       return
     }
