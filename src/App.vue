@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID } from '@engine'
 import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -74,6 +74,44 @@ const graphPan = ref({ x: 0, y: 0 })
 const graphZoom = ref(1)
 const dragCanvas = ref<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
 const graphViewport = ref<HTMLElement | null>(null)
+const graphStage = ref<HTMLElement | null>(null)
+const portPositions = ref<Record<string, { x: number; y: number }>>({})
+let graphPortObserver: ResizeObserver | null = null
+let graphMeasureQueued = false
+function measureGraphPorts() {
+  if (graphMeasureQueued) return
+  graphMeasureQueued = true
+  void nextTick(() => {
+    graphMeasureQueued = false
+    const stage = graphStage.value
+    if (!stage) return
+    const stageRect = stage.getBoundingClientRect()
+    const zoom = graphZoom.value || 1
+    const next: Record<string, { x: number; y: number }> = {}
+    stage.querySelectorAll<HTMLElement>('[data-port-key]').forEach((port) => {
+      const key = port.dataset.portKey
+      if (!key) return
+      const rect = port.getBoundingClientRect()
+      next[key] = { x: (rect.left + rect.width / 2 - stageRect.left) / zoom, y: (rect.top + rect.height / 2 - stageRect.top) / zoom }
+    })
+    const previousKeys = Object.keys(portPositions.value)
+    const nextKeys = Object.keys(next)
+    const changed = previousKeys.length !== nextKeys.length || nextKeys.some(key => {
+      const before = portPositions.value[key], after = next[key]
+      return !before || !after || Math.abs(before.x - after.x) > 0.25 || Math.abs(before.y - after.y) > 0.25
+    })
+    if (changed) portPositions.value = next
+  })
+}
+onMounted(() => {
+  graphPortObserver = new ResizeObserver(measureGraphPorts)
+  if (graphViewport.value) graphPortObserver.observe(graphViewport.value)
+  if (graphStage.value) graphPortObserver.observe(graphStage.value)
+  measureGraphPorts()
+})
+onUpdated(measureGraphPorts)
+watch([graphNodes, graphVisibleRules, graphZoom, graphPan], measureGraphPorts, { deep: true })
+onBeforeUnmount(() => graphPortObserver?.disconnect())
 const graphObjectFilter = ref<'selected' | 'all'>('selected')
 const graphVisibleRules = computed(() => {
   if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
@@ -103,41 +141,18 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
   const layout = layoutForGraph(rule, index)
   return (['condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
 }))
-const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
-  const layout = layoutForGraph(rule, index)
+const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule) => {
+  const eventPort = portPositions.value[`event:${rule.id}`]
+  const conditionIn = portPositions.value[`condition-in:${rule.id}`]
+  const conditionOut = portPositions.value[`condition-out:${rule.id}`]
+  const actionIn = portPositions.value[`action-in:${rule.id}`]
+  if (!eventPort || !conditionIn || !conditionOut || !actionIn) return []
 
-  // Coordenadas dos centros das portas circulares, no espaço do graph-stage.
-  // O painel de eventos fica em x=30, tem 270px e cada linha mede 48px
-  // com 5px de margem vertical: o centro da primeira porta é y=114.
-  const eventPortX = 299.5
-  const eventPortY = 114 + index * 58
-
-  // Nos nós, a porta fica no centro do rodapé. Com o cabeçalho, título e
-  // rodapé atuais, esse centro fica aproximadamente 112px abaixo do topo.
-  const nodePortOffsetY = 112
-  const conditionPortY = layout.condition.y + nodePortOffsetY
-  const actionPortY = layout.action.y + nodePortOffsetY
-
-  // Centro das portas laterais: círculo de 11px deslocado 5px para fora.
-  const conditionInX = layout.condition.x + 0.5
-  const conditionOutX = layout.condition.x + 231.5
-  const actionInX = layout.action.x + 0.5
-
-  // Mantém cada ligação amarela em uma faixa própria, mas inicia e termina
-  // exatamente no centro das portas circulares correspondentes.
-  const routeX = Math.min(eventPortX + 20 + index * 22, conditionInX - 28)
-  const yellowPath = [
-    `M ${eventPortX} ${eventPortY}`,
-    `L ${routeX} ${eventPortY}`,
-    `L ${routeX} ${conditionPortY}`,
-    `L ${conditionInX} ${conditionPortY}`,
-  ].join(' ')
-
-  const redPath = [
-    `M ${conditionOutX} ${conditionPortY}`,
-    `C ${conditionOutX + 28} ${conditionPortY}, ${actionInX - 28} ${actionPortY}, ${actionInX} ${actionPortY}`,
-  ].join(' ')
-
+  // Os pontos são medidos no DOM: centro real de cada círculo, sem estimar alturas.
+  const yellowDx = Math.max(36, Math.abs(conditionIn.x - eventPort.x) * 0.45)
+  const redDx = Math.max(36, Math.abs(actionIn.x - conditionOut.x) * 0.45)
+  const yellowPath = `M ${eventPort.x} ${eventPort.y} C ${eventPort.x + yellowDx} ${eventPort.y}, ${conditionIn.x - yellowDx} ${conditionIn.y}, ${conditionIn.x} ${conditionIn.y}`
+  const redPath = `M ${conditionOut.x} ${conditionOut.y} C ${conditionOut.x + redDx} ${conditionOut.y}, ${actionIn.x - redDx} ${actionIn.y}, ${actionIn.x} ${actionIn.y}`
   return [
     { id: rule.id + '-a', kind: 'trigger-condition', d: yellowPath },
     { id: rule.id + '-b', kind: 'condition-action', d: redPath },
@@ -692,17 +707,17 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <button title="Afastar" aria-label="Afastar" @click="zoomGraph(-0.15)">−</button>
             <button title="Restaurar visualização inicial" aria-label="Restaurar visualização inicial" @click="resetGraphView">⌂</button>
           </div>
-          <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
+          <div ref="graphStage" class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
             <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="edge.d" /></svg>
             <article class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
               <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ graphVisibleRules.length }}</span></div>
               <button v-for="(rule, index) in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
-                <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port"></span>
+                <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
               </button>
               <div v-if="!graphVisibleRules.length" class="event-list-empty">Nenhum evento criado</div>
             </article>
-            <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
+            <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port" :data-port-key="`${node.part}-in:${node.rule.id}`"></span>{{ node.rule.name }}<span class="node-port out" :data-port-key="`${node.part}-out:${node.rule.id}`"></span></div></article>
           </div>
         </div>
         <aside class="graph-inspector">
@@ -1023,7 +1038,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .graph-library,.graph-inspector { padding:18px 14px; background:#171b24; overflow:auto; } .graph-library { border-right:1px solid #2a303d; } .graph-inspector { border-left:1px solid #2a303d; } .graph-library h3,.graph-inspector h3 { font-size:14px; margin:10px 0 14px; } .graph-library p { font-size:12px; line-height:1.6; color:#8993a6; }
 .node-legend { padding:10px 12px; margin:8px 0; border-radius:6px; background:#202632; font-size:12px; border-left:3px solid; } .node-legend.trigger { border-color:#d8a34a; } .node-legend.condition { border-color:#6c9de6; } .node-legend.action { border-color:#65bf91; } .graph-tip { margin-top:26px; padding-top:14px; border-top:1px solid #2a303d; font-size:11px; line-height:1.6; color:#7f899c; }
 .graph-canvas { position:relative; flex:1; overflow:hidden; min-width:0; min-height:0; background-color:#11151d; background-image:radial-gradient(#343b49 1px,transparent 1px); background-size:22px 22px; touch-action:none; cursor:grab; } .graph-canvas.is-panning { cursor:grabbing; } .graph-stage { position:absolute; inset:0 auto auto 0; width:1800px; height:6000px; transform-origin:0 0; will-change:transform; } .graph-zoom-controls { position:absolute; z-index:5; top:12px; right:12px; display:flex; align-items:center; gap:5px; padding:5px; border:1px solid #414141; border-radius:5px; background:#303030ee; box-shadow:0 3px 10px #0005; cursor:default; } .graph-zoom-controls button { width:29px; height:28px; border:1px solid #4b4b4b; border-radius:3px; background:#3b3b3b; color:#eee; font-size:18px; line-height:1; } .graph-zoom-controls button:hover { background:#51402f; border-color:#e98524; } .graph-zoom-controls span { min-width:42px; text-align:center; color:#ccc; font-size:10px; font-variant-numeric:tabular-nums; } .graph-wires { position:absolute; inset:0; width:1800px; height:6000px; pointer-events:none; overflow:visible; } .graph-wires path { fill:none; stroke:#8a96ad; stroke-width:3; }
-.graph-wires { z-index:2; }
+.graph-wires { z-index:0; }
 .graph-node { z-index:1; }
 .graph-node .node-port, .event-row-port { z-index:3; }
 .graph-node { position:absolute; width:300px; min-height:120px; border:1px solid #3b4352; background:#1c222d; border-radius:8px; box-shadow:0 10px 24px #0004; cursor:grab; user-select:none; z-index:1; } .graph-node:active { cursor:grabbing; } .graph-node.chosen { outline:2px solid #d36a55; outline-offset:2px; } .graph-node.trigger { border-top:3px solid #d8a34a; } .graph-node.condition { border-top:3px solid #6c9de6; } .graph-node.action { border-top:3px solid #65bf91; } .node-head { display:flex; justify-content:space-between; padding:10px 12px 8px; font-size:9px; letter-spacing:.13em; color:#aab4c5; border-bottom:1px solid #303746; } .node-title { padding:13px 12px; min-height:44px; font-size:12px; line-height:1.5; } .node-foot { position:relative; display:flex; align-items:center; justify-content:center; padding:7px; border-top:1px solid #303746; color:#7f899c; font-size:10px; } .node-port { position:absolute; left:-5px; top:50%; width:9px; height:9px; border-radius:50%; background:#8a96ad; border:2px solid #1c222d; } .node-port.out { left:auto; right:-5px; } .graph-empty { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:min(360px,90%); } .graph-empty h2 { font-size:18px; } .graph-empty p { color:#8e98aa; font-size:12px; line-height:1.6; } .empty-icon { font-size:32px; color:#d36a55; } .graph-rule-count { border-top:1px solid #2a303d; margin-top:24px; padding-top:12px; font-size:11px; color:#8e98aa; }
