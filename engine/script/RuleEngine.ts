@@ -34,11 +34,30 @@ export class RuleEngine {
 
   replace(data: LogicEventsFile): void { this.load(data) }
   list(): LogicRule[] { return structuredClone(this.data.events) }
-  variables(): Record<string, boolean | number | string> { return { ...this.data.variables } }
-  setVariable(name: string, value: boolean | number | string): void {
+  variables(objectId?: string | null): Record<string, boolean | number | string> {
+    return objectId ? { ...(this.data.objectVariables?.[objectId] ?? {}) } : { ...this.data.variables }
+  }
+
+  getVariable(name: string, objectId?: string | null): boolean | number | string | undefined {
+    const scoped = objectId ? this.data.objectVariables?.[objectId] : undefined
+    if (scoped && Object.prototype.hasOwnProperty.call(scoped, name)) return scoped[name]
+    return this.data.variables[name]
+  }
+
+  setVariable(name: string, value: boolean | number | string, objectId?: string | null): void {
     const key = name.trim()
     if (!key) throw new Error('O nome da variável é obrigatório.')
-    this.data.variables[key] = value
+    if (objectId) {
+      this.data.objectVariables ??= {}
+      this.data.objectVariables[objectId] ??= {}
+      this.data.objectVariables[objectId]![key] = value
+    } else {
+      this.data.variables[key] = value
+    }
+  }
+
+  removeObjectVariables(objectId: string): void {
+    if (this.data.objectVariables) delete this.data.objectVariables[objectId]
   }
   upsert(rule: LogicRule): void {
     const i = this.data.events.findIndex((r) => r.id === rule.id)
@@ -66,9 +85,12 @@ export class RuleEngine {
   }
 
   private run(rule: LogicRule, eventObjectId?: string): void {
+    const scopeId = eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
     if (!rule.conditions.every((c) => {
-      if (!Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
-      const actual = this.data.variables[c.name]
+      const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
+      const hasScoped = !!scoped && Object.prototype.hasOwnProperty.call(scoped, c.name)
+      if (!hasScoped && !Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
+      const actual = hasScoped ? scoped![c.name]! : this.data.variables[c.name]!
       // Valores vindos de projetos antigos ou campos de texto podem chegar como
       // "false"/"true"/"10". Normalize-os para comparar com o tipo real da variável.
       const expected = normalizeConditionValue(c.value, actual)
@@ -129,12 +151,14 @@ export class RuleEngine {
   /** Executa JavaScript autorado pelo criador do projeto após as condições passarem. */
   private executeJavaScript(source: string, eventObjectId?: string): void {
     source = this.resolveObjectIdToken(source, true, eventObjectId)
+    const scopeId = eventObjectId ?? this.world.getSelectedId() ?? undefined
     const vars = this.data.variables
+    const getScoped = (name: string) => this.getVariable(name, scopeId)
     const api = {
-      get: (name: string) => vars[name],
-      set: (name: string, value: boolean | number | string) => this.setVariable(name, value),
-      add: (name: string, amount: number) => { const current = vars[name]; if (typeof current !== 'number') throw new Error(`A variável "${name}" precisa ser numérica.`); this.setVariable(name, current + amount) },
-      toggle: (name: string) => { const current = vars[name]; if (typeof current !== 'boolean') throw new Error(`A variável "${name}" precisa ser booleana.`); this.setVariable(name, !current) },
+      get: (name: string) => getScoped(name),
+      set: (name: string, value: boolean | number | string) => this.setVariable(name, value, scopeId),
+      add: (name: string, amount: number) => { const current = getScoped(name); if (typeof current !== 'number') throw new Error(`A variável "${name}" precisa ser numérica.`); this.setVariable(name, current + amount, scopeId) },
+      toggle: (name: string) => { const current = getScoped(name); if (typeof current !== 'boolean') throw new Error(`A variável "${name}" precisa ser booleana.`); this.setVariable(name, !current, scopeId) },
       move: (objectId: string, x: number, y: number, z: number) => this.apply({ type: 'move', objectId, x, y, z }),
       rotate: (objectId: string, degrees: number) => this.apply({ type: 'rotate', objectId, degrees }),
       setVisible: (objectId: string, visible: boolean) => this.apply({ type: 'set_visible', objectId, visible }),
@@ -158,7 +182,7 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'set_variable': this.setVariable(action.name, action.value); break
+      case 'set_variable': this.setVariable(action.name, action.value, action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
