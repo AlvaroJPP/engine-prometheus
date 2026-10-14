@@ -236,7 +236,19 @@ export class World {
 
   private dispose(obj: GameObject): void {
     this.scene.remove(obj.mesh)
+    // Libera também as geometrias e os materiais das linhas que mostram os polígonos.
+    obj.mesh.traverse((child) => {
+      if (child === obj.mesh) return
+      if (child instanceof THREE.LineSegments) {
+        child.geometry.dispose()
+        const material = child.material
+        if (Array.isArray(material)) material.forEach((item) => item.dispose())
+        else material.dispose()
+      }
+    })
     obj.mesh.geometry.dispose()
-    ;(obj.mesh.material as THREE.Material).dispose()
+    const material = obj.mesh.material
+    if (Array.isArray(material)) material.forEach((item) => item.dispose())
+    else material.dispose()
   }
 }
