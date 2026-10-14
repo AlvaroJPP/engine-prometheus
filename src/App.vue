@@ -12,6 +12,7 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes'>('transform')
 const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
+const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const {
   projectName,
@@ -35,6 +36,7 @@ const {
   addPrimitive,
   addClickableCubeExample,
   cycleCamera,
+  setFirstPersonMode,
   selectItem,
   groupSelectedObjects,
   ungroupSelectedObjects,
@@ -370,6 +372,17 @@ watch(selectedId, () => { inspectorTab.value = 'transform'; publicLibraryOpen.va
 function copyObjectId(id: string) {
   void navigator.clipboard?.writeText(id)
 }
+function toggleFirstPerson() {
+  firstPersonMode.value = !firstPersonMode.value
+  setFirstPersonMode(firstPersonMode.value)
+}
+function cycleCameraView() {
+  if (firstPersonMode.value) {
+    firstPersonMode.value = false
+    setFirstPersonMode(false)
+  }
+  cycleCamera()
+}
 function runWorld() {
   graphOpen.value = false
   executionMode.value = 'running'
@@ -409,11 +422,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       v-model:project-name="projectName"
       :dirty="dirty"
       :camera-label="cameraLabel"
+      :first-person-mode="firstPersonMode"
+      @toggle-first-person="toggleFirstPerson"
       @mark-dirty="markDirty"
       @new-project="newProject"
       @open-project="openProject"
       @save-project="saveProject"
-      @cycle-camera="cycleCamera"
+      @cycle-camera="cycleCameraView"
     />
 
     <EditorToolbar
