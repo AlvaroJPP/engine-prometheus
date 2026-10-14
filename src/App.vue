@@ -48,13 +48,18 @@ const {
 
 const newVariableName = ref('')
 const newVariableValue = ref('false')
+const newVariableType = ref<'string' | 'number' | 'boolean'>('boolean')
+function onNewVariableTypeChange(type: 'string' | 'number' | 'boolean') {
+  newVariableType.value = type
+  newVariableValue.value = type === 'string' ? '' : type === 'number' ? '0' : 'false'
+}
 const newEventName = ref('')
 const sidebarScriptDraft = ref("// Cole seu JavaScript aqui\napi.set('has_key', true)")
 const conditionVariable = ref('has_key')
 const conditionOperator = ref<'equals' | 'not_equals' | 'greater_than' | 'less_than'>('equals')
 const conditionValue = ref('true')
 function submitVariable(scope: 'global' | 'object' = 'object') {
-  createLogicVariable(newVariableName.value, newVariableValue.value, scope)
+  createLogicVariable(newVariableName.value, newVariableValue.value, scope, newVariableType.value)
   newVariableName.value = ''
 }
 
@@ -433,7 +438,20 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </div>
             <div class="variable-create">
               <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
-              <input v-model="newVariableValue" placeholder="valor inicial (false, 0, texto)" />
+              <select :value="newVariableType" aria-label="Tipo da nova variável" @change="onNewVariableTypeChange(($event.target as HTMLSelectElement).value as 'string' | 'number' | 'boolean')">
+                <option value="string">String · texto</option>
+                <option value="number">Number · número</option>
+                <option value="boolean">Boolean · verdadeiro/falso</option>
+              </select>
+              <label v-if="newVariableType === 'boolean'" class="field variable-initial-value">Valor inicial
+                <select v-model="newVariableValue">
+                  <option value="false">false</option>
+                  <option value="true">true</option>
+                </select>
+              </label>
+              <label v-else class="field variable-initial-value">Valor inicial
+                <input v-model="newVariableValue" :type="newVariableType === 'number' ? 'number' : 'text'" :placeholder="newVariableType === 'number' ? '0' : 'Texto inicial'" />
+              </label>
               <button class="ghost" @click="submitVariable('object')">+ Variável do objeto</button>
               <button class="ghost" @click="submitVariable('global')">+ Variável global</button>
             </div>
@@ -1437,4 +1455,15 @@ input[type='range'] { accent-color: #e98524; }
   .variable-row { padding: 4px; }
   .variable-id, .variable-type, .variable-row .variable-value { font-size: 9px; }
 }
+</style>
+
+<style>
+.variable-create { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; margin:10px 0 14px; }
+.variable-create > input:first-child,
+.variable-create > select,
+.variable-create > .variable-initial-value { grid-column:1 / -1; width:100%; min-width:0; box-sizing:border-box; }
+.variable-create .variable-initial-value { margin:0; }
+.variable-create .variable-initial-value input,
+.variable-create .variable-initial-value select { display:block; width:100%; box-sizing:border-box; margin-top:4px; }
+.variable-create > button { min-width:0; white-space:normal; line-height:1.4; }
 </style>
