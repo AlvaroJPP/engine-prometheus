@@ -29,6 +29,7 @@ export class HumanoidAvatar {
   private grounded = true
   private enabled = true
   private firstPersonMode = false
+  private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (this.firstPersonMode && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
       if (event.code === 'Space') event.preventDefault()
@@ -160,16 +161,30 @@ export class HumanoidAvatar {
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
-    // Em primeira pessoa, mantém o corpo visível para que o jogador veja
-    // tronco, pernas e pés ao olhar para baixo, escondendo cabeça/cabelo
-    // para evitar que a câmera fique dentro dessas partes.
     this.visualRoot.visible = true
+    const headPartPattern = /head|hair|face|neck|jaw|eye|teeth|tongue|cabe[cç]a|cabelo|rosto|pesco[cç]o|mand[ií]bula|olho|dente|l[ií]ngua/i
     this.visualRoot.traverse((child) => {
-      const partName = child.name.toLowerCase()
-      if (/head|hair|face|cabe[cç]a|cabelo|rosto/.test(partName)) {
+      const partName = child.name
+      if (headPartPattern.test(partName)) {
         child.visible = !enabled
       }
+
+      // Alguns GLBs juntam cabeça e corpo numa única malha skinned.
+      // Nesses modelos, esconder só o objeto não basta: desativa também
+      // os ossos da cabeça/pescoço, restaurando a escala ao sair do modo.
+      if (child instanceof THREE.Bone && headPartPattern.test(partName)) {
+        if (enabled) {
+          if (!this.firstPersonHiddenBones.has(child)) {
+            this.firstPersonHiddenBones.set(child, child.scale.clone())
+          }
+          child.scale.set(0, 0, 0)
+        } else {
+          const originalScale = this.firstPersonHiddenBones.get(child)
+          if (originalScale) child.scale.copy(originalScale)
+        }
+      }
     })
+    if (!enabled) this.firstPersonHiddenBones.clear()
     this.pressed.clear()
     if (enabled) {
       this.cameraTarget.x = this.mesh.position.x
