@@ -97,12 +97,13 @@ function layoutForGraph(rule: LogicRule, index: number) {
 }
 const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
-  return (['trigger', 'condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
+  return (['condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
 }))
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
+  const eventY = 92 + index * 44
   return [
-    { id: rule.id + '-a', kind: 'trigger-condition', x1: layout.trigger.x + 232, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 },
+    { id: rule.id + '-a', kind: 'trigger-condition', x1: 300, y1: eventY, x2: layout.condition.x, y2: layout.condition.y + 60 },
     { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 },
   ]
 }))
@@ -727,7 +728,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
             <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 70} ${edge.y1}, ${edge.x2 - 70} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
-            <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'trigger' ? 'EVENTO' : node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
+            <article class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
+              <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ graphVisibleRules.length }}</span></div>
+              <button v-for="(rule, index) in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
+                <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port"></span>
+              </button>
+              <div v-if="!graphVisibleRules.length" class="event-list-empty">Nenhum evento criado</div>
+            </article>
+            <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
           </div>
         </div>
         <aside class="graph-inspector">
@@ -1654,3 +1662,24 @@ input[type='range'] { accent-color: #e98524; }
 @media(max-width:800px) { .property-character { height:130px; } }
 
 </style>
+\n<style>\n
+/* Os eventos compartilham uma única lista; condições e ações permanecem como nós individuais. */
+.graph-node.trigger-list { width:270px; min-height:0; padding-bottom:5px; border:1px solid #f1bd45; border-top:3px solid #f1bd45; background:#252934; }
+.trigger-list .node-head { min-height:35px; align-items:center; }
+.event-list-row { position:relative; display:flex; align-items:center; gap:9px; width:calc(100% - 14px); min-height:48px; margin:5px 7px; padding:5px 9px; text-align:left; border:1px solid #45424a; border-radius:4px; background:#30313a; color:#ececf2; cursor:pointer; }
+.event-list-row:hover { background:#3a3940; border-color:#b99a4a; }
+.event-list-row.chosen { border-color:#f3c34e; background:#433a27; box-shadow:0 0 0 1px #f3c34e55; }
+.event-list-row.disabled { opacity:.55; }
+.event-row-icon { display:grid; place-items:center; width:25px; height:25px; flex:none; border-radius:4px; background:#45402f; color:#f3c34e; font-size:16px; }
+.event-row-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.event-row-copy strong { font-size:11px; font-weight:600; }
+.event-row-copy small { overflow:hidden; color:#9ea6b5; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.event-row-port { position:absolute; right:-6px; top:50%; width:11px; height:11px; transform:translateY(-50%); border:2px solid #252934; border-radius:50%; background:#f3c34e; box-shadow:0 0 7px #f3c34e88; }
+.event-list-empty { padding:16px 10px; color:#9ea6b5; font-size:11px; }
+.graph-node.condition { border-color:#9a6cf0; border-top:3px solid #9a6cf0; }
+.graph-node.action { border-color:#e86659; border-top:3px solid #e86659; }
+.graph-node.condition .node-port { background:#a27aff; }
+.graph-node.action .node-port { background:#f07868; }
+.graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
+.graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
+\n</style>\n
