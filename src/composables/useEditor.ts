@@ -192,6 +192,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.cycleCameraPreset()
   }
 
+  function setFirstPersonMode(enabled: boolean) {
+    engine?.setFirstPersonMode(enabled)
+    say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; WASD move, Shift corre, Espaço pula e Esc libera o mouse.' : 'Modo primeira pessoa desativado.')
+  }
+
   // ---- hierarquia / inspetor ----
   function selectItem(id: string, additive = false) {
     if (additive && objects.value.some(object => object.id === id)) {
@@ -629,6 +634,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     addPrimitive,
     addClickableCubeExample,
     cycleCamera,
+    setFirstPersonMode,
     selectItem,
     groupSelectedObjects,
     ungroupSelectedObjects,
