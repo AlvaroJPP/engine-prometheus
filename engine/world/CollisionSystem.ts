@@ -24,6 +24,7 @@ export class CollisionSystem {
 
   update(): void {
     const objects = this.world.list().filter((object) => object.mesh.visible)
+    this.keepObjectsAboveTerrain(objects)
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
 
@@ -93,6 +94,21 @@ export class CollisionSystem {
       if (!currentPairs.has(key)) this.world.events.emit('collisionEnded', pair)
     }
     this.activePairs = currentPairs
+    this.keepObjectsAboveTerrain(objects)
+  }
+
+  /** O terreno é um collider sólido: a base de cada objeto não pode atravessá-lo. */
+  private keepObjectsAboveTerrain(objects: ReturnType<World['list']>): void {
+    if (!this.world.terrain.mesh.visible) return
+    for (const object of objects) {
+      const box = new THREE.Box3().setFromObject(object.mesh)
+      const groundY = this.world.terrain.heightAt(object.mesh.position.x, object.mesh.position.z)
+      if (box.min.y < groundY) {
+        object.mesh.position.y += groundY - box.min.y
+        object.mesh.updateMatrixWorld(true)
+        this.world.notifyChanged(object.id)
+      }
+    }
   }
 
   clear(): void {
