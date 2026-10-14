@@ -25,6 +25,7 @@ const {
   setTool,
   setTransform,
   addPrimitive,
+  addClickableCubeExample,
   cycleCamera,
   selectItem,
   toggleVisible,
@@ -242,6 +243,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <button class="tool" :class="{ active: graphOpen }" @click="graphOpen = !graphOpen">⌘ Visual Script</button>
       <span class="vsep" />
       <button class="tool add" @click="addPrimitive('cube')">+ Cubo</button>
+      <button class="tool add" @click="addClickableCubeExample" title="Cria um cubo azul clicável e configura a variável click">+ Exemplo clicável</button>
       <button class="tool add" @click="addPrimitive('platform')">+ Plataforma</button>
       <span class="vsep" />
       <button class="tool grid-toggle" :class="{ active: gridVisible }" @click="toggleGrid" title="Mostrar ou ocultar a malha">▦ Malha</button>
