@@ -134,6 +134,32 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.addPrimitive(type)
   }
 
+  /** Cria um exemplo pronto: o cubo fica azul no primeiro clique e marca click=true. */
+  function addClickableCubeExample() {
+    if (!engine) return
+    engine.addPrimitive('cube')
+    const created = engine.listObjects().at(-1)
+    if (!created) { say('Não foi possível criar o cubo.'); return }
+    engine.renameObject(created.id, 'Cubo clicável')
+    engine.setLogicVariable('click', false)
+    const rule: LogicRule = {
+      id: `click-blue-${Date.now().toString(36)}`,
+      name: 'Cubo: ficar azul ao clicar',
+      enabled: true,
+      trigger: { type: 'object_clicked', objectId: created.id },
+      conditions: [],
+      actions: [{
+        type: 'javascript',
+        code: "if (api.get('click') === false) { api.setColor('{ID_OBJECT}', '#0000FF'); api.set('click', true) }",
+      }],
+    }
+    engine.upsertRule(rule)
+    engine.select(created.id)
+    refresh()
+    dirty.value = true
+    say('Cubo clicável criado. click = false; clique no cubo para deixá-lo azul e definir click = true.')
+  }
+
   function cycleCamera() {
     engine?.cycleCameraPreset()
   }
@@ -407,6 +433,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setTool,
     setTransform,
     addPrimitive,
+    addClickableCubeExample,
     cycleCamera,
     selectItem,
     toggleVisible,
