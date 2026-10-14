@@ -411,17 +411,25 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cube / GameObject' : 'Platform / GameObject' }}</strong></div>
             </div>
             <div class="component-caption">VARIÁVEIS DO OBJETO · VALORES INDEPENDENTES</div>
+            <div class="variable-table-head" aria-hidden="true">
+              <span>ID</span><span>TYPE</span><span>VALUE</span>
+            </div>
             <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row">
-              <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'object')" /></label>
-              <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name), 'object')">↻</button>
+              <code class="variable-id" :title="String(name)">{{ name }}</code>
+              <span class="variable-type">{{ typeof value }}</span>
+              <input class="variable-value" :aria-label="'Valor de ' + String(name)" :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'object')" />
             </div>
             <p v-if="!Object.keys(logicVariables).length" class="muted">Nenhuma variável própria neste objeto.</p>
             <div class="component-caption">VARIÁVEIS GLOBAIS REUTILIZÁVEIS</div>
             <p class="muted">Adicione uma cópia ao objeto para que cada objeto mantenha seu próprio valor.</p>
-            <div v-for="(value, name) in globalLogicVariables" :key="'global-' + name" class="variable-row">
-              <label class="field">{{ name }} · global<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'global')" /></label>
-              <button class="ghost" title="Copiar para este objeto" :disabled="Object.prototype.hasOwnProperty.call(logicVariables, name)" @click="useGlobalVariableOnObject(String(name))">＋</button>
-              <button class="ghost" title="Alternar variável global" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name), 'global')">↻</button>
+            <div class="variable-table-head global-variable-head" aria-hidden="true">
+              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span>
+            </div>
+            <div v-for="(value, name) in globalLogicVariables" :key="'global-' + name" class="variable-row global-variable-row">
+              <code class="variable-id" :title="String(name)">{{ name }}</code>
+              <span class="variable-type">{{ typeof value }}</span>
+              <input class="variable-value" :aria-label="'Valor global de ' + String(name)" :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'global')" />
+              <button class="ghost variable-copy" title="Copiar para este objeto" :disabled="Object.prototype.hasOwnProperty.call(logicVariables, name)" @click="useGlobalVariableOnObject(String(name))">＋</button>
             </div>
             <div class="variable-create">
               <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
@@ -1359,4 +1367,74 @@ input[type='range'] { accent-color: #e98524; }
 .public-library-item{display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid #363636}
 .public-library-item span{flex:1;min-width:0;color:#ddd;font-size:10px;overflow-wrap:anywhere}
 .public-library-item .ghost{flex:none}
+</style>
+
+
+<style>
+/* Variáveis em linhas compactas: ID, TYPE e VALUE alinhados como uma tabela. */
+.variable-table-head,
+.variable-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(54px, .72fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 6px;
+}
+.variable-table-head {
+  margin: 9px 0 4px;
+  padding: 0 6px;
+  color: #929292;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.variable-row {
+  min-width: 0;
+  margin: 0 0 5px;
+  padding: 5px;
+  border: 1px solid #202020;
+  border-radius: 3px;
+  background: #303030;
+}
+.variable-id {
+  min-width: 0;
+  overflow: hidden;
+  color: #dedede;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variable-type {
+  min-width: 0;
+  overflow: hidden;
+  color: #a8b9a0;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variable-row .variable-value {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 27px;
+  padding: 5px 6px;
+  border: 1px solid #1c1c1c;
+  border-radius: 3px;
+  background: #202020;
+  color: #f0f0f0;
+  font-size: 10px;
+}
+.variable-row .variable-value:focus { border-color: #a66a32; outline: none; }
+.global-variable-head,
+.global-variable-row {
+  grid-template-columns: minmax(0, 1fr) minmax(48px, .65fr) minmax(0, 1fr) 27px;
+}
+.variable-row .variable-copy {
+  min-width: 0;
+  padding: 4px 5px;
+}
+@media (max-width: 1000px) {
+  .variable-table-head, .variable-row { gap: 4px; }
+  .variable-row { padding: 4px; }
+  .variable-id, .variable-type, .variable-row .variable-value { font-size: 9px; }
+}
 </style>
