@@ -48,7 +48,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushRadius = ref(4)
   const gridVisible = ref(true)
   const logicRules = ref<LogicRule[]>([])
-  const logicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
+  const logicVariables = ref<Record<string, boolean | number | string>>({})
+  const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area'>('object_clicked')
   const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
@@ -73,6 +74,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     gridVisible.value = engine.isGridVisible()
     logicRules.value = engine.listRules()
     logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
   }
 
   function markDirty() {
@@ -101,6 +103,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       e.events.on('selectionChanged', (ev) => {
         selectedId.value = ev.id
         logicVariables.value = e.logicVariables(ev.id)
+        globalLogicVariables.value = e.logicVariables()
       }),
       e.events.on('toolChanged', (ev) => {
         tool.value = ev.tool
@@ -233,10 +236,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   // ---- motor de regras ----
-  function createLogicVariable(name: string, rawValue: string) {
+  function createLogicVariable(name: string, rawValue: string, scope: 'global' | 'object' = 'object') {
     if (!engine) return
-    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
-    if (!objectId) { say('Selecione um objeto para criar uma variável própria.'); return }
+    const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (scope === 'object' && !objectId) { say('Selecione um objeto para criar uma variável própria.'); return }
 
     // Aceita tanto os campos separados (nome: click, valor: false)
     // quanto uma atribuição digitada inteira no campo de nome (click = false).
@@ -248,7 +251,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       say('Use nome = valor (ex.: click = false) ou informe o nome sem espaços.')
       return
     }
-    if (Object.prototype.hasOwnProperty.call(logicVariables.value, key)) {
+    const currentVariables = scope === 'global' ? globalLogicVariables.value : logicVariables.value
+    if (Object.prototype.hasOwnProperty.call(currentVariables, key)) {
       say('Já existe uma variável com esse nome.')
       return
     }
@@ -260,32 +264,37 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     else if (normalizedValue !== '' && Number.isFinite(Number(normalizedValue))) value = Number(normalizedValue)
 
     engine.setLogicVariable(key, value, objectId)
-    logicVariables.value = engine.logicVariables(objectId)
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
     dirty.value = true
-    say(`Variável "${key}" criada com valor ${String(value)}.`)
+    say(`Variável ${scope === 'global' ? 'global ' : ''}"${key}" criada com valor ${String(value)}.`)
   }
 
-  function setLogicVariableValue(name: string, rawValue: string) {
-    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
-    if (!engine || !objectId || !Object.prototype.hasOwnProperty.call(logicVariables.value, name)) return
+  function setLogicVariableValue(name: string, rawValue: string, scope: 'global' | 'object' = 'object') {
+    const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
+    if (!engine || (scope === 'object' && !objectId) || !Object.prototype.hasOwnProperty.call(source, name)) return
     let value: boolean | number | string = rawValue
     if (rawValue === 'true') value = true
     else if (rawValue === 'false') value = false
     else if (rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) value = Number(rawValue)
     engine.setLogicVariable(name, value, objectId)
-    logicVariables.value = engine.logicVariables(objectId)
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
     dirty.value = true
   }
 
-  function toggleLogicVariable(name: string) {
-    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
-    if (!engine || !objectId) return
-    engine.setLogicVariable(name, logicVariables.value[name] === true ? false : true, objectId)
-    logicVariables.value = engine.logicVariables(objectId)
+  function toggleLogicVariable(name: string, scope: 'global' | 'object' = 'object') {
+    const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
+    if (!engine || (scope === 'object' && !objectId)) return
+    engine.setLogicVariable(name, source[name] === true ? false : true, objectId)
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
     dirty.value = true
   }
 
-  function addLogicRule(scriptCode?: string, condition?: LogicRule['conditions'][number]) {
+  function addLogicRule(scriptCode?: string, condition?: LogicRule['conditions'][number], eventName?: string) {
     if (!engine) return
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
@@ -304,7 +313,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
               : { type: 'set_variable', name: 'has_key', value: true }
-    const rule: LogicRule = { id, name: `Regra ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
+    const rule: LogicRule = { id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
     dirty.value = true
@@ -447,7 +456,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushStrength,
     brushRadius,
     gridVisible,
-    logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
+    logicRules, logicVariables, globalLogicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
     markDirty,
     setTool,
