@@ -286,6 +286,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     applyingProjectSettings = true
     try {
       eng.newProject()
+      // worldReset é emitido antes de o motor limpar as regras; atualize a interface
+      // depois que o estado inteiro do projeto novo já estiver redefinido.
+      refresh()
       brushStrength.value = 1.5
       brushRadius.value = 4
       gridVisible.value = true
@@ -308,6 +311,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       applyingProjectSettings = true
       try {
         eng.loadProject(bundle)
+        // loadProject substitui a cena antes de carregar logic/events.json.
+        // O evento worldReset atualiza a interface cedo demais; sincronize novamente
+        // agora que regras, variáveis e scripts já foram carregados.
+        refresh()
         brushStrength.value = bundle.project.settings.editor.brushStrength
         brushRadius.value = bundle.project.settings.editor.brushRadius
         gridVisible.value = bundle.project.settings.editor.gridVisible
