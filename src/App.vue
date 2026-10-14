@@ -89,8 +89,6 @@ function defaultGraphLayout(index: number) {
 function layoutForGraph(rule: LogicRule, index: number) {
   const saved = rule.graphLayout
   const isVerticalLayout = !!saved &&
-    Math.abs(saved.trigger.x - saved.condition.x) < 80 &&
-    Math.abs(saved.condition.x - saved.action.x) < 80 &&
     saved.trigger.y < saved.condition.y &&
     saved.condition.y < saved.action.y
   return isVerticalLayout ? saved! : defaultGraphLayout(index)
