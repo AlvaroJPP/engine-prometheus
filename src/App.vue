@@ -494,7 +494,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </section>
 
           <section class="object-components">
-            <h4>{{ inspectorTab === 'transform' ? 'Transformação' : inspectorTab === 'color' ? 'Aparência e material' : inspectorTab === 'nodes' ? 'Nós do objeto' : 'Dados do objeto' }}</h4>
+            <h4>{{ selected ? (inspectorTab === 'transform' ? 'Transformação' : inspectorTab === 'color' ? 'Aparência e material' : inspectorTab === 'nodes' ? 'Nós do objeto' : 'Dados do objeto') : selectedId === TERRAIN_ID ? 'Terreno editável' : 'Cena' }}</h4>
             <template v-if="selected">
               <template v-if="inspectorTab === 'transform'">
               <label class="field">Nome do objeto
