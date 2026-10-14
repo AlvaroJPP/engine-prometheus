@@ -545,7 +545,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <template v-else-if="selectedGraphRule.actions[0]?.type === 'javascript'">
                 <p class="muted">JavaScript executado depois do gatilho e de todas as condições. API: <code>api</code>, <code>vars</code>, <code>world</code> e <code>console</code>.</p>
                 <label class="field">Código JavaScript
-                  <textarea class="script-editor" spellcheck="false" rows="12" :value="scriptDraft" @input="onScriptDraftInput" @keydown.stop></textarea>
+                  <textarea class="script-editor" spellcheck="false" rows="12" :value="scriptDraft" @input="onScriptDraftInput"></textarea>
                 </label>
                 <div class="component-box">
                   <div class="component-caption">EXEMPLOS</div>
