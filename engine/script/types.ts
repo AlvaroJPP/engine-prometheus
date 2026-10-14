@@ -13,6 +13,8 @@ export type RuleAction =
   | { type: 'javascript'; code: string }
 
 export interface LogicRule {
+  /** Objeto proprietário deste evento; regras de objetos diferentes nunca são compartilhadas. */
+  ownerObjectId?: string
   id: string
   name: string
   enabled: boolean
