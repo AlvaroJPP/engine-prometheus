@@ -100,12 +100,6 @@ export class HumanoidAvatar {
     // Movimento relativo à orientação horizontal da câmera.
     if (length > 0) {
       const direction = new THREE.Vector3(
-        0,
-        0,
-        0,
-      )
-      // O vetor acima é corrigido para usar diretamente o ângulo real da câmera abaixo.
-      direction.set(
         sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
         0,
         -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
@@ -181,7 +175,7 @@ export class HumanoidAvatar {
     return this.world.list().some((object) => {
       if (!object.mesh.visible) return false
       const objectBox = new THREE.Box3().setFromObject(object.mesh)
-      return playerBox.intersectsBox(objectBox)
+      return this.hasVolumeOverlap(playerBox, objectBox)
     })
   }
 
@@ -200,13 +194,20 @@ export class HumanoidAvatar {
     return landing
   }
 
+  private hasVolumeOverlap(a: THREE.Box3, b: THREE.Box3): boolean {
+    const overlapX = Math.min(a.max.x, b.max.x) - Math.max(a.min.x, b.min.x)
+    const overlapY = Math.min(a.max.y, b.max.y) - Math.max(a.min.y, b.min.y)
+    const overlapZ = Math.min(a.max.z, b.max.z) - Math.max(a.min.z, b.min.z)
+    return overlapX > 0.02 && overlapY > 0.02 && overlapZ > 0.02
+  }
+
   private updateCollisionEvents(): void {
     const playerBox = this.playerBox()
     const next = new Map<string, { a: string; b: string }>()
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
       const box = new THREE.Box3().setFromObject(object.mesh)
-      if (!playerBox.intersectsBox(box)) continue
+      if (!this.hasVolumeOverlap(playerBox, box)) continue
       const key = object.id
       next.set(key, { a: PLAYER_ID, b: object.id })
     }
