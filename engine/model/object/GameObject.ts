@@ -17,8 +17,13 @@ export interface ObjectInfo {
   y: number
   z: number
   /** graus */
+  rotationX: number
   rotationY: number
+  rotationZ: number
   scale: number
+  scaleX: number
+  scaleY: number
+  scaleZ: number
   visible: boolean
   color: number
 }
@@ -28,8 +33,13 @@ export interface ObjectPatch {
   y?: number
   z?: number
   /** graus */
+  rotationX?: number
   rotationY?: number
+  rotationZ?: number
   scale?: number
+  scaleX?: number
+  scaleY?: number
+  scaleZ?: number
   color?: number
   visible?: boolean
 }
