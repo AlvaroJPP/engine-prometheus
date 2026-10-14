@@ -67,6 +67,7 @@ const graphOpen = ref(false)
 const graphSelection = ref<{ ruleId: string; part: 'trigger' | 'condition' | 'action' } | null>(null)
 const dragNode = ref<{ ruleId: string; part: 'trigger' | 'condition' | 'action'; dx: number; dy: number } | null>(null)
 const graphPan = ref({ x: 0, y: 0 })
+const graphZoom = ref(1)
 const dragCanvas = ref<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
 const graphViewport = ref<HTMLElement | null>(null)
 const graphNodes = computed(() => logicRules.value.flatMap((rule, index) => {
@@ -114,8 +115,8 @@ function startNodeDrag(event: PointerEvent, ruleId: string, part: 'trigger' | 'c
   dragNode.value = {
     ruleId,
     part,
-    dx: event.clientX - bounds.left - graphPan.value.x + graphViewport.value.scrollLeft - node.x,
-    dy: event.clientY - bounds.top - graphPan.value.y + graphViewport.value.scrollTop - node.y,
+    dx: (event.clientX - bounds.left - graphPan.value.x) / graphZoom.value + graphViewport.value.scrollLeft - node.x,
+    dy: (event.clientY - bounds.top - graphPan.value.y) / graphZoom.value + graphViewport.value.scrollTop - node.y,
   }
   ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
 }
@@ -130,6 +131,28 @@ function startGraphPan(event: PointerEvent) {
   }
   graphViewport.value.classList.add('is-panning')
   graphViewport.value.setPointerCapture(event.pointerId)
+}
+function zoomGraph(delta: number, clientX?: number, clientY?: number) {
+  const viewport = graphViewport.value
+  if (!viewport) return
+  const bounds = viewport.getBoundingClientRect()
+  const anchorX = (clientX ?? (bounds.left + bounds.width / 2)) - bounds.left
+  const anchorY = (clientY ?? (bounds.top + bounds.height / 2)) - bounds.top
+  const previousZoom = graphZoom.value
+  const nextZoom = Math.min(2.5, Math.max(0.35, Number((previousZoom + delta).toFixed(2))))
+  if (nextZoom === previousZoom) return
+  graphPan.value = {
+    x: anchorX - (anchorX - graphPan.value.x) * (nextZoom / previousZoom),
+    y: anchorY - (anchorY - graphPan.value.y) * (nextZoom / previousZoom),
+  }
+  graphZoom.value = nextZoom
+}
+function onGraphWheel(event: WheelEvent) {
+  zoomGraph(event.deltaY < 0 ? 0.1 : -0.1, event.clientX, event.clientY)
+}
+function resetGraphView() {
+  graphPan.value = { x: 0, y: 0 }
+  graphZoom.value = 1
 }
 function moveNode(event: PointerEvent) {
   if (!graphViewport.value) return
@@ -147,7 +170,7 @@ function moveNode(event: PointerEvent) {
   const rule = logicRules.value[ruleIndex]; if (!rule || ruleIndex < 0) return
   const rowY = 70 + ruleIndex * 230
   const current = rule.graphLayout ?? { trigger: { x: 70, y: rowY }, condition: { x: 340, y: rowY }, action: { x: 610, y: rowY } }
-  const next = { ...current, [part]: { x: Math.max(8, event.clientX - bounds.left - graphPan.value.x + graphViewport.value.scrollLeft - dx), y: Math.max(8, event.clientY - bounds.top - graphPan.value.y + graphViewport.value.scrollTop - dy) } }
+  const next = { ...current, [part]: { x: Math.max(8, (event.clientX - bounds.left - graphPan.value.x) / graphZoom.value + graphViewport.value.scrollLeft - dx), y: Math.max(8, (event.clientY - bounds.top - graphPan.value.y) / graphZoom.value + graphViewport.value.scrollTop - dy) } }
   updateLogicRule({ ...rule, graphLayout: next })
 }
 function endNodeDrag() {
@@ -649,8 +672,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <header class="graph-top"><div><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Lógica conectada · salva em logic/events.json</span></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library"><div class="eyebrow">BIBLIOTECA</div><h3>Nós disponíveis</h3><p>Crie um fluxo pelo painel Motor de regras e ele aparecerá aqui como nós conectados.</p><div class="node-legend trigger">● Evento</div><div class="node-legend condition">◆ Condição</div><div class="node-legend action">▶ Ação</div><div class="graph-tip">Arraste os nós para organizar o grafo. As posições são guardadas junto com as regras.</div></aside>
-        <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag">
-          <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px)` }">
+        <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
+          <div class="graph-zoom-controls" @pointerdown.stop>
+            <button title="Aproximar" aria-label="Aproximar" @click="zoomGraph(0.15)">＋</button>
+            <span>{{ Math.round(graphZoom * 100) }}%</span>
+            <button title="Afastar" aria-label="Afastar" @click="zoomGraph(-0.15)">−</button>
+            <button title="Restaurar visualização inicial" aria-label="Restaurar visualização inicial" @click="resetGraphView">⌂</button>
+          </div>
+          <div class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!logicRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p>Feche esta janela e adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
             <svg class="graph-wires" width="1800" height="1200" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :d="`M ${edge.x1} ${edge.y1} C ${edge.x1 + 65} ${edge.y1}, ${edge.x2 - 65} ${edge.y2}, ${edge.x2} ${edge.y2}`" /></svg>
             <article v-for="node in graphNodes" :key="node.rule.id + node.part" class="graph-node" :class="[node.part, { chosen: graphSelection?.ruleId === node.rule.id && graphSelection?.part === node.part }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @pointerdown.stop="startNodeDrag($event, node.rule.id, node.part)" @click.stop="graphSelection = { ruleId: node.rule.id, part: node.part }"><div class="node-head"><span>{{ node.part === 'trigger' ? 'EVENTO' : node.part === 'condition' ? 'CONDIÇÃO' : 'AÇÃO' }}</span><span>{{ node.rule.enabled ? '●' : '○' }}</span></div><div class="node-title">{{ nodeTitle(node.rule, node.part) }}</div><div class="node-foot"><span class="node-port"></span>{{ node.rule.name }}<span class="node-port out"></span></div></article>
@@ -967,7 +996,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .graph-body { display:grid; grid-template-columns:210px minmax(0,1fr) 245px; min-height:0; flex:1; }
 .graph-library,.graph-inspector { padding:18px 14px; background:#171b24; overflow:auto; } .graph-library { border-right:1px solid #2a303d; } .graph-inspector { border-left:1px solid #2a303d; } .graph-library h3,.graph-inspector h3 { font-size:14px; margin:10px 0 14px; } .graph-library p { font-size:12px; line-height:1.6; color:#8993a6; }
 .node-legend { padding:10px 12px; margin:8px 0; border-radius:6px; background:#202632; font-size:12px; border-left:3px solid; } .node-legend.trigger { border-color:#d8a34a; } .node-legend.condition { border-color:#6c9de6; } .node-legend.action { border-color:#65bf91; } .graph-tip { margin-top:26px; padding-top:14px; border-top:1px solid #2a303d; font-size:11px; line-height:1.6; color:#7f899c; }
-.graph-canvas { position:relative; flex:1; overflow:hidden; min-width:0; min-height:0; background-color:#11151d; background-image:radial-gradient(#343b49 1px,transparent 1px); background-size:22px 22px; touch-action:none; cursor:grab; } .graph-canvas.is-panning { cursor:grabbing; } .graph-stage { position:absolute; inset:0 auto auto 0; width:1800px; height:1200px; transform-origin:0 0; will-change:transform; } .graph-wires { position:absolute; inset:0; width:1800px; height:1200px; pointer-events:none; overflow:visible; } .graph-wires path { fill:none; stroke:#8a96ad; stroke-width:2.5; }
+.graph-canvas { position:relative; flex:1; overflow:hidden; min-width:0; min-height:0; background-color:#11151d; background-image:radial-gradient(#343b49 1px,transparent 1px); background-size:22px 22px; touch-action:none; cursor:grab; } .graph-canvas.is-panning { cursor:grabbing; } .graph-stage { position:absolute; inset:0 auto auto 0; width:1800px; height:1200px; transform-origin:0 0; will-change:transform; } .graph-zoom-controls { position:absolute; z-index:5; top:12px; right:12px; display:flex; align-items:center; gap:5px; padding:5px; border:1px solid #414141; border-radius:5px; background:#303030ee; box-shadow:0 3px 10px #0005; cursor:default; } .graph-zoom-controls button { width:29px; height:28px; border:1px solid #4b4b4b; border-radius:3px; background:#3b3b3b; color:#eee; font-size:18px; line-height:1; } .graph-zoom-controls button:hover { background:#51402f; border-color:#e98524; } .graph-zoom-controls span { min-width:42px; text-align:center; color:#ccc; font-size:10px; font-variant-numeric:tabular-nums; } .graph-wires { position:absolute; inset:0; width:1800px; height:1200px; pointer-events:none; overflow:visible; } .graph-wires path { fill:none; stroke:#8a96ad; stroke-width:2.5; }
 .graph-node { position:absolute; width:220px; min-height:120px; border:1px solid #3b4352; background:#1c222d; border-radius:8px; box-shadow:0 10px 24px #0004; cursor:grab; user-select:none; z-index:1; } .graph-node:active { cursor:grabbing; } .graph-node.chosen { outline:2px solid #d36a55; outline-offset:2px; } .graph-node.trigger { border-top:3px solid #d8a34a; } .graph-node.condition { border-top:3px solid #6c9de6; } .graph-node.action { border-top:3px solid #65bf91; } .node-head { display:flex; justify-content:space-between; padding:10px 12px 8px; font-size:9px; letter-spacing:.13em; color:#aab4c5; border-bottom:1px solid #303746; } .node-title { padding:13px 12px; min-height:44px; font-size:12px; line-height:1.5; } .node-foot { position:relative; display:flex; align-items:center; justify-content:center; padding:7px; border-top:1px solid #303746; color:#7f899c; font-size:10px; } .node-port { position:absolute; left:-5px; top:50%; width:9px; height:9px; border-radius:50%; background:#8a96ad; border:2px solid #1c222d; } .node-port.out { left:auto; right:-5px; } .graph-empty { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:min(360px,90%); } .graph-empty h2 { font-size:18px; } .graph-empty p { color:#8e98aa; font-size:12px; line-height:1.6; } .empty-icon { font-size:32px; color:#d36a55; } .graph-rule-count { border-top:1px solid #2a303d; margin-top:24px; padding-top:12px; font-size:11px; color:#8e98aa; }
 @media(max-width:800px) { .graph-body { grid-template-columns:150px minmax(0,1fr); } .graph-inspector { display:none; } .graph-subtitle { display:none; } }
 </style>
