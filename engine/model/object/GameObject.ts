@@ -45,4 +45,7 @@ export interface ObjectPatch {
   scaleZ?: number
   color?: number
   visible?: boolean
+  locked?: boolean
+  wireframeVisible?: boolean
+  groupId?: string | null
 }
