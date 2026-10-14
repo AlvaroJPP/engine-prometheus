@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
 
 const PLAYER_ID = 'player'
@@ -12,6 +13,8 @@ const PLAYER_HEIGHT = 1.8
 /** Avatar humanoide controlável por teclado, com gravidade e colisões com terreno/objetos. */
 export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
+  private readonly visualRoot = new THREE.Group()
+  private disposed = false
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
@@ -37,6 +40,8 @@ export class HumanoidAvatar {
     this.getCameraYaw = getCameraYaw
     this.mesh.name = 'Humanoid Avatar'
     this.mesh.userData.id = PLAYER_ID
+    this.visualRoot.name = 'Avatar visual'
+    this.mesh.add(this.visualRoot)
 
     const skin = new THREE.MeshStandardMaterial({ color: 0xd7a078, roughness: 0.85 })
     const shirt = new THREE.MeshStandardMaterial({ color: 0x2878c8, roughness: 0.8 })
@@ -50,7 +55,7 @@ export class HumanoidAvatar {
       if (scale) part.scale.set(...scale)
       part.castShadow = true
       part.receiveShadow = true
-      this.mesh.add(part)
+      this.visualRoot.add(part)
       return part
     }
 
@@ -75,6 +80,7 @@ export class HumanoidAvatar {
       if (child instanceof THREE.Mesh) child.userData.avatarPart = true
     })
     this.world.scene.add(this.mesh)
+    void this.loadSketchfabModel()
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
     window.addEventListener('blur', this.onBlur)
@@ -150,11 +156,81 @@ export class HumanoidAvatar {
   }
 
   dispose(): void {
+    this.disposed = true
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
     this.world.scene.remove(this.mesh)
     this.mesh.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      child.geometry.dispose()
+      const material = child.material
+      if (Array.isArray(material)) material.forEach((item) => item.dispose())
+      else material.dispose()
+    })
+  }
+
+  /** Carrega o GLB enviado no commit, mantendo o avatar procedural como fallback. */
+  private async loadSketchfabModel(): Promise<void> {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}models/dummy.zip`)
+      if (!response.ok) throw new Error(`Não foi possível carregar o modelo (HTTP ${response.status}).`)
+      const archive = await response.arrayBuffer()
+      const view = new DataView(archive)
+      if (view.byteLength < 30 || view.getUint32(0, true) !== 0x04034b50) {
+        throw new Error('O arquivo do avatar não é um ZIP válido.')
+      }
+      const compression = view.getUint16(8, true)
+      const compressedSize = view.getUint32(18, true)
+      const nameLength = view.getUint16(26, true)
+      const extraLength = view.getUint16(28, true)
+      if (compression !== 0) throw new Error('O ZIP do avatar usa uma compressão não suportada.')
+      const dataStart = 30 + nameLength + extraLength
+      if (dataStart + compressedSize > view.byteLength) throw new Error('O GLB dentro do ZIP está incompleto.')
+      const glb = archive.slice(dataStart, dataStart + compressedSize)
+
+      const loader = new GLTFLoader()
+      loader.parse(glb, '', (gltf) => {
+        if (this.disposed) {
+          this.disposeObject(gltf.scene)
+          return
+        }
+        const bounds = new THREE.Box3().setFromObject(gltf.scene)
+        const size = bounds.getSize(new THREE.Vector3())
+        if (size.y <= 0) {
+          this.disposeObject(gltf.scene)
+          return
+        }
+
+        // Padroniza o personagem para 1,8 m e apoia os pés na origem local.
+        gltf.scene.scale.setScalar(PLAYER_HEIGHT / size.y)
+        gltf.scene.updateMatrixWorld(true)
+        const normalizedBounds = new THREE.Box3().setFromObject(gltf.scene)
+        const center = normalizedBounds.getCenter(new THREE.Vector3())
+        gltf.scene.position.x -= center.x
+        gltf.scene.position.y -= normalizedBounds.min.y
+        gltf.scene.position.z -= center.z
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = true
+            child.receiveShadow = true
+            child.userData.avatarPart = true
+          }
+        })
+
+        for (const child of [...this.visualRoot.children]) this.disposeObject(child)
+        this.visualRoot.clear()
+        this.visualRoot.add(gltf.scene)
+      }, (error) => {
+        console.warn('[Engine Prometheus] Não foi possível carregar o avatar Dummy; mantendo o modelo de reserva.', error)
+      })
+    } catch (error) {
+      console.warn('[Engine Prometheus] Falha ao carregar o avatar Dummy; mantendo o modelo de reserva.', error)
+    }
+  }
+
+  private disposeObject(object: THREE.Object3D): void {
+    object.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
       child.geometry.dispose()
       const material = child.material
