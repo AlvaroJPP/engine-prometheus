@@ -8,7 +8,7 @@ export type RuleAction =
   | { type: 'move'; objectId: string; x?: number; y?: number; z?: number }
   | { type: 'rotate'; objectId: string; degrees: number }
   | { type: 'set_visible'; objectId: string; visible: boolean }
-  | { type: 'set_variable'; name: string; value: boolean | number | string }
+  | { type: 'set_variable'; name: string; value: boolean | number | string; objectId?: string }
   | { type: 'script'; code: string }
   | { type: 'javascript'; code: string }
 
@@ -28,6 +28,8 @@ export interface LogicRule {
 export interface LogicEventsFile {
   formatVersion: 1
   variables: Record<string, boolean | number | string>
+  /** Variáveis isoladas por GameObject, indexadas pelo ID do objeto. */
+  objectVariables?: Record<string, Record<string, boolean | number | string>>
   events: LogicRule[]
 }
 
