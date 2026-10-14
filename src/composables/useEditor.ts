@@ -352,18 +352,38 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh(); dirty.value = true
   }
 
-  /** Compartilha a mesma regra de clique com todos os objetos da cena.
-   * O estado de variáveis continua isolado por ID do objeto que recebeu o clique. */
-  function shareLogicRule(rule: LogicRule) {
-    if (!engine || rule.trigger.type !== 'object_clicked') {
-      say('Compartilhamento está disponível para eventos de clique em objetos.')
+  /** Importa uma cópia independente de um evento público para o objeto selecionado. */
+  function importLogicRule(sourceRule: LogicRule) {
+    if (!engine || !selectedId.value || selectedId.value === TERRAIN_ID) {
+      say('Selecione o objeto que receberá o evento importado.')
       return
     }
-    const targets = objects.value.filter(object => object.id !== TERRAIN_ID).map(object => object.id)
-    engine.upsertRule({ ...rule, trigger: { ...rule.trigger, objectIds: targets } })
+    if (sourceRule.trigger.type !== 'object_clicked') {
+      say('Por enquanto, só é possível importar eventos de clique em objetos.')
+      return
+    }
+    const targetId = selectedId.value
+    const sourceId = sourceRule.trigger.objectId
+    const imported: LogicRule = {
+      ...structuredClone(sourceRule),
+      id: `rule-${Date.now().toString(36)}-import`,
+      name: `${sourceRule.name} (importado)`,
+      enabled: true,
+      trigger: { type: 'object_clicked', objectId: targetId },
+      conditions: structuredClone(sourceRule.conditions),
+      actions: sourceRule.actions.map(action => {
+        if ('objectId' in action && action.objectId === sourceId) {
+          return { ...action, objectId: targetId }
+        }
+        return { ...action }
+      }),
+      graphLayout: undefined,
+      lastInside: false,
+    }
+    engine.upsertRule(imported)
     refresh()
     dirty.value = true
-    say(`Evento "${rule.name}" compartilhado com ${targets.length} objetos. Cada objeto mantém suas próprias variáveis.`)
+    say(`Evento "${sourceRule.name}" importado para este objeto como uma cópia independente.`)
   }
 
   // ---- projeto ----
