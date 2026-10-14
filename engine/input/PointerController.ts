@@ -56,6 +56,7 @@ export class PointerController {
     this.ring.visible = false
     world.scene.add(this.ring)
     canvas.addEventListener('pointerdown', this.onDown)
+    document.addEventListener('mousemove', this.onDocumentMouseMove)
     canvas.addEventListener('pointermove', this.onMove)
     canvas.addEventListener('pointerup', this.onUp)
     canvas.addEventListener('pointercancel', this.onUp)
@@ -126,6 +127,12 @@ export class PointerController {
 
   // ---------- eventos ----------
   private onDown = (e: PointerEvent): void => {
+    if (this.orbit.firstPerson) {
+      if (e.button === 0 && document.pointerLockElement !== this.canvas) {
+        void this.canvas.requestPointerLock()
+      }
+      return
+    }
     if (this.isGizmoDragging()) return
     this.lastEvent = e
     if (e.button === 1) {
@@ -202,6 +209,11 @@ export class PointerController {
   private begin(drag: Drag, e: PointerEvent): void {
     this.drag = drag
     this.canvas.setPointerCapture(e.pointerId)
+  }
+
+  private onDocumentMouseMove = (e: MouseEvent): void => {
+    if (!this.orbit.firstPerson || document.pointerLockElement !== this.canvas) return
+    this.orbit.rotate(e.movementX, e.movementY)
   }
 
   private onMove = (e: PointerEvent): void => {
@@ -332,6 +344,8 @@ export class PointerController {
 
   dispose(): void {
     this.canvas.removeEventListener('pointerdown', this.onDown)
+    document.removeEventListener('mousemove', this.onDocumentMouseMove)
+    if (document.pointerLockElement === this.canvas) document.exitPointerLock()
     this.canvas.removeEventListener('pointermove', this.onMove)
     this.canvas.removeEventListener('pointerup', this.onUp)
     this.canvas.removeEventListener('pointercancel', this.onUp)
