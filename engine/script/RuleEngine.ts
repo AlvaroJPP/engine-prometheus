@@ -122,21 +122,24 @@ export class RuleEngine {
   /** Executa uma linguagem de comandos limitada; não usa eval nem executa JavaScript arbitrário. */
   private executeScript(source: string, eventObjectId?: string): void {
     source = this.resolveObjectIdToken(source, false, eventObjectId)
+    const scopeId = eventObjectId ?? this.world.getSelectedId() ?? undefined
+    const getScoped = (name: string) => this.getVariable(name, scopeId)
+    const setScoped = (name: string, value: boolean | number | string) => this.setVariable(name, value, scopeId)
     const lines = source.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
     for (const line of lines) {
       let match = line.match(/^set\s+([A-Za-z_][\w]*)\s*=\s*(.+)$/)
-      if (match) { this.setVariable(match[1]!, parseScriptValue(match[2]!)); continue }
+      if (match) { setScoped(match[1]!, parseScriptValue(match[2]!)); continue }
       match = line.match(/^add\s+([A-Za-z_][\w]*)\s+(-?\d+(?:\.\d+)?)$/)
       if (match) {
-        const current = this.data.variables[match[1]!]
+        const current = getScoped(match[1]!)
         if (typeof current !== 'number') throw new Error(`A variável "${match[1]}" precisa ser numérica para usar add.`)
-        this.setVariable(match[1]!, current + Number(match[2])); continue
+        setScoped(match[1]!, current + Number(match[2])); continue
       }
       match = line.match(/^toggle\s+([A-Za-z_][\w]*)$/)
       if (match) {
-        const current = this.data.variables[match[1]!]
+        const current = getScoped(match[1]!)
         if (typeof current !== 'boolean') throw new Error(`A variável "${match[1]}" precisa ser booleana para usar toggle.`)
-        this.setVariable(match[1]!, !current); continue
+        setScoped(match[1]!, !current); continue
       }
       match = line.match(/^rotate\s+(\S+)\s+(-?\d+(?:\.\d+)?)$/)
       if (match) { this.apply({ type: 'rotate', objectId: match[1]!, degrees: Number(match[2]) }); continue }
