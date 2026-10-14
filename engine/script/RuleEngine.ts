@@ -69,12 +69,15 @@ export class RuleEngine {
     if (!rule.conditions.every((c) => {
       if (!Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
       const actual = this.data.variables[c.name]
+      // Valores vindos de projetos antigos ou campos de texto podem chegar como
+      // "false"/"true"/"10". Normalize-os para comparar com o tipo real da variável.
+      const expected = normalizeConditionValue(c.value, actual)
       switch (c.operator) {
-        case 'not_equals': return actual !== c.value
-        case 'greater_than': return typeof actual === 'number' && typeof c.value === 'number' && actual > c.value
-        case 'less_than': return typeof actual === 'number' && typeof c.value === 'number' && actual < c.value
+        case 'not_equals': return actual !== expected
+        case 'greater_than': return typeof actual === 'number' && typeof expected === 'number' && actual > expected
+        case 'less_than': return typeof actual === 'number' && typeof expected === 'number' && actual < expected
         case 'equals':
-        default: return actual === c.value
+        default: return actual === expected
       }
     })) return
     for (const action of rule.actions) this.apply(action, eventObjectId)
@@ -166,6 +169,20 @@ export class RuleEngine {
         break
     }
   }
+}
+
+
+function normalizeConditionValue(value: boolean | number | string, actual: boolean | number | string): boolean | number | string {
+  if (typeof actual === 'boolean' && typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  if (typeof actual === 'number' && typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return value
 }
 
 function parseScriptValue(raw: string): boolean | number | string {
