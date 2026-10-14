@@ -1682,4 +1682,5 @@ input[type='range'] { accent-color: #e98524; }
 .graph-node.action .node-port { background:#f07868; }
 .graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
 .graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
-\n</style>\n
+
+</style>
