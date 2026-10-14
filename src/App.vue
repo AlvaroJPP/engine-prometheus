@@ -20,6 +20,7 @@ const {
   objects,
   terrain,
   selectedId,
+  groupSelection,
   tool,
   transform,
   cameraPreset,
@@ -35,6 +36,8 @@ const {
   addClickableCubeExample,
   cycleCamera,
   selectItem,
+  groupSelectedObjects,
+  ungroupSelectedObjects,
   toggleVisible,
   toggleObjectLock,
   toggleObjectWireframe,
@@ -435,8 +438,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         :objects="objects"
         :terrain="terrain"
         :selected-id="selectedId"
+        :group-selection="groupSelection"
         :terrain-id="TERRAIN_ID"
         @select-item="selectItem"
+        @group-selected="groupSelectedObjects"
+        @ungroup-selected="ungroupSelectedObjects"
         @toggle-terrain="toggleTerrain"
         @toggle-visible="toggleVisible"
         @toggle-lock="toggleObjectLock"
