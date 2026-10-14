@@ -13,6 +13,7 @@ import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
+import { CollisionSystem } from './world/CollisionSystem'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -21,6 +22,7 @@ const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
 
 export class Engine {
   readonly world = new World()
+  readonly collisions = new CollisionSystem(this.world)
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
@@ -59,6 +61,7 @@ export class Engine {
     })
     this.viewport.start((dt) => {
       this.input.update(dt)
+      this.collisions.update()
       this.logic.update()
       this.orbit.update()
       this.viewport.renderer.render(this.world.scene, this.orbit.camera)
