@@ -148,7 +148,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('ID_DO_OBJETO', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -555,10 +555,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <p class="muted mono">api.set('score', 10)</p>
                   <p class="muted mono">api.add('score', 1)</p>
                   <p class="muted mono">api.toggle('has_key')</p>
-                  <p class="muted mono">api.move('ID_DO_OBJETO', 2, 0, 1)</p>
-                  <p class="muted mono">api.rotate('ID_DO_OBJETO', 45)</p>
-                  <p class="muted mono">api.setVisible('ID_DO_OBJETO', false)</p>
-                  <p class="muted mono">api.setColor('ID_DO_CUBO', '#0000FF')</p>
+                  <p class="muted mono">api.move('{ID_OBJECT}', 2, 0, 1)</p>
+                  <p class="muted mono">api.rotate('{ID_OBJECT}', 45)</p>
+                  <p class="muted mono">api.setVisible('{ID_OBJECT}', false)</p>
+                  <p class="muted mono">api.setColor('{ID_OBJECT}', '#0000FF')</p>
                   <p class="muted">Também pode ler e alterar variáveis com vars.nome ou vars['nome']. Execute apenas scripts confiáveis: JavaScript roda com as permissões do app.</p>
                 </div>
               </template>
@@ -572,9 +572,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <p class="muted mono">set nome = valor</p>
                   <p class="muted mono">add pontuacao 1</p>
                   <p class="muted mono">toggle tem_chave</p>
-                  <p class="muted mono">rotate ID_DO_OBJETO 45</p>
-                  <p class="muted mono">move ID_DO_OBJETO 2 0 1</p>
-                  <p class="muted mono">visible ID_DO_OBJETO false</p>
+                  <p class="muted mono">rotate {ID_OBJECT} 45</p>
+                  <p class="muted mono">move {ID_OBJECT} 2 0 1</p>
+                  <p class="muted mono">visible {ID_OBJECT} false</p>
                   <p class="muted">Valores: true, false, números ou textos entre aspas. Use # para comentários.</p>
                 </div>
               </template>
