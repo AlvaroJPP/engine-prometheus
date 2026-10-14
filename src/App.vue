@@ -129,6 +129,20 @@ const graphVisibleRules = computed(() => {
   if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
   return logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value)
 })
+// No modo "Todos os objetos", cada objeto ganha seu próprio grupo visual no grafo.
+const graphObjectGroups = computed(() => {
+  if (graphObjectFilter.value !== 'all') return []
+  return objects.value.map((object, index) => {
+    const rules = logicRules.value.filter(rule => ownerOfRule(rule) === object.id)
+    return {
+      object,
+      rules,
+      index,
+      top: 35 + index * Math.max(220, 145 + rules.length * 170),
+      height: Math.max(190, 125 + rules.length * 170),
+    }
+  })
+})
 function defaultGraphLayout(index: number) {
   const top = 70 + index * 250
   return {
@@ -146,10 +160,20 @@ function layoutForGraph(rule: LogicRule, index: number) {
     Math.abs(saved.condition.y - saved.action.y) < 100
   return isHorizontalLayout ? saved! : defaultGraphLayout(index)
 }
-const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
-  const layout = layoutForGraph(rule, index)
-  return (['condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
-}))
+const graphNodes = computed(() => {
+  if (graphObjectFilter.value === 'all') {
+    return graphObjectGroups.value.flatMap(group => group.rules.flatMap((rule, index) => {
+      const y = group.top + 48 + index * 170
+      return (['condition', 'action'] as const).map(part => ({
+        rule, part, x: part === 'condition' ? 430 : 790, y,
+      }))
+    }))
+  }
+  return graphVisibleRules.value.flatMap((rule, index) => {
+    const layout = layoutForGraph(rule, index)
+    return (['condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
+  })
+})
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule) => {
   const eventPort = portPositions.value[`event:${rule.id}`]
   const conditionIn = portPositions.value[`condition-in:${rule.id}`]
@@ -715,9 +739,25 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <div ref="graphStage" class="graph-stage" :style="{ transform: `translate(${graphPan.x}px, ${graphPan.y}px) scale(${graphZoom})` }">
             <div v-if="!graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="graphObjectFilter === 'selected' && selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="graphOpen = false">Voltar ao editor</button></div>
             <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in graphEdges" :key="edge.id" :class="edge.kind" :d="edge.d" /></svg>
-            <article class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
+            <template v-if="graphObjectFilter === 'all'">
+              <section v-for="group in graphObjectGroups" :key="group.object.id" class="graph-object-group" :style="{ left: '12px', top: `${group.top}px`, height: `${group.height}px` }">
+                <header class="graph-object-group-head">
+                  <span class="object-group-icon">◇</span>
+                  <strong>{{ group.object.name }}</strong>
+                  <span class="object-group-count">{{ group.rules.length }} evento(s)</span>
+                </header>
+                <article class="graph-node trigger-list" :style="{ left: '18px', top: '43px' }">
+                  <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ group.rules.length }}</span></div>
+                  <button v-for="rule in group.rules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
+                    <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
+                  </button>
+                  <div v-if="!group.rules.length" class="event-list-empty">Nenhum evento neste objeto</div>
+                </article>
+              </section>
+            </template>
+            <article v-else class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
               <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ graphVisibleRules.length }}</span></div>
-              <button v-for="(rule, index) in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
+              <button v-for="rule in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
                 <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
               </button>
               <div v-if="!graphVisibleRules.length" class="event-list-empty">Nenhum evento criado</div>
@@ -1048,6 +1088,14 @@ input:focus { outline: none; border-color: var(--accent); }
 .graph-node .node-port, .event-row-port { z-index:3; }
 .graph-node { position:absolute; width:300px; min-height:120px; border:1px solid #3b4352; background:#1c222d; border-radius:8px; box-shadow:0 10px 24px #0004; cursor:grab; user-select:none; z-index:1; } .graph-node:active { cursor:grabbing; } .graph-node.chosen { outline:2px solid #d36a55; outline-offset:2px; } .graph-node.trigger { border-top:3px solid #d8a34a; } .graph-node.condition { border-top:3px solid #6c9de6; } .graph-node.action { border-top:3px solid #65bf91; } .node-head { display:flex; justify-content:space-between; padding:10px 12px 8px; font-size:9px; letter-spacing:.13em; color:#aab4c5; border-bottom:1px solid #303746; } .node-title { padding:13px 12px; min-height:44px; font-size:12px; line-height:1.5; } .node-foot { position:relative; display:flex; align-items:center; justify-content:center; padding:7px; border-top:1px solid #303746; color:#7f899c; font-size:10px; } .node-port { position:absolute; left:-5px; top:50%; width:9px; height:9px; border-radius:50%; background:#8a96ad; border:2px solid #1c222d; } .node-port.out { left:auto; right:-5px; } .graph-empty { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:min(360px,90%); } .graph-empty h2 { font-size:18px; } .graph-empty p { color:#8e98aa; font-size:12px; line-height:1.6; } .empty-icon { font-size:32px; color:#d36a55; } .graph-rule-count { border-top:1px solid #2a303d; margin-top:24px; padding-top:12px; font-size:11px; color:#8e98aa; }
 @media(max-width:800px) { .graph-body { grid-template-columns:150px minmax(0,1fr); } .graph-inspector { display:none; } .graph-subtitle { display:none; } }
+
+/* Agrupamento no modo "Todos os objetos": cada objeto tem uma caixa própria. */
+.graph-object-group { position:absolute; width:1160px; border:1px solid #50545c; border-radius:8px; background:rgba(30,34,40,.72); box-shadow:0 8px 22px #0003; z-index:0; }
+.graph-object-group-head { height:34px; display:flex; align-items:center; gap:9px; padding:0 12px; border-bottom:1px solid #414751; border-radius:8px 8px 0 0; background:#353b45; color:#e4e8ef; font-size:12px; }
+.object-group-icon { color:#e98524; font-size:17px; }
+.object-group-count { margin-left:auto; color:#aeb7c6; font-size:10px; }
+.graph-object-group .trigger-list { left:18px; top:43px; }
+.graph-object-group .trigger-list { z-index:1; }
 </style>
 
 
