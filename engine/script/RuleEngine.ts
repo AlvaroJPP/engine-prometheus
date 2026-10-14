@@ -103,6 +103,11 @@ export class RuleEngine {
       move: (objectId: string, x: number, y: number, z: number) => this.apply({ type: 'move', objectId, x, y, z }),
       rotate: (objectId: string, degrees: number) => this.apply({ type: 'rotate', objectId, degrees }),
       setVisible: (objectId: string, visible: boolean) => this.apply({ type: 'set_visible', objectId, visible }),
+      setColor: (objectId: string, color: string | number) => {
+        const parsed = typeof color === 'number' ? color : Number.parseInt(color.trim().replace(/^#/, ''), 16)
+        if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0xffffff) throw new Error('Cor inválida. Use hexadecimal como #0000FF ou um número entre 0 e 16777215.')
+        this.world.update(objectId, { color: parsed })
+      },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
     const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (api: typeof api, vars: typeof vars, world: World, console: Console) => void
