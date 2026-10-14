@@ -30,7 +30,13 @@ export class RuleEngine {
 
   load(data?: LogicEventsFile): void {
     this.data = data ? structuredClone(data) : structuredClone(EMPTY_LOGIC)
-    for (const rule of this.data.events) rule.lastInside = false
+    for (const rule of this.data.events) {
+      rule.lastInside = false
+      // Migra projetos antigos para uma regra pertencente a um único objeto.
+      rule.ownerObjectId ??= rule.trigger.type === 'object_clicked'
+        ? rule.trigger.objectId
+        : rule.actions.find((action) => 'objectId' in action)?.objectId
+    }
   }
 
   replace(data: LogicEventsFile): void { this.load(data) }
@@ -90,7 +96,7 @@ export class RuleEngine {
     // A hierarquia define a ordem de avaliação. Executa somente a primeira regra
     // habilitada cujas condições correspondam ao estado atual.
     for (const rule of this.data.events) {
-      if (rule.enabled && rule.trigger.type === 'object_clicked' &&
+      if (rule.enabled && rule.ownerObjectId === objectId && rule.trigger.type === 'object_clicked' &&
         rule.trigger.objectId === objectId &&
         this.run(rule, objectId)) break
     }
@@ -101,7 +107,10 @@ export class RuleEngine {
     for (const rule of this.data.events) {
       if (!rule.enabled || rule.trigger.type !== 'enter_area') continue
       const t = rule.trigger
-      const insideObject = objects.find((o) => distance(o, t.center) <= Math.max(0, t.radius))
+      const candidates = rule.ownerObjectId
+        ? objects.filter((object) => object.id === rule.ownerObjectId)
+        : objects
+      const insideObject = candidates.find((o) => distance(o, t.center) <= Math.max(0, t.radius))
       const now = insideObject !== undefined
       if (now && !rule.lastInside) this.run(rule, insideObject.id)
       rule.lastInside = now
@@ -109,7 +118,7 @@ export class RuleEngine {
   }
 
   private run(rule: LogicRule, eventObjectId?: string): boolean {
-    const scopeId = eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
+    const scopeId = rule.ownerObjectId ?? eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
     if (!rule.conditions.every((c) => {
       const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
       const hasScoped = !!scoped && Object.prototype.hasOwnProperty.call(scoped, c.name)
