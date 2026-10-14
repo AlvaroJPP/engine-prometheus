@@ -57,6 +57,18 @@ export class RuleEngine {
     }
   }
 
+  removeVariable(name: string, objectId?: string | null): boolean {
+    const key = name.trim()
+    if (!key) return false
+    const scope = objectId ? this.data.objectVariables?.[objectId] : this.data.variables
+    if (!scope || !Object.prototype.hasOwnProperty.call(scope, key)) return false
+    delete scope[key]
+    if (objectId && Object.keys(scope).length === 0 && this.data.objectVariables) {
+      delete this.data.objectVariables[objectId]
+    }
+    return true
+  }
+
   removeObjectVariables(objectId: string): void {
     if (this.data.objectVariables) delete this.data.objectVariables[objectId]
   }
