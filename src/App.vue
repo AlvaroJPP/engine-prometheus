@@ -6,6 +6,7 @@ import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
+import SceneHierarchy from '@/components/SceneHierarchy.vue'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -381,51 +382,16 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     />
 
     <div class="main">
-      <!-- Hierarquia -->
-      <aside class="panel left">
-        <div class="panel-head">
-          <div>
-            <div class="eyebrow">CENA ATUAL</div>
-            <div class="h">Hierarquia</div>
-          </div>
-          <span class="badge">{{ objects.length + 1 }}</span>
-        </div>
-
-        <div class="tree">
-          <div class="row root" @click="rootOpen = !rootOpen">
-            <span class="chev" :class="{ open: rootOpen }">›</span>
-            <span class="ico world" />
-            <span class="name">Mundo principal</span>
-          </div>
-          <template v-if="rootOpen">
-            <div
-              class="row child terrain"
-              :class="{ active: selectedId === TERRAIN_ID }"
-              @click="selectItem(TERRAIN_ID)"
-            >
-              <span class="ico rect" />
-              <span class="name">Terreno editável</span>
-              <button class="eye" :class="{ off: !terrain.visible }" title="Mostrar/ocultar" @click.stop="toggleTerrain" />
-            </div>
-            <div
-              v-for="o in objects"
-              :key="o.id"
-              class="row child"
-              :class="{ active: o.id === selectedId, hidden: !o.visible }"
-              @click="selectItem(o.id)"
-            >
-              <span class="ico" :class="o.type" />
-              <span class="name">{{ o.name }}</span>
-              <button class="eye" :class="{ off: !o.visible }" title="Mostrar/ocultar" @click.stop="toggleVisible(o.id)" />
-            </div>
-          </template>
-        </div>
-
-        <div class="panel-foot">
-          <span>{{ objects.length }} objetos construídos</span>
-          <span class="local"><i class="dot ok" /> LOCAL</span>
-        </div>
-      </aside>
+      <SceneHierarchy
+        v-model:root-open="rootOpen"
+        :objects="objects"
+        :terrain="terrain"
+        :selected-id="selectedId"
+        :terrain-id="TERRAIN_ID"
+        @select-item="selectItem"
+        @toggle-terrain="toggleTerrain"
+        @toggle-visible="toggleVisible"
+      />
 
       <!-- Viewport -->
       <main class="viewport">
