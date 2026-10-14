@@ -518,7 +518,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <label v-else-if="selectedGraphRule.actions[0]?.type === 'set_visible'" class="field">Visibilidade
                 <select :value="String(selectedGraphRule.actions[0].visible)" @change="patchSelectedAction({ visible: ($event.target as HTMLSelectElement).value === 'true' })"><option value="true">Mostrar</option><option value="false">Ocultar</option></select>
               </label>
-              <template v-else-if="selectedGraphRule.actions[0]?.type === 'javascript'>
+              <template v-else-if="selectedGraphRule.actions[0]?.type === 'javascript'">
                 <p class="muted">JavaScript executado depois do gatilho e de todas as condições. API: <code>api</code>, <code>vars</code>, <code>world</code> e <code>console</code>.</p>
                 <label class="field">Código JavaScript
                   <textarea class="script-editor" spellcheck="false" rows="12" :value="selectedGraphRule.actions[0].code" @change="patchSelectedAction({ code: ($event.target as HTMLTextAreaElement).value })"></textarea>
