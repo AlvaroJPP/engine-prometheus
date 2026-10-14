@@ -77,6 +77,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     globalLogicVariables.value = engine.logicVariables()
   }
 
+  // A seleção pode mudar por clique na cena ou pela hierarquia. Sincronize
+  // explicitamente o inspetor lateral com o objeto atualmente selecionado.
+  watch(selectedId, (id) => {
+    if (!engine) return
+    logicRules.value = engine.listRules()
+    logicVariables.value = engine.logicVariables(id)
+    globalLogicVariables.value = engine.logicVariables()
+  }, { flush: 'sync' })
+
   function markDirty() {
     dirty.value = true
     refresh()
@@ -393,6 +402,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh()
     dirty.value = true
     say(`Evento "${sourceRule.name}" importado para este objeto como uma cópia independente.`)
+    return imported.id
   }
 
   // ---- projeto ----
