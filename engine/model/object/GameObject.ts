@@ -29,6 +29,7 @@ export interface ObjectInfo {
   wireframeVisible: boolean
   groupId: string | null
   color: number
+  mass: number
 }
 
 export interface ObjectPatch {
@@ -48,4 +49,5 @@ export interface ObjectPatch {
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
+  mass?: number
 }
