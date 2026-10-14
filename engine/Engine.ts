@@ -70,6 +70,7 @@ export class Engine {
           if (sibling.id === id || sibling.mesh.userData.groupId !== groupId || sibling.mesh.userData.locked === true) continue
           const other = sibling.mesh
           other.position.sub(pivot)
+          other.position.set(other.position.x * ratios[0], other.position.y * ratios[1], other.position.z * ratios[2])
           other.position.applyMatrix4(rotationMatrix)
           other.position.add(pivot)
           other.position.x += dx; other.position.y += dy; other.position.z += dz
