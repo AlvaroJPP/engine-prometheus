@@ -6,6 +6,8 @@ import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
+const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes'>('transform')
+const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const {
   projectName,
   dirty,
@@ -179,6 +181,23 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
 
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
 const inspectorMode = computed(() => selected.value ? 'object' : selectedId.value === TERRAIN_ID ? 'terrain' : 'environment')
+watch(selectedId, () => { inspectorTab.value = 'transform' })
+function copyObjectId(id: string) {
+  void navigator.clipboard?.writeText(id)
+}
+function runWorld() {
+  graphOpen.value = false
+  executionMode.value = 'running'
+  status.value = 'Modo Run ativo · pré-visualização da cena'
+}
+function stopWorld() {
+  executionMode.value = 'stopped'
+  status.value = 'Execução interrompida'
+}
+function returnToEdit() {
+  executionMode.value = 'edit'
+  status.value = 'Modo de edição'
+}
 const selectedObjectRules = computed(() => logicRules.value.filter(rule =>
   (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
   rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
@@ -346,6 +365,12 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div v-if="inspectorMode === 'environment'" class="selection-empty-hint">Selecione um item na hierarquia ou diretamente no viewport para editar suas propriedades.</div>
         </div>
+        <nav v-if="inspectorMode === 'object'" class="inspector-tabs" aria-label="Modos de propriedades">
+          <button :class="{ active: inspectorTab === 'transform' }" title="Tamanho e posicionamento" @click="inspectorTab = 'transform'"><span>↔</span><small>Transform</small></button>
+          <button :class="{ active: inspectorTab === 'color' }" title="Cor e material" @click="inspectorTab = 'color'"><span>◉</span><small>Cor</small></button>
+          <button :class="{ active: inspectorTab === 'variables' }" title="Identidade e variáveis" @click="inspectorTab = 'variables'"><span>{ }</span><small>Variáveis</small></button>
+          <button :class="{ active: inspectorTab === 'nodes' }" title="Nós e eventos do objeto" @click="inspectorTab = 'nodes'"><span>⌘</span><small>Nós</small></button>
+        </nav>
 
         <div class="scroll">
           <section v-if="inspectorMode === 'environment'">
@@ -376,9 +401,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </section>
 
           <section v-if="inspectorMode === 'object' && selected">
-            <h4>Variáveis e eventos · {{ selected.name }}</h4>
-            <p class="muted">Gatilhos, condições e ações são executados durante a edição e salvos em <span class="mono">logic/events.json</span>.</p>
-            <div class="component-caption">VARIÁVEIS DESTE OBJETO · VALORES INDEPENDENTES</div>
+            <h4>{{ inspectorTab === 'variables' ? 'Identidade e variáveis' : 'Eventos e regras' }}</h4>
+            <p v-if="inspectorTab === 'variables'" class="muted">Dados e valores pertencentes exclusivamente a este objeto.</p>
+            <p v-else-if="inspectorTab === 'nodes'" class="muted">Eventos associados a este objeto. A lista mostra apenas regras vinculadas a ele.</p>
+            <template v-if="inspectorTab === 'variables'">
+            <div class="object-meta">
+              <div><span>ID</span><code>{{ selected.id }}</code><button class="meta-copy" title="Copiar ID" @click="copyObjectId(selected.id)">⧉</button></div>
+              <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cube / GameObject' : 'Platform / GameObject' }}</strong></div>
+            </div>
+            <div class="component-caption">VARIÁVEIS DO OBJETO · VALORES INDEPENDENTES</div>
             <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row">
               <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value, 'object')" /></label>
               <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name), 'object')">↻</button>
@@ -397,6 +428,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <button class="ghost" @click="submitVariable('object')">+ Variável do objeto</button>
               <button class="ghost" @click="submitVariable('global')">+ Variável global</button>
             </div>
+            </template>
+            <template v-if="inspectorTab === 'nodes'">
             <label class="field">Gatilho
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
             </label>
@@ -447,20 +480,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </div>
             <p v-else class="muted">Este objeto ainda não tem eventos próprios.</p>
 
-            <div class="component-caption">BIBLIOTECA PÚBLICA · EVENTOS DISPONÍVEIS</div>
-            <p class="muted">Todos os eventos de clique da cena ficam disponíveis para reutilização. Importar cria uma cópia vinculada somente a este objeto; alterações futuras não afetam o original.</p>
-            <div v-if="publicLogicRules.length" class="rule-list">
-              <div v-for="rule in publicLogicRules" :key="'public-' + rule.id" class="rule-item">
-                <label class="checkline"><span>{{ rule.name }}</span></label>
-                <button class="ghost" title="Importar uma cópia independente para o objeto selecionado" @click="importPublicRule(rule)">Importar</button>
-              </div>
-            </div>
-            <p v-else class="muted">Nenhum outro evento de clique disponível para importar.</p>
+            </template>
           </section>
 
           <section class="object-components">
-            <h4>{{ selected ? (selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : 'Terreno editável' }}</h4>
+            <h4>{{ inspectorTab === 'transform' ? 'Transformação' : inspectorTab === 'color' ? 'Aparência e material' : inspectorTab === 'nodes' ? 'Nós do objeto' : 'Dados do objeto' }}</h4>
             <template v-if="selected">
+              <template v-if="inspectorTab === 'transform'">
               <label class="field">Nome do objeto
                 <input :value="selected.name" spellcheck="false" @change="onRename" />
               </label>
@@ -490,6 +516,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 </div>
               </div>
 
+              </template>
+              <template v-if="inspectorTab === 'color'">
               <div class="unity-component">
                 <div class="unity-component-head"><span class="component-icon renderer-icon">◈</span><strong>Mesh Renderer</strong><span class="component-menu">⋮</span></div>
                 <div class="unity-component-body">
@@ -502,6 +530,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 </div>
               </div>
 
+              </template>
+              <template v-if="inspectorTab === 'nodes'">
               <div class="unity-component">
                 <div class="unity-component-head"><span class="component-icon script-icon">⌘</span><strong>Event Script</strong><span class="component-count">{{ selectedObjectRules.length }}</span></div>
                 <div class="unity-component-body">
@@ -517,7 +547,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 </div>
               </div>
 
-              <button class="danger" @click="removeSelected">Excluir GameObject (Del)</button>
+              </template>
+              <button v-if="inspectorTab === 'transform' || inspectorTab === 'nodes'" class="danger" @click="removeSelected">Excluir GameObject (Del)</button>
             </template>
             <p v-else-if="selectedId === TERRAIN_ID" class="muted">
               Terreno editável · semente <span class="mono">{{ terrain.seed }}</span> ·
@@ -535,6 +566,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
       </aside>
     </div>
+    <footer class="execution-dock" aria-label="Controles de execução">
+      <button class="dock-action" :class="{ active: executionMode === 'running' }" @click="runWorld" title="Executar cena"><span>▶</span><small>Run</small></button>
+      <button class="dock-action stop" :class="{ active: executionMode === 'stopped' }" @click="stopWorld" title="Parar execução"><span>■</span><small>Stop</small></button>
+      <span class="dock-divider"></span>
+      <button class="dock-home" :class="{ active: executionMode === 'edit' }" @click="returnToEdit" title="Voltar ao modo de edição"><span>⌂</span><small>Editar</small></button>
+      <span class="dock-state"><i :class="executionMode"></i>{{ executionMode === 'running' ? 'EM EXECUÇÃO' : executionMode === 'stopped' ? 'INTERROMPIDO' : 'MODO DE EDIÇÃO' }}</span>
+    </footer>
     <div v-if="graphOpen" class="graph-overlay">
       <header class="graph-top"><div><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Lógica conectada · salva em logic/events.json</span></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
@@ -1279,4 +1317,27 @@ input[type='range'] { accent-color: #e98524; }
   .inspector-object-icon { width: 28px; height: 28px; }
   .panel.right .scroll > section { padding: 9px; }
 }
+</style>
+
+<style>
+.inspector-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));flex:none;padding:5px 7px 0;gap:3px;background:#2b2b2b;border-bottom:1px solid #1a1a1a}
+.inspector-tabs button{min-width:0;min-height:47px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:3px 3px 0 0;background:transparent;color:#a5a5a5;cursor:pointer}
+.inspector-tabs button>span{font-size:16px;line-height:17px}.inspector-tabs button small{font-size:9px;white-space:nowrap}
+.inspector-tabs button:hover{background:#383838;color:#eee}.inspector-tabs button.active{border-color:#3b3b3b;border-bottom-color:#e98524;background:#353535;color:#f1f1f1}
+.object-meta{margin:8px 0 14px;border:1px solid #202020;border-radius:3px;background:#252525}
+.object-meta>div{min-height:33px;display:flex;align-items:center;gap:8px;padding:6px 8px}.object-meta>div+div{border-top:1px solid #353535}
+.object-meta span{width:34px;flex:none;color:#929292;font-size:9px;font-weight:700;letter-spacing:.05em}
+.object-meta code,.object-meta strong{min-width:0;overflow:hidden;color:#d3d3d3;font-size:10px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
+.object-meta code{flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.meta-copy{padding:2px 5px;border:1px solid #484848;border-radius:3px;background:#333;color:#bbb;cursor:pointer}
+.execution-dock{position:absolute;z-index:12;left:50%;bottom:25px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;min-height:58px;padding:7px 10px;border:1px solid #4a4a4a;border-radius:8px;background:#252525f5;box-shadow:0 8px 28px #0006;backdrop-filter:blur(12px)}
+.dock-action,.dock-home{display:flex;align-items:center;justify-content:center;gap:7px;min-width:70px;height:40px;padding:0 11px;border:1px solid #414141;border-radius:4px;background:#303030;color:#d7d7d7;cursor:pointer}
+.dock-action>span{color:#91c78a;font-size:13px}.dock-action.stop>span{color:#e58a83}
+.dock-action small,.dock-home small{font-size:10px;font-weight:650}.dock-action:hover,.dock-home:hover{background:#3a3a3a}
+.dock-action.active{border-color:#668b5e;background:#2d3b2a}.dock-action.stop.active{border-color:#995a54;background:#422b29}
+.dock-home{min-width:88px;border-radius:5px;background:#3b3025;border-color:#72502e;color:#f2c18d}.dock-home>span{font-size:19px;line-height:1}
+.dock-home.active{background:#4a3828;border-color:#d0833c}.dock-divider{width:1px;height:28px;background:#4b4b4b;margin:0 2px}
+.dock-state{display:flex;align-items:center;gap:6px;margin-left:5px;padding:0 5px;color:#999;font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+.dock-state i{width:6px;height:6px;border-radius:50%;background:#9c9c9c}.dock-state i.running{background:#83bd77;box-shadow:0 0 0 3px #83bd771a}.dock-state i.stopped{background:#d36e65}.dock-state i.edit{background:#df984f}
+@media(max-width:850px){.execution-dock{bottom:32px;gap:4px;padding:6px}.dock-state{display:none}.dock-action,.dock-home{min-width:57px;padding:0 8px}.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
 </style>
