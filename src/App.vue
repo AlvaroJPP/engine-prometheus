@@ -417,6 +417,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div v-if="logicRules.length" class="rule-list">
               <div v-for="rule in logicRules" :key="rule.id" class="rule-item">
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
+                <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
             </div>
