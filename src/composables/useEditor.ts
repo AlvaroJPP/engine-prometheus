@@ -67,6 +67,20 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }, 7000)
   }
 
+  // IDs de regras são únicos no projeto, inclusive ao importar ou criar eventos
+  // rapidamente. UUID evita colisões entre eventos com o mesmo nome.
+  function createUniqueRuleId(prefix = 'rule'): string {
+    const existing = new Set(engine?.listRules().map(rule => rule.id) ?? [])
+    let id = ''
+    do {
+      const uuid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+      id = `${prefix}-${uuid}`
+    } while (existing.has(id))
+    return id
+  }
+
   function refresh() {
     if (!engine) return
     objects.value = engine.listObjects()
@@ -156,7 +170,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine.renameObject(created.id, 'Cubo clicável')
     engine.setLogicVariable('click', false, created.id)
     const rule: LogicRule = {
-      id: `click-blue-${Date.now().toString(36)}`,
+      id: createUniqueRuleId('click-blue'),
       name: 'Cubo: ficar azul ao clicar',
       enabled: true,
       trigger: { type: 'object_clicked', objectId: created.id },
@@ -320,7 +334,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!engine) return
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
-    const id = `rule-${Date.now().toString(36)}`
+    const id = createUniqueRuleId()
     const trigger: LogicRule['trigger'] = ruleTrigger.value === 'object_clicked'
       ? { type: 'object_clicked', objectId: target }
       : { type: 'enter_area', center: [0, 1, 0], radius: 2 }
@@ -393,8 +407,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
     const imported: LogicRule = {
       ...source,
-      id: `rule-${Date.now().toString(36)}-import`,
-      name: `${source.name} (importado)`,
+      id: createUniqueRuleId(),
+      name: source.name,
       enabled: true,
       trigger: { type: 'object_clicked', objectId: targetId },
       conditions: source.conditions.map(condition => ({ ...condition })),
