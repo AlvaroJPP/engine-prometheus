@@ -4,9 +4,24 @@ import { EMPTY_LOGIC } from './types'
 import type { LogicEventsFile, LogicRule, RuleAction } from './types'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
+type ScriptApi = {
+  get: (name: string) => boolean | number | string | undefined
+  set: (name: string, value: boolean | number | string) => void
+  add: (name: string, amount: number) => void
+  toggle: (name: string) => void
+  move: (objectId: string, x: number, y: number, z: number) => void
+  rotate: (objectId: string, degrees: number) => void
+  setVisible: (objectId: string, visible: boolean) => void
+  setColor: (objectId: string, color: string | number) => void
+}
+
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
-  constructor(private readonly world: World) {}
+  private readonly world: World
+
+  constructor(world: World) {
+    this.world = world
+  }
 
   exportData(): LogicEventsFile {
     return structuredClone(this.data)
@@ -127,7 +142,7 @@ export class RuleEngine {
       },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
-    const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (api: typeof api, vars: typeof vars, world: World, console: Console) => void
+    const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (apiArg: ScriptApi, varsArg: Record<string, boolean | number | string>, worldArg: World, consoleArg: Console) => void
     run(api, vars, this.world, console)
   }
 
