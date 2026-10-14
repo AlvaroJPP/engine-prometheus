@@ -364,6 +364,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
     const targetId = selectedId.value
     const sourceId = sourceRule.trigger.objectId
+    // Copia apenas valores iniciais que ainda não existem no destino; depois cada
+    // objeto altera suas próprias variáveis sem afetar o objeto de origem.
+    const sourceVariables = engine.logicVariables(sourceId)
+    const targetVariables = engine.logicVariables(targetId)
+    for (const [name, value] of Object.entries(sourceVariables)) {
+      if (!Object.prototype.hasOwnProperty.call(targetVariables, name)) {
+        engine.setLogicVariable(name, value, targetId)
+      }
+    }
     const imported: LogicRule = {
       ...structuredClone(sourceRule),
       id: `rule-${Date.now().toString(36)}-import`,
