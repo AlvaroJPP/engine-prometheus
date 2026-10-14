@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID } from '@engine'
 import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -62,6 +62,28 @@ const graphEdges = computed(() => logicRules.value.flatMap(rule => {
   return [{ id: rule.id + '-a', x1: layout.trigger.x + 220, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 }, { id: rule.id + '-b', x1: layout.condition.x + 220, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 }]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
+
+// Mantém o texto do editor separado da renderização do grafo. Atualizar a regra
+// a cada tecla não deve recriar o valor do textarea nem descartar o rascunho.
+const scriptDraft = ref('')
+watch(
+  () => {
+    const rule = selectedGraphRule.value
+    const action = rule?.actions[0]
+    return { ruleId: rule?.id ?? '', type: action?.type ?? '', code: action && 'code' in action ? action.code : '' }
+  },
+  (current, previous) => {
+    if (current.ruleId !== previous?.ruleId || current.type !== previous?.type || current.code !== scriptDraft.value) {
+      scriptDraft.value = current.code
+    }
+  },
+  { immediate: true },
+)
+function onScriptDraftInput(event: Event) {
+  const code = (event.target as HTMLTextAreaElement).value
+  scriptDraft.value = code
+  patchSelectedAction({ code })
+}
 function startNodeDrag(event: PointerEvent, ruleId: string, part: 'trigger' | 'condition' | 'action') {
   const node = graphNodes.value.find(n => n.rule.id === ruleId && n.part === part)
   if (!node) return
@@ -523,7 +545,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <template v-else-if="selectedGraphRule.actions[0]?.type === 'javascript'">
                 <p class="muted">JavaScript executado depois do gatilho e de todas as condições. API: <code>api</code>, <code>vars</code>, <code>world</code> e <code>console</code>.</p>
                 <label class="field">Código JavaScript
-                  <textarea class="script-editor" spellcheck="false" rows="12" :value="selectedGraphRule.actions[0].code" @input="patchSelectedAction({ code: ($event.target as HTMLTextAreaElement).value })"></textarea>
+                  <textarea class="script-editor" spellcheck="false" rows="12" :value="scriptDraft" @input="onScriptDraftInput" @keydown.stop></textarea>
                 </label>
                 <div class="component-box">
                   <div class="component-caption">EXEMPLOS</div>
