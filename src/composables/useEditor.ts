@@ -72,7 +72,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     terrain.value = engine.terrainInfo()
     gridVisible.value = engine.isGridVisible()
     logicRules.value = engine.listRules()
-    logicVariables.value = engine.logicVariables()
+    logicVariables.value = engine.logicVariables(selectedId.value)
   }
 
   function markDirty() {
@@ -100,6 +100,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       e.events.on('worldReset', refresh),
       e.events.on('selectionChanged', (ev) => {
         selectedId.value = ev.id
+        logicVariables.value = e.logicVariables(ev.id)
       }),
       e.events.on('toolChanged', (ev) => {
         tool.value = ev.tool
@@ -141,7 +142,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const created = engine.listObjects().at(-1)
     if (!created) { say('Não foi possível criar o cubo.'); return }
     engine.renameObject(created.id, 'Cubo clicável')
-    engine.setLogicVariable('click', false)
+    engine.setLogicVariable('click', false, created.id)
     const rule: LogicRule = {
       id: `click-blue-${Date.now().toString(36)}`,
       name: 'Cubo: ficar azul ao clicar',
@@ -234,6 +235,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   // ---- motor de regras ----
   function createLogicVariable(name: string, rawValue: string) {
     if (!engine) return
+    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (!objectId) { say('Selecione um objeto para criar uma variável própria.'); return }
 
     // Aceita tanto os campos separados (nome: click, valor: false)
     // quanto uma atribuição digitada inteira no campo de nome (click = false).
@@ -256,27 +259,29 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     else if (normalizedValue === 'false') value = false
     else if (normalizedValue !== '' && Number.isFinite(Number(normalizedValue))) value = Number(normalizedValue)
 
-    engine.setLogicVariable(key, value)
-    logicVariables.value = engine.logicVariables()
+    engine.setLogicVariable(key, value, objectId)
+    logicVariables.value = engine.logicVariables(objectId)
     dirty.value = true
     say(`Variável "${key}" criada com valor ${String(value)}.`)
   }
 
   function setLogicVariableValue(name: string, rawValue: string) {
-    if (!engine || !Object.prototype.hasOwnProperty.call(logicVariables.value, name)) return
+    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (!engine || !objectId || !Object.prototype.hasOwnProperty.call(logicVariables.value, name)) return
     let value: boolean | number | string = rawValue
     if (rawValue === 'true') value = true
     else if (rawValue === 'false') value = false
     else if (rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) value = Number(rawValue)
-    engine.setLogicVariable(name, value)
-    logicVariables.value = engine.logicVariables()
+    engine.setLogicVariable(name, value, objectId)
+    logicVariables.value = engine.logicVariables(objectId)
     dirty.value = true
   }
 
   function toggleLogicVariable(name: string) {
-    if (!engine) return
-    engine.setLogicVariable(name, logicVariables.value[name] === true ? false : true)
-    logicVariables.value = engine.logicVariables()
+    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (!engine || !objectId) return
+    engine.setLogicVariable(name, logicVariables.value[name] === true ? false : true, objectId)
+    logicVariables.value = engine.logicVariables(objectId)
     dirty.value = true
   }
 
