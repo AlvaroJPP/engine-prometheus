@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID } from '@engine'
 import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
+import EditorTopBar from '@/components/EditorTopBar.vue'
+import EditorToolbar from '@/components/EditorToolbar.vue'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -350,61 +352,32 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 
 <template>
   <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <div class="logo">P</div>
-        <div>
-          <div class="title">ENGINE PROMETHEUS</div>
-          <div class="subtitle">WORLD EDITOR · PROTOTYPE</div>
-        </div>
-      </div>
+    <EditorTopBar
+      v-model:project-name="projectName"
+      :dirty="dirty"
+      :camera-label="cameraLabel"
+      @mark-dirty="markDirty"
+      @new-project="newProject"
+      @open-project="openProject"
+      @save-project="saveProject"
+      @cycle-camera="cycleCamera"
+    />
 
-      <div class="project">
-        <input v-model="projectName" class="pname" spellcheck="false" @input="markDirty" />
-        <i class="dot" :class="dirty ? 'warn' : 'ok'" :title="dirty ? 'Alterações não salvas' : 'Tudo salvo'" />
-      </div>
-
-      <div class="grow" />
-
-      <div class="filebtns">
-        <button class="ghost" @click="newProject">Novo</button>
-        <button class="ghost" @click="openProject">Abrir</button>
-        <button class="ghost" @click="saveProject(false)">Salvar</button>
-        <button class="ghost hide-narrow" @click="saveProject(true)">Salvar como…</button>
-      </div>
-
-      <button class="cam" @click="cycleCamera"><i class="cam-ring" />{{ cameraLabel }}</button>
-    </header>
-
-    <nav class="toolbar">
-      <button
-        v-for="t in TOOLS.filter((item) => item.id !== 'terrain' || inspectorMode !== 'object')"
-        :key="t.id"
-        class="tool"
-        :class="{ active: tool === t.id }"
-        @click="setTool(t.id)"
-      >
-        <span class="tool-ico">{{ t.icon }}</span>{{ t.label }}
-      </button>
-      <span class="vsep" />
-      <button
-        v-for="t in TRANSFORMS"
-        :key="t.id"
-        class="tool"
-        :class="{ active: tool === 'select' && transform === t.id }"
-        @click="setTransform(t.id)"
-      >
-        <span class="tool-ico">{{ t.icon }}</span>{{ t.label }}
-      </button>
-      <span class="vsep" />
-      <button class="tool" :class="{ active: graphOpen }" @click="graphOpen = !graphOpen">⌘ Visual Script</button>
-      <span class="vsep" />
-      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addPrimitive('cube')">+ Cubo</button>
-      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addClickableCubeExample" title="Cria um cubo azul clicável e configura a variável click">+ Exemplo clicável</button>
-      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addPrimitive('platform')">+ Plataforma</button>
-      <span class="vsep" />
-      <button class="tool grid-toggle" :class="{ active: gridVisible }" @click="toggleGrid" title="Mostrar ou ocultar a malha">▦ Malha</button>
-    </nav>
+    <EditorToolbar
+      :tools="TOOLS"
+      :transforms="TRANSFORMS"
+      :tool="tool"
+      :transform="transform"
+      :inspector-mode="inspectorMode"
+      :graph-open="graphOpen"
+      :grid-visible="gridVisible"
+      @set-tool="setTool"
+      @set-transform="setTransform"
+      @toggle-graph="graphOpen = !graphOpen"
+      @add-primitive="addPrimitive"
+      @add-clickable-example="addClickableCubeExample"
+      @toggle-grid="toggleGrid"
+    />
 
     <div class="main">
       <!-- Hierarquia -->
