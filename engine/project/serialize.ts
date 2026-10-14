@@ -29,6 +29,7 @@ export function buildBundle(
       locked: m.userData.locked === true,
       wireframeVisible: m.userData.wireframeVisible !== false,
       groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
+      mass: typeof m.userData.mass === 'number' && Number.isFinite(m.userData.mass) ? Math.max(0, m.userData.mass) : 1,
       color: (m.material as THREE.MeshStandardMaterial).color.getHex(),
     }
   })
@@ -77,5 +78,6 @@ export function objectFromData(d: SceneObjectData): GameObject {
     locked: d.locked ?? false,
     wireframeVisible: d.wireframeVisible ?? true,
     groupId: d.groupId ?? null,
+    mass: d.mass ?? 1,
   })
 }
