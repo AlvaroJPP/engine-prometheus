@@ -193,7 +193,11 @@ export class Engine {
   }
 
   exportProject(): ProjectBundle {
-    const bundle = buildBundle(this.world.list(), this.world.terrainData(), this.orbit.getState(), this.meta)
+    const bundle = buildBundle(this.world.list(), this.world.terrainData(), this.orbit.getState(), this.meta, {
+      gridVisible: this.world.isGridVisible(),
+      brushStrength: this.state.brush.strength,
+      brushRadius: this.state.brush.radius,
+    })
     bundle.logic = this.logic.exportData()
     return bundle
   }
@@ -207,6 +211,9 @@ export class Engine {
     this.orbit.restore(scene.camera)
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
     this.world.replaceAll(scene.objects.map(objectFromData), scene.terrain)
+    const editorSettings = bundle.project.settings.editor
+    this.world.setGridVisible(editorSettings.gridVisible)
+    this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
   }
 
