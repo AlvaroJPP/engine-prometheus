@@ -176,6 +176,7 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
 ]
 
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
+const inspectorMode = computed(() => selected.value ? 'object' : selectedId.value === TERRAIN_ID ? 'terrain' : 'environment')
 const selectedObjectRules = computed(() => logicRules.value.filter(rule =>
   (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
   rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
@@ -222,6 +223,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     <nav class="toolbar">
       <button
         v-for="t in TOOLS"
+        v-if="t.id !== 'terrain' || inspectorMode !== 'object'"
         :key="t.id"
         class="tool"
         :class="{ active: tool === t.id }"
@@ -242,9 +244,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <span class="vsep" />
       <button class="tool" :class="{ active: graphOpen }" @click="graphOpen = !graphOpen">⌘ Visual Script</button>
       <span class="vsep" />
-      <button class="tool add" @click="addPrimitive('cube')">+ Cubo</button>
-      <button class="tool add" @click="addClickableCubeExample" title="Cria um cubo azul clicável e configura a variável click">+ Exemplo clicável</button>
-      <button class="tool add" @click="addPrimitive('platform')">+ Plataforma</button>
+      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addPrimitive('cube')">+ Cubo</button>
+      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addClickableCubeExample" title="Cria um cubo azul clicável e configura a variável click">+ Exemplo clicável</button>
+      <button v-if="inspectorMode === 'environment'" class="tool add" @click="addPrimitive('platform')">+ Plataforma</button>
       <span class="vsep" />
       <button class="tool grid-toggle" :class="{ active: gridVisible }" @click="toggleGrid" title="Mostrar ou ocultar a malha">▦ Malha</button>
     </nav>
@@ -326,7 +328,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
 
         <div class="scroll">
-          <section>
+          <section v-if="inspectorMode === 'environment'">
             <h4>Ambiente</h4>
             <dl>
               <dt>Dimensão</dt>
@@ -338,8 +340,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </dl>
           </section>
 
-          <section>
-            <h4>Ferramenta de terreno</h4>
+          <section v-if="inspectorMode === 'terrain'">
+            <h4>Ferramentas do terreno</h4>
             <p class="muted">
               Selecione Editar terreno e clique no chão para elevar. Segure Shift e clique para rebaixar.
             </p>
@@ -353,10 +355,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </div>
           </section>
 
-          <section>
-            <h4>Motor de regras</h4>
+          <section v-if="inspectorMode === 'object' && selected">
+            <h4>Variáveis e eventos · {{ selected.name }}</h4>
             <p class="muted">Gatilhos, condições e ações são executados durante a edição e salvos em <span class="mono">logic/events.json</span>.</p>
-            <div class="component-caption">VARIÁVEIS DO PROJETO</div>
+            <div class="component-caption">VARIÁVEIS DESTE OBJETO</div>
             <div v-for="(value, name) in logicVariables" :key="name" class="variable-row">
               <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value)" /></label>
               <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name))">↻</button>
@@ -364,7 +366,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div class="variable-create">
               <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
               <input v-model="newVariableValue" placeholder="valor inicial (false, 0, texto)" />
-              <button class="ghost full" @click="submitVariable">+ Criar variável</button>
+              <button class="ghost full" @click="submitVariable">+ Criar variável neste objeto</button>
             </div>
             <label class="field">Gatilho
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
@@ -409,7 +411,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </section>
 
           <section class="object-components">
-            <h4>GameObject</h4>
+            <h4>{{ selected ? (selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : 'Terreno editável' }}</h4>
             <template v-if="selected">
               <label class="field">Nome do objeto
                 <input :value="selected.name" spellcheck="false" @change="onRename" />
