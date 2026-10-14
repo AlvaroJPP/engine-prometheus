@@ -51,6 +51,7 @@ export class RuleEngine {
 
   private run(rule: LogicRule): void {
     if (!rule.conditions.every((c) => {
+      if (!Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
       const actual = this.data.variables[c.name]
       switch (c.operator) {
         case 'not_equals': return actual !== c.value
@@ -91,6 +92,23 @@ export class RuleEngine {
     }
   }
 
+  /** Executa JavaScript autorado pelo criador do projeto após as condições passarem. */
+  private executeJavaScript(source: string): void {
+    const vars = this.data.variables
+    const api = {
+      get: (name: string) => vars[name],
+      set: (name: string, value: boolean | number | string) => this.setVariable(name, value),
+      add: (name: string, amount: number) => { const current = vars[name]; if (typeof current !== 'number') throw new Error(`A variável "${name}" precisa ser numérica.`); this.setVariable(name, current + amount) },
+      toggle: (name: string) => { const current = vars[name]; if (typeof current !== 'boolean') throw new Error(`A variável "${name}" precisa ser booleana.`); this.setVariable(name, !current) },
+      move: (objectId: string, x: number, y: number, z: number) => this.apply({ type: 'move', objectId, x, y, z }),
+      rotate: (objectId: string, degrees: number) => this.apply({ type: 'rotate', objectId, degrees }),
+      setVisible: (objectId: string, visible: boolean) => this.apply({ type: 'set_visible', objectId, visible }),
+    }
+    // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
+    const run = new Function('api', 'vars', 'world', 'console', '"use strict";\\n' + source) as (api: typeof api, vars: typeof vars, world: World, console: Console) => void
+    run(api, vars, this.world, console)
+  }
+
   private apply(action: RuleAction): void {
     switch (action.type) {
       case 'move': this.world.update(action.objectId, { x: action.x, y: action.y, z: action.z }); break
@@ -104,6 +122,10 @@ export class RuleEngine {
       case 'script':
         try { this.executeScript(action.code) }
         catch (error) { console.error('[Prometheus Script]', error) }
+        break
+      case 'javascript':
+        try { this.executeJavaScript(action.code) }
+        catch (error) { console.error('[Prometheus JavaScript]', error) }
         break
     }
   }
