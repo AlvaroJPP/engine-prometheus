@@ -68,6 +68,7 @@ const graphEdges = computed(() => logicRules.value.flatMap(rule => {
   return [{ id: rule.id + '-a', x1: layout.trigger.x + 220, y1: layout.trigger.y + 60, x2: layout.condition.x, y2: layout.condition.y + 60 }, { id: rule.id + '-b', x1: layout.condition.x + 220, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 }]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
+const globalConditionVariables = computed(() => Object.fromEntries(Object.entries(globalLogicVariables.value).filter(([name]) => !Object.prototype.hasOwnProperty.call(logicVariables.value, name))))
 
 // Mantém o texto do editor separado da renderização do grafo. Atualizar a regra
 // a cada tecla não deve recriar o valor do textarea nem descartar o rascunho.
@@ -549,7 +550,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <select :value="selectedGraphRule.conditions[0]?.name ?? ''" @change="patchSelectedCondition({ name: ($event.target as HTMLSelectElement).value })">
                     <option value="" disabled>Selecione uma variável</option>
                     <option v-for="(value, name) in logicVariables" :key="'local-' + name" :value="name">{{ name }} · objeto = {{ String(value) }}</option>
-                    <option v-for="(value, name) in globalLogicVariables" v-if="!Object.prototype.hasOwnProperty.call(logicVariables, name)" :key="'global-' + name" :value="name">{{ name }} · global = {{ String(value) }}</option>
+                    <option v-for="(value, name) in globalConditionVariables" :key="'global-' + name" :value="name">{{ name }} · global = {{ String(value) }}</option>
                   </select>
                 </label>
                 <label class="field">Comparação
