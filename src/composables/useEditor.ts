@@ -218,6 +218,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say(`Variável "${key}" criada.`)
   }
 
+  function setLogicVariableValue(name: string, rawValue: string) {
+    if (!engine || !Object.prototype.hasOwnProperty.call(logicVariables.value, name)) return
+    let value: boolean | number | string = rawValue
+    if (rawValue === 'true') value = true
+    else if (rawValue === 'false') value = false
+    else if (rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) value = Number(rawValue)
+    engine.setLogicVariable(name, value)
+    logicVariables.value = engine.logicVariables()
+    dirty.value = true
+  }
+
   function toggleLogicVariable(name: string) {
     if (!engine) return
     engine.setLogicVariable(name, logicVariables.value[name] === true ? false : true)
@@ -361,7 +372,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, createLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
     markDirty,
     setTool,
     setTransform,
