@@ -203,6 +203,21 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   // ---- motor de regras ----
+  function createLogicVariable(name: string, rawValue: string) {
+    if (!engine) return
+    const key = name.trim()
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) { say('Use um nome de variável sem espaços, começando por letra ou _.'); return }
+    if (Object.prototype.hasOwnProperty.call(logicVariables.value, key)) { say('Já existe uma variável com esse nome.'); return }
+    let value: boolean | number | string = rawValue
+    if (rawValue === 'true') value = true
+    else if (rawValue === 'false') value = false
+    else if (rawValue.trim() !== '' && Number.isFinite(Number(rawValue))) value = Number(rawValue)
+    engine.setLogicVariable(key, value)
+    logicVariables.value = engine.logicVariables()
+    dirty.value = true
+    say(`Variável "${key}" criada.`)
+  }
+
   function toggleLogicVariable(name: string) {
     if (!engine) return
     engine.setLogicVariable(name, logicVariables.value[name] === true ? false : true)
@@ -346,7 +361,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+    toggleLogicVariable, createLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
     markDirty,
     setTool,
     setTransform,
