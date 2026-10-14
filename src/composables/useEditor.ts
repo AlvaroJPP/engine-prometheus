@@ -294,6 +294,19 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
+  function useGlobalVariableOnObject(name: string) {
+    const objectId = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
+    if (!engine || !objectId || !Object.prototype.hasOwnProperty.call(globalLogicVariables.value, name)) return
+    if (Object.prototype.hasOwnProperty.call(logicVariables.value, name)) {
+      say(`O objeto já possui sua própria variável "${name}".`)
+      return
+    }
+    engine.setLogicVariable(name, globalLogicVariables.value[name]!, objectId)
+    logicVariables.value = engine.logicVariables(objectId)
+    dirty.value = true
+    say(`Variável "${name}" adicionada ao objeto como cópia independente.`)
+  }
+
   function addLogicRule(scriptCode?: string, condition?: LogicRule['conditions'][number], eventName?: string) {
     if (!engine) return
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
@@ -456,7 +469,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushStrength,
     brushRadius,
     gridVisible,
-    logicRules, logicVariables, globalLogicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
+    logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
     markDirty,
     setTool,
