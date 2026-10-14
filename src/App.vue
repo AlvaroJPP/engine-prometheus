@@ -20,7 +20,7 @@ const {
   brushRadius,
   gridVisible,
   logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
-  toggleLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+  toggleLogicVariable, createLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
   markDirty,
   setTool,
   setTransform,
@@ -41,6 +41,13 @@ const {
   openProject,
   saveProject,
 } = useEditor(canvas)
+
+const newVariableName = ref('')
+const newVariableValue = ref('false')
+function submitVariable() {
+  createLogicVariable(newVariableName.value, newVariableValue.value)
+  newVariableName.value = ''
+}
 
 const graphOpen = ref(false)
 const graphSelection = ref<{ ruleId: string; part: 'trigger' | 'condition' | 'action' } | null>(null)
@@ -75,7 +82,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : 'Ao entrar na área'
   if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
   const action = rule.actions[0]; if (!action) return 'Sem ação'
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : `Definir ${action.name} = ${String(action.value)}`
+  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : 'Executar script'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -103,7 +110,7 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area') {
     : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable') {
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
@@ -114,7 +121,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : { type, name: 'has_key', value: true }
+        : type === 'set_variable' ? { type, name: 'has_key', value: true } : { type, code: 'set has_key = true\\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -479,7 +486,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <template v-else>
               <label class="field">Tipo de ação
                 <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable')">
-                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option>
+                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Executar script</option>
                 </select>
               </label>
               <template v-if="selectedGraphRule.actions[0] && 'objectId' in selectedGraphRule.actions[0]">
@@ -503,6 +510,22 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <label v-else-if="selectedGraphRule.actions[0]?.type === 'set_visible'" class="field">Visibilidade
                 <select :value="String(selectedGraphRule.actions[0].visible)" @change="patchSelectedAction({ visible: ($event.target as HTMLSelectElement).value === 'true' })"><option value="true">Mostrar</option><option value="false">Ocultar</option></select>
               </label>
+              <template v-else-if="selectedGraphRule.actions[0]?.type === 'script'">
+                <p class="muted">Script Prometheus (comandos seguros, uma instrução por linha). Não é JavaScript livre.</p>
+                <label class="field">Código do evento
+                  <textarea class="script-editor" spellcheck="false" rows="9" :value="selectedGraphRule.actions[0].code" @change="patchSelectedAction({ code: ($event.target as HTMLTextAreaElement).value })"></textarea>
+                </label>
+                <div class="component-box">
+                  <div class="component-caption">COMANDOS DISPONÍVEIS</div>
+                  <p class="muted mono">set nome = valor</p>
+                  <p class="muted mono">add pontuacao 1</p>
+                  <p class="muted mono">toggle tem_chave</p>
+                  <p class="muted mono">rotate ID_DO_OBJETO 45</p>
+                  <p class="muted mono">move ID_DO_OBJETO 2 0 1</p>
+                  <p class="muted mono">visible ID_DO_OBJETO false</p>
+                  <p class="muted">Valores: true, false, números ou textos entre aspas. Use # para comentários.</p>
+                </div>
+              </template>
               <template v-else-if="selectedGraphRule.actions[0]?.type === 'set_variable'">
                 <label class="field">Nome da variável<input :value="selectedGraphRule.actions[0].name" @change="patchSelectedAction({ name: ($event.target as HTMLInputElement).value })" /></label>
                 <label class="field">Valor<input :value="String(selectedGraphRule.actions[0].value)" @change="patchSelectedAction({ value: ruleValueFromInput(($event.target as HTMLInputElement).value) })" /></label>
@@ -903,6 +926,12 @@ input[type='range'] { accent-color: #e98524; }
 .graph-inspector .component-caption { margin:10px 0 7px; color:#aaa; font-size:9px; font-weight:700; letter-spacing:.09em; }
 .graph-inspector .component-box { border:1px solid #202020; background:#292929; padding:8px; margin:8px 0 12px; }
 .graph-inspector .checkline { margin:10px 0; color:#d0d0d0; }
+.variable-row { display:flex; align-items:center; gap:6px; }
+.variable-row .field { flex:1; min-width:0; }
+.variable-row input { width:100%; }
+.variable-create { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:10px 0 14px; }
+.variable-create .full { grid-column:1 / -1; }
+.script-editor { display:block; width:100%; min-height:150px; resize:vertical; padding:8px; background:#202020; color:#d9e7d1; border:1px solid #181818; border-radius:3px; font:11px/1.5 'Cascadia Mono',Consolas,monospace; white-space:pre; }
 .graph-inspector .ghost,.graph-inspector .danger { border-radius:3px; }
 .graph-rule-count { border-top-color:#1d1d1d; }
 @media(max-width:900px) { .graph-body { grid-template-columns:145px minmax(0,1fr); } .graph-inspector { display:none; } }
