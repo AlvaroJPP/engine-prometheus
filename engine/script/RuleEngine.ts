@@ -63,6 +63,34 @@ export class RuleEngine {
     for (const action of rule.actions) this.apply(action)
   }
 
+  /** Executa uma linguagem de comandos limitada; não usa eval nem executa JavaScript arbitrário. */
+  private executeScript(source: string): void {
+    const lines = source.split(/\\r?\\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
+    for (const line of lines) {
+      let match = line.match(/^set\\s+([A-Za-z_][\\w]*)\\s*=\\s*(.+)$/)
+      if (match) { this.setVariable(match[1]!, parseScriptValue(match[2]!)); continue }
+      match = line.match(/^add\\s+([A-Za-z_][\\w]*)\\s+(-?\\d+(?:\\.\\d+)?)$/)
+      if (match) {
+        const current = this.data.variables[match[1]!]
+        if (typeof current !== 'number') throw new Error(`A variável "${match[1]}" precisa ser numérica para usar add.`)
+        this.setVariable(match[1]!, current + Number(match[2])); continue
+      }
+      match = line.match(/^toggle\\s+([A-Za-z_][\\w]*)$/)
+      if (match) {
+        const current = this.data.variables[match[1]!]
+        if (typeof current !== 'boolean') throw new Error(`A variável "${match[1]}" precisa ser booleana para usar toggle.`)
+        this.setVariable(match[1]!, !current); continue
+      }
+      match = line.match(/^rotate\\s+(\\S+)\\s+(-?\\d+(?:\\.\\d+)?)$/)
+      if (match) { this.apply({ type: 'rotate', objectId: match[1]!, degrees: Number(match[2]) }); continue }
+      match = line.match(/^visible\\s+(\\S+)\\s+(true|false)$/)
+      if (match) { this.apply({ type: 'set_visible', objectId: match[1]!, visible: match[2] === 'true' }); continue }
+      match = line.match(/^move\\s+(\\S+)\\s+(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)$/)
+      if (match) { this.apply({ type: 'move', objectId: match[1]!, x: Number(match[2]), y: Number(match[3]), z: Number(match[4]) }); continue }
+      throw new Error(`Comando de script inválido: "${line}". Consulte os exemplos na ajuda do Visual Script.`)
+    }
+  }
+
   private apply(action: RuleAction): void {
     switch (action.type) {
       case 'move': this.world.update(action.objectId, { x: action.x, y: action.y, z: action.z }); break
@@ -73,8 +101,18 @@ export class RuleEngine {
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
       case 'set_variable': this.setVariable(action.name, action.value); break
+      case 'script': this.executeScript(action.code); break
     }
   }
+}
+
+function parseScriptValue(raw: string): boolean | number | string {
+  const value = raw.trim()
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (/^-?\\d+(?:\\.\\d+)?$/.test(value)) return Number(value)
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) return value.slice(1, -1)
+  throw new Error(`Valor inválido: "${value}". Use true, false, número ou texto entre aspas.`)
 }
 
 function distance(o: ObjectInfo, p: [number, number, number]): number {
