@@ -14,6 +14,7 @@ import { Viewport } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
+import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -29,10 +30,12 @@ export class Engine {
   private viewport: Viewport
   private input: PointerController
   private transformControls: TransformControls
+  private avatar: HumanoidAvatar
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
+    this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -62,6 +65,7 @@ export class Engine {
     this.viewport.start((dt) => {
       this.input.update(dt)
       this.collisions.update()
+      this.avatar.update(dt)
       this.logic.update()
       this.orbit.update()
       this.viewport.renderer.render(this.world.scene, this.orbit.camera)
@@ -195,6 +199,8 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
+    this.avatar.reset()
+    this.collisions.clear()
     this.world.setGridVisible(true)
     this.setBrush({ strength: 1.5, radius: 4 })
     this.logic.load()
@@ -227,6 +233,8 @@ export class Engine {
 
   dispose(): void {
     this.input.dispose()
+    this.avatar.dispose()
+    this.collisions.clear()
     this.transformControls.dispose()
     this.viewport.dispose()
   }
