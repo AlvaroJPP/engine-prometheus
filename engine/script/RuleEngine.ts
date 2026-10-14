@@ -34,7 +34,7 @@ export class RuleEngine {
 
   triggerObjectClicked(objectId: string): void {
     for (const rule of this.data.events) {
-      if (rule.enabled && rule.trigger.type === 'object_clicked' && rule.trigger.objectId === objectId) this.run(rule)
+      if (rule.enabled && rule.trigger.type === 'object_clicked' && rule.trigger.objectId === objectId) this.run(rule, objectId)
     }
   }
 
@@ -43,13 +43,14 @@ export class RuleEngine {
     for (const rule of this.data.events) {
       if (!rule.enabled || rule.trigger.type !== 'enter_area') continue
       const t = rule.trigger
-      const now = objects.some((o) => distance(o, t.center) <= Math.max(0, t.radius))
-      if (now && !rule.lastInside) this.run(rule)
+      const insideObject = objects.find((o) => distance(o, t.center) <= Math.max(0, t.radius))
+      const now = insideObject !== undefined
+      if (now && !rule.lastInside) this.run(rule, insideObject.id)
       rule.lastInside = now
     }
   }
 
-  private run(rule: LogicRule): void {
+  private run(rule: LogicRule, eventObjectId?: string): void {
     if (!rule.conditions.every((c) => {
       if (!Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
       const actual = this.data.variables[c.name]
@@ -61,13 +62,13 @@ export class RuleEngine {
         default: return actual === c.value
       }
     })) return
-    for (const action of rule.actions) this.apply(action)
+    for (const action of rule.actions) this.apply(action, eventObjectId)
   }
 
-  /** Resolve o marcador para o ID do objeto atualmente selecionado no mundo. */
-  private resolveObjectIdToken(source: string, javascript = false): string {
+  /** Resolve o marcador para o objeto que disparou o evento; usa a seleção como fallback manual. */
+  private resolveObjectIdToken(source: string, javascript = false, eventObjectId?: string): string {
     if (!source.includes('{ID_OBJECT}')) return source
-    const objectId = this.world.getSelectedId()
+    const objectId = eventObjectId ?? this.world.getSelectedId()
     if (!objectId || !this.world.get(objectId)) {
       throw new Error('Não há um objeto selecionado para resolver {ID_OBJECT}. Selecione um objeto antes de executar o script.')
     }
@@ -79,8 +80,8 @@ export class RuleEngine {
   }
 
   /** Executa uma linguagem de comandos limitada; não usa eval nem executa JavaScript arbitrário. */
-  private executeScript(source: string): void {
-    source = this.resolveObjectIdToken(source)
+  private executeScript(source: string, eventObjectId?: string): void {
+    source = this.resolveObjectIdToken(source, false, eventObjectId)
     const lines = source.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
     for (const line of lines) {
       let match = line.match(/^set\s+([A-Za-z_][\w]*)\s*=\s*(.+)$/)
@@ -108,8 +109,8 @@ export class RuleEngine {
   }
 
   /** Executa JavaScript autorado pelo criador do projeto após as condições passarem. */
-  private executeJavaScript(source: string): void {
-    source = this.resolveObjectIdToken(source, true)
+  private executeJavaScript(source: string, eventObjectId?: string): void {
+    source = this.resolveObjectIdToken(source, true, eventObjectId)
     const vars = this.data.variables
     const api = {
       get: (name: string) => vars[name],
@@ -130,7 +131,7 @@ export class RuleEngine {
     run(api, vars, this.world, console)
   }
 
-  private apply(action: RuleAction): void {
+  private apply(action: RuleAction, eventObjectId?: string): void {
     switch (action.type) {
       case 'move': this.world.update(action.objectId, { x: action.x, y: action.y, z: action.z }); break
       case 'rotate': {
@@ -141,11 +142,11 @@ export class RuleEngine {
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
       case 'set_variable': this.setVariable(action.name, action.value); break
       case 'script':
-        try { this.executeScript(action.code) }
+        try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
         break
       case 'javascript':
-        try { this.executeJavaScript(action.code) }
+        try { this.executeJavaScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus JavaScript]', error) }
         break
     }
