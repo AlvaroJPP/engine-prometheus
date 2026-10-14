@@ -52,7 +52,7 @@ export class Engine {
     this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging)
     this.events.on('selectionChanged', ({ id }) => {
       const object = id ? this.world.get(id) : undefined
-      if (object) this.transformControls.attach(object.mesh)
+      if (object && object.mesh.userData.locked !== true) this.transformControls.attach(object.mesh)
       else this.transformControls.detach()
     })
     this.events.on('toolChanged', ({ transform, tool }) => {
@@ -161,6 +161,25 @@ export class Engine {
 
   updateObject(id: string, patch: ObjectPatch): void {
     this.world.update(id, patch)
+    const object = this.world.get(id)
+    if (id === this.world.getSelectedId() && object?.mesh.userData.locked === true) this.transformControls.detach()
+    else if (id === this.world.getSelectedId() && object) this.transformControls.attach(object.mesh)
+  }
+
+  toggleObjectLock(id: string): void {
+    const object = this.world.get(id)
+    if (!object) return
+    this.world.update(id, { locked: object.mesh.userData.locked !== true })
+    if (id === this.world.getSelectedId()) {
+      if (object.mesh.userData.locked === true) this.transformControls.detach()
+      else this.transformControls.attach(object.mesh)
+    }
+  }
+
+  toggleObjectWireframe(id: string): void {
+    const object = this.world.get(id)
+    if (!object) return
+    this.world.update(id, { wireframeVisible: object.mesh.userData.wireframeVisible === false })
   }
 
   listObjects(): ObjectInfo[] {
