@@ -72,6 +72,7 @@ export class Engine {
   listRules(): LogicRule[] { return this.logic.list() }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
+  moveRule(id: string, direction: -1 | 1): void { this.logic.move(id, direction) }
   setLogicVariable(name: string, value: boolean | number | string, objectId?: string | null): void { this.logic.setVariable(name, value, objectId) }
   logicVariables(objectId?: string | null): Record<string, boolean | number | string> { return this.logic.variables(objectId) }
 
