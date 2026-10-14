@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { GameObject } from '../model/object/GameObject'
 import type { World } from './World'
 
 export interface CollisionPair {
@@ -6,13 +7,31 @@ export interface CollisionPair {
   b: string
 }
 
-const EPSILON = 0.001
-const MAX_RESOLUTION_PASSES = 3
+interface ConvexShape {
+  vertices: THREE.Vector3[]
+  faceNormals: THREE.Vector3[]
+  edges: THREE.Vector3[]
+  center: THREE.Vector3
+}
+
+interface Contact {
+  normal: THREE.Vector3
+  depth: number
+}
+
+const EPSILON = 0.0005
+const MAX_RESOLUTION_PASSES = 4
+const AXIS_EPSILON_SQ = 1e-10
+const EDGE_KEY_SCALE = 100000
 
 /**
- * Colisões AABB para os objetos do mundo.
- * Os objetos sobrepostos são separados pelo menor eixo de penetração.
- * O sistema também emite eventos de início e fim de colisão.
+ * Narrow phase SAT (Separating Axis Theorem) sobre os vértices, faces e arestas
+ * reais da geometria transformada. Funciona para malhas convexas fechadas,
+ * incluindo os cubos e plataformas gerados pelo editor; não usa AABB como teste final.
+ *
+ * A massa determina a distribuição da correção de penetração. Massa 0 ou um objeto
+ * bloqueado equivale a corpo estático. Este sistema é de colisão/resolução posicional,
+ * não um solver completo de velocidade, atrito ou gravidade.
  */
 export class CollisionSystem {
   private readonly world: World
@@ -23,67 +42,71 @@ export class CollisionSystem {
   }
 
   update(): void {
-    const objects = this.world.list().filter((object) => object.mesh.visible)
+    const objects = this.world.list().filter(object => object.mesh.visible)
     this.keepObjectsAboveTerrain(objects)
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
 
-    // Resolve sobreposições em algumas passagens para lidar com grupos de objetos.
     for (let pass = 0; pass < MAX_RESOLUTION_PASSES; pass += 1) {
       let resolvedAny = false
       for (let i = 0; i < objects.length; i += 1) {
         const a = objects[i]
         if (!a) continue
-        const boxA = new THREE.Box3().setFromObject(a.mesh)
+        const shapeA = this.buildShape(a)
+        if (!shapeA) continue
+        const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
+
         for (let j = i + 1; j < objects.length; j += 1) {
           const b = objects[j]
           if (!b) continue
-          const boxB = new THREE.Box3().setFromObject(b.mesh)
-          if (!boxA.intersectsBox(boxB)) continue
+          const shapeB = this.buildShape(b)
+          if (!shapeB) continue
+          const boundsB = new THREE.Box3().setFromPoints(shapeB.vertices)
+          if (!boundsA.intersectsBox(boundsB)) continue
 
-          const overlapX = Math.min(boxA.max.x, boxB.max.x) - Math.max(boxA.min.x, boxB.min.x)
-          const overlapY = Math.min(boxA.max.y, boxB.max.y) - Math.max(boxA.min.y, boxB.min.y)
-          const overlapZ = Math.min(boxA.max.z, boxB.max.z) - Math.max(boxA.min.z, boxB.min.z)
-          if (overlapX <= EPSILON || overlapY <= EPSILON || overlapZ <= EPSILON) continue
+          const contact = this.intersectConvex(shapeA, shapeB)
+          if (!contact) continue
+          currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
 
-          const key = this.pairKey(a.id, b.id)
-          currentPairs.set(key, { a: a.id, b: b.id })
+          const inverseA = this.inverseMass(a)
+          const inverseB = this.inverseMass(b)
+          const totalInverseMass = inverseA + inverseB
+          if (totalInverseMass <= 0) continue
 
-          // Separa o segundo objeto no eixo de menor penetração.
-          const centerA = boxA.getCenter(new THREE.Vector3())
-          const centerB = boxB.getCenter(new THREE.Vector3())
-          if (overlapX <= overlapY && overlapX <= overlapZ) {
-            b.mesh.position.x += (centerB.x >= centerA.x ? 1 : -1) * (overlapX + EPSILON)
-          } else if (overlapY <= overlapZ) {
-            b.mesh.position.y += (centerB.y >= centerA.y ? 1 : -1) * (overlapY + EPSILON)
-          } else {
-            b.mesh.position.z += (centerB.z >= centerA.z ? 1 : -1) * (overlapZ + EPSILON)
+          const correction = contact.normal.clone().multiplyScalar(contact.depth + EPSILON)
+          if (inverseA > 0) {
+            a.mesh.position.addScaledVector(correction, -inverseA / totalInverseMass)
+            a.mesh.updateMatrixWorld(true)
+            this.world.notifyChanged(a.id)
           }
-          b.mesh.updateMatrixWorld(true)
-          this.world.notifyChanged(b.id)
+          if (inverseB > 0) {
+            b.mesh.position.addScaledVector(correction, inverseB / totalInverseMass)
+            b.mesh.updateMatrixWorld(true)
+            this.world.notifyChanged(b.id)
+          }
           resolvedAny = true
         }
       }
       if (!resolvedAny) break
     }
 
-    // Recalcula os pares após a resolução para não manter colisões já corrigidas.
+    // Calcula os pares ativos com as posições já corrigidas.
     currentPairs.clear()
     for (let i = 0; i < objects.length; i += 1) {
       const a = objects[i]
       if (!a) continue
-      const boxA = new THREE.Box3().setFromObject(a.mesh)
+      const shapeA = this.buildShape(a)
+      if (!shapeA) continue
+      const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
       for (let j = i + 1; j < objects.length; j += 1) {
         const b = objects[j]
         if (!b) continue
-        const boxB = new THREE.Box3().setFromObject(b.mesh)
-        if (!boxA.intersectsBox(boxB)) continue
-        const overlapX = Math.min(boxA.max.x, boxB.max.x) - Math.max(boxA.min.x, boxB.min.x)
-        const overlapY = Math.min(boxA.max.y, boxB.max.y) - Math.max(boxA.min.y, boxB.min.y)
-        const overlapZ = Math.min(boxA.max.z, boxB.max.z) - Math.max(boxA.min.z, boxB.min.z)
-        if (overlapX <= EPSILON || overlapY <= EPSILON || overlapZ <= EPSILON) continue
-        const key = this.pairKey(a.id, b.id)
-        currentPairs.set(key, { a: a.id, b: b.id })
+        const shapeB = this.buildShape(b)
+        if (!shapeB) continue
+        if (!boundsA.intersectsBox(new THREE.Box3().setFromPoints(shapeB.vertices))) continue
+        if (this.intersectConvex(shapeA, shapeB)) {
+          currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
+        }
       }
     }
 
@@ -97,13 +120,129 @@ export class CollisionSystem {
     this.keepObjectsAboveTerrain(objects)
   }
 
-  /** O terreno é um collider sólido: a base de cada objeto não pode atravessá-lo. */
-  private keepObjectsAboveTerrain(objects: ReturnType<World['list']>): void {
+  private inverseMass(object: GameObject): number {
+    if (object.mesh.userData.locked === true) return 0
+    const mass = object.mesh.userData.mass
+    if (typeof mass !== 'number' || !Number.isFinite(mass)) return 1
+    return mass <= 0 ? 0 : 1 / Math.max(0.0001, mass)
+  }
+
+  private buildShape(object: GameObject): ConvexShape | null {
+    const mesh = object.mesh
+    const geometry = mesh.geometry
+    const position = geometry.getAttribute('position')
+    if (!position || position.count < 3) return null
+
+    mesh.updateWorldMatrix(true, false)
+    const vertices: THREE.Vector3[] = []
+    for (let i = 0; i < position.count; i += 1) {
+      vertices.push(new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld))
+    }
+
+    const index = geometry.getIndex()
+    const triangleCount = index ? index.count / 3 : position.count / 3
+    const faceNormals: THREE.Vector3[] = []
+    const edgeFaces = new Map<string, { direction: THREE.Vector3; normals: THREE.Vector3[] }>()
+
+    const addEdge = (ia: number, ib: number, normal: THREE.Vector3) => {
+      const va = vertices[ia]
+      const vb = vertices[ib]
+      if (!va || !vb) return
+      const ka = this.vertexKey(va)
+      const kb = this.vertexKey(vb)
+      const key = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`
+      const existing = edgeFaces.get(key)
+      if (existing) {
+        existing.normals.push(normal)
+      } else {
+        edgeFaces.set(key, { direction: vb.clone().sub(va).normalize(), normals: [normal] })
+      }
+    }
+
+    for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+      const ia = index ? index.getX(triangle * 3) : triangle * 3
+      const ib = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1
+      const ic = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2
+      const a = vertices[ia]
+      const b = vertices[ib]
+      const c = vertices[ic]
+      if (!a || !b || !c) continue
+      const normal = b.clone().sub(a).cross(c.clone().sub(a))
+      if (normal.lengthSq() <= AXIS_EPSILON_SQ) continue
+      normal.normalize()
+      faceNormals.push(normal)
+      addEdge(ia, ib, normal)
+      addEdge(ib, ic, normal)
+      addEdge(ic, ia, normal)
+    }
+
+    // A diagonal that only splits one flat polygon is not a real polyhedron edge.
+    const edges: THREE.Vector3[] = []
+    for (const edge of edgeFaces.values()) {
+      const hasNonCoplanarFaces = edge.normals.some((normal, i) =>
+        edge.normals.some((other, j) => i !== j && Math.abs(normal.dot(other)) < 0.9999),
+      )
+      if (hasNonCoplanarFaces && edge.direction.lengthSq() > AXIS_EPSILON_SQ) {
+        edges.push(edge.direction)
+      }
+    }
+
+    const center = new THREE.Box3().setFromPoints(vertices).getCenter(new THREE.Vector3())
+    return { vertices, faceNormals, edges, center }
+  }
+
+  private intersectConvex(a: ConvexShape, b: ConvexShape): Contact | null {
+    let minimumOverlap = Number.POSITIVE_INFINITY
+    let minimumAxis: THREE.Vector3 | null = null
+    const axes: THREE.Vector3[] = [...a.faceNormals, ...b.faceNormals]
+
+    for (const edgeA of a.edges) {
+      for (const edgeB of b.edges) {
+        const axis = edgeA.clone().cross(edgeB)
+        if (axis.lengthSq() > AXIS_EPSILON_SQ) axes.push(axis.normalize())
+      }
+    }
+
+    for (const rawAxis of axes) {
+      if (rawAxis.lengthSq() <= AXIS_EPSILON_SQ) continue
+      const axis = rawAxis.clone().normalize()
+      const projectionA = this.project(a.vertices, axis)
+      const projectionB = this.project(b.vertices, axis)
+      const overlap = Math.min(projectionA.max, projectionB.max) - Math.max(projectionA.min, projectionB.min)
+      if (overlap <= EPSILON) return null
+      if (overlap < minimumOverlap) {
+        minimumOverlap = overlap
+        minimumAxis = axis
+      }
+    }
+
+    if (!minimumAxis || !Number.isFinite(minimumOverlap)) return null
+    if (b.center.clone().sub(a.center).dot(minimumAxis) < 0) minimumAxis.negate()
+    return { normal: minimumAxis, depth: minimumOverlap }
+  }
+
+  private project(vertices: THREE.Vector3[], axis: THREE.Vector3): { min: number; max: number } {
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+    for (const vertex of vertices) {
+      const value = vertex.dot(axis)
+      min = Math.min(min, value)
+      max = Math.max(max, value)
+    }
+    return { min, max }
+  }
+
+  private vertexKey(vertex: THREE.Vector3): string {
+    return `${Math.round(vertex.x * EDGE_KEY_SCALE)},${Math.round(vertex.y * EDGE_KEY_SCALE)},${Math.round(vertex.z * EDGE_KEY_SCALE)}`
+  }
+
+  /** O terreno impede que os objetos atravessem a superfície. */
+  private keepObjectsAboveTerrain(objects: GameObject[]): void {
     for (const object of objects) {
-      const box = new THREE.Box3().setFromObject(object.mesh)
+      const bounds = new THREE.Box3().setFromObject(object.mesh)
       const groundY = this.world.terrain.heightAt(object.mesh.position.x, object.mesh.position.z)
-      if (box.min.y < groundY) {
-        object.mesh.position.y += groundY - box.min.y
+      if (bounds.min.y < groundY) {
+        object.mesh.position.y += groundY - bounds.min.y
         object.mesh.updateMatrixWorld(true)
         this.world.notifyChanged(object.id)
       }
