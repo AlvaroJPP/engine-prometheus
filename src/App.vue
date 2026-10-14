@@ -330,12 +330,21 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       </main>
 
       <!-- Inspetor -->
-      <aside class="panel right">
-        <div class="panel-head">
-          <div>
-            <div class="eyebrow">CONFIGURAÇÃO</div>
-            <div class="h">Inspetor</div>
+      <aside class="panel right" :class="{ 'has-selection': inspectorMode === 'object', 'terrain-selection': inspectorMode === 'terrain', 'no-selection': inspectorMode === 'environment' }">
+        <div class="inspector-heading">
+          <div class="inspector-heading-top">
+            <span class="eyebrow">PROPRIEDADES</span>
+            <span class="inspector-context">{{ inspectorMode === 'object' ? 'OBJETO' : inspectorMode === 'terrain' ? 'TERRENO' : 'CENA' }}</span>
           </div>
+          <div class="inspector-title-row">
+            <span class="inspector-object-icon" :class="{ selected: inspectorMode === 'object', terrain: inspectorMode === 'terrain' }">{{ inspectorMode === 'object' ? '◇' : inspectorMode === 'terrain' ? '▤' : '⌂' }}</span>
+            <div class="inspector-title-copy">
+              <div class="h">{{ selected ? selected.name : inspectorMode === 'terrain' ? 'Terreno editável' : 'Mundo principal' }}</div>
+              <div class="inspector-description">{{ selected ? (selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
+            </div>
+            <span v-if="selected" class="selection-indicator" title="Objeto selecionado"></span>
+          </div>
+          <div v-if="inspectorMode === 'environment'" class="selection-empty-hint">Selecione um item na hierarquia ou diretamente no viewport para editar suas propriedades.</div>
         </div>
 
         <div class="scroll">
@@ -1098,4 +1107,176 @@ input[type='range'] { accent-color: #e98524; }
 .add-component-btn { margin-top:8px; }
 .object-components .danger { margin-top:8px; }
 @media(max-width:1000px) { .unity-component-body .field input { font-size:10px; } }
+</style>
+
+
+<style>
+/* Inspector contextual: cabeçalho enxuto e conteúdo organizado por estado de seleção. */
+.panel.right {
+  width: 292px;
+  min-width: 250px;
+  background: #292929;
+  border-left: 1px solid #1b1b1b;
+}
+.inspector-heading {
+  flex: none;
+  padding: 11px 12px 12px;
+  background: #323232;
+  border-bottom: 1px solid #1c1c1c;
+}
+.inspector-heading-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.inspector-context {
+  padding: 3px 6px;
+  border: 1px solid #484848;
+  border-radius: 3px;
+  color: #aaa;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .07em;
+}
+.inspector-title-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.inspector-object-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  background: #252525;
+  color: #bcbcbc;
+  font-size: 20px;
+}
+.inspector-object-icon.selected {
+  color: #f0a04c;
+  border-color: #76502e;
+  background: #3b3025;
+}
+.inspector-object-icon.terrain {
+  color: #9ecb91;
+  border-color: #40513b;
+  background: #293328;
+}
+.inspector-title-copy { min-width: 0; flex: 1; }
+.inspector-title-copy .h {
+  margin: 0;
+  overflow: hidden;
+  color: #f0f0f0;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspector-description {
+  margin-top: 4px;
+  color: #999;
+  font-size: 10px;
+}
+.selection-indicator {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: #e98524;
+  box-shadow: 0 0 0 3px #e985241c;
+}
+.selection-empty-hint {
+  margin-top: 11px;
+  padding: 9px;
+  border: 1px solid #424242;
+  border-radius: 3px;
+  background: #2a2a2a;
+  color: #aaa;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.panel.right .scroll {
+  min-height: 0;
+  background: #292929;
+  scrollbar-color: #505050 transparent;
+}
+.panel.right .scroll > section {
+  padding: 12px;
+  border-bottom: 1px solid #1e1e1e;
+}
+.panel.right .scroll > section > h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 11px;
+  color: #e4e4e4;
+  font-size: 11px;
+  font-weight: 650;
+}
+.panel.right .scroll > section > h4::before {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  background: #777;
+  content: "";
+}
+.panel.right.has-selection .scroll > section.object-components > h4::before {
+  background: #e98524;
+}
+.panel.right .component-caption {
+  margin-top: 12px;
+  color: #969696;
+  font-size: 9px;
+  letter-spacing: .055em;
+}
+.panel.right .unity-component {
+  margin: 8px 0;
+  border-color: #1c1c1c;
+  background: #292929;
+}
+.panel.right .unity-component-head {
+  min-height: 32px;
+  background: #353535;
+}
+.panel.right .unity-component-body { padding: 10px 8px 7px; }
+.panel.right .field input,
+.panel.right .field select,
+.panel.right input:not([type="checkbox"]):not([type="range"]):not([type="color"]) {
+  min-height: 27px;
+  border-color: #1d1d1d;
+  background: #202020;
+}
+.panel.right .field input:focus,
+.panel.right .field select:focus { border-color: #a66a32; }
+.panel.right .variable-row { gap: 5px; }
+.panel.right .variable-row .ghost { min-width: 28px; padding: 4px 7px; }
+.panel.right .variable-create { gap: 6px; }
+.panel.right .rule-item {
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top-color: #252525;
+}
+.panel.right .rule-item .checkline { min-width: 0; }
+.panel.right .panel-foot {
+  min-height: 28px;
+  border-top-color: #1c1c1c;
+  background: #252525;
+}
+.panel.right .danger { margin-top: 10px; }
+@media (max-width: 1000px) {
+  .panel.right { width: 260px; min-width: 235px; }
+  .inspector-heading { padding: 10px; }
+}
+@media (max-width: 700px) {
+  .panel.right { width: 235px; min-width: 210px; }
+  .inspector-heading { padding: 8px; }
+  .inspector-object-icon { width: 28px; height: 28px; }
+  .panel.right .scroll > section { padding: 9px; }
+}
 </style>
