@@ -665,6 +665,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
                     <label class="field">Z<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
                   </div>
+                  <div class="component-caption">FÍSICA</div>
+                  <label class="field">Massa (kg)
+                    <input class="mono" type="number" min="0" max="1000000" step="0.1" :value="selected.mass.toFixed(2)" @change="onNumber('mass', $event)" />
+                  </label>
+                  <p class="component-note">Massa 0 = corpo estático. A massa distribui a correção de penetração durante colisões.</p>
                   <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
                 </div>
               </div>
