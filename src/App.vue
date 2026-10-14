@@ -8,6 +8,7 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes'>('transform')
 const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
+const publicLibraryOpen = ref(false)
 const {
   projectName,
   dirty,
@@ -181,7 +182,7 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
 
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
 const inspectorMode = computed(() => selected.value ? 'object' : selectedId.value === TERRAIN_ID ? 'terrain' : 'environment')
-watch(selectedId, () => { inspectorTab.value = 'transform' })
+watch(selectedId, () => { inspectorTab.value = 'transform'; publicLibraryOpen.value = false })
 function copyObjectId(id: string) {
   void navigator.clipboard?.writeText(id)
 }
@@ -478,7 +479,16 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
             </div>
-            <p v-else class="muted">Este objeto ainda não tem eventos próprios.</p>
+            <p v-else class="muted">Este objeto ainda não tem nós ou eventos associados.</p>
+            <button class="ghost full public-library-toggle" @click="publicLibraryOpen = !publicLibraryOpen">{{ publicLibraryOpen ? 'Fechar biblioteca pública' : '＋ Importar evento da biblioteca pública' }}</button>
+            <div v-if="publicLibraryOpen" class="public-library-list">
+              <p class="muted">Importar cria uma cópia independente vinculada a este objeto.</p>
+              <div v-for="rule in publicLogicRules" :key="'public-' + rule.id" class="public-library-item">
+                <span>{{ rule.name }}</span>
+                <button class="ghost" @click="importPublicRule(rule)">Importar</button>
+              </div>
+              <p v-if="!publicLogicRules.length" class="muted">Nenhum evento público disponível para importar.</p>
+            </div>
 
             </template>
           </section>
@@ -1340,4 +1350,13 @@ input[type='range'] { accent-color: #e98524; }
 .dock-state{display:flex;align-items:center;gap:6px;margin-left:5px;padding:0 5px;color:#999;font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
 .dock-state i{width:6px;height:6px;border-radius:50%;background:#9c9c9c}.dock-state i.running{background:#83bd77;box-shadow:0 0 0 3px #83bd771a}.dock-state i.stopped{background:#d36e65}.dock-state i.edit{background:#df984f}
 @media(max-width:850px){.execution-dock{bottom:32px;gap:4px;padding:6px}.dock-state{display:none}.dock-action,.dock-home{min-width:57px;padding:0 8px}.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
+</style>
+
+<style>
+.public-library-toggle{margin-top:10px}
+.public-library-list{margin-top:8px;padding:8px;border:1px solid #202020;border-radius:3px;background:#252525}
+.public-library-list>p{margin:2px 0 8px;font-size:10px;line-height:1.5}
+.public-library-item{display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid #363636}
+.public-library-item span{flex:1;min-width:0;color:#ddd;font-size:10px;overflow-wrap:anywhere}
+.public-library-item .ghost{flex:none}
 </style>
