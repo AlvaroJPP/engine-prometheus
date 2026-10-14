@@ -342,6 +342,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh(); dirty.value = true
   }
 
+  function moveLogicRule(id: string, direction: -1 | 1) {
+    engine?.moveRule(id, direction)
+    refresh(); dirty.value = true
+  }
+
   function updateLogicRule(rule: LogicRule) {
     engine?.upsertRule(rule)
     refresh(); dirty.value = true
@@ -470,7 +475,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule,
     markDirty,
     setTool,
     setTransform,
