@@ -45,7 +45,9 @@ export class OrbitCamera {
 
   rotate(dx: number, dy: number): void {
     this.yaw -= dx * 0.005
-    this.pitch = clamp(this.pitch + dy * 0.005, 0.05, 1.5)
+    this.pitch = this.firstPerson
+      ? clamp(this.pitch + dy * 0.005, -1.45, 1.45)
+      : clamp(this.pitch + dy * 0.005, 0.05, 1.5)
   }
 
   zoom(deltaY: number): void {
