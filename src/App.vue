@@ -323,11 +323,16 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <section>
             <h4>Motor de regras</h4>
             <p class="muted">Gatilhos, condições e ações são executados durante a edição e salvos em <span class="mono">logic/events.json</span>.</p>
-            <label class="field">Variável has_key
-              <select :value="String(logicVariables.has_key === true)" @change="toggleLogicVariable('has_key')">
-                <option value="false">false</option><option value="true">true</option>
-              </select>
-            </label>
+            <div class="component-caption">VARIÁVEIS DO PROJETO</div>
+            <div v-for="(value, name) in logicVariables" :key="name" class="variable-row">
+              <label class="field">{{ name }}<input :value="String(value)" @change="setLogicVariableValue(String(name), ($event.target as HTMLInputElement).value)" /></label>
+              <button class="ghost" title="Alternar variável booleana" :disabled="typeof value !== 'boolean'" @click="toggleLogicVariable(String(name))">↻</button>
+            </div>
+            <div class="variable-create">
+              <input v-model="newVariableName" placeholder="nome_da_variavel" spellcheck="false" />
+              <input v-model="newVariableValue" placeholder="valor inicial (false, 0, texto)" />
+              <button class="ghost full" @click="submitVariable">+ Criar variável</button>
+            </div>
             <label class="field">Gatilho
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
             </label>
