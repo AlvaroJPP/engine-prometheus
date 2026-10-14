@@ -41,6 +41,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const objects = ref<ObjectInfo[]>([])
   const terrain = ref<TerrainInfo>({ visible: true, seed: 0, edits: 0 })
   const selectedId = ref<string | null>(null)
+  const groupSelection = ref<string[]>([])
   const tool = ref<ToolMode>('select')
   const transform = ref<TransformMode>('move')
   const cameraPreset = ref<CameraPreset>('free')
@@ -192,8 +193,35 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   // ---- hierarquia / inspetor ----
-  function selectItem(id: string) {
+  function selectItem(id: string, additive = false) {
+    if (additive && objects.value.some(object => object.id === id)) {
+      groupSelection.value = groupSelection.value.includes(id)
+        ? groupSelection.value.filter(item => item !== id)
+        : [...groupSelection.value, id]
+      engine?.select(id)
+      return
+    }
+    groupSelection.value = objects.value.some(object => object.id === id) ? [id] : []
     engine?.select(id)
+  }
+
+  function groupSelectedObjects() {
+    if (!engine || groupSelection.value.length < 2) {
+      say('Selecione pelo menos dois objetos com Ctrl + clique na hierarquia.')
+      return
+    }
+    engine.groupObjects(groupSelection.value)
+    dirty.value = true
+    refresh()
+    say(`${groupSelection.value.length} objetos agrupados. Transformar um deles move o grupo.`)
+  }
+
+  function ungroupSelectedObjects() {
+    if (!engine || groupSelection.value.length === 0) return
+    engine.ungroupObjects(groupSelection.value)
+    dirty.value = true
+    refresh()
+    say('Objetos removidos dos grupos.')
   }
 
   function toggleVisible(id: string) {
@@ -586,6 +614,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     objects,
     terrain,
     selectedId,
+    groupSelection,
     tool,
     transform,
     cameraPreset,
@@ -601,6 +630,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     addClickableCubeExample,
     cycleCamera,
     selectItem,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
     toggleVisible,
     toggleObjectLock,
     toggleObjectWireframe,
