@@ -239,7 +239,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
-  function addLogicRule(scriptCode?: string) {
+  function addLogicRule(scriptCode?: string, condition?: LogicRule['conditions'][number]) {
     if (!engine) return
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
@@ -258,7 +258,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
               : { type: 'set_variable', name: 'has_key', value: true }
-    const rule: LogicRule = { id, name: `Regra ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
+    const rule: LogicRule = { id, name: `Regra ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
     dirty.value = true
