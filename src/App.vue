@@ -191,6 +191,9 @@ function openObjectRule(rule: LogicRule) {
   }
   graphOpen.value = true
 }
+const publicLogicRules = computed(() => logicRules.value.filter(rule =>
+  rule.trigger.type === 'object_clicked' && rule.trigger.objectId !== selectedId.value
+))
 const cameraLabel = computed(() => CAMERA_LABELS[cameraPreset.value])
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
@@ -415,20 +418,29 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <input v-model="newEventName" placeholder="Ex.: Clique para abrir porta" spellcheck="false" />
             </label>
             <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined, ruleConditionEnabled ? { type: 'variable', name: conditionVariable, operator: conditionOperator, value: ruleValueFromInput(conditionValue) } : undefined, newEventName); newEventName = ''">+ Adicionar evento ao objeto selecionado</button>
-            <div v-if="logicRules.length" class="rule-list">
-              <div v-for="(rule, index) in logicRules" :key="rule.id" class="rule-item">
+            <div v-if="selectedObjectRules.length" class="rule-list">
+              <div v-for="(rule, index) in selectedObjectRules" :key="rule.id" class="rule-item">
                 <div class="rule-order" :title="'Prioridade ' + (index + 1)">
                   <button class="ghost" :disabled="index === 0" title="Subir na hierarquia (maior prioridade)" @click="moveLogicRule(rule.id, -1)">↑</button>
                   <button class="ghost" :disabled="index === logicRules.length - 1" title="Descer na hierarquia (menor prioridade)" @click="moveLogicRule(rule.id, 1)">↓</button>
                   <span class="muted">{{ index + 1 }}</span>
                 </div>
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
-                <button class="ghost" title="Compartilhar este evento com todos os objetos; variáveis permanecem independentes" @click="shareLogicRule(rule)">Compartilhar</button>
                 <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
             </div>
-            <p v-else class="muted">Nenhuma regra criada.</p>
+            <p v-else class="muted">Este objeto ainda não tem eventos próprios.</p>
+
+            <div class="component-caption">BIBLIOTECA PÚBLICA · EVENTOS DISPONÍVEIS</div>
+            <p class="muted">Todos os eventos de clique da cena ficam disponíveis para reutilização. Importar cria uma cópia vinculada somente a este objeto; alterações futuras não afetam o original.</p>
+            <div v-if="publicLogicRules.length" class="rule-list">
+              <div v-for="rule in publicLogicRules" :key="'public-' + rule.id" class="rule-item">
+                <label class="checkline"><span>{{ rule.name }}</span></label>
+                <button class="ghost" title="Importar uma cópia independente para o objeto selecionado" @click="importLogicRule(rule)">Importar</button>
+              </div>
+            </div>
+            <p v-else class="muted">Nenhum outro evento de clique disponível para importar.</p>
           </section>
 
           <section class="object-components">
