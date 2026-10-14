@@ -71,7 +71,7 @@ export class OrbitCamera {
 
   update(): void {
     if (this.firstPerson) {
-      this.camera.position.set(this.target.x, this.target.y + 0.62, this.target.z)
+      this.camera.position.set(this.target.x, this.target.y + 0.72, this.target.z)
       const direction = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch))
       this.camera.lookAt(this.camera.position.clone().add(direction))
       return
