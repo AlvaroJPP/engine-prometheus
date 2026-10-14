@@ -26,7 +26,7 @@ export const CAMERA_LABELS: Record<CameraPreset, string> = {
   top: 'Vista de topo',
 }
 
-export type NumField = 'x' | 'y' | 'z' | 'rotationX' | 'rotationY' | 'rotationZ' | 'scale' | 'scaleX' | 'scaleY' | 'scaleZ'
+export type NumField = 'x' | 'y' | 'z' | 'rotationX' | 'rotationY' | 'rotationZ' | 'scale' | 'scaleX' | 'scaleY' | 'scaleZ' | 'mass'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
