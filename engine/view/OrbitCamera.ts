@@ -16,9 +16,22 @@ export class OrbitCamera {
   yaw = PRESETS.free.yaw
   pitch = PRESETS.free.pitch
   distance = PRESETS.free.distance
+  firstPerson = false
 
   constructor() {
     this.update()
+  }
+
+  setFirstPersonMode(enabled: boolean): void {
+    this.firstPerson = enabled
+    if (enabled) {
+      this.preset = 'free'
+      this.pitch = 0
+      this.distance = 0
+    } else {
+      this.distance = PRESETS.free.distance
+      this.pitch = PRESETS.free.pitch
+    }
   }
 
   setPreset(preset: CameraPreset): void {
@@ -55,6 +68,12 @@ export class OrbitCamera {
   }
 
   update(): void {
+    if (this.firstPerson) {
+      this.camera.position.set(this.target.x, this.target.y + 0.62, this.target.z)
+      const direction = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch))
+      this.camera.lookAt(this.camera.position.clone().add(direction))
+      return
+    }
     const cp = Math.cos(this.pitch)
     this.camera.position.set(
       this.target.x + this.distance * cp * Math.sin(this.yaw),
