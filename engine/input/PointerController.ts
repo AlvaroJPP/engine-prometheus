@@ -142,8 +142,10 @@ export class PointerController {
       const id = hit ? (hit.object.userData.id as string) : null
       const obj = id ? this.world.get(id) : undefined
       if (obj) {
-        this.world.events.emit('objectClicked', { id: obj.id })
+        // Atualiza a seleção antes do evento para que scripts antigos que usam
+        // a seleção como fallback também enxerguem o objeto clicado.
         this.world.select(obj.id)
+        this.world.events.emit('objectClicked', { id: obj.id })
         this.beginTransform(obj.id, e)
         return
       }
