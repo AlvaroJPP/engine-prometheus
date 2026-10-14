@@ -15,6 +15,11 @@ export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
   private readonly visualRoot = new THREE.Group()
   private disposed = false
+  private mixer: THREE.AnimationMixer | null = null
+  private animationActions = new Map<string, THREE.AnimationAction>()
+  private activeAnimation = ''
+  private animationTime = 0
+  private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseZ: number }> = []
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
@@ -92,7 +97,8 @@ export class HumanoidAvatar {
     const forwardInput = Number(this.pressed.has('KeyW') || this.pressed.has('ArrowUp')) - Number(this.pressed.has('KeyS') || this.pressed.has('ArrowDown'))
     const sideInput = Number(this.pressed.has('KeyD') || this.pressed.has('ArrowRight')) - Number(this.pressed.has('KeyA') || this.pressed.has('ArrowLeft'))
     const length = Math.hypot(forwardInput, sideInput)
-    const speed = WALK_SPEED * (this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight') ? RUN_MULTIPLIER : 1)
+    const running = this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight')
+    const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
 
     if (this.pressed.has('Space') && this.grounded) {
       this.verticalVelocity = JUMP_SPEED
@@ -136,6 +142,7 @@ export class HumanoidAvatar {
       this.grounded = false
     }
 
+    this.updateAvatarAnimation(step, length > 0, running)
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
@@ -153,10 +160,15 @@ export class HumanoidAvatar {
     this.grounded = true
     this.pressed.clear()
     this.activeCollisions.clear()
+    this.animationTime = 0
+    this.playAnimation('idle')
   }
 
   dispose(): void {
     this.disposed = true
+    this.mixer?.stopAllAction()
+    this.animationActions.clear()
+    this.animatedBones = []
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
@@ -210,7 +222,17 @@ export class HumanoidAvatar {
         gltf.scene.position.x -= center.x
         gltf.scene.position.y -= normalizedBounds.min.y
         gltf.scene.position.z -= center.z
+        this.mixer = new THREE.AnimationMixer(gltf.scene)
+        this.animationActions.clear()
+        for (const clip of gltf.animations) {
+          const key = this.classifyAnimation(clip.name)
+          if (!this.animationActions.has(key)) this.animationActions.set(key, this.mixer.clipAction(clip))
+        }
+        this.animatedBones = []
         gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Bone || /arm|leg|thigh|calf|foot|hand|spine|hips|pelvis/i.test(child.name)) {
+            this.animatedBones.push({ node: child, name: child.name.toLowerCase(), baseX: child.rotation.x, baseZ: child.rotation.z })
+          }
           if (child instanceof THREE.Mesh) {
             child.castShadow = true
             child.receiveShadow = true
@@ -221,12 +243,60 @@ export class HumanoidAvatar {
         for (const child of [...this.visualRoot.children]) this.disposeObject(child)
         this.visualRoot.clear()
         this.visualRoot.add(gltf.scene)
+        this.playAnimation('idle')
       }, (error) => {
         console.warn('[Engine Prometheus] Não foi possível carregar o avatar Dummy; mantendo o modelo de reserva.', error)
       })
     } catch (error) {
       console.warn('[Engine Prometheus] Falha ao carregar o avatar Dummy; mantendo o modelo de reserva.', error)
     }
+  }
+
+  private classifyAnimation(name: string): string {
+    const normalized = name.toLowerCase()
+    if (/jump|leap|fall/.test(normalized)) return 'jump'
+    if (/run|sprint/.test(normalized)) return 'run'
+    if (/walk|locomotion|move/.test(normalized)) return 'walk'
+    if (/idle|stand|breath/.test(normalized)) return 'idle'
+    return 'other'
+  }
+
+  private playAnimation(state: 'idle' | 'walk' | 'run' | 'jump'): void {
+    if (this.activeAnimation === state) return
+    this.activeAnimation = state
+    if (!this.mixer) return
+    const next = this.animationActions.get(state) ?? (state === 'run' ? this.animationActions.get('walk') : undefined) ?? this.animationActions.get('idle')
+    for (const action of this.animationActions.values()) {
+      if (action === next) continue
+      action.fadeOut(0.18)
+    }
+    if (next) {
+      next.reset().fadeIn(0.18).play()
+      if (state === 'jump') next.setLoop(THREE.LoopOnce, 1).clampWhenFinished = true
+      else next.setLoop(THREE.LoopRepeat, Infinity)
+    }
+  }
+
+  private updateAvatarAnimation(dt: number, moving: boolean, running: boolean): void {
+    this.animationTime += dt * (running ? 12 : 8)
+    const state = !this.grounded ? 'jump' : moving ? (running ? 'run' : 'walk') : 'idle'
+    this.playAnimation(state)
+    this.mixer?.update(dt)
+
+    // Se o arquivo não trouxer clipes, anima os ossos do rig com um ciclo de caminhada.
+    if (this.animationActions.size > 0) return
+    const movingNow = moving && this.grounded
+    const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
+    const swing = Math.sin(this.animationTime) * amplitude
+    for (const bone of this.animatedBones) {
+      if (/left.*(leg|thigh|calf)|thigh.*left|leg.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing
+      else if (/right.*(leg|thigh|calf)|thigh.*right|leg.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing
+      else if (/left.*(arm|hand)|arm.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing * 0.65
+      else if (/right.*(arm|hand)|arm.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing * 0.65
+      else if (/spine|hips|pelvis/.test(bone.name)) bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0)
+    }
+    if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
+    else this.visualRoot.position.y = 0
   }
 
   private disposeObject(object: THREE.Object3D): void {
