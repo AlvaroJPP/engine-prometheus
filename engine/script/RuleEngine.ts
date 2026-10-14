@@ -80,8 +80,12 @@ export class RuleEngine {
   }
   upsert(rule: LogicRule): void {
     const i = this.data.events.findIndex((r) => r.id === rule.id)
-    const copy = structuredClone({ ...rule, lastInside: false })
-    if (i < 0) this.data.events.push(copy); else this.data.events[i] = copy
+    // Regras vindas da interface Vue podem ser proxies reativos; structuredClone
+    // lança DataCloneError nesses objetos. Converta para dados simples antes de
+    // guardar, para que editar evento/condição/ação realmente atualize o runtime
+    // e o próximo Ctrl+S serialize a versão editada.
+    const plainRule = JSON.parse(JSON.stringify({ ...rule, lastInside: false })) as LogicRule
+    if (i < 0) this.data.events.push(plainRule); else this.data.events[i] = plainRule
   }
   remove(id: string): void { this.data.events = this.data.events.filter((r) => r.id !== id) }
   move(id: string, direction: -1 | 1): void {
