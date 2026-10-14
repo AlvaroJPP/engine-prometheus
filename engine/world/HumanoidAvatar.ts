@@ -148,6 +148,9 @@ export class HumanoidAvatar {
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     if (this.firstPersonMode) {
       this.cameraTarget.x = this.mesh.position.x
+      // Mantém a câmera na altura dos olhos relativa aos pés do avatar,
+      // acompanhando pulos e mudanças de nível do terreno/plataformas.
+      this.cameraTarget.y = this.mesh.position.y + 1
       this.cameraTarget.z = this.mesh.position.z
     } else {
       this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
