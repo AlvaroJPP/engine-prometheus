@@ -356,15 +356,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   </div>
                   <div class="component-caption">ROTATION</div>
                   <div class="grid3">
-                    <label class="field">X<input class="mono" type="number" value="0" disabled /></label>
-                    <label class="field">Y<input class="mono" type="number" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" value="0" disabled /></label>
+                    <label class="field">X<input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
+                    <label class="field">Y<input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
                   </div>
                   <div class="component-caption">SCALE</div>
                   <div class="grid3">
-                    <label class="field">X<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
+                    <label class="field">X<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
+                    <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
                   </div>
                   <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
                 </div>
