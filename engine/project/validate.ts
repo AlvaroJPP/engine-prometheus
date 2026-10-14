@@ -80,6 +80,9 @@ export function parseProject(text: string): ProjectFile {
 
   const settings = isRecord(obj.settings) ? obj.settings : {}
   const mp = isRecord(settings.multiplayer) ? settings.multiplayer : {}
+  const editor = isRecord(settings.editor) ? settings.editor : {}
+  const brushStrength = isNum(editor.brushStrength) ? Math.min(3, Math.max(0.2, editor.brushStrength)) : 1.5
+  const brushRadius = isNum(editor.brushRadius) ? Math.min(12, Math.max(1, editor.brushRadius)) : 4
 
   return {
     formatVersion: version,
@@ -91,10 +94,17 @@ export function parseProject(text: string): ProjectFile {
       cameraMode: 'orbit',
       multiplayer: {
         enabled: mp.enabled === true,
-        maxPlayers: typeof mp.maxPlayers === 'number' ? mp.maxPlayers : 4,
+        maxPlayers: typeof mp.maxPlayers === 'number' && Number.isFinite(mp.maxPlayers) ? Math.max(1, Math.min(64, Math.floor(mp.maxPlayers))) : 4,
+      },
+      editor: {
+        gridVisible: editor.gridVisible !== false,
+        brushStrength,
+        brushRadius,
       },
     },
-    modules: [],
+    modules: Array.isArray(obj.modules)
+      ? obj.modules.filter((m): m is { id: string; version: string } => isRecord(m) && typeof m.id === 'string' && typeof m.version === 'string')
+      : [],
     scenes: scenePaths,
   }
 }
