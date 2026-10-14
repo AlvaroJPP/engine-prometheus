@@ -222,8 +222,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 
     <nav class="toolbar">
       <button
-        v-for="t in TOOLS"
-        v-if="t.id !== 'terrain' || inspectorMode !== 'object'"
+        v-for="t in TOOLS.filter((item) => item.id !== 'terrain' || inspectorMode !== 'object')"
         :key="t.id"
         class="tool"
         :class="{ active: tool === t.id }"
