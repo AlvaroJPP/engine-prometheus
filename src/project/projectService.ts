@@ -39,7 +39,8 @@ export async function loadProjectFrom(dir: string): Promise<ProjectBundle> {
     throw new Error('Nenhuma cena foi carregada.')
   }
   let logic: ProjectBundle['logic'] = { formatVersion: 1, variables: {}, events: [] }
-  try {
+  const logicExists = await invoke<boolean>('project_file_exists', { dir, rel: 'logic/events.json' })
+  if (logicExists) {
     const rawText = await invoke<string>('read_project_file', { dir, rel: 'logic/events.json' })
     let raw: unknown
     try {
@@ -55,11 +56,6 @@ export async function loadProjectFrom(dir: string): Promise<ProjectBundle> {
       throw new Error('logic/events.json tem estrutura inválida. O arquivo não foi ignorado para evitar perder variáveis e scripts.')
     }
     logic = candidate as NonNullable<ProjectBundle['logic']>
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    // Compatibilidade: apenas ausência do arquivo indica projeto antigo. Erros de leitura reais devem ser exibidos.
-    const missing = /logic\/events\.json.*(not found|cannot find|não foi possível ler logic\/events\.json:.*(não foi possível localizar|não foi possível encontrar|o sistema não pode encontrar|arquivo não encontrado|no such file|cannot find the file))/i.test(message)
-    if (!missing) throw error
   }
   return { project, scenes, logic }
 }
