@@ -19,6 +19,7 @@ export interface SceneObjectData {
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
+  mass?: number
 }
 
 export interface TerrainData {
