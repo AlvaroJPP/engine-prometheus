@@ -93,12 +93,13 @@ export class RuleEngine {
   }
 
   triggerObjectClicked(objectId: string): void {
-    // A hierarquia define a ordem de avaliação. Executa somente a primeira regra
-    // habilitada cujas condições correspondam ao estado atual.
+    // Cada evento do objeto é independente: execute todas as regras habilitadas
+    // daquele objeto cujas próprias condições forem satisfeitas.
     for (const rule of this.data.events) {
       if (rule.enabled && rule.ownerObjectId === objectId && rule.trigger.type === 'object_clicked' &&
-        rule.trigger.objectId === objectId &&
-        this.run(rule, objectId)) break
+        rule.trigger.objectId === objectId) {
+        this.run(rule, objectId)
+      }
     }
   }
 
