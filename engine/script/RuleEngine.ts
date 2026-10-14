@@ -92,10 +92,25 @@ export class RuleEngine {
     if (rule) this.data.events.splice(target, 0, rule)
   }
 
+  /** Ordena eventos pela mesma ordem dos objetos exibidos na Hierarquia. */
+  private rulesInHierarchyOrder(): LogicRule[] {
+    const objectOrder = new Map(this.world.info().map((object, index) => [object.id, index]))
+    return this.data.events
+      .map((rule, index) => ({ rule, index }))
+      .sort((a, b) => {
+        const ownerA = a.rule.ownerObjectId ?? (a.rule.trigger.type === 'object_clicked' ? a.rule.trigger.objectId : undefined)
+        const ownerB = b.rule.ownerObjectId ?? (b.rule.trigger.type === 'object_clicked' ? b.rule.trigger.objectId : undefined)
+        const orderA = ownerA ? objectOrder.get(ownerA) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER
+        const orderB = ownerB ? objectOrder.get(ownerB) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER
+        return orderA - orderB || a.index - b.index
+      })
+      .map(({ rule }) => rule)
+  }
+
   triggerObjectClicked(objectId: string): void {
-    // Cada evento do objeto é independente: execute todas as regras habilitadas
-    // daquele objeto cujas próprias condições forem satisfeitas.
-    for (const rule of this.data.events) {
+    // Cada evento do objeto é independente. A ordenação global segue a Hierarquia,
+    // preservando a ordem em que eventos do mesmo objeto foram configurados.
+    for (const rule of this.rulesInHierarchyOrder()) {
       if (rule.enabled && rule.ownerObjectId === objectId && rule.trigger.type === 'object_clicked' &&
         rule.trigger.objectId === objectId) {
         this.run(rule, objectId)
@@ -105,7 +120,8 @@ export class RuleEngine {
 
   update(): void {
     const objects = this.world.info()
-    for (const rule of this.data.events) {
+    // Eventos contínuos/por área também respeitam a ordem dos objetos da Hierarquia.
+    for (const rule of this.rulesInHierarchyOrder()) {
       if (!rule.enabled || rule.trigger.type !== 'enter_area') continue
       const t = rule.trigger
       const candidates = rule.ownerObjectId
