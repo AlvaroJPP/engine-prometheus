@@ -79,9 +79,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh()
   }
 
+  let applyingProjectSettings = false
   watch([brushStrength, brushRadius], () => {
     engine?.setBrush({ strength: brushStrength.value, radius: brushRadius.value })
-  })
+    if (engine && !applyingProjectSettings) dirty.value = true
+  }, { flush: 'sync' })
 
   onMounted(() => {
     if (!canvas.value) return
@@ -294,7 +296,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       const dir = await chooseFolder('Abrir projeto: escolha a pasta do projeto')
       if (!dir) return
       const bundle = await loadProjectFrom(dir)
-      eng.loadProject(bundle)
+      applyingProjectSettings = true
+      try {
+        eng.loadProject(bundle)
+        brushStrength.value = bundle.project.settings.editor.brushStrength
+        brushRadius.value = bundle.project.settings.editor.brushRadius
+        gridVisible.value = bundle.project.settings.editor.gridVisible
+      } finally {
+        applyingProjectSettings = false
+      }
       projectName.value = eng.projectName
       projectDir.value = dir
       dirty.value = false
