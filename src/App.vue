@@ -422,6 +422,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <span class="muted">{{ index + 1 }}</span>
                 </div>
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
+                <button class="ghost" title="Compartilhar este evento com todos os objetos; variáveis permanecem independentes" @click="shareLogicRule(rule)">Compartilhar</button>
                 <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
