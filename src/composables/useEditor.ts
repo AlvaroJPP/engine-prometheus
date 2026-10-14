@@ -51,7 +51,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const logicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area'>('object_clicked')
   const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
-  const ruleConditionEnabled = ref(true)
+  // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
+  const ruleConditionEnabled = ref(false)
 
   let engine: Engine | null = null
   let statusTimer = 0
