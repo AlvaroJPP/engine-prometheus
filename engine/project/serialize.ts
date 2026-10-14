@@ -14,6 +14,7 @@ export function buildBundle(
   terrain: TerrainData,
   camera: CameraData,
   meta: ProjectMeta,
+  editorSettings: { gridVisible: boolean; brushStrength: number; brushRadius: number } = { gridVisible: true, brushStrength: 1.5, brushRadius: 4 },
 ): ProjectBundle {
   const data: SceneObjectData[] = objects.map((o) => {
     const m = o.mesh
@@ -36,7 +37,15 @@ export function buildBundle(
       name: meta.name,
       template: 'empty-world',
       engineVersion: ENGINE_VERSION,
-      settings: { cameraMode: 'orbit', multiplayer: { enabled: false, maxPlayers: 4 } },
+      settings: {
+        cameraMode: 'orbit',
+        multiplayer: { enabled: false, maxPlayers: 4 },
+        editor: {
+          gridVisible: editorSettings.gridVisible,
+          brushStrength: editorSettings.brushStrength,
+          brushRadius: editorSettings.brushRadius,
+        },
+      },
       modules: [],
       scenes: [MAIN_SCENE_PATH],
     },
