@@ -14,6 +14,7 @@ export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
+  private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
   private verticalVelocity = 0
@@ -30,9 +31,10 @@ export class HumanoidAvatar {
   }
   private readonly onBlur = (): void => this.pressed.clear()
 
-  constructor(world: World, cameraTarget: THREE.Vector3) {
+  constructor(world: World, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
     this.cameraTarget = cameraTarget
+    this.getCameraYaw = getCameraYaw
     this.mesh.name = 'Humanoid Avatar'
     this.mesh.userData.id = PLAYER_ID
 
@@ -98,15 +100,15 @@ export class HumanoidAvatar {
     // Movimento relativo à orientação horizontal da câmera.
     if (length > 0) {
       const direction = new THREE.Vector3(
-        sideInput * Math.cos(this.cameraTarget.yaw ?? 0),
         0,
-        -forwardInput,
+        0,
+        0,
       )
       // O vetor acima é corrigido para usar diretamente o ângulo real da câmera abaixo.
       direction.set(
-        sideInput * Math.cos(this.cameraTarget.yaw ?? 0) - forwardInput * Math.sin(this.cameraTarget.yaw ?? 0),
+        sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
         0,
-        -sideInput * Math.sin(this.cameraTarget.yaw ?? 0) - forwardInput * Math.cos(this.cameraTarget.yaw ?? 0),
+        -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
       )
       direction.normalize().multiplyScalar(speed * step)
       const oldX = this.mesh.position.x
@@ -165,7 +167,6 @@ export class HumanoidAvatar {
       if (Array.isArray(material)) material.forEach((item) => item.dispose())
       else material.dispose()
     })
-    for (const material of [0]) void material
   }
 
   private playerBox(): THREE.Box3 {
