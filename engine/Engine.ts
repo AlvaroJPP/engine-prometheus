@@ -189,6 +189,8 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
+    this.world.setGridVisible(true)
+    this.setBrush({ strength: 1.5, radius: 4 })
     this.logic.load()
   }
 
