@@ -300,6 +300,8 @@ export class Engine {
   }
 
   loadProject(bundle: ProjectBundle): void {
+    this.orbit.setFirstPersonMode(false)
+    this.avatar.setFirstPersonMode(false)
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     const scene = bundle.scenes[firstPath]
     if (!scene) throw new ProjectFormatError('O projeto não tem nenhuma cena para carregar.')
