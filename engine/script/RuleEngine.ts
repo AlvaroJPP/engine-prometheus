@@ -78,7 +78,9 @@ export class RuleEngine {
     // A hierarquia define a ordem de avaliação. Executa somente a primeira regra
     // habilitada cujas condições correspondam ao estado atual.
     for (const rule of this.data.events) {
-      if (rule.enabled && rule.trigger.type === 'object_clicked' && rule.trigger.objectId === objectId && this.run(rule, objectId)) break
+      if (rule.enabled && rule.trigger.type === 'object_clicked' &&
+        (rule.trigger.objectId === objectId || rule.trigger.objectIds?.includes(objectId)) &&
+        this.run(rule, objectId)) break
     }
   }
 
@@ -112,7 +114,8 @@ export class RuleEngine {
         default: return actual === expected
       }
     })) return false
-    for (const action of rule.actions) this.apply(action, eventObjectId)
+    const sourceObjectId = rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined
+    for (const action of rule.actions) this.apply(action, eventObjectId, sourceObjectId)
     return true
   }
 
@@ -193,16 +196,26 @@ export class RuleEngine {
     run(api, vars, this.world, console)
   }
 
-  private apply(action: RuleAction, eventObjectId?: string): void {
+  private apply(action: RuleAction, eventObjectId?: string, sourceObjectId?: string): void {
+    // Ao compartilhar um evento de clique, ações que apontavam para o objeto original
+    // passam a atuar no objeto que efetivamente disparou o evento.
+    const targetId = (objectId: string) => sourceObjectId && objectId === sourceObjectId && eventObjectId
+      ? eventObjectId
+      : objectId
     switch (action.type) {
-      case 'move': this.world.update(action.objectId, { x: action.x, y: action.y, z: action.z }); break
-      case 'rotate': {
-        const obj = this.world.get(action.objectId)
-        if (obj) this.world.update(action.objectId, { rotationY: obj.mesh.rotation.y * 180 / Math.PI + action.degrees })
+      case 'move': {
+        const id = targetId(action.objectId)
+        this.world.update(id, { x: action.x, y: action.y, z: action.z })
         break
       }
-      case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
+      case 'rotate': {
+        const id = targetId(action.objectId)
+        const obj = this.world.get(id)
+        if (obj) this.world.update(id, { rotationY: obj.mesh.rotation.y * 180 / Math.PI + action.degrees })
+        break
+      }
+      case 'set_visible': this.world.update(targetId(action.objectId), { visible: action.visible }); break
+      case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ? targetId(action.objectId) : eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
