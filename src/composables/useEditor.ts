@@ -352,6 +352,20 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh(); dirty.value = true
   }
 
+  /** Compartilha a mesma regra de clique com todos os objetos da cena.
+   * O estado de variáveis continua isolado por ID do objeto que recebeu o clique. */
+  function shareLogicRule(rule: LogicRule) {
+    if (!engine || rule.trigger.type !== 'object_clicked') {
+      say('Compartilhamento está disponível para eventos de clique em objetos.')
+      return
+    }
+    const targets = objects.value.filter(object => object.id !== TERRAIN_ID).map(object => object.id)
+    engine.upsertRule({ ...rule, trigger: { ...rule.trigger, objectIds: targets } })
+    refresh()
+    dirty.value = true
+    say(`Evento "${rule.name}" compartilhado com ${targets.length} objetos. Cada objeto mantém suas próprias variáveis.`)
+  }
+
   // ---- projeto ----
   async function newProject() {
     const eng = engine
