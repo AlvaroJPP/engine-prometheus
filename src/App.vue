@@ -5,6 +5,7 @@ import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
+import ExecutionDock from '@/components/ExecutionDock.vue'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -696,12 +697,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
       </aside>
     </div>
-    <footer class="execution-dock" aria-label="Controles de execução">
-      <button class="media-orb media-stop" :class="{ active: executionMode === 'stopped' }" @click="stopWorld" title="Parar execução" aria-label="Stop"><span class="orb-glyph">■</span><small>Stop</small></button>
-      <button class="media-orb media-run" :class="{ active: executionMode === 'running' }" @click="runWorld" title="Executar cena" aria-label="Run"><span class="orb-glyph">▶</span><small>Run</small></button>
-      <button class="media-orb media-edit" :class="{ active: executionMode === 'edit' }" @click="returnToEdit" title="Voltar ao modo de edição" aria-label="Edit"><span class="orb-glyph">✎</span><small>Edit</small></button>
-      <span class="dock-state"><i :class="executionMode"></i>{{ executionMode === 'running' ? 'EM EXECUÇÃO' : executionMode === 'stopped' ? 'INTERROMPIDO' : 'MODO DE EDIÇÃO' }}</span>
-    </footer>
+    <ExecutionDock :mode="executionMode" @run="runWorld" @stop="stopWorld" @edit="returnToEdit" />
     <div v-if="graphOpen" class="graph-overlay">
       <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="selected">Objeto selecionado</option><option value="all">Todos os objetos</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
