@@ -2,7 +2,7 @@ export type RuleTrigger =
   | { type: 'object_clicked'; objectId: string }
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
 
-export type RuleCondition = { type: 'variable'; name: string; operator: 'equals'; value: boolean | number | string }
+export type RuleCondition = { type: 'variable'; name: string; operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than'; value: boolean | number | string }
 
 export type RuleAction =
   | { type: 'move'; objectId: string; x?: number; y?: number; z?: number }
