@@ -28,8 +28,9 @@ export class HumanoidAvatar {
   private verticalVelocity = 0
   private grounded = true
   private enabled = true
+  private firstPersonMode = false
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
+    if (this.firstPersonMode && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
       if (event.code === 'Space') event.preventDefault()
       this.pressed.add(event.code)
     }
@@ -145,12 +146,23 @@ export class HumanoidAvatar {
     this.updateAvatarAnimation(step, length > 0, running)
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
-    this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
-    this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.12)
+    if (this.firstPersonMode) {
+      this.cameraTarget.x = this.mesh.position.x
+      this.cameraTarget.z = this.mesh.position.z
+    } else {
+      this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
+      this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.12)
+    }
   }
 
   setFirstPersonMode(enabled: boolean): void {
+    this.firstPersonMode = enabled
     this.visualRoot.visible = !enabled
+    this.pressed.clear()
+    if (enabled) {
+      this.cameraTarget.x = this.mesh.position.x
+      this.cameraTarget.z = this.mesh.position.z
+    }
   }
 
   setEnabled(enabled: boolean): void {
