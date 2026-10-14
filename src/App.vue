@@ -20,7 +20,7 @@ const {
   brushRadius,
   gridVisible,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-  toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+  toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule,
   markDirty,
   setTool,
   setTransform,
@@ -415,7 +415,12 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </label>
             <button class="ghost full" @click="addLogicRule(ruleAction === 'javascript' ? sidebarScriptDraft : undefined, ruleConditionEnabled ? { type: 'variable', name: conditionVariable, operator: conditionOperator, value: ruleValueFromInput(conditionValue) } : undefined, newEventName); newEventName = ''">+ Adicionar evento ao objeto selecionado</button>
             <div v-if="logicRules.length" class="rule-list">
-              <div v-for="rule in logicRules" :key="rule.id" class="rule-item">
+              <div v-for="(rule, index) in logicRules" :key="rule.id" class="rule-item">
+                <div class="rule-order" :title="'Prioridade ' + (index + 1)">
+                  <button class="ghost" :disabled="index === 0" title="Subir na hierarquia (maior prioridade)" @click="moveLogicRule(rule.id, -1)">↑</button>
+                  <button class="ghost" :disabled="index === logicRules.length - 1" title="Descer na hierarquia (menor prioridade)" @click="moveLogicRule(rule.id, 1)">↓</button>
+                  <span class="muted">{{ index + 1 }}</span>
+                </div>
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
                 <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
