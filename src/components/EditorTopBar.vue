@@ -3,6 +3,7 @@ defineProps<{
   projectName: string
   dirty: boolean
   cameraLabel: string
+  firstPersonMode: boolean
 }>()
 
 const emit = defineEmits<{
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   'open-project': []
   'save-project': [saveAs: boolean]
   'cycle-camera': []
+  'toggle-first-person': []
 }>()
 </script>
 
@@ -39,6 +41,7 @@ const emit = defineEmits<{
       <button class="ghost hide-narrow" @click="emit('save-project', true)">Salvar como…</button>
     </div>
 
+    <button class="cam" :class="{ active: firstPersonMode }" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
     <button class="cam" @click="emit('cycle-camera')"><i class="cam-ring" />{{ cameraLabel }}</button>
   </header>
 </template>
