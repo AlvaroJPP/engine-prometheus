@@ -25,6 +25,9 @@ export interface ObjectInfo {
   scaleY: number
   scaleZ: number
   visible: boolean
+  locked: boolean
+  wireframeVisible: boolean
+  groupId: string | null
   color: number
 }
 
