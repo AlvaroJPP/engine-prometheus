@@ -18,10 +18,27 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   const def = PRIMITIVE_DEFS[type]
   const id = init.id ?? newId(type)
   const [w, h, d] = def.size
+  const geometry = new THREE.BoxGeometry(w, h, d)
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d),
+    geometry,
     new THREE.MeshStandardMaterial({ color: init.color ?? def.color, roughness: 0.6 }),
   )
+
+  // Mostra a topologia poligonal sobre a superfície sólida, como uma malha de modelagem 3D.
+  // WireframeGeometry expõe as arestas dos triângulos que formam as faces do objeto.
+  const polygonGeometry = new THREE.WireframeGeometry(geometry)
+  const polygonMaterial = new THREE.LineBasicMaterial({
+    color: 0x252832,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  })
+  const polygons = new THREE.LineSegments(polygonGeometry, polygonMaterial)
+  polygons.name = 'polygon-wireframe'
+  polygons.userData.editorOverlay = true
+  polygons.renderOrder = 1
+  mesh.add(polygons)
+
   const [px, py, pz] = init.position ?? [0, h / 2, 0]
   mesh.position.set(px, py, pz)
   const [rx, ry, rz] = init.rotation ?? [0, 0, 0]
