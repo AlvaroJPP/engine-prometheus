@@ -101,10 +101,15 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 }))
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
-  const eventY = 92 + index * 44
+  // Os conectores ficam no centro das portas: a lista começa em y=50,
+  // tem cabeçalho de 35px e cada linha ocupa 58px (48px + margens).
+  const eventY = 117 + index * 58
+  // As portas dos nós ficam no rodapé; alinhar as curvas ao centro desse rodapé.
+  const conditionPortY = layout.condition.y + 112
+  const actionPortY = layout.action.y + 112
   return [
-    { id: rule.id + '-a', kind: 'trigger-condition', x1: 300, y1: eventY, x2: layout.condition.x, y2: layout.condition.y + 60 },
-    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: layout.condition.y + 60, x2: layout.action.x, y2: layout.action.y + 60 },
+    { id: rule.id + '-a', kind: 'trigger-condition', x1: 293, y1: eventY, x2: layout.condition.x, y2: conditionPortY },
+    { id: rule.id + '-b', kind: 'condition-action', x1: layout.condition.x + 232, y1: conditionPortY, x2: layout.action.x, y2: actionPortY },
   ]
 }))
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
