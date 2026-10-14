@@ -190,6 +190,13 @@ function openObjectRule(rule: LogicRule) {
   }
   graphOpen.value = true
 }
+
+function importPublicRule(rule: LogicRule) {
+  const importedId = importLogicRule(rule)
+  if (!importedId) return
+  graphSelection.value = { ruleId: importedId, part: 'trigger' }
+  graphOpen.value = true
+}
 const publicLogicRules = computed(() => logicRules.value.filter(rule =>
   rule.trigger.type === 'object_clicked' && rule.trigger.objectId !== selectedId.value
 ))
@@ -436,7 +443,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div v-if="publicLogicRules.length" class="rule-list">
               <div v-for="rule in publicLogicRules" :key="'public-' + rule.id" class="rule-item">
                 <label class="checkline"><span>{{ rule.name }}</span></label>
-                <button class="ghost" title="Importar uma cópia independente para o objeto selecionado" @click="importLogicRule(rule)">Importar</button>
+                <button class="ghost" title="Importar uma cópia independente para o objeto selecionado" @click="importPublicRule(rule)">Importar</button>
               </div>
             </div>
             <p v-else class="muted">Nenhum outro evento de clique disponível para importar.</p>
@@ -520,7 +527,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       </aside>
     </div>
     <div v-if="graphOpen" class="graph-overlay">
-      <header class="graph-top"><div><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Lógica conectada · salva em logic/events.json</span></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
+      <header class="graph-top"><div><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Lógica conectada · salva em logic/events.json</span></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library"><div class="eyebrow">BIBLIOTECA</div><h3>Nós disponíveis</h3><p>Crie um fluxo pelo painel Motor de regras e ele aparecerá aqui como nós conectados.</p><div class="node-legend trigger">● Evento</div><div class="node-legend condition">◆ Condição</div><div class="node-legend action">▶ Ação</div><div class="graph-tip">Arraste os nós para organizar o grafo. As posições são guardadas junto com as regras.</div></aside>
         <div ref="graphViewport" class="graph-canvas" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag">
@@ -832,6 +839,8 @@ input:focus { outline: none; border-color: var(--accent); }
 
 <style>
 .graph-overlay { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: #10131a; color: #e1e5ed; }
+.graph-actions .primary { border:1px solid #f5a34d; background:#e98524; color:#252525; padding:6px 12px; border-radius:4px; font-weight:700; cursor:pointer; }
+.graph-actions .primary:hover { background:#f5a34d; }
 .graph-top { height: 58px; flex: none; display:flex; align-items:center; justify-content:space-between; padding:0 18px; border-bottom:1px solid #2a303d; background:#171b24; }
 .graph-top strong { letter-spacing:.12em; font-size:13px; } .graph-subtitle { margin-left:16px; color:#8e98aa; font-size:12px; } .graph-actions { display:flex; gap:8px; }
 .graph-body { display:grid; grid-template-columns:210px minmax(0,1fr) 245px; min-height:0; flex:1; }
