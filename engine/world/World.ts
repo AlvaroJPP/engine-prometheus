@@ -86,6 +86,14 @@ export class World {
     const obj = this.objects.get(id)
     if (!obj) return
     const m = obj.mesh
+    const transformFields = patch.x !== undefined || patch.y !== undefined || patch.z !== undefined || patch.rotationX !== undefined || patch.rotationY !== undefined || patch.rotationZ !== undefined || patch.scale !== undefined || patch.scaleX !== undefined || patch.scaleY !== undefined || patch.scaleZ !== undefined
+    if (m.userData.locked === true && transformFields) {
+      const safePatch = { ...patch }
+      delete safePatch.x; delete safePatch.y; delete safePatch.z
+      delete safePatch.rotationX; delete safePatch.rotationY; delete safePatch.rotationZ
+      delete safePatch.scale; delete safePatch.scaleX; delete safePatch.scaleY; delete safePatch.scaleZ
+      patch = safePatch
+    }
     const ok = (n: number | undefined): n is number => n !== undefined && Number.isFinite(n)
     if (ok(patch.x)) m.position.x = clamp(patch.x, -50, 50)
     if (ok(patch.y)) m.position.y = clamp(patch.y, -50, 100)
@@ -102,6 +110,13 @@ export class World {
     if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, 20)
     if (ok(patch.color)) (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
     if (patch.visible !== undefined) m.visible = patch.visible
+    if (patch.locked !== undefined) m.userData.locked = patch.locked
+    if (patch.wireframeVisible !== undefined) {
+      m.userData.wireframeVisible = patch.wireframeVisible
+      const overlay = m.getObjectByName('polygon-wireframe')
+      if (overlay) overlay.visible = patch.wireframeVisible
+    }
+    if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
     this.events.emit('objectChanged', { id })
   }
 
@@ -165,6 +180,9 @@ export class World {
       scaleY: o.mesh.scale.y,
       scaleZ: o.mesh.scale.z,
       visible: o.mesh.visible,
+      locked: o.mesh.userData.locked === true,
+      wireframeVisible: o.mesh.userData.wireframeVisible !== false,
+      groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
       color: (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
   }
@@ -172,7 +190,7 @@ export class World {
   /** Só os objetos visíveis podem ser clicados. */
   pickables(): THREE.Mesh[] {
     return this.list()
-      .filter((o) => o.mesh.visible)
+      .filter((o) => o.mesh.visible && o.mesh.userData.locked !== true)
       .map((o) => o.mesh)
   }
 
