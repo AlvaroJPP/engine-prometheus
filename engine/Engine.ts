@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
@@ -62,9 +63,9 @@ export class Engine {
         const dry = current.rotation[1] - previous.rotation[1]
         const drz = current.rotation[2] - previous.rotation[2]
         const ratios = current.scale.map((v, i) => previous.scale[i] === 0 ? 1 : v / previous.scale[i]) as [number, number, number]
-        const pivot = new (mesh.position.constructor as typeof import('three').Vector3)(previous.position[0], previous.position[1], previous.position[2])
-        const deltaRotation = new (mesh.rotation.constructor as typeof import('three').Euler)(drx, dry, drz, mesh.rotation.order)
-        const rotationMatrix = new (mesh.matrix.constructor as typeof import('three').Matrix4)().makeRotationFromEuler(deltaRotation)
+        const pivot = new THREE.Vector3(previous.position[0], previous.position[1], previous.position[2])
+        const deltaRotation = new THREE.Euler(drx, dry, drz, mesh.rotation.order)
+        const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(deltaRotation)
         for (const sibling of this.world.list()) {
           if (sibling.id === id || sibling.mesh.userData.groupId !== groupId || sibling.mesh.userData.locked === true) continue
           const other = sibling.mesh
