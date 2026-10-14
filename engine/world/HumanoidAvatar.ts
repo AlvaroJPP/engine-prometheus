@@ -243,6 +243,9 @@ export class HumanoidAvatar {
         for (const child of [...this.visualRoot.children]) this.disposeObject(child)
         this.visualRoot.clear()
         this.visualRoot.add(gltf.scene)
+        // O estado idle pode ter sido definido antes de o GLB terminar de carregar.
+        // Força a ativação do primeiro clipe do modelo já carregado.
+        this.activeAnimation = ''
         this.playAnimation('idle')
       }, (error) => {
         console.warn('[Engine Prometheus] Não foi possível carregar o avatar Dummy; mantendo o modelo de reserva.', error)
@@ -262,19 +265,35 @@ export class HumanoidAvatar {
   }
 
   private playAnimation(state: 'idle' | 'walk' | 'run' | 'jump'): void {
-    if (this.activeAnimation === state) return
-    this.activeAnimation = state
     if (!this.mixer) return
-    const next = this.animationActions.get(state) ?? (state === 'run' ? this.animationActions.get('walk') : undefined) ?? this.animationActions.get('idle')
-    for (const action of this.animationActions.values()) {
-      if (action === next) continue
-      action.fadeOut(0.18)
+    if (this.activeAnimation === state) return
+
+    const next = this.animationActions.get(state)
+      ?? (state === 'run' ? this.animationActions.get('walk') : undefined)
+      ?? this.animationActions.get('idle')
+
+    // Evita reiniciar o mesmo clipe a cada troca de estado (por exemplo, run -> walk
+    // quando ambos apontam para o mesmo clipe) e mistura as poses suavemente.
+    const current = this.animationActions.get(this.activeAnimation)
+    if (current && current === next) {
+      this.activeAnimation = state
+      return
     }
+
     if (next) {
-      next.reset().fadeIn(0.18).play()
-      if (state === 'jump') next.setLoop(THREE.LoopOnce, 1).clampWhenFinished = true
-      else next.setLoop(THREE.LoopRepeat, Infinity)
+      if (state === 'jump') {
+        next.setLoop(THREE.LoopOnce, 1)
+        next.clampWhenFinished = true
+      } else {
+        next.setLoop(THREE.LoopRepeat, Infinity)
+        next.clampWhenFinished = false
+      }
+      next.reset().fadeIn(0.2).play()
     }
+    for (const action of this.animationActions.values()) {
+      if (action !== next && action.isRunning()) action.fadeOut(0.2)
+    }
+    this.activeAnimation = state
   }
 
   private updateAvatarAnimation(dt: number, moving: boolean, running: boolean): void {
@@ -283,8 +302,12 @@ export class HumanoidAvatar {
     this.playAnimation(state)
     this.mixer?.update(dt)
 
-    // Se o arquivo não trouxer clipes, anima os ossos do rig com um ciclo de caminhada.
-    if (this.animationActions.size > 0) return
+    // Usa animação procedural quando não existe um clipe adequado para o estado atual.
+    // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
+    const hasStateClip = this.animationActions.has(state)
+      || (state === 'run' && this.animationActions.has('walk'))
+      || this.animationActions.has('idle')
+    if (hasStateClip) return
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
