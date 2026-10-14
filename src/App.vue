@@ -101,27 +101,39 @@ const graphNodes = computed(() => graphVisibleRules.value.flatMap((rule, index) 
 }))
 const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule, index) => {
   const layout = layoutForGraph(rule, index)
-  // Centro de cada porta do painel de eventos.
-  const eventY = 117 + index * 58
-  // Portas laterais no rodapé dos nós de condição/ação.
-  const conditionPortY = layout.condition.y + 119
-  const actionPortY = layout.action.y + 119
-  // Cada conexão amarela ganha sua própria faixa vertical para evitar
-  // que as curvas se amontoem no mesmo corredor.
-  const routeX = 320 + index * 22
-  const conditionInX = layout.condition.x + 1
-  const conditionOutX = layout.condition.x + 232
-  const actionInX = layout.action.x + 1
+
+  // Coordenadas dos centros das portas circulares, no espaço do graph-stage.
+  // O painel de eventos fica em x=30, tem 270px e cada linha mede 48px
+  // com 5px de margem vertical: o centro da primeira porta é y=114.
+  const eventPortX = 299.5
+  const eventPortY = 114 + index * 58
+
+  // Nos nós, a porta fica no centro do rodapé. Com o cabeçalho, título e
+  // rodapé atuais, esse centro fica aproximadamente 112px abaixo do topo.
+  const nodePortOffsetY = 112
+  const conditionPortY = layout.condition.y + nodePortOffsetY
+  const actionPortY = layout.action.y + nodePortOffsetY
+
+  // Centro das portas laterais: círculo de 11px deslocado 5px para fora.
+  const conditionInX = layout.condition.x + 0.5
+  const conditionOutX = layout.condition.x + 231.5
+  const actionInX = layout.action.x + 0.5
+
+  // Mantém cada ligação amarela em uma faixa própria, mas inicia e termina
+  // exatamente no centro das portas circulares correspondentes.
+  const routeX = Math.min(eventPortX + 20 + index * 22, conditionInX - 28)
   const yellowPath = [
-    `M ${299} ${eventY}`,
-    `C ${routeX - 16} ${eventY}, ${routeX} ${eventY}, ${routeX} ${eventY}`,
+    `M ${eventPortX} ${eventPortY}`,
+    `L ${routeX} ${eventPortY}`,
     `L ${routeX} ${conditionPortY}`,
-    `C ${routeX} ${conditionPortY}, ${conditionInX - 24} ${conditionPortY}, ${conditionInX} ${conditionPortY}`,
+    `L ${conditionInX} ${conditionPortY}`,
   ].join(' ')
+
   const redPath = [
     `M ${conditionOutX} ${conditionPortY}`,
     `C ${conditionOutX + 28} ${conditionPortY}, ${actionInX - 28} ${actionPortY}, ${actionInX} ${actionPortY}`,
   ].join(' ')
+
   return [
     { id: rule.id + '-a', kind: 'trigger-condition', d: yellowPath },
     { id: rule.id + '-b', kind: 'condition-action', d: redPath },
