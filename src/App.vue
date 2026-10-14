@@ -110,7 +110,7 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area') {
     : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script') {
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
@@ -121,7 +121,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'set_variable' ? { type, name: 'has_key', value: true } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.add('score', 1)\n// api.move('ID_DO_OBJETO', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -473,8 +473,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <template v-else-if="graphSelection.part === 'condition'">
               <label class="checkline"><input type="checkbox" :checked="selectedGraphRule.conditions.length > 0" @change="updateLogicRule({ ...selectedGraphRule, conditions: ($event.target as HTMLInputElement).checked ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [] })" /> Exigir condição</label>
               <template v-if="selectedGraphRule.conditions.length">
-                <label class="field">Variável
-                  <input :value="selectedGraphRule.conditions[0]?.name ?? 'has_key'" spellcheck="false" @change="patchSelectedCondition({ name: ($event.target as HTMLInputElement).value })" />
+                <label class="field">Variável exigida
+                  <select :value="selectedGraphRule.conditions[0]?.name ?? ''" @change="patchSelectedCondition({ name: ($event.target as HTMLSelectElement).value })">
+                    <option value="" disabled>Selecione uma variável</option>
+                    <option v-for="(value, name) in logicVariables" :key="name" :value="name">{{ name }} = {{ String(value) }}</option>
+                  </select>
                 </label>
                 <label class="field">Comparação
                   <select :value="selectedGraphRule.conditions[0]?.operator ?? 'equals'" @change="patchSelectedCondition({ operator: ($event.target as HTMLSelectElement).value })">
@@ -490,8 +493,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-else>
               <label class="field">Tipo de ação
-                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script')">
-                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Executar script</option>
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript')">
+                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
                 </select>
               </label>
               <template v-if="selectedGraphRule.actions[0] && 'objectId' in selectedGraphRule.actions[0]">
@@ -515,6 +518,22 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <label v-else-if="selectedGraphRule.actions[0]?.type === 'set_visible'" class="field">Visibilidade
                 <select :value="String(selectedGraphRule.actions[0].visible)" @change="patchSelectedAction({ visible: ($event.target as HTMLSelectElement).value === 'true' })"><option value="true">Mostrar</option><option value="false">Ocultar</option></select>
               </label>
+              <template v-else-if="selectedGraphRule.actions[0]?.type === 'javascript'>
+                <p class="muted">JavaScript executado depois do gatilho e de todas as condições. API: <code>api</code>, <code>vars</code>, <code>world</code> e <code>console</code>.</p>
+                <label class="field">Código JavaScript
+                  <textarea class="script-editor" spellcheck="false" rows="12" :value="selectedGraphRule.actions[0].code" @change="patchSelectedAction({ code: ($event.target as HTMLTextAreaElement).value })"></textarea>
+                </label>
+                <div class="component-box">
+                  <div class="component-caption">EXEMPLOS</div>
+                  <p class="muted mono">api.set('score', 10)</p>
+                  <p class="muted mono">api.add('score', 1)</p>
+                  <p class="muted mono">api.toggle('has_key')</p>
+                  <p class="muted mono">api.move('ID_DO_OBJETO', 2, 0, 1)</p>
+                  <p class="muted mono">api.rotate('ID_DO_OBJETO', 45)</p>
+                  <p class="muted mono">api.setVisible('ID_DO_OBJETO', false)</p>
+                  <p class="muted">Também pode ler e alterar variáveis com vars.nome ou vars['nome']. Execute apenas scripts confiáveis: JavaScript roda com as permissões do app.</p>
+                </div>
+              </template>
               <template v-else-if="selectedGraphRule.actions[0]?.type === 'script'">
                 <p class="muted">Script Prometheus (comandos seguros, uma instrução por linha). Não é JavaScript livre.</p>
                 <label class="field">Código do evento
