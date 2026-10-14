@@ -153,20 +153,21 @@ function defaultGraphLayout(index: number) {
   }
 }
 function layoutForGraph(rule: LogicRule, index: number) {
-  const saved = rule.graphLayout
-  const isHorizontalLayout = !!saved &&
-    saved.trigger.x < saved.condition.x &&
-    saved.condition.x < saved.action.x &&
-    Math.abs(saved.trigger.y - saved.condition.y) < 100 &&
-    Math.abs(saved.condition.y - saved.action.y) < 100
-  return isHorizontalLayout ? saved! : defaultGraphLayout(index)
+  // Qualquer posição salva é válida: o usuário pode organizar os nós livremente,
+  // inclusive em colunas ou em alturas diferentes.
+  return rule.graphLayout ?? defaultGraphLayout(index)
 }
 const graphNodes = computed(() => {
   if (graphObjectFilter.value === 'all') {
     return graphObjectGroups.value.flatMap(group => group.rules.flatMap((rule, index) => {
-      const y = group.top + 48 + index * 170
+      const defaults = {
+        trigger: { x: 70, y: group.top + 48 + index * 170 },
+        condition: { x: 430, y: group.top + 48 + index * 170 },
+        action: { x: 790, y: group.top + 48 + index * 170 },
+      }
+      const layout = rule.graphLayout ?? defaults
       return (['condition', 'action'] as const).map(part => ({
-        rule, part, x: part === 'condition' ? 430 : 790, y,
+        rule, part, x: layout[part].x, y: layout[part].y,
       }))
     }))
   }
