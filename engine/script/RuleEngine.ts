@@ -66,10 +66,19 @@ export class RuleEngine {
     if (i < 0) this.data.events.push(copy); else this.data.events[i] = copy
   }
   remove(id: string): void { this.data.events = this.data.events.filter((r) => r.id !== id) }
+  move(id: string, direction: -1 | 1): void {
+    const index = this.data.events.findIndex((rule) => rule.id === id)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= this.data.events.length) return
+    const [rule] = this.data.events.splice(index, 1)
+    if (rule) this.data.events.splice(target, 0, rule)
+  }
 
   triggerObjectClicked(objectId: string): void {
+    // A hierarquia define a ordem de avaliação. Executa somente a primeira regra
+    // habilitada cujas condições correspondam ao estado atual.
     for (const rule of this.data.events) {
-      if (rule.enabled && rule.trigger.type === 'object_clicked' && rule.trigger.objectId === objectId) this.run(rule, objectId)
+      if (rule.enabled && rule.trigger.type === 'object_clicked' && rule.trigger.objectId === objectId && this.run(rule, objectId)) break
     }
   }
 
@@ -85,7 +94,7 @@ export class RuleEngine {
     }
   }
 
-  private run(rule: LogicRule, eventObjectId?: string): void {
+  private run(rule: LogicRule, eventObjectId?: string): boolean {
     const scopeId = eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
     if (!rule.conditions.every((c) => {
       const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
@@ -102,8 +111,9 @@ export class RuleEngine {
         case 'equals':
         default: return actual === expected
       }
-    })) return
+    })) return false
     for (const action of rule.actions) this.apply(action, eventObjectId)
+    return true
   }
 
   /** Resolve o marcador para o objeto que disparou o evento; usa a seleção como fallback manual. */
