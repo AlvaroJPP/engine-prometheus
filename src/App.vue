@@ -119,6 +119,7 @@ watch(graphOpen, async (open) => {
 onUpdated(measureGraphPorts)
 onBeforeUnmount(() => graphPortObserver?.disconnect())
 const graphObjectFilter = ref<'selected' | 'all'>('all')
+const graphObjectSearch = ref('')
 function ownerOfRule(rule: LogicRule): string | undefined {
   return rule.ownerObjectId ??
     (rule.trigger.type === 'object_clicked'
@@ -712,17 +713,26 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library property-source">
-          <div class="eyebrow">HIERARQUIA DA CENA</div>
-          <h3>OBJETOS</h3>
-          <div class="graph-object-picker">
-            <button v-for="object in objects" :key="object.id" class="graph-object-picker-row" :class="{ active: selectedId === object.id }" @click="selectItem(object.id)">
-              <span class="object-picker-icon">◇</span>
-              <span class="object-picker-name">{{ object.name }}</span>
-              <span class="object-picker-count">{{ logicRules.filter(rule => ownerOfRule(rule) === object.id).length }}</span>
-            </button>
-            <p v-if="!objects.length" class="event-list-empty">Nenhum objeto na cena</p>
+          <div class="graph-object-heading">
+            <div><div class="eyebrow">HIERARQUIA DA CENA</div><h3>Objetos</h3></div>
+            <span class="graph-object-total">{{ objects.length }}</span>
           </div>
-          <div class="graph-tip">Selecione um objeto para destacá-lo na hierarquia. No modo “Todos os objetos”, os fluxos de toda a cena continuam visíveis.</div>
+          <label class="graph-object-search">
+            <span aria-hidden="true">⌕</span>
+            <input v-model="graphObjectSearch" type="search" placeholder="Buscar objeto..." aria-label="Buscar objeto na cena" />
+            <button v-if="graphObjectSearch" type="button" title="Limpar busca" @click="graphObjectSearch = ''">×</button>
+          </label>
+          <div class="graph-object-picker">
+            <div class="graph-object-section-label"><span>NA CENA</span><span>{{ objects.filter(object => object.name.toLowerCase().includes(graphObjectSearch.trim().toLowerCase())).length }} itens</span></div>
+            <button v-for="object in objects.filter(object => object.name.toLowerCase().includes(graphObjectSearch.trim().toLowerCase()))" :key="object.id" class="graph-object-picker-row" :class="{ active: selectedId === object.id }" :title="object.name" @click="selectItem(object.id)">
+              <span class="object-picker-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 21 7.4 12 12 3 7.4 12 2.8Z"/><path d="M3 7.4v9.2l9 4.6 9-4.6V7.4M12 12v9.2"/></svg></span>
+              <span class="object-picker-copy"><span class="object-picker-name">{{ object.name }}</span><span class="object-picker-type">{{ object.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject' }}</span></span>
+              <span class="object-picker-count" :title="logicRules.filter(rule => ownerOfRule(rule) === object.id).length + ' eventos'"><span class="object-count-dot"></span>{{ logicRules.filter(rule => ownerOfRule(rule) === object.id).length }}</span>
+            </button>
+            <div v-if="!objects.length" class="graph-object-empty"><span>◇</span><strong>Nenhum objeto criado</strong><small>Adicione um objeto à cena para começar.</small></div>
+            <div v-else-if="!objects.some(object => object.name.toLowerCase().includes(graphObjectSearch.trim().toLowerCase()))" class="graph-object-empty"><strong>Nenhum resultado</strong><small>Tente buscar por outro nome.</small></div>
+          </div>
+          <div class="graph-tip"><strong>Dica</strong><span>Selecione um objeto para focar sua edição. Todos os fluxos continuam visíveis no modo global.</span></div>
         </aside>
         <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
@@ -1719,12 +1729,35 @@ input[type='range'] { accent-color: #e98524; }
 </style>
 
 <style>
-.graph-object-picker{display:flex;flex-direction:column;gap:5px;max-height:48%;overflow:auto;margin-top:2px}
-.graph-object-picker-row{display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 8px;border:1px solid #353a48;border-radius:4px;background:#292d37;color:#c5cad5;text-align:left;cursor:pointer}
-.graph-object-picker-row:hover{background:#343946;border-color:#555d70}
-.graph-object-picker-row.active{border-color:#e98524;background:#3b3025;color:#fff}
-.object-picker-icon{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:3px;background:#20232c;color:#e98524;font-size:16px}
-.object-picker-name{flex:1;min-width:0;overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
-.object-picker-count{flex:none;min-width:20px;padding:2px 5px;border-radius:9px;background:#20232c;color:#aeb5c2;text-align:center;font-size:9px}
-.graph-object-picker-row.active .object-picker-count{background:#523a27;color:#ffc27c}
+.graph-object-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px}
+.graph-object-heading h3{margin:4px 0 0;font-size:16px;font-weight:650;letter-spacing:.01em;color:#edf0f6}
+.graph-object-total{display:grid;place-items:center;min-width:28px;height:26px;padding:0 8px;border:1px solid #3a414f;border-radius:6px;background:#222630;color:#bfc7d5;font-size:11px;font-variant-numeric:tabular-nums}
+.graph-object-search{display:flex;align-items:center;gap:8px;height:34px;margin-bottom:16px;padding:0 9px;border:1px solid #3a404d;border-radius:6px;background:#20232b;color:#8e98a9}
+.graph-object-search:focus-within{border-color:#d98a39;box-shadow:0 0 0 2px #d98a3918}
+.graph-object-search>span{font-size:20px;line-height:1}
+.graph-object-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#e5e9f0;font:inherit;font-size:11px}
+.graph-object-search input::placeholder{color:#727c8d}
+.graph-object-search button{border:0;background:transparent;color:#aeb6c4;cursor:pointer;font-size:16px}
+.graph-object-section-label{display:flex;justify-content:space-between;margin-bottom:7px;color:#7f899b;font-size:9px;font-weight:700;letter-spacing:.11em}
+.graph-object-picker{display:flex;flex-direction:column;gap:4px;max-height:calc(100% - 150px);overflow:auto;padding:0 2px 8px 0}
+.graph-object-picker-row{display:flex;align-items:center;gap:9px;width:100%;min-height:48px;padding:7px 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:#c5cad5;text-align:left;cursor:pointer;transition:background .12s,border-color .12s}
+.graph-object-picker-row:hover{border-color:#3b414e;background:#2b303a}
+.graph-object-picker-row.active{border-color:#8c5b2e;background:linear-gradient(90deg,#4a3525 0%,#302a27 100%);color:#fff}
+.object-picker-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid #424958;border-radius:6px;background:#252a34;color:#d7a16b}
+.object-picker-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.graph-object-picker-row.active .object-picker-icon{border-color:#9d6837;background:#503923;color:#ffc17f}
+.object-picker-copy{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.object-picker-name{overflow:hidden;color:#e0e5ed;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.object-picker-type{overflow:hidden;color:#7f8999;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.graph-object-picker-row.active .object-picker-type{color:#c5a17d}
+.object-picker-count{display:flex;align-items:center;justify-content:center;gap:5px;flex:none;min-width:25px;padding:4px 6px;border:1px solid #3b414d;border-radius:5px;background:#242831;color:#aeb6c4;font-size:10px;font-variant-numeric:tabular-nums}
+.object-count-dot{width:4px;height:4px;border-radius:50%;background:#778396}
+.graph-object-picker-row.active .object-picker-count{border-color:#76502e;background:#3a2e25;color:#f3c38f}
+.graph-object-picker-row.active .object-count-dot{background:#e8a45c}
+.graph-object-empty{display:flex;align-items:center;flex-direction:column;gap:7px;padding:28px 8px;color:#929cad;text-align:center}
+.graph-object-empty>span{font-size:26px;color:#7f8999}
+.graph-object-empty strong{font-size:11px;font-weight:600;color:#cbd2de}
+.graph-object-empty small{font-size:10px;line-height:1.5;color:#858fa0}
+.graph-tip{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:10px;border:1px solid #353b47;border-radius:6px;background:#242831;color:#8f99aa;font-size:10px;line-height:1.5}
+.graph-tip strong{color:#c9d0dc;font-size:10px}
 </style>
