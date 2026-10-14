@@ -72,8 +72,10 @@ function moveNode(event: PointerEvent) {
   if (!dragNode.value || !graphViewport.value) return
   const bounds = graphViewport.value.getBoundingClientRect()
   const { ruleId, part, dx, dy } = dragNode.value
-  const rule = logicRules.value.find(r => r.id === ruleId); if (!rule) return
-  const current = rule.graphLayout ?? { trigger: { x: 70, y: 70 }, condition: { x: 340, y: 70 }, action: { x: 610, y: 70 } }
+  const ruleIndex = logicRules.value.findIndex(r => r.id === ruleId)
+  const rule = logicRules.value[ruleIndex]; if (!rule || ruleIndex < 0) return
+  const rowY = 70 + ruleIndex * 230
+  const current = rule.graphLayout ?? { trigger: { x: 70, y: rowY }, condition: { x: 340, y: rowY }, action: { x: 610, y: rowY } }
   const next = { ...current, [part]: { x: Math.max(8, event.clientX - bounds.left + graphViewport.value.scrollLeft - dx), y: Math.max(8, event.clientY - bounds.top + graphViewport.value.scrollTop - dy) } }
   updateLogicRule({ ...rule, graphLayout: next })
 }
