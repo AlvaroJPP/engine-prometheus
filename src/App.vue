@@ -73,7 +73,10 @@ watch(
     return { ruleId: rule?.id ?? '', type: action?.type ?? '', code: action && 'code' in action ? action.code : '' }
   },
   (current, previous) => {
-    if (current.ruleId !== previous?.ruleId || current.type !== previous?.type || current.code !== scriptDraft.value) {
+    // Recarregar o rascunho somente quando a seleção muda. O código é atualizado
+    // a cada tecla no motor; sincronizá-lo de volta aqui pode sobrescrever o texto
+    // que ainda está sendo digitado durante o refresh reativo.
+    if (!previous || current.ruleId !== previous.ruleId || current.type !== previous.type) {
       scriptDraft.value = current.code
     }
   },
