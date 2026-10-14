@@ -72,8 +72,8 @@ export class Engine {
   listRules(): LogicRule[] { return this.logic.list() }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
-  setLogicVariable(name: string, value: boolean | number | string): void { this.logic.setVariable(name, value) }
-  logicVariables(): Record<string, boolean | number | string> { return this.logic.variables() }
+  setLogicVariable(name: string, value: boolean | number | string, objectId?: string | null): void { this.logic.setVariable(name, value, objectId) }
+  logicVariables(objectId?: string | null): Record<string, boolean | number | string> { return this.logic.variables(objectId) }
 
   get projectName(): string {
     return this.meta.name
@@ -143,6 +143,7 @@ export class Engine {
 
   removeObject(id: string): void {
     this.world.remove(id)
+    this.logic.removeObjectVariables(id)
   }
 
   renameObject(id: string, name: string): void {
