@@ -20,7 +20,7 @@ const {
   brushRadius,
   gridVisible,
   logicRules, logicVariables, ruleTrigger, ruleAction, ruleConditionEnabled,
-  toggleLogicVariable, createLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
+  toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, updateLogicRule,
   markDirty,
   setTool,
   setTransform,
