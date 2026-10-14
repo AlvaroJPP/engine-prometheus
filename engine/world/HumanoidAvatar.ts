@@ -271,6 +271,9 @@ export class HumanoidAvatar {
         for (const child of [...this.visualRoot.children]) this.disposeObject(child)
         this.visualRoot.clear()
         this.visualRoot.add(gltf.scene)
+        // O modelo GLB é carregado de forma assíncrona; reaplica o modo atual
+        // para esconder a cabeça também quando o avatar termina de carregar.
+        this.setFirstPersonMode(this.firstPersonMode)
         // O estado idle pode ter sido definido antes de o GLB terminar de carregar.
         // Força a ativação do primeiro clipe do modelo já carregado.
         this.activeAnimation = ''
