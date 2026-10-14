@@ -137,6 +137,17 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
 ]
 
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
+const selectedObjectRules = computed(() => logicRules.value.filter(rule =>
+  (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value) ||
+  rule.actions.some(action => 'objectId' in action && action.objectId === selectedId.value)
+))
+function openObjectRule(rule: LogicRule) {
+  graphSelection.value = {
+    ruleId: rule.id,
+    part: rule.trigger.type === 'object_clicked' && rule.trigger.objectId === selectedId.value ? 'trigger' : 'action',
+  }
+  graphOpen.value = true
+}
 const cameraLabel = computed(() => CAMERA_LABELS[cameraPreset.value])
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
@@ -327,42 +338,73 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <p v-else class="muted">Nenhuma regra criada.</p>
           </section>
 
-          <section>
-            <h4>Objeto selecionado</h4>
+          <section class="object-components">
+            <h4>GameObject</h4>
             <template v-if="selected">
-              <label class="field">Nome
+              <label class="field">Nome do objeto
                 <input :value="selected.name" spellcheck="false" @change="onRename" />
               </label>
-              <div class="grid3">
-                <label class="field">X
-                  <input class="mono" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" />
-                </label>
-                <label class="field">Y
-                  <input class="mono" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" />
-                </label>
-                <label class="field">Z
-                  <input class="mono" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" />
-                </label>
+
+              <div class="unity-component">
+                <div class="unity-component-head"><span class="component-icon transform-icon">↔</span><strong>Transform</strong><span class="component-menu">⋮</span></div>
+                <div class="unity-component-body">
+                  <div class="component-caption">POSITION</div>
+                  <div class="grid3">
+                    <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
+                    <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
+                  </div>
+                  <div class="component-caption">ROTATION</div>
+                  <div class="grid3">
+                    <label class="field">X<input class="mono" type="number" value="0" disabled /></label>
+                    <label class="field">Y<input class="mono" type="number" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" value="0" disabled /></label>
+                  </div>
+                  <div class="component-caption">SCALE</div>
+                  <div class="grid3">
+                    <label class="field">X<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
+                    <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" /></label>
+                  </div>
+                  <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
+                </div>
               </div>
-              <div class="grid2">
-                <label class="field">Rotação Y (°)
-                  <input class="mono" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" />
-                </label>
-                <label class="field">Escala
-                  <input class="mono" :value="selected.scale.toFixed(2)" @change="onNumber('scale', $event)" />
-                </label>
+
+              <div class="unity-component">
+                <div class="unity-component-head"><span class="component-icon renderer-icon">◈</span><strong>Mesh Renderer</strong><span class="component-menu">⋮</span></div>
+                <div class="unity-component-body">
+                  <label class="checkline component-enabled"><input type="checkbox" :checked="selected.visible" @change="toggleVisible(selected.id)" /> Renderer habilitado</label>
+                  <label class="field">Material · cor base
+                    <input type="color" class="color" :value="colorHex(selected.color)" @input="onColor" />
+                  </label>
+                  <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
+                  <div class="component-readonly"><span>Shader</span><strong>Standard / PBR</strong></div>
+                </div>
               </div>
-              <label class="field">Cor
-                <input type="color" class="color" :value="colorHex(selected.color)" @input="onColor" />
-              </label>
-              <button class="danger" @click="removeSelected">Excluir (Del)</button>
+
+              <div class="unity-component">
+                <div class="unity-component-head"><span class="component-icon script-icon">⌘</span><strong>Event Script</strong><span class="component-count">{{ selectedObjectRules.length }}</span></div>
+                <div class="unity-component-body">
+                  <p class="muted">Eventos que usam este objeto como alvo ou ação.</p>
+                  <div v-if="selectedObjectRules.length" class="attached-rules">
+                    <button v-for="rule in selectedObjectRules" :key="rule.id" class="attached-rule" @click="openObjectRule(rule)">
+                      <span class="attached-rule-status" :class="{ disabled: !rule.enabled }"></span>
+                      <span>{{ rule.name }}</span><span class="rule-open">›</span>
+                    </button>
+                  </div>
+                  <p v-else class="component-note">Nenhum evento associado a este objeto.</p>
+                  <button class="ghost full add-component-btn" @click="addLogicRule(); graphOpen = true">+ Adicionar evento</button>
+                </div>
+              </div>
+
+              <button class="danger" @click="removeSelected">Excluir GameObject (Del)</button>
             </template>
             <p v-else-if="selectedId === TERRAIN_ID" class="muted">
               Terreno editável · semente <span class="mono">{{ terrain.seed }}</span> ·
               <span class="mono">{{ terrain.edits }}</span> pontos editados.
             </p>
             <p v-else class="muted">
-              Selecione um objeto na hierarquia ou no mundo para ver e editar suas transformações.
+              Selecione um GameObject na hierarquia ou no mundo para editar seus componentes.
             </p>
           </section>
         </div>
@@ -864,4 +906,36 @@ input[type='range'] { accent-color: #e98524; }
 .graph-inspector .ghost,.graph-inspector .danger { border-radius:3px; }
 .graph-rule-count { border-top-color:#1d1d1d; }
 @media(max-width:900px) { .graph-body { grid-template-columns:145px minmax(0,1fr); } .graph-inspector { display:none; } }
+</style>
+
+<style>
+/* Inspetor de componentes inspirado no Inspector do Unity. */
+.object-components > h4 { margin-bottom:12px; }
+.unity-component { margin:10px 0; border:1px solid #1d1d1d; border-radius:3px; overflow:hidden; background:#292929; }
+.unity-component-head { min-height:31px; display:flex; align-items:center; gap:8px; padding:0 8px; background:#383838; border-bottom:1px solid #202020; font-size:11px; }
+.unity-component-head strong { font-size:11px; font-weight:600; flex:1; color:#e2e2e2; }
+.component-icon { width:18px; height:18px; display:grid; place-items:center; border-radius:3px; font-size:13px; background:#242424; color:#e98524; }
+.renderer-icon { color:#85b4d9; }
+.script-icon { color:#83bb8b; }
+.component-menu { color:#aaa; font-size:17px; line-height:1; }
+.component-count { min-width:18px; text-align:center; padding:2px 5px; border-radius:8px; background:#242424; color:#bdbdbd; font-size:10px; }
+.unity-component-body { padding:9px 8px 8px; }
+.unity-component-body .field { margin-bottom:8px; }
+.unity-component-body .grid3 { gap:5px; }
+.unity-component-body .field input { padding:5px 4px; min-width:0; }
+.component-caption { margin:3px 0 6px; color:#999; font-size:9px; font-weight:700; letter-spacing:.08em; }
+.component-note { margin:5px 0 2px; color:#999; font-size:10px; line-height:1.5; }
+.component-enabled { color:#ddd; padding-bottom:8px; border-bottom:1px solid #202020; }
+.component-readonly { display:flex; justify-content:space-between; gap:8px; padding:6px 0 0; font-size:10px; color:#999; }
+.component-readonly strong { color:#cfcfcf; font-weight:500; text-align:right; }
+.attached-rules { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+.attached-rule { display:flex; align-items:center; gap:7px; width:100%; padding:7px; text-align:left; border:1px solid #202020; border-radius:3px; background:#333; color:#ddd; font-size:10px; }
+.attached-rule:hover { background:#414141; border-color:#555; }
+.attached-rule > span:nth-child(2) { flex:1; }
+.attached-rule-status { width:7px; height:7px; border-radius:50%; background:#83bb8b; }
+.attached-rule-status.disabled { background:#666; }
+.rule-open { color:#aaa; font-size:16px; }
+.add-component-btn { margin-top:8px; }
+.object-components .danger { margin-top:8px; }
+@media(max-width:1000px) { .unity-component-body .field input { font-size:10px; } }
 </style>
