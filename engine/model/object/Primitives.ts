@@ -15,6 +15,7 @@ export interface PrimitiveInit {
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
+  mass?: number
 }
 
 export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): GameObject {
@@ -54,6 +55,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   mesh.userData.locked = init.locked ?? false
   mesh.userData.groupId = init.groupId ?? null
   mesh.userData.wireframeVisible = init.wireframeVisible ?? true
+  mesh.userData.mass = Number.isFinite(init.mass) ? Math.max(0, init.mass as number) : 1
   const name = init.name ?? `${def.label} ${id.split('_')[1] ?? ''}`.trim()
   return { id, name, type, mesh }
 }
