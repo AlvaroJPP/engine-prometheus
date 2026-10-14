@@ -79,7 +79,7 @@ export class RuleEngine {
     // habilitada cujas condições correspondam ao estado atual.
     for (const rule of this.data.events) {
       if (rule.enabled && rule.trigger.type === 'object_clicked' &&
-        (rule.trigger.objectId === objectId || rule.trigger.objectIds?.includes(objectId)) &&
+        rule.trigger.objectId === objectId &&
         this.run(rule, objectId)) break
     }
   }
@@ -197,14 +197,11 @@ export class RuleEngine {
   }
 
   private apply(action: RuleAction, eventObjectId?: string, sourceObjectId?: string): void {
-    // Ao compartilhar um evento de clique, ações que apontavam para o objeto original
-    // passam a atuar no objeto que efetivamente disparou o evento.
-    const targetId = (objectId: string) => sourceObjectId && objectId === sourceObjectId && eventObjectId
-      ? eventObjectId
-      : objectId
+    // Cada evento pertence a um único objeto. Reutilizações são cópias independentes
+    // que o editor remapeia para o objeto de destino ao importar.
     switch (action.type) {
       case 'move': {
-        const id = targetId(action.objectId)
+        const id = action.objectId
         this.world.update(id, { x: action.x, y: action.y, z: action.z })
         break
       }
@@ -214,8 +211,8 @@ export class RuleEngine {
         if (obj) this.world.update(id, { rotationY: obj.mesh.rotation.y * 180 / Math.PI + action.degrees })
         break
       }
-      case 'set_visible': this.world.update(targetId(action.objectId), { visible: action.visible }); break
-      case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ? targetId(action.objectId) : eventObjectId); break
+      case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
+      case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
