@@ -1,5 +1,5 @@
 export type RuleTrigger =
-  | { type: 'object_clicked'; objectId: string }
+  | { type: 'object_clicked'; objectId: string; objectIds?: string[] }
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
 
 export type RuleCondition = { type: 'variable'; name: string; operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than'; value: boolean | number | string }
