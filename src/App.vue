@@ -548,7 +548,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 <label class="field">Variável exigida
                   <select :value="selectedGraphRule.conditions[0]?.name ?? ''" @change="patchSelectedCondition({ name: ($event.target as HTMLSelectElement).value })">
                     <option value="" disabled>Selecione uma variável</option>
-                    <option v-for="(value, name) in logicVariables" :key="name" :value="name">{{ name }} = {{ String(value) }}</option>
+                    <option v-for="(value, name) in logicVariables" :key="'local-' + name" :value="name">{{ name }} · objeto = {{ String(value) }}</option>
+                    <option v-for="(value, name) in globalLogicVariables" v-if="!Object.prototype.hasOwnProperty.call(logicVariables, name)" :key="'global-' + name" :value="name">{{ name }} · global = {{ String(value) }}</option>
                   </select>
                 </label>
                 <label class="field">Comparação
@@ -624,8 +625,12 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 </div>
               </template>
               <template v-else-if="selectedGraphRule.actions[0]?.type === 'set_variable'">
+                <label class="field">Escopo da variável
+                  <select :value="selectedGraphRule.actions[0].scope ?? 'object'" @change="patchSelectedAction({ scope: ($event.target as HTMLSelectElement).value as 'global' | 'object' })"><option value="object">Somente objeto do evento</option><option value="global">Global (compartilhada)</option></select>
+                </label>
                 <label class="field">Nome da variável<input :value="selectedGraphRule.actions[0].name" @change="patchSelectedAction({ name: ($event.target as HTMLInputElement).value })" /></label>
                 <label class="field">Valor<input :value="String(selectedGraphRule.actions[0].value)" @change="patchSelectedAction({ value: ruleValueFromInput(($event.target as HTMLInputElement).value) })" /></label>
+                <p class="muted">Use global quando quiser alterar um único valor compartilhado. Use objeto para alterar apenas o valor deste objeto.</p>
               </template>
             </template>
             <button class="danger" @click="deleteLogicRule(selectedGraphRule.id); graphSelection = null">Excluir fluxo</button>
