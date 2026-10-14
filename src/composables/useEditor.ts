@@ -237,7 +237,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
     // Aceita tanto os campos separados (nome: click, valor: false)
     // quanto uma atribuição digitada inteira no campo de nome (click = false).
-    const assignment = name.match(/^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(.*?)\\s*$/)
+    const assignment = name.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/)
     const key = (assignment?.[1] ?? name).trim()
     const parsedRawValue = assignment ? assignment[2] : rawValue
 
