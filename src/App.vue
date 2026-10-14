@@ -558,6 +558,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <p class="muted mono">api.move('ID_DO_OBJETO', 2, 0, 1)</p>
                   <p class="muted mono">api.rotate('ID_DO_OBJETO', 45)</p>
                   <p class="muted mono">api.setVisible('ID_DO_OBJETO', false)</p>
+                  <p class="muted mono">api.setColor('ID_DO_CUBO', '#0000FF')</p>
                   <p class="muted">Também pode ler e alterar variáveis com vars.nome ou vars['nome']. Execute apenas scripts confiáveis: JavaScript roda com as permissões do app.</p>
                 </div>
               </template>
