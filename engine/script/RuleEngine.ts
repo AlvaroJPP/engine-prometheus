@@ -206,7 +206,7 @@ export class RuleEngine {
         break
       }
       case 'rotate': {
-        const id = targetId(action.objectId)
+        const id = action.objectId
         const obj = this.world.get(id)
         if (obj) this.world.update(id, { rotationY: obj.mesh.rotation.y * 180 / Math.PI + action.degrees })
         break
