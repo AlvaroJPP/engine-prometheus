@@ -518,7 +518,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
