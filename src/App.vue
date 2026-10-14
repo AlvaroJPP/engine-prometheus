@@ -361,23 +361,23 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 .mono { font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace; }
 
 /* topo */
-.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 12px; flex: none; }
-.logo { width: 34px; height: 34px; border-radius: 8px; background: #4a2128; color: #f0897a; border: 1px solid #6b2f38; display: grid; place-items: center; font-weight: 800; }
-.title { font-weight: 700; letter-spacing: 0.12em; font-size: 14px; white-space: nowrap; }
-.subtitle { font-size: 10px; letter-spacing: 0.14em; color: var(--muted); margin-top: 2px; white-space: nowrap; }
-.project { display: flex; align-items: center; gap: 8px; margin-left: 18px; }
-.pname { width: 190px; background: transparent; border: 1px solid transparent; }
+.topbar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 3px 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; flex: none; }
+.logo { width: 25px; height: 25px; border-radius: 5px; background: #4a2128; color: #f0897a; border: 1px solid #6b2f38; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+.title { font-weight: 700; letter-spacing: 0.1em; font-size: 11px; white-space: nowrap; }
+.subtitle { font-size: 8px; letter-spacing: 0.12em; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+.project { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+.pname { width: 170px; padding: 4px 7px; background: transparent; border: 1px solid transparent; }
 .pname:hover, .pname:focus { border-color: var(--line); background: var(--bg); }
 .filebtns { display: flex; gap: 6px; flex: none; }
 .filebtns .ghost { white-space: nowrap; }
-.cam { display: inline-flex; align-items: center; gap: 10px; background: #3a1f24; border: 1px solid #6b2f38; color: #f3b3a8; padding: 10px 16px; border-radius: 10px; font-weight: 600; white-space: nowrap; flex: none; }
+.cam { display: inline-flex; align-items: center; gap: 6px; background: #3a1f24; border: 1px solid #6b2f38; color: #f3b3a8; padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; flex: none; }
 .cam:hover { background: #46262c; }
-.cam-ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #f0897a; box-shadow: inset 0 0 0 2px #3a1f24, inset 0 0 0 6px #f0897a; }
+.cam-ring { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #f0897a; box-shadow: inset 0 0 0 2px #3a1f24, inset 0 0 0 6px #f0897a; }
 
 /* barra de ferramentas */
 .toolbar { display: flex; align-items: center; gap: 2px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; scrollbar-color: #2c3340 transparent; }
-.tool { display: inline-flex; align-items: center; gap: 8px; padding: 12px 16px; border: 0; border-radius: 0; background: transparent; color: var(--text); white-space: nowrap; }
+.tool { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 0; border-radius: 0; background: transparent; color: var(--text); white-space: nowrap; }
 .tool:hover { background: #1d222c; }
 .tool.active { background: var(--accent-dark); color: #fff; }
 .tool-ico { opacity: 0.85; }
@@ -389,7 +389,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 .rule-item .checkline { flex: 1; margin: 0; }
 .rule-delete { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; }
 .tool.add { padding-left: 18px; padding-right: 18px; }
-.vsep { width: 1px; height: 24px; background: var(--line); margin: 0 8px; flex: none; }
+.vsep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; flex: none; }
 
 /* layout central */
 .main { flex: 1; display: flex; min-height: 0; }
