@@ -121,7 +121,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.add('score', 1)\n// api.move('ID_DO_OBJETO', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('ID_DO_OBJETO', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
