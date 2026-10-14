@@ -101,7 +101,10 @@ export class RuleEngine {
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
       case 'set_variable': this.setVariable(action.name, action.value); break
-      case 'script': this.executeScript(action.code); break
+      case 'script':
+        try { this.executeScript(action.code) }
+        catch (error) { console.error('[Prometheus Script]', error) }
+        break
     }
   }
 }
