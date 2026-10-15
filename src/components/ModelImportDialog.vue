@@ -131,9 +131,11 @@ function centerAndMeasure(object: THREE.Object3D) {
   }
   dimensions.value = [size.x, size.y, size.z]
   originalHeight.value = size.y
+  // Guarde o centro em coordenadas do modelo. A correção de posição precisa
+  // ser aplicada depois da escala; alterar position antes da escala deixa o
+  // deslocamento enorme em assets cujas coordenadas originais são muito grandes.
   const center = bounds.getCenter(new THREE.Vector3())
-  object.position.sub(center)
-  object.updateMatrixWorld(true)
+  object.userData.importCenter = center.toArray()
   return size.y
 }
 
@@ -171,7 +173,11 @@ async function chooseFile(event: Event) {
     const loaded = await parseFile(file)
     loaded.name = file.name.replace(/\.[^.]+$/, '') || 'Modelo importado'
     const height = centerAndMeasure(loaded)
-    loaded.scale.multiplyScalar(2 / height)
+    const initialScale = 2 / height
+    loaded.scale.setScalar(initialScale)
+    const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
+    loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
+    loaded.updateMatrixWorld(true)
     modelHeight.value = 2
     model.value = loaded
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -203,6 +209,14 @@ watch(modelHeight, (height) => {
   if (!model.value || !Number.isFinite(height) || height <= 0 || originalHeight.value <= 0) return
   const targetScale = height / originalHeight.value
   model.value.scale.setScalar(targetScale)
+  const centerData = model.value.userData.importCenter as [number, number, number] | undefined
+  if (centerData && centerData.length === 3) {
+    model.value.position.set(
+      -centerData[0] * targetScale,
+      -centerData[1] * targetScale,
+      -centerData[2] * targetScale,
+    )
+  }
   model.value.updateMatrixWorld(true)
   fitCamera(model.value)
 })
