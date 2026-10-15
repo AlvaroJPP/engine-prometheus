@@ -30,28 +30,40 @@ let frame = 0
 let resizeObserver: ResizeObserver | null = null
 let currentObjectUrl = ''
 
+function disposeModel(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return
+    child.geometry.dispose()
+    const materials = Array.isArray(child.material) ? child.material : [child.material]
+    materials.forEach((material) => {
+      // Texturas podem ser compartilhadas entre materiais; dispose do material
+      // libera seus recursos sem alterar os dados do modelo importado na cena.
+      material.dispose()
+    })
+  })
+}
+
+function clearLoadedModel() {
+  if (model.value) {
+    scene?.remove(model.value)
+    disposeModel(model.value)
+  }
+  model.value = null
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+  currentObjectUrl = ''
+}
+
 function disposePreview() {
   cancelAnimationFrame(frame)
   resizeObserver?.disconnect()
   resizeObserver = null
   controls?.dispose()
   controls = null
-  if (model.value) {
-    model.value.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose()
-        const materials = Array.isArray(child.material) ? child.material : [child.material]
-        materials.forEach(material => material.dispose())
-      }
-    })
-  }
-  model.value = null
+  clearLoadedModel()
   renderer?.dispose()
   renderer = null
   scene = null
   camera = null
-  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
-  currentObjectUrl = ''
 }
 
 function fitCamera(object: THREE.Object3D) {
@@ -153,22 +165,24 @@ async function chooseFile(event: Event) {
   error.value = ''
   fileName.value = file.name
   try {
-    disposePreview()
+    // Não recria o WebGLRenderer a cada arquivo. Alguns navegadores/Tauri não
+    // permitem reutilizar de forma confiável o canvas após destruir seu contexto.
+    clearLoadedModel()
     const loaded = await parseFile(file)
     loaded.name = file.name.replace(/\.[^.]+$/, '') || 'Modelo importado'
     const height = centerAndMeasure(loaded)
-    const fitScale = 2 / height
-    loaded.scale.multiplyScalar(fitScale)
+    loaded.scale.multiplyScalar(2 / height)
     modelHeight.value = 2
     model.value = loaded
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     initPreview()
-    if (scene) scene.add(loaded)
+    if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
+    scene.add(loaded)
     fitCamera(loaded)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Falha ao ler o modelo.'
     fileName.value = ''
-    disposePreview()
+    clearLoadedModel()
   } finally {
     loading.value = false
     if (fileInput.value) fileInput.value.value = ''
