@@ -907,10 +907,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         ioProgress.value = { active: true, kind: 'load', message, percent }
         status.value = message
       })
-      ioProgress.value = { active: true, kind: 'load', message: 'Construindo o mundo 3D…', percent: 97 }
+      ioProgress.value = { active: true, kind: 'load', message: 'Construindo o mundo 3D…', percent: 25 }
       applyingProjectSettings = true
       try {
-        await eng.loadProject(bundle)
+        await eng.loadProject(bundle, (message, percent) => {
+          ioProgress.value = { active: true, kind: 'load', message, percent }
+          status.value = message
+        })
         // Projetos antigos podem ter salvo wireframe ligado por padrão.
         // A visualização das linhas começa desligada, mas pode ser reativada na toolbar.
         polygonLinesVisible.value = false
