@@ -80,6 +80,44 @@ fn write_project_file(dir: String, rel: String, contents: String) -> Result<(), 
 }
 
 
+/// Grava um recurso binário (GLB/textura) dentro da pasta resources do projeto.
+#[tauri::command]
+fn write_project_asset(dir: String, rel: String, base64: String) -> Result<(), String> {
+    use base64::Engine as _;
+    if !rel.starts_with("resources/") {
+        return Err("Recursos do projeto devem ficar dentro de resources/.".into());
+    }
+    let target = project_path(&dir, &rel)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Não foi possível criar a pasta do recurso: {e}"))?;
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64.as_bytes())
+        .map_err(|e| format!("Base64 inválido para o recurso {rel}: {e}"))?;
+    let mut tmp_name = target.as_os_str().to_owned();
+    tmp_name.push(".tmp");
+    let tmp = PathBuf::from(tmp_name);
+    fs::write(&tmp, bytes).map_err(|e| format!("Não foi possível gravar o recurso {rel}: {e}"))?;
+    if target.exists() {
+        fs::remove_file(&target).map_err(|e| format!("Não foi possível substituir o recurso {rel}: {e}"))?;
+    }
+    fs::rename(&tmp, &target).map_err(|e| format!("Não foi possível finalizar o recurso {rel}: {e}"))?;
+    Ok(())
+}
+
+/// Lê um recurso binário e retorna Base64 para o carregador de cena.
+#[tauri::command]
+fn read_project_asset(dir: String, rel: String) -> Result<String, String> {
+    use base64::Engine as _;
+    if !rel.starts_with("resources/") {
+        return Err("Recursos do projeto devem ficar dentro de resources/.".into());
+    }
+    let path = project_path(&dir, &rel)?;
+    let bytes = fs::read(&path).map_err(|e| format!("Não foi possível ler o recurso {rel}: {e}"))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+
 /// Carrega um glTF de dentro de um ZIP e incorpora buffers/texturas externos como data URIs.
 /// Assim o GLTFLoader não depende de caminhos temporários após a extração.
 #[tauri::command]
@@ -190,6 +228,8 @@ pub fn run() {
             project_file_exists,
             read_project_file,
             write_project_file,
+            write_project_asset,
+            read_project_asset,
             load_gltf_zip
         ])
         .setup(|app| {
