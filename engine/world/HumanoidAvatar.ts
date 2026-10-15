@@ -91,7 +91,6 @@ export class HumanoidAvatar {
   private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
-  private externalCollider: THREE.Object3D | null = null
   private verticalVelocity = 0
   private grounded = true
   private enabled = true
@@ -306,11 +305,6 @@ export class HumanoidAvatar {
       this.mixer?.stopAllAction()
       this.activeAnimation = ''
     }
-  }
-
-  /** Registra uma malha externa (como o cavalo) que também bloqueia o movimento a pé. */
-  setExternalCollider(object: THREE.Object3D | null): void {
-    this.externalCollider = object
   }
 
   /** Verifica se o jogador pode ocupar uma posição sem ficar dentro de objetos ou do cavalo. */
