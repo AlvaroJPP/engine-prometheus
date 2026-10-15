@@ -324,6 +324,12 @@ export class Engine {
           action.objectId = remap(action.objectId)
         }
       }
+      // Inicializa apenas a variável exigida pelo próprio script salvo do cavalo.
+      // A montaria continua dependendo do gatilho e das ações desse Visual Script.
+      if (template.conditions.some(condition => condition.name === 'horse_enabled') &&
+          this.logic.getVariable('horse_enabled') === undefined) {
+        this.logic.setVariable('horse_enabled', true)
+      }
       this.logic.upsert(template)
     }
   }
@@ -894,6 +900,12 @@ export class Engine {
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
+    // Compatibilidade para scripts de cavalo salvos antes da remoção do fallback
+    // nativo: restaura a variável referenciada pelo grafo, sem criar regras novas.
+    if (this.logic.list().some(rule => rule.conditions.some(condition => condition.name === 'horse_enabled')) &&
+        this.logic.getVariable('horse_enabled') === undefined) {
+      this.logic.setVariable('horse_enabled', true)
+    }
     report('Mundo carregado.', 100)
   }
 
