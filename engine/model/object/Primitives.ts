@@ -210,7 +210,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   polygons.name = 'polygon-wireframe'
   polygons.userData.editorOverlay = true
   polygons.renderOrder = 1
-  polygons.visible = init.wireframeVisible ?? true
+  polygons.visible = init.wireframeVisible ?? false
   mesh.add(polygons)
 
   const [px, py, pz] = init.position ?? [0, h / 2, 0]
@@ -223,7 +223,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   mesh.userData.id = id
   mesh.userData.locked = init.locked ?? false
   mesh.userData.groupId = init.groupId ?? null
-  mesh.userData.wireframeVisible = init.wireframeVisible ?? true
+  mesh.userData.wireframeVisible = init.wireframeVisible ?? false
   mesh.userData.mass = Number.isFinite(init.mass) ? Math.max(0, init.mass as number) : 1
   mesh.userData.colliderType = init.colliderType ?? 'auto'
   mesh.userData.colliderSize = init.colliderSize?.map(v => Number.isFinite(v) ? Math.max(0.05, v) : 1) ?? null
