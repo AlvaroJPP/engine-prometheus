@@ -964,7 +964,7 @@ export class Engine {
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
 
     report('Preparando o terreno e os objetos básicos…', 5)
-    const regularObjects = scene.objects.filter(object => !object.importedModelData)
+    const regularObjects = scene.objects.filter(object => !object.importedModelData || object.nativeComponentType === 'horse')
     const restoredObjects: ReturnType<typeof objectFromData>[] = []
     // Construir objetos em lotes permite que a interface atualize o progresso
     // em projetos com muitas centenas ou milhares de objetos.
@@ -996,6 +996,7 @@ export class Engine {
         nativeHorse.userData.nativeHorseComponent = true
         nativeHorse.userData.componentId = nativeHorseData.componentId ?? 'builtin-horse-low-poly'
         nativeHorse.userData.importedModel = true
+        nativeHorse.userData.importedModelData = nativeHorseData.importedModelData
         nativeHorse.userData.importedModelHeight = nativeHorseData.importedModelHeight ?? 2.05
         nativeHorse.userData.colliderType = nativeHorseData.colliderType ?? 'box'
         nativeHorse.userData.colliderSize = nativeHorseData.colliderSize ?? [0.95, 1.35, 1.6]
@@ -1006,7 +1007,7 @@ export class Engine {
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     report('Terreno pronto. Restaurando modelos 3D…', 28)
 
-    const importedObjects = scene.objects.filter(object => !!object.importedModelData)
+    const importedObjects = scene.objects.filter(object => !!object.importedModelData && object.nativeComponentType !== 'horse')
     const loader = new GLTFLoader()
     for (let i = 0; i < importedObjects.length; i += 1) {
       const data = importedObjects[i]!
