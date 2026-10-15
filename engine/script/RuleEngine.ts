@@ -22,14 +22,14 @@ type ScriptApi = {
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
-  private horseActionHandler: ((action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void) | null = null
+  private mountActionHandler: ((action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void) | null = null
 
   constructor(world: World) {
     this.world = world
   }
 
-  setHorseActionHandler(handler: (action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void): void {
-    this.horseActionHandler = handler
+  setMountActionHandler(handler: (action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void): void {
+    this.mountActionHandler = handler
   }
 
   exportData(): LogicEventsFile {
@@ -262,9 +262,9 @@ export class RuleEngine {
         this.world.update(objectId, { color: parsed })
       },
       // Ações de montaria disponíveis também nos scripts do Visual Script.
-      mount: () => this.horseActionHandler?.('mount', eventObjectId ?? scopeId),
-      dismount: () => this.horseActionHandler?.('dismount', eventObjectId ?? scopeId),
-      toggleMount: () => this.horseActionHandler?.('toggle', eventObjectId ?? scopeId),
+      mount: () => this.mountActionHandler?.('mount', eventObjectId ?? scopeId),
+      dismount: () => this.mountActionHandler?.('dismount', eventObjectId ?? scopeId),
+      toggleMount: () => this.mountActionHandler?.('toggle', eventObjectId ?? scopeId),
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
     const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (apiArg: ScriptApi, varsArg: Record<string, boolean | number | string>, worldArg: World, consoleArg: Console) => void
@@ -287,9 +287,9 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'horse_mount': this.horseActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
-      case 'horse_dismount': this.horseActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
-      case 'horse_toggle_mount': this.horseActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
+      case 'horse_mount': this.mountActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
+      case 'horse_dismount': this.mountActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
+      case 'horse_toggle_mount': this.mountActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
