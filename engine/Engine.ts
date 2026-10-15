@@ -547,35 +547,36 @@ export class Engine {
     model.scale.multiplyScalar(scaleFactor)
     model.updateMatrixWorld(true)
 
+    // Centraliza a malha na origem local do objeto-raiz. O Box3 é calculado
+    // em coordenadas de mundo; como o GLB foi removido de qualquer pai acima,
+    // seu centro pode ser compensado na posição local do próprio modelo.
+    model.updateMatrixWorld(true)
+    const scaledBounds = new THREE.Box3().setFromObject(model)
+    const visualCenter = scaledBounds.getCenter(new THREE.Vector3())
+    model.position.sub(visualCenter)
+    model.updateMatrixWorld(true)
     const finalBounds = new THREE.Box3().setFromObject(model)
     const finalSize = finalBounds.getSize(new THREE.Vector3())
 
-    // Crie um mixer por árvore e mantenha somente as trilhas cujos nós existem
-    // nessa hierarquia. Isso evita que a animação de uma árvore controle outra.
+    // Use os clips originais do GLTFLoader: filtrar os nomes dos tracks por
+    // comparação textual removia animações válidas em alguns rigs/exportadores.
+    // Só uma animação toca por vez para evitar que idle/walk/run briguem pelos ossos.
     const animationClips = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    const nodeNames = new Set<string>()
-    model.traverse((node) => { if (node.name) nodeNames.add(node.name) })
-    const matchingClips = animationClips.map((clip) => {
-      const filtered = clip.clone()
-      filtered.tracks = filtered.tracks.filter((track) => {
-        const target = track.name.split('.')[0]?.split('/').pop()?.trim()
-        return !!target && nodeNames.has(target)
-      })
-      return filtered
-    }).filter((clip) => clip.tracks.length > 0)
+    const idleClip = animationClips.find((clip) => /idle|stand|rest|breath|neutral/i.test(clip.name))
+      ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
-    if (matchingClips.length) {
+    if (idleClip) {
       animationMixer = new THREE.AnimationMixer(model)
-      for (const clip of matchingClips) animationMixer.clipAction(clip).play()
-      console.info('[Engine] Animações vinculadas:', {
+      animationMixer.clipAction(idleClip).setLoop(THREE.LoopRepeat, Infinity).play()
+      console.info('[Engine] Animação inicial do componente:', {
         name,
-        clips: matchingClips.map((clip) => ({ name: clip.name, tracks: clip.tracks.length })),
+        clip: idleClip.name || '(primeira animação do modelo)',
+        availableClips: animationClips.map((clip) => clip.name),
       })
     }
 
-    // O diálogo de importação já centraliza o modelo antes de transferi-lo.
-    // Não aplique um segundo deslocamento: isso pode afastar a malha real da
-    // caixa invisível usada para seleção e transformação.
+    // A caixa invisível usa exatamente o mesmo centro e as mesmas dimensões
+    // da malha centralizada; o gizmo e os cliques passam a acompanhar o cavalo.
     const proxyGeometry = new THREE.BoxGeometry(
       Math.max(finalSize.x, 0.05),
       Math.max(height, 0.05),
