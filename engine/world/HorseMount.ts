@@ -373,7 +373,28 @@ export class HorseMount {
       stud(`rebuilt-buckle-${side}`, cheekPoint, 0.014)
     }
 
+    // Primeiro posiciona a cabeçada no espaço do cavalo e depois a prende ao
+    // osso animado da cabeça. Object3D.attach preserva a posição visual inicial,
+    // mas passa a aplicar as rotações/translações do osso a cada frame.
     this.mesh.add(group)
+    this.mesh.updateMatrixWorld(true)
+
+    const headBones: THREE.Bone[] = []
+    const neckBones: THREE.Bone[] = []
+    model.traverse((node) => {
+      if (!(node instanceof THREE.Bone)) return
+      if (/head|skull|cabeca|cabeça/i.test(node.name)) headBones.push(node)
+      else if (/neck|pesco[cç]o/i.test(node.name)) neckBones.push(node)
+    })
+
+    const headBone = headBones.find((bone) => /head|skull|cabeca|cabeça/i.test(bone.name)) ?? neckBones[0]
+    if (headBone) {
+      headBone.updateWorldMatrix(true, false)
+      headBone.attach(group)
+      console.info(`[HorseMount] Cabeçada vinculada ao osso animado: ${headBone.name}`)
+    } else {
+      console.warn('[HorseMount] O FBX não expõe osso de cabeça/pescoço; a cabeçada permanece presa ao corpo.')
+    }
   }
 
   private updateModelAnimation(dt: number): void {
