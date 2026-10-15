@@ -323,10 +323,15 @@ export class HumanoidAvatar {
     const blend = THREE.MathUtils.clamp(amount, 0, 1)
     const bounce = THREE.MathUtils.clamp(gait, -1, 1)
     if (blend > 0 && this.mixer) {
-      // Animações importadas frequentemente deixam o esqueleto parado na última pose.
-      // A pose procedural passa a controlar os ossos enquanto o personagem está montado.
+      // Não deixe um clipe de idle em T-pose competir com a pose procedural de montaria.
       this.mixer.stopAllAction()
       this.activeAnimation = ''
+    }
+    // Sempre restaura a pose-base primeiro. Isso também desfaz braços abertos e
+    // rotações acumuladas quando o jogador desmonta ou a pose é recalculada.
+    for (const bone of this.animatedBones) {
+      bone.node.rotation.set(bone.baseX, bone.baseY, bone.baseZ)
+      bone.node.position.copy(bone.basePosition)
     }
     // Ângulo de cada perna calculado com a diferença entre o topo da sela e o
     // polígono encontrado sob cada lado do cavalo.
@@ -362,15 +367,21 @@ export class HumanoidAvatar {
         bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle * 0.48, blend)
       } else if (/leg|calf|shin|knee/.test(name) && right) {
         bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle * 0.48, blend)
-      } else if (/arm|hand|forearm/.test(name) && (left || !right)) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend) + bounce * 0.02 * blend
-      } else if (/arm|hand|forearm/.test(name) && right) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend) - bounce * 0.02 * blend
+      } else if (/arm|hand|forearm|shoulder/.test(name) && left) {
+        // Mixamo e rigs semelhantes usam braços abertos na pose-base: a rotação
+        // Z aproxima os braços do tronco, enquanto X leva as mãos até as rédeas.
+        bone.node.rotation.z = bone.baseZ + 1.05 * blend
+        bone.node.rotation.x = bone.baseX - 0.52 * blend + bounce * 0.055 * blend
+      } else if (/arm|hand|forearm|shoulder/.test(name) && right) {
+        bone.node.rotation.z = bone.baseZ - 1.05 * blend
+        bone.node.rotation.x = bone.baseX - 0.52 * blend - bounce * 0.055 * blend
       } else if (/spine|torso|chest/.test(name)) {
         bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.04, blend)
       }
     }
-    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend) + Math.abs(bounce) * 0.012 * blend
+    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend) + Math.abs(bounce) * 0.025 * blend
+    this.visualRoot.rotation.x = THREE.MathUtils.lerp(0, -0.08, blend) + bounce * 0.025 * blend
+    this.visualRoot.rotation.z = THREE.MathUtils.lerp(0, 0, blend)
   }
 
   resetVerticalState(): void {
@@ -556,7 +567,11 @@ export class HumanoidAvatar {
     const hasStateClip = this.animationActions.has(state)
       || (state === 'run' && this.animationActions.has('walk'))
       || this.animationActions.has('idle')
-    if (hasStateClip) return
+    // Se não há clipe específico de locomoção, anima o esqueleto mesmo que exista
+    // um clipe idle genérico; vários modelos importados só trazem a pose T-pose.
+    const hasLocomotionClip = this.animationActions.has(state)
+      || (state === 'run' && this.animationActions.has('walk'))
+    if (hasLocomotionClip) return
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
@@ -594,11 +609,22 @@ export class HumanoidAvatar {
       limbs.torso.rotation.x = movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0
     }
     for (const bone of this.animatedBones) {
-      if (/left.*(leg|thigh|calf)|thigh.*left|leg.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing
-      else if (/right.*(leg|thigh|calf)|thigh.*right|leg.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing
-      else if (/left.*(arm|hand)|arm.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing * 0.65
-      else if (/right.*(arm|hand)|arm.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing * 0.65
-      else if (/spine|hips|pelvis/.test(bone.name)) bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0)
+      const name = bone.name
+      const left = /left|_l\\b|\\.l\\b|\\bl_/.test(name)
+      const right = /right|_r\\b|\\.r\\b|\\br_/.test(name)
+      if (/(upleg|upper.?leg|thigh|leg|calf|shin|foot|ankle)/.test(name) && left) {
+        bone.node.rotation.x = bone.baseX + swing
+      } else if (/(upleg|upper.?leg|thigh|leg|calf|shin|foot|ankle)/.test(name) && right) {
+        bone.node.rotation.x = bone.baseX - swing
+      } else if (/(arm|hand|forearm|shoulder)/.test(name) && left) {
+        bone.node.rotation.x = bone.baseX - swing * 0.55
+        bone.node.rotation.z = bone.baseZ
+      } else if (/(arm|hand|forearm|shoulder)/.test(name) && right) {
+        bone.node.rotation.x = bone.baseX + swing * 0.55
+        bone.node.rotation.z = bone.baseZ
+      } else if (/spine|hips|pelvis|chest/.test(name)) {
+        bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.035 : Math.sin(this.animationTime * 0.5) * 0.012)
+      }
     }
     if (!this.proceduralLimbs) {
       if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
