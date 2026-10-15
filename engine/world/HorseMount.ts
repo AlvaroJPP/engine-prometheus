@@ -90,8 +90,8 @@ export class HorseMount {
       : [0.95, 1.35, 1.6]
     const configuredOffset = component.userData.colliderOffset
     this.mesh.userData.colliderOffset = Array.isArray(configuredOffset) && configuredOffset.length === 3
-      ? [configuredOffset[0], configuredOffset[1] + HORSE_HEIGHT / 2, configuredOffset[2]]
-      : [0, HORSE_HEIGHT / 2, 0]
+      ? [configuredOffset[0], configuredOffset[1] + componentHeight / 2, configuredOffset[2]]
+      : [0, componentHeight / 2, 0]
     this.mesh.visible = true
     this.syncTransformFromComponent()
     this.loadEmbeddedHorseModel(component)
