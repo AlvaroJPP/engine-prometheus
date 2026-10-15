@@ -364,9 +364,19 @@ function endNodeDrag() {
 }
 function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : rule.trigger.type === 'key_pressed' ? `Ao pressionar ${rule.trigger.key}` : 'Ao entrar na área'
-  if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
+  if (part === 'condition') {
+    if (!rule.conditions.length) return 'Sem condição'
+    return rule.conditions.map(c => {
+      const operator = c.operator === 'not_equals' ? '≠' : c.operator === 'greater_than' ? '>' : c.operator === 'less_than' ? '<' : '='
+      return `${c.name} ${operator} ${String(c.value)}`
+    }).join(' E ')
+  }
   const action = rule.actions[0]; if (!action) return 'Sem ação'
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar script'
+  if (action.type === 'javascript' || action.type === 'script') {
+    const firstLine = action.code.split(/\\r?\\n/).map(line => line.trim()).find(Boolean)
+    return firstLine ? (firstLine.length > 42 ? firstLine.slice(0, 39) + '…' : firstLine) : 'Script vazio — clique para editar'
+  }
+  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar ação'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -535,8 +545,8 @@ async function ensureHorseComponent() {
         name: 'Montar no cavalo',
         enabled: true,
         trigger: { type: 'object_clicked', objectId: '{ID_OBJECT}' },
-        conditions: [],
-        actions: [{ type: 'horse_mount' }],
+        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
+        actions: [{ type: 'javascript', code: 'api.mount()' }],
         graphLayout: {
           trigger: { x: 70, y: 70 },
           condition: { x: 350, y: 70 },
@@ -548,8 +558,8 @@ async function ensureHorseComponent() {
         name: 'Montar ou desmontar (E)',
         enabled: true,
         trigger: { type: 'key_pressed', key: 'KeyE' },
-        conditions: [],
-        actions: [{ type: 'horse_toggle_mount' }],
+        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
+        actions: [{ type: 'javascript', code: 'api.toggleMount()' }],
         graphLayout: {
           trigger: { x: 70, y: 210 },
           condition: { x: 350, y: 210 },
