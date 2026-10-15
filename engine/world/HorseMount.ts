@@ -21,6 +21,8 @@ export class HorseMount {
   private mounted = false
   private animationTime = 0
   private galloping = false
+  private mountProgress = 0
+  private mountStart = new THREE.Vector3()
   private readonly proceduralBones: Array<{ node: THREE.Bone; name: string; rotation: THREE.Euler }> = []
   private readonly proceduralNodes: Array<{ node: THREE.Object3D; name: string; rotation: THREE.Euler; position: THREE.Vector3 }> = []
   private importedModel: THREE.Object3D | null = null
@@ -444,14 +446,24 @@ export class HorseMount {
     if (this.tailRoot) this.tailRoot.rotation.x = Math.sin(this.animationTime * 0.7) * (moving ? 0.22 : 0.08)
 
     if (this.mounted) {
-      const riderOffset = new THREE.Vector3(0, HORSE_HEIGHT - 0.35, -0.13).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
-      this.avatar.mesh.position.set(
+      // A origem do avatar fica nos pés; posicionamos o quadril sobre a sela,
+      // com o tronco erguido e as pernas inclinadas para os flancos do cavalo.
+      const seatHeight = HORSE_HEIGHT * 0.43
+      const riderOffset = new THREE.Vector3(0, seatHeight, -0.16)
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
+      const target = new THREE.Vector3(
         this.mesh.position.x + riderOffset.x,
         groundY + riderOffset.y,
         this.mesh.position.z + riderOffset.z,
       )
+      this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 1, 5.5, step)
+      this.avatar.setMountedPose(this.mountProgress)
+      this.avatar.mesh.position.lerpVectors(this.mountStart, target, this.mountProgress)
       this.avatar.mesh.rotation.y = this.mesh.rotation.y
-      this.cameraTarget.set(this.mesh.position.x, groundY + 2.3, this.mesh.position.z)
+      this.cameraTarget.set(this.mesh.position.x, groundY + HORSE_HEIGHT + 0.25, this.mesh.position.z)
+    } else if (this.mountProgress > 0) {
+      this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 0, 8, step)
+      this.avatar.setMountedPose(this.mountProgress)
     }
   }
 
@@ -474,10 +486,12 @@ export class HorseMount {
 
   private mount(): void {
     this.mounted = true
+    this.mountProgress = 0
+    this.mountStart.copy(this.avatar.mesh.position)
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = true
-    this.avatar.mesh.position.set(this.mesh.position.x, this.mesh.position.y + HORSE_HEIGHT - 0.35, this.mesh.position.z)
-    this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + 2.3, this.mesh.position.z)
+    this.avatar.setMountedPose(0)
+    this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + HORSE_HEIGHT + 0.25, this.mesh.position.z)
     this.pressed.clear()
   }
 
