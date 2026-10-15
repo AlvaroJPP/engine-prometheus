@@ -40,6 +40,7 @@ export class World {
     this.scene.background = new THREE.Color(BACKGROUND)
     this.scene.fog = new THREE.Fog(BACKGROUND, 70, 170)
     this.scene.add(this.terrain.mesh)
+    this.scene.add(this.terrain.grass.mesh)
     this.grid.visible = true
     this.grid.position.y = 0.015
     this.grid.renderOrder = 2
@@ -404,6 +405,7 @@ export class World {
 
   private applyTerrainVisible(visible: boolean): void {
     this.terrain.mesh.visible = visible
+    this.terrain.grass.mesh.visible = visible
     // A malha é independente do terreno e pode permanecer visível como referência do editor.
     this.grid.visible = this.gridVisible
   }
