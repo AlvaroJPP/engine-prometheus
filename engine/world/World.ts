@@ -27,7 +27,7 @@ export class World {
   private objects = new Map<string, GameObject>()
   private selectedId: string | null = null
   private gridVisible = true
-  private skyDome: THREE.Mesh | null = null
+  private skyBackgroundTexture: THREE.Texture | null = null
   private skyTextureDataUrl = ''
   private timeOfDay = 12
   private cycleEnabled = false
@@ -71,24 +71,32 @@ export class World {
   setEnvironment(settings: { skyTextureDataUrl?: string; timeOfDay?: number; cycleEnabled?: boolean; cycleSpeed?: number }): void {
     if (settings.skyTextureDataUrl !== undefined && settings.skyTextureDataUrl !== this.skyTextureDataUrl) {
       this.skyTextureDataUrl = settings.skyTextureDataUrl
-      if (this.skyDome) {
-        this.scene.remove(this.skyDome)
-        this.skyDome.geometry.dispose()
-        const material = this.skyDome.material as THREE.MeshBasicMaterial
-        material.map?.dispose()
-        material.dispose()
-        this.skyDome = null
+      // O fundo da cena é renderizado pelo próprio Three.js, sem depender de uma
+      // esfera gigante que pode ficar atrás do fundo, do fog ou dos limites da câmera.
+      if (this.skyBackgroundTexture) {
+        this.skyBackgroundTexture.dispose()
+        this.skyBackgroundTexture = null
       }
       if (this.skyTextureDataUrl) {
-        new THREE.TextureLoader().load(this.skyTextureDataUrl, (texture) => {
-          if (this.skyTextureDataUrl !== settings.skyTextureDataUrl) { texture.dispose(); return }
+        const requestedDataUrl = this.skyTextureDataUrl
+        new THREE.TextureLoader().load(requestedDataUrl, (texture) => {
+          // Ignora respostas antigas se o usuário trocou/removeu a imagem durante o carregamento.
+          if (this.skyTextureDataUrl !== requestedDataUrl) {
+            texture.dispose()
+            return
+          }
           texture.colorSpace = THREE.SRGBColorSpace
-          const dome = new THREE.Mesh(new THREE.SphereGeometry(450, 48, 32), new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false }))
-          dome.name = 'environment-sky-dome'
-          dome.renderOrder = -1000
-          this.skyDome = dome
-          this.scene.add(dome)
-        }, undefined, (error) => console.error('[World] Não foi possível carregar a textura do céu:', error))
+          texture.mapping = THREE.EquirectangularReflectionMapping
+          texture.needsUpdate = true
+          this.skyBackgroundTexture = texture
+          this.scene.background = texture
+        }, undefined, (error) => {
+          console.error('[World] Não foi possível carregar a textura do céu:', error)
+          if (this.skyTextureDataUrl === requestedDataUrl) {
+            this.skyTextureDataUrl = ''
+            this.applyDayNight()
+          }
+        })
       }
     }
     if (settings.timeOfDay !== undefined && Number.isFinite(settings.timeOfDay)) this.timeOfDay = Math.max(0, Math.min(24, settings.timeOfDay))
