@@ -251,7 +251,14 @@ export class World {
     if (id === null || id === TERRAIN_ID) return
     const obj = this.objects.get(id)
     if (!obj) return
-    ;(obj.mesh.material as THREE.MeshStandardMaterial).emissive.setHex(on ? 0x4a2a1a : 0x000000)
+
+    // Modelos importados usam uma MeshBasicMaterial invisível como proxy.
+    // Esse material não possui emissive; também precisamos aceitar materiais em array.
+    const materials = Array.isArray(obj.mesh.material) ? obj.mesh.material : [obj.mesh.material]
+    for (const material of materials) {
+      const emissive = (material as THREE.Material & { emissive?: THREE.Color }).emissive
+      if (emissive) emissive.setHex(on ? 0x4a2a1a : 0x000000)
+    }
   }
 
   private dispose(obj: GameObject): void {
