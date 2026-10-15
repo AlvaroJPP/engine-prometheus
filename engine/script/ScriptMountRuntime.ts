@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { World } from '../world/World'
 import type { HumanoidAvatar } from '../world/HumanoidAvatar'
+import { getEntity } from '../model/entity/Entity'
 
 type MountAction = 'mount' | 'dismount' | 'toggle'
 
@@ -44,9 +45,10 @@ export class ScriptMountRuntime {
     }
     if (this.mountedObjectId) return
     const object = this.world.get(objectId)
-    if (!object || !object.mesh.visible) return
+    const entity = getEntity(object)
+    if (!entity || !entity.root.visible) return
 
-    const target = object.mesh
+    const target = entity.root
     const distance = Math.hypot(
       this.avatar.mesh.position.x - target.position.x,
       this.avatar.mesh.position.z - target.position.z,
