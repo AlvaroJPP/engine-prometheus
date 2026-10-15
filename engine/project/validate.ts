@@ -227,6 +227,7 @@ export function parseScene(text: string, label = 'cena'): SceneFile {
       colliderType: item.colliderType === 'box' || item.colliderType === 'sphere' || item.colliderType === 'capsule' || item.colliderType === 'none' || item.colliderType === 'auto' ? item.colliderType : undefined,
       colliderSize: item.colliderSize === undefined ? undefined : vec3(item.colliderSize, null, `${label} (${id}.colliderSize)`),
       colliderOffset: item.colliderOffset === undefined ? undefined : vec3(item.colliderOffset, null, `${label} (${id}.colliderOffset)`),
+      sceneKind: item.sceneKind === 'entity' ? 'entity' : 'object',
       importedModelData: typeof item.importedModelData === 'string' && item.importedModelData.length > 0 ? item.importedModelData : undefined,
       importedModelHeight: isNum(item.importedModelHeight) && item.importedModelHeight > 0 ? item.importedModelHeight : undefined,
     })
