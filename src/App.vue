@@ -454,11 +454,19 @@ function runWorld() {
   status.value = 'Modo Run ativo · WASD move, Shift corre, Espaço pula e mouse controla a câmera.'
 }
 function stopWorld() {
+  if (firstPersonMode.value) {
+    firstPersonMode.value = false
+    setFirstPersonMode(false)
+  }
   setRuntimeMode(false)
   executionMode.value = 'stopped'
   status.value = 'Execução interrompida'
 }
 function returnToEdit() {
+  if (firstPersonMode.value) {
+    firstPersonMode.value = false
+    setFirstPersonMode(false)
+  }
   setRuntimeMode(false)
   executionMode.value = 'edit'
   status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
