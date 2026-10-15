@@ -80,7 +80,7 @@ export class PointerController {
 
   /** Chamado a cada quadro: esculpe enquanto o botão está pressionado. */
   update(dt: number): void {
-    if (this.state.tool !== 'terrain') this.ring.visible = false
+    if (this.state.tool !== 'terrain' && this.state.tool !== 'grass') this.ring.visible = false
     const e = this.lastEvent
     if ((this.drag.kind !== 'paint' && this.drag.kind !== 'grassPaint') || !e) return
     this.aim(e)
