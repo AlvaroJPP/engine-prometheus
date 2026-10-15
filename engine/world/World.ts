@@ -27,6 +27,14 @@ export class World {
   private objects = new Map<string, GameObject>()
   private selectedId: string | null = null
   private gridVisible = true
+  private skyDome: THREE.Mesh | null = null
+  private skyTextureDataUrl = ''
+  private timeOfDay = 12
+  private cycleEnabled = false
+  private cycleSpeed = 0.1
+  private hemisphereLight!: THREE.HemisphereLight
+  private sunLight!: THREE.DirectionalLight
+  private fillLight!: THREE.DirectionalLight
 
   constructor() {
     this.scene.background = new THREE.Color(BACKGROUND)
@@ -45,13 +53,73 @@ export class World {
     this.scene.add(this.grid)
     // Iluminação um pouco mais próxima da prévia de importação, para manter
     // materiais PBR e cores de árvores/texturas legíveis no viewport principal.
-    this.scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 1.5))
-    const sun = new THREE.DirectionalLight(0xffffff, 2.0)
-    sun.position.set(30, 50, 20)
-    this.scene.add(sun)
-    const fill = new THREE.DirectionalLight(0x9dbaff, 0.55)
-    fill.position.set(-30, 18, -24)
-    this.scene.add(fill)
+    this.hemisphereLight = new THREE.HemisphereLight(0xe4edff, 0x55515a, 1.5)
+    this.scene.add(this.hemisphereLight)
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 2.0)
+    this.sunLight.position.set(30, 50, 20)
+    this.scene.add(this.sunLight)
+    this.fillLight = new THREE.DirectionalLight(0x9dbaff, 0.55)
+    this.fillLight.position.set(-30, 18, -24)
+    this.scene.add(this.fillLight)
+    this.applyDayNight()
+  }
+
+  getEnvironment() {
+    return { skyTextureDataUrl: this.skyTextureDataUrl, timeOfDay: this.timeOfDay, cycleEnabled: this.cycleEnabled, cycleSpeed: this.cycleSpeed }
+  }
+
+  setEnvironment(settings: { skyTextureDataUrl?: string; timeOfDay?: number; cycleEnabled?: boolean; cycleSpeed?: number }): void {
+    if (settings.skyTextureDataUrl !== undefined && settings.skyTextureDataUrl !== this.skyTextureDataUrl) {
+      this.skyTextureDataUrl = settings.skyTextureDataUrl
+      if (this.skyDome) {
+        this.scene.remove(this.skyDome)
+        this.skyDome.geometry.dispose()
+        const material = this.skyDome.material as THREE.MeshBasicMaterial
+        material.map?.dispose()
+        material.dispose()
+        this.skyDome = null
+      }
+      if (this.skyTextureDataUrl) {
+        new THREE.TextureLoader().load(this.skyTextureDataUrl, (texture) => {
+          if (this.skyTextureDataUrl !== settings.skyTextureDataUrl) { texture.dispose(); return }
+          texture.colorSpace = THREE.SRGBColorSpace
+          const dome = new THREE.Mesh(new THREE.SphereGeometry(450, 48, 32), new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false }))
+          dome.name = 'environment-sky-dome'
+          dome.renderOrder = -1000
+          this.skyDome = dome
+          this.scene.add(dome)
+        }, undefined, (error) => console.error('[World] Não foi possível carregar a textura do céu:', error))
+      }
+    }
+    if (settings.timeOfDay !== undefined && Number.isFinite(settings.timeOfDay)) this.timeOfDay = Math.max(0, Math.min(24, settings.timeOfDay))
+    if (settings.cycleEnabled !== undefined) this.cycleEnabled = settings.cycleEnabled
+    if (settings.cycleSpeed !== undefined && Number.isFinite(settings.cycleSpeed)) this.cycleSpeed = Math.max(0.01, Math.min(4, settings.cycleSpeed))
+    this.applyDayNight()
+  }
+
+  updateEnvironment(dt: number): void {
+    if (this.cycleEnabled && Number.isFinite(dt) && dt > 0) {
+      this.timeOfDay = (this.timeOfDay + dt * this.cycleSpeed) % 24
+      this.applyDayNight()
+    }
+  }
+
+  private applyDayNight(): void {
+    const angle = (this.timeOfDay / 24) * Math.PI * 2 - Math.PI / 2
+    const daylight = Math.max(0, Math.sin(angle))
+    this.sunLight.position.set(Math.cos(angle) * 60, Math.sin(angle) * 60, 20)
+    this.sunLight.intensity = 0.04 + daylight * 2.2
+    this.sunLight.color.setRGB(1, 0.72 + daylight * 0.25, 0.48 + daylight * 0.52)
+    this.hemisphereLight.intensity = 0.18 + daylight * 1.35
+    this.hemisphereLight.color.set(daylight > 0.1 ? 0xc8e4ff : 0x18294f)
+    this.hemisphereLight.groundColor.set(daylight > 0.1 ? 0x625b4d : 0x090d20)
+    this.fillLight.intensity = 0.08 + (1 - daylight) * 0.35
+    if (!this.skyTextureDataUrl) {
+      const night = new THREE.Color(0x080d22)
+      const dawn = new THREE.Color(0xe58b67)
+      const day = new THREE.Color(0x87b9e8)
+      this.scene.background = daylight < 0.18 ? night.lerp(dawn, daylight / 0.18) : dawn.lerp(day, Math.min(1, (daylight - 0.18) / 0.82))
+    }
   }
 
   // ---- objetos ----
