@@ -660,7 +660,9 @@ export class Engine {
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
-    this.world.select(id)
+    // Ao restaurar um projeto, o ID persistido é diferente do ID temporário.
+    // Selecionar o temporário deixa a raiz sem seleção válida para o gizmo.
+    this.world.select(finalId)
     this.state.tool = 'select'
     this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform)
     this.transformControls.attach(root)
