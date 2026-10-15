@@ -204,11 +204,36 @@ fn convert_blend_zip(zip_path: String) -> Result<String, String> {
         .ok_or_else(|| "Não encontrei nenhum arquivo .blend dentro do ZIP.".to_string())?;
     let output_path = temp.path().join("engine-prometheus-converted.glb");
     let script_path = temp.path().join("export_to_glb.py");
-    let script = r#"import bpy, sys
+    let script = r#"import bpy, os, sys
 args = sys.argv
 if "--" not in args:
     raise RuntimeError("Caminho de saída não informado")
 output_path = args[args.index("--") + 1]
+
+# Arquivos .blend recebidos de outra máquina podem guardar caminhos absolutos
+# para as imagens. Procure texturas com o mesmo nome dentro do ZIP extraído.
+root = os.path.dirname(bpy.data.filepath)
+image_index = {}
+for current_root, _, filenames in os.walk(root):
+    for filename in filenames:
+        if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".webp", ".exr", ".bmp")):
+            image_index.setdefault(filename.casefold(), []).append(os.path.join(current_root, filename))
+
+for image in bpy.data.images:
+    if image.source != "FILE":
+        continue
+    current_path = bpy.path.abspath(image.filepath)
+    if current_path and os.path.isfile(current_path):
+        continue
+    filename = image.filepath.replace("\\\\", "/").split("/")[-1]
+    matches = image_index.get(filename.casefold(), [])
+    if len(matches) == 1:
+        image.filepath = matches[0]
+        try:
+            image.reload()
+        except Exception:
+            pass
+
 bpy.ops.export_scene.gltf(
     filepath=output_path,
     export_format="GLB",
