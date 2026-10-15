@@ -204,6 +204,33 @@ export class Engine {
       throw new Error('Não foi possível calcular a altura do modelo importado.')
     }
 
+    // Modelos de terceiros podem conter dezenas de malhas e sombras caras.
+    // Desativa sombras por malha importada e prepara limites de geometria para
+    // evitar trabalho desnecessário durante renderização e seleção.
+    let meshCount = 0
+    let triangleCount = 0
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      meshCount += 1
+      child.castShadow = false
+      child.receiveShadow = false
+      child.frustumCulled = true
+      const geometries = child.geometry
+      if (!geometries.boundingSphere) geometries.computeBoundingSphere()
+      if (!geometries.boundingBox) geometries.computeBoundingBox()
+      const position = geometries.getAttribute('position')
+      if (position) triangleCount += geometries.index
+        ? geometries.index.count / 3
+        : position.count / 3
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      for (const material of materials) {
+        material.needsUpdate = true
+      }
+    })
+    // A seleção usa uma caixa simples; o modelo real não precisa ser testado
+    // face por face pelo raycaster a cada clique.
+    model.userData.importStats = { meshCount, triangleCount }
+
     const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
     // O diálogo de importação já centraliza o modelo. Não subtraia o centro
     // do Box3 diretamente de model.position: Box3 está em coordenadas de mundo,
@@ -227,11 +254,13 @@ export class Engine {
       Math.max(height, 0.05),
       Math.max(finalSize.z, 0.05),
     )
-    const proxyMaterial = new THREE.MeshStandardMaterial({
+    const proxyMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity: 0,
+      colorWrite: false,
       depthWrite: false,
+      depthTest: false,
     })
     const root = new THREE.Mesh(proxyGeometry, proxyMaterial)
     root.name = name.trim() || 'Modelo importado'
