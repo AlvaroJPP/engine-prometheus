@@ -60,16 +60,24 @@ let previewMixer: THREE.AnimationMixer | null = null
 const previewClock = new THREE.Clock()
 
 function disposeModel(object: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  const textures = new Set<THREE.Texture>()
   object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    child.geometry.dispose()
-    const materials = Array.isArray(child.material) ? child.material : [child.material]
-    materials.forEach((material) => {
-      // Texturas podem ser compartilhadas entre materiais; dispose do material
-      // libera seus recursos sem alterar os dados do modelo importado na cena.
-      material.dispose()
-    })
+    if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
+      geometries.add(child.geometry)
+      const childMaterials = Array.isArray(child.material) ? child.material : [child.material]
+      childMaterials.forEach(material => {
+        materials.add(material)
+        for (const value of Object.values(material)) {
+          if (value instanceof THREE.Texture) textures.add(value)
+        }
+      })
+    }
   })
+  geometries.forEach(geometry => geometry.dispose())
+  materials.forEach(material => material.dispose())
+  textures.forEach(texture => texture.dispose())
 }
 
 function refreshPreviewParts() {
