@@ -202,7 +202,10 @@ export class World {
   }
 
   info(): ObjectInfo[] {
-    return this.list().map((o) => ({
+    return this.list().map((o) => {
+      if (!o.mesh.geometry.boundingBox) o.mesh.geometry.computeBoundingBox()
+      const baseColliderSize = o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1)
+      return ({
       id: o.id,
       name: o.name,
       type: o.type,
@@ -222,10 +225,10 @@ export class World {
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
       mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
       colliderType: o.mesh.userData.colliderType === 'box' || o.mesh.userData.colliderType === 'sphere' || o.mesh.userData.colliderType === 'capsule' || o.mesh.userData.colliderType === 'none' ? o.mesh.userData.colliderType : 'auto',
-      colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).x ?? 1, o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).y ?? 1, o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).z ?? 1],
+      colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [baseColliderSize.x, baseColliderSize.y, baseColliderSize.z],
       colliderOffset: Array.isArray(o.mesh.userData.colliderOffset) && o.mesh.userData.colliderOffset.length === 3 ? [...o.mesh.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
-    }))
+    })})
   }
 
   /** Só os objetos visíveis podem ser clicados. */
