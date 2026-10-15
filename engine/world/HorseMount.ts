@@ -805,12 +805,6 @@ export class HorseMount {
 
   private onKeyDown = (event: KeyboardEvent): void => {
     if (!this.enabled || event.repeat) return
-    if (event.code === 'KeyE') {
-      event.preventDefault()
-      if (this.mounted) this.dismount(true)
-      else if (this.mesh.visible && this.avatar.mesh.position.distanceTo(this.mesh.position) < 3.4) this.mount()
-      return
-    }
     if (this.mounted && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(event.code)) {
       this.pressed.add(event.code)
       if (event.code.startsWith('Arrow')) event.preventDefault()
@@ -821,9 +815,11 @@ export class HorseMount {
   private onBlur = (): void => { this.pressed.clear() }
 
   /** Executado por uma ação do Visual Script; requer modo Run e proximidade segura. */
-  executeNodeAction(action: 'mount' | 'dismount', objectId?: string): void {
+  get isMounted(): boolean { return this.mounted }
+
+  executeNodeAction(action: 'mount' | 'dismount' | 'toggle', objectId?: string): void {
     if (!this.enabled) return
-    if (action === 'dismount') {
+    if (action === 'dismount' || (action === 'toggle' && this.mounted)) {
       this.dismount(true)
       return
     }
