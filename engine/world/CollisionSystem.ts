@@ -24,6 +24,13 @@ const MAX_RESOLUTION_PASSES = 4
 const AXIS_EPSILON_SQ = 1e-10
 const EDGE_KEY_SCALE = 100000
 
+/** Calcula colisão pela malha-raiz (proxy), sem percorrer todos os triângulos dos filhos GLB/FBX. */
+function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
+  mesh.updateWorldMatrix(true, false)
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
+  return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
+}
+
 /**
  * Narrow phase SAT (Separating Axis Theorem) sobre os vértices, faces e arestas
  * reais da geometria transformada. Funciona para malhas convexas fechadas,
@@ -238,7 +245,7 @@ export class CollisionSystem {
   /** O terreno impede que os objetos atravessem a superfície. */
   private keepObjectsAboveTerrain(objects: GameObject[]): void {
     for (const object of objects) {
-      const bounds = new THREE.Box3().setFromObject(object.mesh)
+      const bounds = getRootBounds(object.mesh)
       const groundY = this.world.terrain.heightAt(object.mesh.position.x, object.mesh.position.z)
       if (bounds.min.y < groundY) {
         object.mesh.position.y += groundY - bounds.min.y
