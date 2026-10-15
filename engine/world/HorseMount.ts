@@ -495,7 +495,10 @@ export class HorseMount {
     const top = bounds.max.y + 1.5
     const sample = (localX: number): number | null => {
       const local = new THREE.Vector3(localX, 0, -0.07)
-      const origin = this.mesh.localToWorld(new THREE.Vector3(local.x, top - this.mesh.position.y, local.z))
+      const worldXZ = this.mesh.localToWorld(local.clone())
+      // O raio é vertical no mundo; manter Y em coordenada mundial evita que
+      // a rotação do cavalo incline a origem do teste junto com o corpo.
+      const origin = new THREE.Vector3(worldXZ.x, top, worldXZ.z)
       this.mountRaycaster.set(origin, this.mountDown)
       this.mountRaycaster.far = Math.max(3, bounds.max.y - bounds.min.y + 3)
       const hits = this.mountRaycaster.intersectObject(this.importedModel ?? this.mesh, true)
