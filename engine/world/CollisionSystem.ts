@@ -49,7 +49,9 @@ export class CollisionSystem {
   private readonly world: World
   private activePairs = new Map<string, CollisionPair>()
   private readonly previousPositions = new Map<string, THREE.Vector3>()
-  private readonly colliderGeometries = new Map<string, THREE.BufferGeometry>()
+  private readonly colliderGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
+  private debugVisible = false
+  private readonly debugHelpers = new Map<string, THREE.LineSegments>()
 
   constructor(world: World) {
     this.world = world
@@ -141,6 +143,7 @@ export class CollisionSystem {
     }
     this.activePairs = currentPairs
     this.keepObjectsAboveTerrain(objects)
+    this.syncDebugHelpers(this.world.list())
     for (const object of collidableObjects) {
       this.previousPositions.set(object.id, object.mesh.position.clone())
     }
@@ -164,33 +167,89 @@ export class CollisionSystem {
   private getColliderGeometry(object: GameObject): THREE.BufferGeometry | null {
     const type = this.colliderType(object)
     if (type === 'none') return null
-    if (type === 'auto') return object.mesh.geometry
-    const key = `${object.id}:${type}`
-    const cached = this.colliderGeometries.get(key)
-    if (cached) return cached
-    let geometry: THREE.BufferGeometry
     const sourceGeometry = object.mesh.geometry
     if (!sourceGeometry.boundingBox) sourceGeometry.computeBoundingBox()
     const bounds = sourceGeometry.boundingBox
-    const size = bounds
-      ? bounds.getSize(new THREE.Vector3())
-      : new THREE.Vector3(1, 1, 1)
-    const width = Math.max(size.x, 0.001)
-    const height = Math.max(size.y, 0.001)
-    const depth = Math.max(size.z, 0.001)
-    if (type === 'box') {
+    const sourceSize = bounds ? bounds.getSize(new THREE.Vector3()) : new THREE.Vector3(1, 1, 1)
+    const configuredSize = object.mesh.userData.colliderSize
+    const manualSize = Array.isArray(configuredSize) && configuredSize.length === 3 && configuredSize.every((n: unknown) => typeof n === 'number' && Number.isFinite(n))
+      ? new THREE.Vector3(Math.max(0.05, configuredSize[0]), Math.max(0.05, configuredSize[1]), Math.max(0.05, configuredSize[2]))
+      : null
+    if (type === 'auto' && !manualSize) return sourceGeometry
+    const offsetData = object.mesh.userData.colliderOffset
+    const offset = Array.isArray(offsetData) && offsetData.length === 3
+      ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
+      : [0, 0, 0] as [number, number, number]
+    const size = manualSize ?? sourceSize
+    const width = Math.max(size.x, 0.05)
+    const height = Math.max(size.y, 0.05)
+    const depth = Math.max(size.z, 0.05)
+    const effectiveType = type === 'auto' ? 'box' : type
+    const signature = `${effectiveType}:${width.toFixed(5)},${height.toFixed(5)},${depth.toFixed(5)}:${offset.join(',')}`
+    const cached = this.colliderGeometries.get(object.id)
+    if (cached?.signature === signature) return cached.geometry
+    if (cached) cached.geometry.dispose()
+    let geometry: THREE.BufferGeometry
+    if (effectiveType === 'box') {
       geometry = new THREE.BoxGeometry(width, height, depth)
-    } else if (type === 'sphere') {
-      const radius = Math.max(width, height, depth) * 0.5
-      geometry = new THREE.IcosahedronGeometry(radius, 2)
+    } else if (effectiveType === 'sphere') {
+      geometry = new THREE.IcosahedronGeometry(Math.max(width, height, depth) * 0.5, 2)
     } else {
-      const radius = Math.max(0.001, Math.min(width, depth) * 0.25)
+      const radius = Math.max(0.025, Math.min(width, depth) * 0.25)
       geometry = new THREE.CapsuleGeometry(radius, Math.max(0, height - radius * 2), 4, 8)
-      // CapsuleGeometry is Y-aligned; stretch its cross-section to fit non-uniform bounds.
-      geometry.scale(width / Math.max(radius * 2, 0.001), 1, depth / Math.max(radius * 2, 0.001))
+      geometry.scale(width / Math.max(radius * 2, 0.05), 1, depth / Math.max(radius * 2, 0.05))
     }
-    this.colliderGeometries.set(key, geometry)
+    geometry.translate(offset[0], offset[1], offset[2])
+    this.colliderGeometries.set(object.id, { geometry, signature })
     return geometry
+  }
+
+  /** Liga/desliga a representação wireframe dos colisores no viewport. */
+  setDebugVisible(visible: boolean): void {
+    this.debugVisible = visible
+    for (const helper of this.debugHelpers.values()) helper.visible = visible
+    if (visible) this.syncDebugHelpers(this.world.list())
+  }
+
+  isDebugVisible(): boolean { return this.debugVisible }
+
+  private syncDebugHelpers(objects: GameObject[]): void {
+    const active = new Set(objects.map(object => object.id))
+    for (const object of objects) {
+      const geometry = this.getColliderGeometry(object)
+      let helper = this.debugHelpers.get(object.id)
+      if (!geometry) {
+        if (helper) helper.visible = false
+        continue
+      }
+      const configuredSize = object.mesh.userData.colliderSize
+      const offset = object.mesh.userData.colliderOffset
+      const signature = `${this.colliderType(object)}:${JSON.stringify(configuredSize ?? null)}:${JSON.stringify(offset ?? [0, 0, 0])}:${geometry.uuid}`
+      if (!helper || helper.userData.signature !== signature) {
+        if (helper) {
+          object.mesh.remove(helper)
+          helper.geometry.dispose()
+          ;(helper.material as THREE.Material).dispose()
+        }
+        const edges = new THREE.EdgesGeometry(geometry)
+        helper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x45e6a4, transparent: true, opacity: 0.95, depthTest: false }))
+        helper.name = 'collider-debug-wireframe'
+        helper.userData.editorOverlay = true
+        helper.userData.signature = signature
+        helper.renderOrder = 20
+        helper.visible = this.debugVisible && object.mesh.visible
+        object.mesh.add(helper)
+        this.debugHelpers.set(object.id, helper)
+      }
+      helper.visible = this.debugVisible && object.mesh.visible && this.colliderType(object) !== 'none'
+    }
+    for (const [id, helper] of this.debugHelpers) {
+      if (active.has(id)) continue
+      helper.removeFromParent()
+      helper.geometry.dispose()
+      ;(helper.material as THREE.Material).dispose()
+      this.debugHelpers.delete(id)
+    }
   }
 
   private resolveContinuousCollisions(objects: GameObject[]): void {
@@ -399,7 +458,13 @@ export class CollisionSystem {
     for (const pair of this.activePairs.values()) this.world.events.emit('collisionEnded', pair)
     this.activePairs.clear()
     this.previousPositions.clear()
-    for (const geometry of this.colliderGeometries.values()) geometry.dispose()
+    for (const entry of this.colliderGeometries.values()) entry.geometry.dispose()
+    for (const helper of this.debugHelpers.values()) {
+      helper.removeFromParent()
+      helper.geometry.dispose()
+      ;(helper.material as THREE.Material).dispose()
+    }
+    this.debugHelpers.clear()
     this.colliderGeometries.clear()
   }
 
