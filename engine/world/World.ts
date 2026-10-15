@@ -145,7 +145,11 @@ export class World {
       }
     }
     if (patch.texturePreset !== undefined && ['none', 'grass', 'stone', 'brick', 'wood', 'sand', 'metal'].includes(patch.texturePreset)) {
-      applyTexturePreset(m, patch.texturePreset as TexturePreset)
+      applyTexturePreset(m, patch.texturePreset as TexturePreset, typeof m.userData.textureRepeat === 'number' ? m.userData.textureRepeat : 2)
+    }
+    if (patch.textureRepeat !== undefined && Number.isFinite(patch.textureRepeat)) {
+      const preset = m.userData.texturePreset as TexturePreset | undefined
+      applyTexturePreset(m, preset ?? 'none', clamp(patch.textureRepeat, 1, 8))
     }
     if (patch.visible !== undefined) m.visible = patch.visible
     if (patch.locked !== undefined) m.userData.locked = patch.locked
@@ -233,7 +237,8 @@ export class World {
       colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [baseColliderSize.x, baseColliderSize.y, baseColliderSize.z],
       colliderOffset: Array.isArray(o.mesh.userData.colliderOffset) && o.mesh.userData.colliderOffset.length === 3 ? [...o.mesh.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       texturePreset: o.mesh.userData.texturePreset === 'grass' || o.mesh.userData.texturePreset === 'stone' || o.mesh.userData.texturePreset === 'brick' || o.mesh.userData.texturePreset === 'wood' || o.mesh.userData.texturePreset === 'sand' || o.mesh.userData.texturePreset === 'metal' ? o.mesh.userData.texturePreset : 'none',
-      color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
+      color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (typeof o.mesh.userData.baseColor === 'number' ? o.mesh.userData.baseColor : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex()),
+      textureRepeat: typeof o.mesh.userData.textureRepeat === 'number' ? o.mesh.userData.textureRepeat : 2,
     })})
   }
 
