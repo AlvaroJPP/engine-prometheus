@@ -1,6 +1,6 @@
 import type { ObjectType } from './project/format'
 
-export type ToolMode = 'select' | 'build' | 'terrain'
+export type ToolMode = 'select' | 'build' | 'terrain' | 'grass'
 export type TransformMode = 'move' | 'rotate' | 'scale'
 
 export interface BrushSettings {
