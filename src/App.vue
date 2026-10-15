@@ -404,6 +404,7 @@ const TOOLS: Array<{ id: ToolMode; icon: string; label: string }> = [
   { id: 'select', icon: '↖', label: 'Selecionar' },
   { id: 'build', icon: '◇', label: 'Construir' },
   { id: 'terrain', icon: '~', label: 'Editar terreno' },
+  { id: 'grass', icon: '♧', label: 'Pintar grama' },
 ]
 
 const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
@@ -725,6 +726,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div class="btn-row">
               <button class="ghost" @click="regenerateTerrain">Novo relevo</button>
               <button class="ghost" @click="clearTerrain">Limpar edições</button>
+            </div>
+            <div class="grass-paint-panel">
+              <h4>Grama</h4>
+              <p class="muted">Escolha Pintar grama na barra superior e arraste sobre o terreno. Segure Shift para apagar os tufos que você pintou.</p>
+              <div class="slider-row"><span>Tamanho do pincel</span><b class="mono">{{ brushRadius.toFixed(1) }}</b></div>
+              <input v-model.number="brushRadius" type="range" min="0.5" max="12" step="0.5" />
+              <div class="slider-row"><span>Densidade</span><b class="mono">{{ brushStrength.toFixed(2) }}</b></div>
+              <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.1" />
+              <p class="component-note">A grama pintada é salva junto com o projeto. Limite de 16.000 tufos manuais.</p>
             </div>
           </section>
 
