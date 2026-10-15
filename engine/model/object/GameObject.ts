@@ -1,5 +1,5 @@
 import type { Mesh } from 'three'
-import type { ObjectType } from '../../project/format'
+import type { FaceTextureMap, ObjectType, TextureFace } from '../../project/format'
 
 export interface GameObject {
   id: string
@@ -31,6 +31,7 @@ export interface ObjectInfo {
   color: number
   texturePreset: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   textureRepeat: number
+  faceTextures: FaceTextureMap
   mass: number
   colliderType: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
   colliderSize: [number, number, number]
@@ -52,6 +53,8 @@ export interface ObjectPatch {
   color?: number
   texturePreset?: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   textureRepeat?: number
+  faceTexture?: { face: TextureFace; value: import('../../project/format').FaceTextureData | null }
+  faceTextures?: FaceTextureMap
   visible?: boolean
   locked?: boolean
   wireframeVisible?: boolean
