@@ -3,7 +3,7 @@ import { EventBus } from './events/EventBus'
 import type { EngineEvents } from './events/types'
 import type { GameObject, ObjectInfo, ObjectPatch } from '../model/object/GameObject'
 import { PRIMITIVE_DEFS } from '../model/object/defs'
-import { applyTexturePreset, createPrimitive } from '../model/object/Primitives'
+import { applyFaceTextures, applyTexturePreset, createPrimitive } from '../model/object/Primitives'
 import type { TexturePreset } from '../model/object/Primitives'
 import { TERRAIN_ID, TerrainMesh } from './map/TerrainMesh'
 import { DEFAULT_SEED } from './worldGeneration/Heightfield'
@@ -141,7 +141,11 @@ export class World {
           }
         })
       } else {
-        (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
+        const materials = Array.isArray(m.material) ? m.material : [m.material]
+        for (const material of materials) {
+          const standard = material as THREE.MeshStandardMaterial
+          standard.color?.setHex(patch.color)
+        }
       }
     }
     if (patch.texturePreset !== undefined && ['none', 'grass', 'stone', 'brick', 'wood', 'sand', 'metal'].includes(patch.texturePreset)) {
@@ -150,6 +154,13 @@ export class World {
     if (patch.textureRepeat !== undefined && Number.isFinite(patch.textureRepeat)) {
       const preset = m.userData.texturePreset as TexturePreset | undefined
       applyTexturePreset(m, preset ?? 'none', clamp(patch.textureRepeat, 1, 8))
+    }
+    if (patch.faceTextures !== undefined) applyFaceTextures(m, patch.faceTextures)
+    if (patch.faceTexture !== undefined) {
+      const current = { ...(m.userData.faceTextures as import('../project/format').FaceTextureMap | undefined) }
+      if (patch.faceTexture.value) current[patch.faceTexture.face] = patch.faceTexture.value
+      else delete current[patch.faceTexture.face]
+      applyFaceTextures(m, current)
     }
     if (patch.visible !== undefined) m.visible = patch.visible
     if (patch.locked !== undefined) m.userData.locked = patch.locked
@@ -239,6 +250,7 @@ export class World {
       texturePreset: o.mesh.userData.texturePreset === 'grass' || o.mesh.userData.texturePreset === 'stone' || o.mesh.userData.texturePreset === 'brick' || o.mesh.userData.texturePreset === 'wood' || o.mesh.userData.texturePreset === 'sand' || o.mesh.userData.texturePreset === 'metal' ? o.mesh.userData.texturePreset : 'none',
       color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (typeof o.mesh.userData.baseColor === 'number' ? o.mesh.userData.baseColor : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex()),
       textureRepeat: typeof o.mesh.userData.textureRepeat === 'number' ? o.mesh.userData.textureRepeat : 2,
+      faceTextures: (o.mesh.userData.faceTextures ?? {}) as import('../project/format').FaceTextureMap,
     })})
   }
 
@@ -329,6 +341,8 @@ export class World {
     obj.mesh.geometry.dispose()
     const generatedTexture = obj.mesh.userData.generatedTexture as THREE.Texture | undefined
     generatedTexture?.dispose()
+    const generatedFaceTextures = obj.mesh.userData.generatedFaceTextures as THREE.Texture[] | undefined
+    generatedFaceTextures?.forEach(texture => texture.dispose())
     const material = obj.mesh.material
     if (Array.isArray(material)) material.forEach((item) => item.dispose())
     else material.dispose()
