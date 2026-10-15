@@ -36,10 +36,13 @@ export class Engine {
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
+  private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
+    this.avatar.mesh.visible = false
+    this.avatar.setEnabled(false)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -174,6 +177,42 @@ export class Engine {
   // ---- câmera ----
   get cameraPreset(): CameraPreset {
     return this.orbit.preset
+  }
+
+  /** Alterna entre o editor livre e a execução controlada pelo jogador. */
+  setRuntimeMode(enabled: boolean): void {
+    if (enabled) {
+      if (this.cameraStateBeforeRun) return
+      this.cameraStateBeforeRun = this.orbit.getState()
+      this.orbit.setFirstPersonMode(false)
+      this.avatar.setFirstPersonMode(false)
+      this.avatar.mesh.visible = true
+      this.avatar.setEnabled(true)
+      this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
+      this.orbit.distance = 10
+      this.input.setRuntimeMode(true)
+      this.transformControls.detach()
+      this.transformControls.enabled = false
+      return
+    }
+
+    this.input.setRuntimeMode(false)
+    this.avatar.setEnabled(false)
+    this.avatar.mesh.visible = false
+    this.avatar.setFirstPersonMode(false)
+    if (this.cameraStateBeforeRun) {
+      this.orbit.restore(this.cameraStateBeforeRun)
+      this.cameraStateBeforeRun = null
+    }
+    this.transformControls.enabled = true
+    const selectedId = this.world.getSelectedId()
+    const selected = selectedId ? this.world.get(selectedId) : undefined
+    if (this.state.tool === 'select' && selected && selected.mesh.userData.locked !== true) {
+      this.transformControls.attach(selected.mesh)
+    } else {
+      this.transformControls.detach()
+    }
+    this.emitTool()
   }
 
   setFirstPersonMode(enabled: boolean): void {
