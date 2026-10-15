@@ -611,14 +611,18 @@ export class HorseMount {
       const colliderSize = component.userData.colliderSize
       if (Array.isArray(colliderSize) && colliderSize.length === 3 && colliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
         this.mountColliderSize.set(
-          Math.max(0.1, colliderSize[0]),
-          Math.max(0.1, colliderSize[1]),
-          Math.max(0.1, colliderSize[2]),
+          Math.max(0.1, colliderSize[0] * Math.abs(component.scale.x)),
+          Math.max(0.1, colliderSize[1] * Math.abs(component.scale.y)),
+          Math.max(0.1, colliderSize[2] * Math.abs(component.scale.z)),
         )
       }
       const colliderOffset = component.userData.colliderOffset
       if (Array.isArray(colliderOffset) && colliderOffset.length === 3 && colliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
-        this.mountColliderOffset.set(colliderOffset[0], colliderOffset[1], colliderOffset[2])
+        this.mountColliderOffset.set(
+          colliderOffset[0] * component.scale.x,
+          colliderOffset[1] * component.scale.y,
+          colliderOffset[2] * component.scale.z,
+        )
       } else {
         this.mountColliderOffset.set(0, 0, 0)
       }
@@ -685,7 +689,7 @@ export class HorseMount {
     if (this.parkedComponent) {
       this.parkedComponent.position.set(
         this.mesh.position.x,
-        groundY + this.parkedComponentHeight / 2,
+        groundY + this.parkedComponentHeight * Math.abs(this.mesh.scale.y) / 2,
         this.mesh.position.z,
       )
       this.parkedComponent.rotation.y = this.mesh.rotation.y
