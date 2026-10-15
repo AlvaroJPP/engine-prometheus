@@ -313,6 +313,21 @@ export class HumanoidAvatar {
     this.externalCollider = object
   }
 
+  /** Verifica se o jogador pode ocupar uma posição sem ficar dentro de objetos ou do cavalo. */
+  canOccupyPosition(x: number, z: number): boolean {
+    const previous = this.mesh.position.clone()
+    this.mesh.position.set(
+      THREE.MathUtils.clamp(x, -49, 49),
+      this.world.terrain.heightAt(x, z),
+      THREE.MathUtils.clamp(z, -49, 49),
+    )
+    this.mesh.updateMatrixWorld(true)
+    const blocked = this.collidesWithObjects()
+    this.mesh.position.copy(previous)
+    this.mesh.updateMatrixWorld(true)
+    return !blocked
+  }
+
   /**
    * Mistura uma pose de montaria sem depender de um clipe de animação externo.
    * Funciona tanto no avatar procedural quanto no modelo humanoide importado.
