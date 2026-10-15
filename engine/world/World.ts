@@ -490,23 +490,54 @@ export class World {
 
   private dispose(obj: GameObject): void {
     this.scene.remove(obj.mesh)
-    // Libera as malhas importadas que ficam como filhas do objeto transformável,
-    // além das linhas de wireframe usadas pelos primitivos.
+
+    // Um GLB pode compartilhar geometrias, materiais e texturas entre várias
+    // malhas. Libere cada recurso uma única vez ao remover/substituir o objeto.
+    const disposedGeometries = new Set<THREE.BufferGeometry>()
+    const disposedMaterials = new Set<THREE.Material>()
+    const disposedTextures = new Set<THREE.Texture>()
+
+    const disposeTexture = (texture: THREE.Texture): void => {
+      if (disposedTextures.has(texture)) return
+      disposedTextures.add(texture)
+      texture.dispose()
+    }
+
+    const disposeMaterial = (material: THREE.Material): void => {
+      if (disposedMaterials.has(material)) return
+      disposedMaterials.add(material)
+
+      // Mapas de materiais importados não são liberados por material.dispose().
+      // Inspeciona propriedades diretas para cobrir map, normalMap, roughnessMap,
+      // emissiveMap, envMap e outros mapas suportados pelo Three.js.
+      for (const value of Object.values(material)) {
+        if (value instanceof THREE.Texture) disposeTexture(value)
+      }
+      material.dispose()
+    }
+
     obj.mesh.traverse((child) => {
       if (child === obj.mesh) return
       if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line)) return
-      child.geometry.dispose()
+      if (!disposedGeometries.has(child.geometry)) {
+        disposedGeometries.add(child.geometry)
+        child.geometry.dispose()
+      }
       const material = child.material
-      if (Array.isArray(material)) material.forEach((item) => item.dispose())
-      else material.dispose()
+      if (Array.isArray(material)) material.forEach(disposeMaterial)
+      else disposeMaterial(material)
     })
-    obj.mesh.geometry.dispose()
+
+    if (!disposedGeometries.has(obj.mesh.geometry)) {
+      disposedGeometries.add(obj.mesh.geometry)
+      obj.mesh.geometry.dispose()
+    }
     const generatedTexture = obj.mesh.userData.generatedTexture as THREE.Texture | undefined
-    generatedTexture?.dispose()
+    if (generatedTexture) disposeTexture(generatedTexture)
     const generatedFaceTextures = obj.mesh.userData.generatedFaceTextures as THREE.Texture[] | undefined
-    generatedFaceTextures?.forEach(texture => texture.dispose())
+    generatedFaceTextures?.forEach(disposeTexture)
+
     const material = obj.mesh.material
-    if (Array.isArray(material)) material.forEach((item) => item.dispose())
-    else material.dispose()
-  }
-}
+    if (Array.isArray(material)) material.forEach(disposeMaterial)
+    else disposeMaterial(material)
+  }}
