@@ -10,6 +10,7 @@ type Drag =
   | { kind: 'orbit'; lastX: number; lastY: number }
   | { kind: 'pan'; lastX: number; lastY: number }
   | { kind: 'paint' }
+  | { kind: 'grassPaint' }
   | { kind: 'move'; id: string; planeY: number; offX: number; offZ: number; rest: number; changed: boolean }
   | { kind: 'rotate'; id: string; lastX: number; changed: boolean }
   | { kind: 'scale'; id: string; startY: number; startScale: number; changed: boolean }
@@ -36,6 +37,7 @@ export class PointerController {
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
   private lastEvent: PointerEvent | null = null
+  private lastGrassPaintAt = 0
   private ring = new THREE.Mesh(
     new THREE.RingGeometry(0.94, 1, 64),
     new THREE.MeshBasicMaterial({
@@ -80,10 +82,20 @@ export class PointerController {
   update(dt: number): void {
     if (this.state.tool !== 'terrain') this.ring.visible = false
     const e = this.lastEvent
-    if (this.drag.kind !== 'paint' || !e) return
+    if ((this.drag.kind !== 'paint' && this.drag.kind !== 'grassPaint') || !e) return
     this.aim(e)
     const hit = this.terrainHit()
     if (!hit) return
+    if (this.drag.kind === 'grassPaint') {
+      const now = performance.now()
+      if (now - this.lastGrassPaintAt >= 90) {
+        if (e.shiftKey) this.world.terrain.grass.erase(hit.point.x, hit.point.z, this.state.brush.radius)
+        else this.world.terrain.grass.paint(hit.point.x, hit.point.z, this.state.brush.radius, this.state.brush.strength)
+        this.lastGrassPaintAt = now
+      }
+      this.moveRing(hit.point)
+      return
+    }
     const sign = e.shiftKey ? -1 : 1
     this.world.terrain.brush(
       hit.point.x,
@@ -170,9 +182,17 @@ export class PointerController {
     if (e.button !== 0) return
 
     this.aim(e)
-    if (this.state.tool === 'terrain') {
+    if (this.state.tool === 'terrain' || this.state.tool === 'grass') {
       const hit = this.terrainHit()
       if (hit) {
+        if (this.state.tool === 'grass') {
+          this.begin({ kind: 'grassPaint' }, e)
+          if (e.shiftKey) this.world.terrain.grass.erase(hit.point.x, hit.point.z, this.state.brush.radius)
+          else this.world.terrain.grass.paint(hit.point.x, hit.point.z, this.state.brush.radius, this.state.brush.strength)
+          this.lastGrassPaintAt = performance.now()
+          this.moveRing(hit.point)
+          return
+        }
         this.begin({ kind: 'paint' }, e)
         const sign = e.shiftKey ? -1 : 1
         this.world.terrain.brush(
@@ -263,6 +283,7 @@ export class PointerController {
         d.lastY = e.clientY
         break
       case 'paint':
+      case 'grassPaint':
         this.aim(e)
         {
           const hit = this.terrainHit()
@@ -303,7 +324,7 @@ export class PointerController {
   }
 
   private hover(e: PointerEvent): void {
-    if (this.state.tool !== 'terrain') return
+    if (this.state.tool !== 'terrain' && this.state.tool !== 'grass') return
     this.aim(e)
     const hit = this.terrainHit()
     if (hit) this.moveRing(hit.point)
@@ -317,6 +338,7 @@ export class PointerController {
 
     switch (d.kind) {
       case 'paint':
+      case 'grassPaint':
         this.world.notifyTerrain()
         break
       case 'move':
