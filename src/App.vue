@@ -1205,7 +1205,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-else>
               <label class="field">Tipo de ação
-                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript')">
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount')">
                   <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
                 </select>
               </label>
