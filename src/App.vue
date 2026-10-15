@@ -40,6 +40,8 @@ const {
   brushRadius,
   gridVisible,
   polygonLinesVisible,
+  skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
+  setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
   toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
@@ -79,6 +81,25 @@ const {
   openProject,
   saveProject,
 } = useEditor(canvas)
+
+const skyFileInput = ref<HTMLInputElement | null>(null)
+const skyTextureName = ref('')
+function onSkyTextureSelected(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) { status.value = 'Escolha um arquivo de imagem para o céu.'; return }
+  if (file.size > 15 * 1024 * 1024) { status.value = 'A textura do céu deve ter no máximo 15 MB.'; return }
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (typeof reader.result !== 'string') return
+    skyTextureName.value = file.name
+    setSkyTexture(reader.result)
+  }
+  reader.onerror = () => { status.value = 'Não foi possível ler a imagem do céu.' }
+  reader.readAsDataURL(file)
+}
+function clearSkyTexture() { skyTextureName.value = ''; setSkyTexture('') }
+const timeOfDayLabel = computed(() => { const hours = Math.floor(timeOfDay.value) % 24; const minutes = Math.floor((timeOfDay.value % 1) * 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` })
 
 const newVariableName = ref('')
 const newVariableValue = ref('false')
@@ -668,13 +689,24 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <section v-if="inspectorMode === 'environment'">
             <h4>Ambiente</h4>
             <dl>
-              <dt>Dimensão</dt>
-              <dd class="mono">3D · X/Y/Z</dd>
-              <dt>Terreno</dt>
-              <dd class="mono">100 × 100 unidades</dd>
-              <dt>Relevo</dt>
-              <dd class="mono">Procedural + editável</dd>
+              <dt>Dimensão</dt><dd class="mono">3D · X/Y/Z</dd>
+              <dt>Terreno</dt><dd class="mono">100 × 100 unidades</dd>
+              <dt>Relevo</dt><dd class="mono">Procedural + editável</dd>
             </dl>
+            <div class="environment-editor">
+              <h4>Céu</h4>
+              <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
+              <input ref="skyFileInput" type="file" accept="image/*" hidden @change="onSkyTextureSelected" />
+              <button class="primary environment-button" @click="skyFileInput?.click()">{{ skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>
+              <div v-if="skyTextureDataUrl" class="environment-file"><span>▧ {{ skyTextureName || 'Textura carregada' }}</span><button class="ghost" @click="clearSkyTexture">Remover</button></div>
+              <h4>Dia e noite</h4>
+              <div class="slider-row"><span>Horário</span><b class="mono">{{ timeOfDayLabel }}</b></div>
+              <input class="environment-range" type="range" min="0" max="24" step="0.25" :value="timeOfDay" :disabled="dayNightCycleEnabled" @input="setTimeOfDay(Number(($event.target as HTMLInputElement).value) % 24)" />
+              <label class="checkline"><input type="checkbox" :checked="dayNightCycleEnabled" @change="setDayNightCycleEnabled(($event.target as HTMLInputElement).checked)" /> Ciclo automático de dia/noite</label>
+              <div class="slider-row"><span>Velocidade do ciclo</span><b class="mono">{{ dayNightCycleSpeed.toFixed(2) }} h/s</b></div>
+              <input class="environment-range" type="range" min="0.01" max="4" step="0.01" :value="dayNightCycleSpeed" @input="setDayNightCycleSpeed(Number(($event.target as HTMLInputElement).value))" />
+              <p class="component-note">O céu, o horário e o ciclo são salvos com o projeto.</p>
+            </div>
           </section>
 
           <section v-if="inspectorMode === 'terrain'">
@@ -2023,4 +2055,5 @@ input[type='range'] { accent-color: #e98524; }
 .project-io-fill{height:100%;border-radius:10px;background:#d89a55;transition:width .18s ease}
 .project-io-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:#8993a3;font-size:10px}
 .project-io-meta strong{color:#f0c18f;font-size:11px;font-variant-numeric:tabular-nums}
+.environment-editor{display:flex;flex-direction:column;gap:9px;margin-top:18px;padding-top:14px;border-top:1px solid #353b47}.environment-editor h4{margin:8px 0 0}.environment-button{width:100%;min-height:34px}.environment-file{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#aeb6c4;font-size:10px;overflow-wrap:anywhere}.environment-file button{flex:none}.environment-range{width:100%;accent-color:#d89a55}.environment-editor .checkline{margin:4px 0}
 </style>
