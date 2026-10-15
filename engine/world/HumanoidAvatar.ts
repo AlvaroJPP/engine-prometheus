@@ -552,7 +552,6 @@ export class HumanoidAvatar {
     const c = new THREE.Vector3()
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
-    const normalMatrix = new THREE.Matrix3()
     const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
 
     for (const object of this.world.list()) {
@@ -594,7 +593,7 @@ export class HumanoidAvatar {
           b.fromBufferAttribute(position, ib).applyMatrix4(mesh.matrixWorld)
           c.fromBufferAttribute(position, ic).applyMatrix4(mesh.matrixWorld)
           triangle.set(a, b, c)
-          triangle.getNormal(normal).applyMatrix3(normalMatrix).normalize()
+          triangle.getNormal(normal).normalize()
 
           // Permite caminhar sobre rampas sem tratar sua face superior como parede.
           if (normal.y >= 0.45) continue
