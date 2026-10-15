@@ -416,6 +416,10 @@ function importPublicRule(rule: LogicRule) {
 }
 const publicLogicRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) !== selectedId.value))
 const cameraLabel = computed(() => CAMERA_LABELS[cameraPreset.value])
+function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number }) {
+  addImportedModel(payload.name, payload.model, payload.height)
+}
+
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
 
@@ -937,7 +941,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </aside>
       </div>
     </div>
-    <ModelImportDialog :open="modelImportOpen" @close="modelImportOpen = false" @import="({ name, model, height }) => addImportedModel(name, model, height)" />
+    <ModelImportDialog :open="modelImportOpen" @close="modelImportOpen = false" @import="handleModelImport" />
   </div>
 </template>
 
