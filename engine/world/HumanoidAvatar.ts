@@ -10,11 +10,52 @@ const GRAVITY = 18
 const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
 
-/** Usa a caixa de colisão da malha-raiz; não recalcula bounds percorrendo um GLB inteiro a cada frame. */
-function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
+/** Bounds do colisor físico, independentes da malha visual importada. */
+function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
+  const type = mesh.userData.colliderType
+  if (type === 'none') return null
+
   mesh.updateWorldMatrix(true, false)
+  const configuredSize = mesh.userData.colliderSize
+  const hasManualSize = Array.isArray(configuredSize) &&
+    configuredSize.length === 3 &&
+    configuredSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
+  const offsetData = mesh.userData.colliderOffset
+  const offset = Array.isArray(offsetData) && offsetData.length === 3
+    ? offsetData.map((value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0) as [number, number, number]
+    : [0, 0, 0] as [number, number, number]
+
+  // O modo automático sem ajustes preserva o comportamento anterior baseado na malha-raiz.
+  if ((type === undefined || type === 'auto') && !hasManualSize && offset.every(value => Math.abs(value) < 1e-9)) {
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
+    return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
+  }
+
   if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
-  return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
+  const sourceSize = mesh.geometry.boundingBox?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1)
+  const size = hasManualSize
+    ? new THREE.Vector3(
+      Math.max(0.05, configuredSize[0]),
+      Math.max(0.05, configuredSize[1]),
+      Math.max(0.05, configuredSize[2]),
+    )
+    : sourceSize
+
+  // O sistema de colisão do mundo também trata os colisores simplificados como
+  // geometria local deslocada; este AABB é usado pelo player para movimento e pouso.
+  if (type === 'sphere') {
+    const radius = Math.max(size.x, size.y, size.z) * 0.5
+    size.setScalar(radius * 2)
+  } else if (type === 'capsule') {
+    const radius = Math.max(0.025, Math.min(size.x, size.z) * 0.25)
+    size.set(Math.max(size.x, radius * 2), Math.max(size.y, radius * 2), Math.max(size.z, radius * 2))
+  }
+
+  const localBounds = new THREE.Box3(
+    new THREE.Vector3(-size.x / 2 + offset[0], -size.y / 2 + offset[1], -size.z / 2 + offset[2]),
+    new THREE.Vector3(size.x / 2 + offset[0], size.y / 2 + offset[1], size.z / 2 + offset[2]),
+  )
+  return localBounds.applyMatrix4(mesh.matrixWorld)
 }
 
 /** Avatar humanoide controlável por teclado, com gravidade e colisões com terreno/objetos. */
@@ -406,8 +447,8 @@ export class HumanoidAvatar {
     const playerBox = this.playerBox()
     return this.world.list().some((object) => {
       if (!object.mesh.visible) return false
-      const objectBox = getRootBounds(object.mesh)
-      return this.hasVolumeOverlap(playerBox, objectBox)
+      const objectBox = getColliderBounds(object.mesh)
+      return objectBox !== null && this.hasVolumeOverlap(playerBox, objectBox)
     })
   }
 
@@ -417,7 +458,8 @@ export class HumanoidAvatar {
     let landing: number | null = null
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
-      const box = getRootBounds(object.mesh)
+      const box = getColliderBounds(object.mesh)
+      if (!box) continue
       const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
         playerBox.max.z > box.min.z && playerBox.min.z < box.max.z
       if (!horizontalOverlap || oldY < box.max.y - 0.08 || nextY > box.max.y) continue
@@ -438,8 +480,8 @@ export class HumanoidAvatar {
     const next = new Map<string, { a: string; b: string }>()
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
-      const box = getRootBounds(object.mesh)
-      if (!this.hasVolumeOverlap(playerBox, box)) continue
+      const box = getColliderBounds(object.mesh)
+      if (!box || !this.hasVolumeOverlap(playerBox, box)) continue
       const key = object.id
       next.set(key, { a: PLAYER_ID, b: object.id })
     }
