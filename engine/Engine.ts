@@ -649,6 +649,7 @@ export class Engine {
       root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
     }
     root.userData.importedModel = true
+    root.userData.componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : undefined
     root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
     root.userData.importedModelHeight = height
     if (restoreData) {
