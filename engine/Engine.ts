@@ -101,7 +101,21 @@ export class Engine {
         this.groupTransformSnapshot = mesh ? { position: [mesh.position.x, mesh.position.y, mesh.position.z], rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z], scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] } : null
       } else this.groupTransformSnapshot = null
     })
-    this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging, (x, y, z) => this.placePendingBuildComponent(x, y, z), (id) => this.events.emit('objectClicked', { id }))
+    this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging, (x, y, z) => this.placePendingBuildComponent(x, y, z), (id) => {
+      this.events.emit('objectClicked', { id })
+      // O clique no componente do cavalo também oferece montaria nativa como
+      // fallback, caso o projeto tenha regras antigas/incompletas.
+      const clicked = this.world.get(id)?.mesh
+      const isHorse = !!clicked && (
+        clicked.userData.nativeComponentType === 'horse' ||
+        clicked.userData.nativeHorseComponent === true ||
+        clicked.userData.componentId === 'builtin-horse-low-poly' ||
+        clicked.name.trim().toLowerCase() === 'cavalo low poly'
+      )
+      if (isHorse && !this.horseMount.isMounted) {
+        this.horseMount.executeNodeAction('mount', id)
+      }
+    })
     this.events.on('selectionChanged', ({ id }) => {
       const object = id ? this.world.get(id) : undefined
       if (object && object.mesh.userData.locked !== true) this.transformControls.attach(object.mesh)
