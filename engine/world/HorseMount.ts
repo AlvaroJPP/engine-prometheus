@@ -457,8 +457,12 @@ export class HorseMount {
         this.mesh.position.z + riderOffset.z,
       )
       this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 1, 5.5, step)
-      this.avatar.setMountedPose(this.mountProgress)
-      this.avatar.mesh.position.lerpVectors(this.mountStart, target, this.mountProgress)
+      const easedProgress = this.mountProgress * this.mountProgress * (3 - 2 * this.mountProgress)
+      this.avatar.setMountedPose(easedProgress)
+      this.avatar.mesh.position.lerpVectors(this.mountStart, target, easedProgress)
+      // Pequeno arco vertical dá a sensação de subir e sentar na sela, em vez
+      // de apenas deslizar horizontalmente até a posição de montaria.
+      this.avatar.mesh.position.y += Math.sin(Math.PI * easedProgress) * 0.48
       this.avatar.mesh.rotation.y = this.mesh.rotation.y
       this.cameraTarget.set(this.mesh.position.x, groundY + HORSE_HEIGHT + 0.25, this.mesh.position.z)
     } else if (this.mountProgress > 0) {
