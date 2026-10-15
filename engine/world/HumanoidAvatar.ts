@@ -575,6 +575,9 @@ export class HumanoidAvatar {
         if (!hit.face) continue
         const object = slopeCandidates.find(candidate => candidate.mesh === hit.object || candidate.mesh.getObjectById(hit.object.id))
         if (!object) continue
+        // A raiz de um modelo importado é uma caixa proxy invisível. Nunca use sua
+        // face superior como chão: o pouso automático deve vir da malha visual filha.
+        if (object.mesh.userData.importedModel === true && hit.object === object.mesh) continue
         const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)
         const normal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize()
         if (normal.y < 0.45) continue
