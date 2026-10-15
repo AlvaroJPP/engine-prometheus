@@ -572,6 +572,14 @@ export class Engine {
     this.world.setGridVisible(visible)
   }
 
+  setColliderDebugVisible(visible: boolean): void {
+    this.collisions.setDebugVisible(visible)
+  }
+
+  isColliderDebugVisible(): boolean {
+    return this.collisions.isDebugVisible()
+  }
+
   isGridVisible(): boolean {
     return this.world.isGridVisible()
   }
