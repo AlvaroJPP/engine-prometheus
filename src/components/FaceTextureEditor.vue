@@ -52,8 +52,8 @@ function applyImage() {
   if (!imagePreview.value) return
   emit('update-face-texture', activeFace.value, {
     imageDataUrl: imagePreview.value,
-    pixelWidth: Math.max(8, Math.min(2048, Math.round(pixelWidth.value))),
-    pixelHeight: Math.max(8, Math.min(2048, Math.round(pixelHeight.value))),
+    pixelWidth: Math.max(8, Math.min(10000, Math.round(pixelWidth.value))),
+    pixelHeight: Math.max(8, Math.min(10000, Math.round(pixelHeight.value))),
   })
 }
 function removeImage() {
@@ -92,10 +92,10 @@ function removeImage() {
     </div>
     <button class="face-import-button" @click="chooseImage">▧ {{ imagePreview ? 'Trocar imagem' : 'Importar imagem' }}</button>
     <div class="pixel-size-grid">
-      <label>Pixels X <input v-model.number="pixelWidth" type="number" min="8" max="2048" step="8" @change="applyImage" /></label>
-      <label>Pixels Y <input v-model.number="pixelHeight" type="number" min="8" max="2048" step="8" @change="applyImage" /></label>
+      <label>Pixels X <input v-model.number="pixelWidth" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
+      <label>Pixels Y <input v-model.number="pixelHeight" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
     </div>
-    <p class="face-texture-help">Ajuste a resolução usada na face (8–2048 px). Imagens são reduzidas ou ampliadas para esse tamanho.</p>
+    <p class="face-texture-help">Ajuste a resolução usada na face (8–10000 px). Imagens são reduzidas ou ampliadas para esse tamanho.</p>
     <button v-if="selected" class="face-remove-button" @click="removeImage">Remover textura desta face</button>
   </div>
 </template>
