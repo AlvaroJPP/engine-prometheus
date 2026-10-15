@@ -354,8 +354,8 @@ export class HumanoidAvatar {
 
     for (const bone of this.animatedBones) {
       const name = bone.name
-      const left = /left|_l\\b|\\.l\\b|\\bl_/.test(name)
-      const right = /right|_r\\b|\\.r\\b|\\br_/.test(name)
+      const left = /left|_l\b|\.l\b|\bl_/.test(name)
+      const right = /right|_r\b|\.r\b|\br_/.test(name)
       if (/pelvis|hips|hip/.test(name)) {
         bone.node.position.y = bone.basePosition.y - 0.055 * blend + Math.abs(bounce) * 0.025 * blend
         bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.06, blend)
@@ -564,14 +564,9 @@ export class HumanoidAvatar {
 
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
-    const hasStateClip = this.animationActions.has(state)
-      || (state === 'run' && this.animationActions.has('walk'))
-      || this.animationActions.has('idle')
-    // Se não há clipe específico de locomoção, anima o esqueleto mesmo que exista
-    // um clipe idle genérico; vários modelos importados só trazem a pose T-pose.
-    const hasLocomotionClip = this.animationActions.has(state)
-      || (state === 'run' && this.animationActions.has('walk'))
-    if (hasLocomotionClip) return
+    // Não confiamos apenas no nome do clipe: alguns GLBs trazem um clipe "walk"
+    // que não controla os ossos do rig usado pelo avatar. A camada procedural é
+    // aplicada sempre após o mixer para garantir movimento visível dos membros.
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
@@ -610,8 +605,8 @@ export class HumanoidAvatar {
     }
     for (const bone of this.animatedBones) {
       const name = bone.name
-      const left = /left|_l\\b|\\.l\\b|\\bl_/.test(name)
-      const right = /right|_r\\b|\\.r\\b|\\br_/.test(name)
+      const left = /left|_l\b|\.l\b|\bl_/.test(name)
+      const right = /right|_r\b|\.r\b|\br_/.test(name)
       if (/(upleg|upper.?leg|thigh|leg|calf|shin|foot|ankle)/.test(name) && left) {
         bone.node.rotation.x = bone.baseX + swing
       } else if (/(upleg|upper.?leg|thigh|leg|calf|shin|foot|ankle)/.test(name) && right) {
