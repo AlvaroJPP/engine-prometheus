@@ -30,6 +30,8 @@ export interface SceneObjectData {
   colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
   colliderSize?: Vec3
   colliderOffset?: Vec3
+  /** ID do componente de biblioteca que originou o modelo, quando aplicável. */
+  componentId?: string
   /** GLB incorporado ao projeto para reconstruir modelos importados. */
   importedModelData?: string
   importedModelHeight?: number
