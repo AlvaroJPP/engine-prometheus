@@ -175,11 +175,11 @@ export class CollisionSystem {
     const manualSize = Array.isArray(configuredSize) && configuredSize.length === 3 && configuredSize.every((n: unknown) => typeof n === 'number' && Number.isFinite(n))
       ? new THREE.Vector3(Math.max(0.05, configuredSize[0]), Math.max(0.05, configuredSize[1]), Math.max(0.05, configuredSize[2]))
       : null
-    if (type === 'auto' && !manualSize) return sourceGeometry
     const offsetData = object.mesh.userData.colliderOffset
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
+    if (type === 'auto' && !manualSize && offset.every(value => Math.abs(value) < 1e-9)) return sourceGeometry
     const size = manualSize ?? sourceSize
     const width = Math.max(size.x, 0.05)
     const height = Math.max(size.y, 0.05)
