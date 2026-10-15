@@ -35,6 +35,7 @@ export class HorseMount {
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
     this.avatar = avatar
+    this.avatar.setExternalCollider(this.mesh)
     this.cameraTarget = cameraTarget
     this.getCameraYaw = getCameraYaw
     this.buildModel()
