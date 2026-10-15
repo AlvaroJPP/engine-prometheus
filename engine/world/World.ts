@@ -3,7 +3,8 @@ import { EventBus } from './events/EventBus'
 import type { EngineEvents } from './events/types'
 import type { GameObject, ObjectInfo, ObjectPatch } from '../model/object/GameObject'
 import { PRIMITIVE_DEFS } from '../model/object/defs'
-import { createPrimitive } from '../model/object/Primitives'
+import { applyTexturePreset, createPrimitive } from '../model/object/Primitives'
+import type { TexturePreset } from '../model/object/Primitives'
 import { TERRAIN_ID, TerrainMesh } from './map/TerrainMesh'
 import { DEFAULT_SEED } from './worldGeneration/Heightfield'
 import { clamp } from '../lib/math'
@@ -114,6 +115,7 @@ export class World {
     if (ok(patch.scaleY)) m.scale.y = clamp(patch.scaleY, 0.1, 20)
     if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, 20)
     if (ok(patch.color)) {
+      m.userData.baseColor = patch.color
       if (m.userData.importedModel === true) {
         // A caixa proxy é invisível. A cor precisa ser aplicada às malhas reais
         // sem apagar a cor/textura original: branco restaura a aparência do GLB.
@@ -141,6 +143,9 @@ export class World {
       } else {
         (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
       }
+    }
+    if (patch.texturePreset !== undefined && ['none', 'grass', 'stone', 'brick', 'wood', 'sand', 'metal'].includes(patch.texturePreset)) {
+      applyTexturePreset(m, patch.texturePreset as TexturePreset)
     }
     if (patch.visible !== undefined) m.visible = patch.visible
     if (patch.locked !== undefined) m.userData.locked = patch.locked
@@ -227,6 +232,7 @@ export class World {
       colliderType: o.mesh.userData.colliderType === 'box' || o.mesh.userData.colliderType === 'sphere' || o.mesh.userData.colliderType === 'capsule' || o.mesh.userData.colliderType === 'none' ? o.mesh.userData.colliderType : 'auto',
       colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [baseColliderSize.x, baseColliderSize.y, baseColliderSize.z],
       colliderOffset: Array.isArray(o.mesh.userData.colliderOffset) && o.mesh.userData.colliderOffset.length === 3 ? [...o.mesh.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
+      texturePreset: o.mesh.userData.texturePreset === 'grass' || o.mesh.userData.texturePreset === 'stone' || o.mesh.userData.texturePreset === 'brick' || o.mesh.userData.texturePreset === 'wood' || o.mesh.userData.texturePreset === 'sand' || o.mesh.userData.texturePreset === 'metal' ? o.mesh.userData.texturePreset : 'none',
       color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     })})
   }
