@@ -156,7 +156,6 @@ function deletePreviewPart(part: { id: string; name: string; object: THREE.Mesh 
 
 function clearLoadedModel() {
   previewParts.value = []
-  refreshModelDiagnostics()
   previewMixer?.stopAllAction()
   previewMixer = null
   if (model.value) {
@@ -164,6 +163,7 @@ function clearLoadedModel() {
     disposeModel(model.value)
   }
   model.value = null
+  refreshModelDiagnostics()
   if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
   currentObjectUrl = ''
 }
