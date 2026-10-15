@@ -47,6 +47,7 @@ export class Engine {
     this.avatar.setEnabled(false)
     this.horseMount = new HorseMount(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
     this.logic.setHorseActionHandler((action, objectId) => this.horseMount.executeNodeAction(action, objectId))
+    window.addEventListener('keydown', this.onRuleKeyDown)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -325,30 +326,73 @@ export class Engine {
     }
   }
 
-  /** Garante que o componente de cavalo já venha com um fluxo visual de montaria. */
+  /** Garante que o componente de cavalo tenha eventos visuais de interação e tecla E. */
   private ensureHorseLogic(objectId: string): void {
-    const existing = this.logic.list().some(rule =>
+    const rules = this.logic.list()
+    const hasMountClick = rules.some(rule =>
       rule.ownerObjectId === objectId &&
       rule.trigger.type === 'object_clicked' &&
       rule.trigger.objectId === objectId &&
       rule.actions.some(action => action.type === 'horse_mount'),
     )
-    if (existing) return
-    const rule: LogicRule = {
-      ownerObjectId: objectId,
-      id: `horse-mount-${objectId}`,
-      name: 'Montar no cavalo',
-      enabled: true,
-      trigger: { type: 'object_clicked', objectId },
-      conditions: [],
-      actions: [{ type: 'horse_mount' }],
-      graphLayout: {
-        trigger: { x: 70, y: 70 },
-        condition: { x: 350, y: 70 },
-        action: { x: 630, y: 70 },
-      },
+    if (!hasMountClick) {
+      this.logic.upsert({
+        ownerObjectId: objectId,
+        id: `horse-mount-${objectId}`,
+        name: 'Montar no cavalo',
+        enabled: true,
+        trigger: { type: 'object_clicked', objectId },
+        conditions: [],
+        actions: [{ type: 'horse_mount' }],
+        graphLayout: {
+          trigger: { x: 70, y: 70 },
+          condition: { x: 350, y: 70 },
+          action: { x: 630, y: 70 },
+        },
+      })
     }
-    this.logic.upsert(rule)
+    const hasToggleKey = rules.some(rule =>
+      rule.ownerObjectId === objectId &&
+      rule.trigger.type === 'key_pressed' &&
+      rule.trigger.key === 'KeyE' &&
+      rule.actions.some(action => action.type === 'horse_toggle_mount'),
+    )
+    if (!hasToggleKey) {
+      this.logic.upsert({
+        ownerObjectId: objectId,
+        id: `horse-toggle-mount-${objectId}`,
+        name: 'Montar ou desmontar (E)',
+        enabled: true,
+        trigger: { type: 'key_pressed', key: 'KeyE' },
+        conditions: [],
+        actions: [{ type: 'horse_toggle_mount' }],
+        graphLayout: {
+          trigger: { x: 70, y: 210 },
+          condition: { x: 350, y: 210 },
+          action: { x: 630, y: 210 },
+        },
+      })
+    }
+  }
+
+  private onRuleKeyDown = (event: KeyboardEvent): void => {
+    if (!this.cameraStateBeforeRun || event.repeat || event.code !== 'KeyE') return
+    const horses = this.world.list().filter(object =>
+      object.mesh.visible && (
+        object.mesh.userData.nativeComponentType === 'horse' ||
+        object.mesh.userData.nativeHorseComponent === true ||
+        object.mesh.userData.componentId === 'builtin-horse-low-poly'
+      ),
+    )
+    if (horses.length === 0) return
+    const nearest = horses.sort((a, b) =>
+      a.mesh.position.distanceToSquared(this.avatar.mesh.position) -
+      b.mesh.position.distanceToSquared(this.avatar.mesh.position),
+    )[0]
+    if (!nearest) return
+    if (!this.horseMount.isMounted && nearest.mesh.position.distanceTo(this.avatar.mesh.position) >= 3.4) return
+    event.preventDefault()
+    this.logic.triggerKeyPressed(event.code, nearest.id)
   }
 
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
@@ -988,6 +1032,7 @@ export class Engine {
   }
 
   dispose(): void {
+    window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.clear()
