@@ -767,23 +767,49 @@ export class Engine {
     return bundle
   }
 
-  async loadProject(bundle: ProjectBundle): Promise<void> {
+  async loadProject(
+    bundle: ProjectBundle,
+    onProgress?: (message: string, percent: number) => void,
+  ): Promise<void> {
+    const report = (message: string, percent: number) => onProgress?.(message, Math.max(0, Math.min(100, percent)))
+    const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     const scene = bundle.scenes[firstPath]
     if (!scene) throw new ProjectFormatError('O projeto não tem nenhuma cena para carregar.')
+
     resetIds()
     this.meta = { id: bundle.project.id, name: bundle.project.name }
     this.orbit.restore(scene.camera)
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
-    this.world.replaceAll(scene.objects.filter(object => !object.importedModelData).map(objectFromData), scene.terrain)
+
+    report('Preparando o terreno e os objetos básicos…', 5)
+    const regularObjects = scene.objects.filter(object => !object.importedModelData)
+    const restoredObjects: ReturnType<typeof objectFromData>[] = []
+    // Construir objetos em lotes permite que a interface atualize o progresso
+    // em projetos com muitas centenas ou milhares de objetos.
+    for (let i = 0; i < regularObjects.length; i += 50) {
+      const batch = regularObjects.slice(i, i + 50)
+      for (const data of batch) restoredObjects.push(objectFromData(data))
+      const percent = regularObjects.length
+        ? 5 + Math.round((Math.min(i + batch.length, regularObjects.length) / regularObjects.length) * 20)
+        : 25
+      report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
+      if (i + 50 < regularObjects.length) await yieldToUi()
+    }
+    this.world.replaceAll(restoredObjects, scene.terrain)
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
+    report('Terreno pronto. Restaurando modelos 3D…', 28)
+
+    const importedObjects = scene.objects.filter(object => !!object.importedModelData)
     const loader = new GLTFLoader()
-    for (const data of scene.objects) {
-      if (!data.importedModelData) continue
+    for (let i = 0; i < importedObjects.length; i += 1) {
+      const data = importedObjects[i]!
+      report(`Carregando modelo ${i + 1} de ${importedObjects.length}: ${data.name}…`, 30 + Math.round((i / Math.max(importedObjects.length, 1)) * 60))
       try {
-        const binary = Uint8Array.from(atob(data.importedModelData), char => char.charCodeAt(0)).buffer
+        const binary = Uint8Array.from(atob(data.importedModelData!), char => char.charCodeAt(0)).buffer
         const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
           loader.parse(binary, '', resolve, reject)
         })
@@ -800,11 +826,17 @@ export class Engine {
         console.error('[Engine] Não foi possível restaurar o modelo importado:', data.name, error)
         throw new ProjectFormatError(`Não foi possível carregar o modelo "${data.name}" salvo no projeto.`)
       }
+      // Dá ao navegador/Tauri a chance de pintar a barra e processar eventos
+      // entre assets, em vez de bloquear a interface até terminar tudo.
+      await yieldToUi()
     }
+
+    report('Finalizando configurações do editor…', 93)
     const editorSettings = bundle.project.settings.editor
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
+    report('Mundo carregado.', 100)
   }
 
   dispose(): void {
