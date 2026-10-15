@@ -74,8 +74,8 @@ export class HorseMount {
     const legGeometry = new THREE.CylinderGeometry(0.085, 0.065, 0.66, 5, 1)
     const hoofGeometry = new THREE.BoxGeometry(0.19, 0.15, 0.24)
     const legPositions: Array<[number, number, number]> = [
-      [-0.31, 0.94, 0.64], [0.31, 0.94, 0.64],
-      [-0.31, 0.94, -0.66], [0.31, 0.94, -0.66],
+      [-0.31, 0.72, 0.64], [0.31, 0.72, 0.64],
+      [-0.31, 0.72, -0.66], [0.31, 0.72, -0.66],
     ]
     for (let i = 0; i < legPositions.length; i += 1) {
       const [x, y, z] = legPositions[i]!
@@ -106,7 +106,7 @@ export class HorseMount {
         THREE.MathUtils.clamp(playerPosition.z - Math.sin(yaw) * 3, -47, 47),
       )
     }
-    this.mesh.rotation.y = this.getCameraYaw()
+    this.mesh.rotation.y = this.getCameraYaw() + Math.PI
   }
 
   update(dt: number): void {
@@ -133,7 +133,6 @@ export class HorseMount {
     const groundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
-    const swing = moving ? Math.sin(this.animationTime) * (this.galloping ? 0.78 : 0.38) : Math.sin(this.animationTime * 0.5) * 0.025
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
       leg.rotation.x = Math.sin(this.animationTime + phase) * (moving ? (this.galloping ? 0.78 : 0.38) : 0.025)
