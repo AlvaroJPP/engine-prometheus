@@ -678,17 +678,6 @@ watch(() => props.open, async (open) => {
     error.value = ''
   }
 })
-watch(() => props.initialAsset, async (asset) => {
-  if (!props.open || !asset) return
-  loading.value = true
-  try {
-    const loaded = await parseGlbBytes(asset.bytes.slice(0))
-    fileName.value = asset.name
-    await showLoadedModel(loaded, asset.name)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Não foi possível abrir o componente para pré-visualização.'
-  } finally { loading.value = false }
-})
 
 function selectPreviewAnimation(index: number) {
   previewAnimationIndex.value = index
@@ -963,13 +952,13 @@ onBeforeUnmount(disposePreview)
           </details>
           </section>
           <p v-if="error" class="model-import-error">{{ error }}</p>
-          <p class="model-import-tip">A prévia não altera o mundo. Salve o ativo como componente para reutilizá-lo quando quiser.</p>
+          <p class="model-import-tip">{{ props.initialAsset ? 'Modo de pré-visualização: selecione as animações no topo do viewport e ajuste a câmera. O modelo não será alterado no mundo.' : 'A prévia não altera o mundo. Salve o ativo como componente para reutilizá-lo quando quiser.' }}</p>
         </aside>
       </div>
 
       <footer class="model-import-footer">
-        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">Cancelar</button><button class="model-import-primary" :disabled="!model || loading" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
+        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
       </footer>
     </section>
   </div>
