@@ -1,6 +1,8 @@
 export type SavedComponentCollider = 'box' | 'sphere' | 'capsule' | 'none'
 
 export interface SavedComponent {
+  /** Tipo semântico da instância colocada na cena. */
+  kind?: 'object' | 'entity'
   /** Grafo visual reutilizável que acompanha o modelo ao inseri-lo no mundo. */
   logic?: import('@engine').LogicRule[]
   id: string
