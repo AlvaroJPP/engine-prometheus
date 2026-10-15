@@ -46,7 +46,7 @@ export class Engine {
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
     this.mountRuntime = new ScriptMountRuntime(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
-    this.logic.setHorseActionHandler((action, objectId) => this.mountRuntime.executeAction(action, objectId))
+    this.logic.setMountActionHandler((action, objectId) => this.mountRuntime.executeAction(action, objectId))
     window.addEventListener('keydown', this.onRuleKeyDown)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
