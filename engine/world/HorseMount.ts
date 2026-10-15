@@ -31,8 +31,10 @@ export class HorseMount {
   private riderModel: THREE.Object3D | null = null
   private riderMixer: THREE.AnimationMixer | null = null
   private horseMixer: THREE.AnimationMixer | null = null
-  private readonly horseAnimationActions = new Map<'idle' | 'walk' | 'run', THREE.AnimationAction>()
-  private activeHorseAnimation: 'idle' | 'walk' | 'run' | '' = ''
+  private readonly horseAnimationActions = new Map<'idle' | 'walk' | 'run' | 'turn-left' | 'turn-right', THREE.AnimationAction>()
+  private readonly riderAnimationActions = new Map<'idle' | 'walk' | 'run', THREE.AnimationAction>()
+  private activeHorseAnimation: 'idle' | 'walk' | 'run' | 'turn-left' | 'turn-right' | '' = ''
+  private activeRiderAnimation: 'idle' | 'walk' | 'run' | '' = ''
   private readonly mountRaycaster = new THREE.Raycaster()
   private readonly mountDown = new THREE.Vector3(0, -1, 0)
   private readonly mountSeatLocal = new THREE.Vector3(0, 0, -0.07)
@@ -255,17 +257,20 @@ export class HorseMount {
           this.horseAnimationActions.clear()
           this.activeHorseAnimation = ''
           for (const clip of gltf.animations) {
-            const name = clip.name.toLowerCase()
-            const key = /gallop|canter|run|sprint/.test(name) ? 'run'
-              : /walk|trot|locomotion|move/.test(name) ? 'walk'
-                : /idle|stand|rest|breath/.test(name) ? 'idle' : null
+            const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+            const key = /turnleft|leftturn|pivotleft|rotateleft/.test(name) ? 'turn-left'
+              : /turnright|rightturn|pivotright|rotateright/.test(name) ? 'turn-right'
+                : /gallop|canter|run|sprint/.test(name) ? 'run'
+                  : /walk|trot|locomotion|move/.test(name) ? 'walk'
+                    : /idle|stand|rest|breath|neutral/.test(name) ? 'idle' : null
             if (key && !this.horseAnimationActions.has(key)) {
               if (horseMixer) this.horseAnimationActions.set(key, horseMixer.clipAction(clip))
             }
           }
-          if (!this.horseAnimationActions.size && gltf.animations[0]) {
-            if (horseMixer) this.horseAnimationActions.set('idle', horseMixer.clipAction(gltf.animations[0]))
+          if (!this.horseAnimationActions.size && gltf.animations[0] && horseMixer) {
+            this.horseAnimationActions.set('idle', horseMixer.clipAction(gltf.animations[0]))
           }
+          console.info(`[HorseMount] low_poly_horse.glb: ${gltf.animations.length} animação(ões).`, gltf.animations.map((clip, index) => ({ index, name: clip.name || `(sem nome ${index + 1})`, duration: Number(clip.duration.toFixed(2)), tracks: clip.tracks.length })))
           this.playHorseAnimation('idle')
           this.proceduralBones.length = 0
           this.proceduralNodes.length = 0
@@ -299,10 +304,11 @@ export class HorseMount {
     )
   }
 
-  private playHorseAnimation(state: 'idle' | 'walk' | 'run'): void {
+  private playHorseAnimation(state: 'idle' | 'walk' | 'run' | 'turn-left' | 'turn-right'): void {
     if (this.activeHorseAnimation === state) return
     const next = this.horseAnimationActions.get(state)
       ?? (state === 'run' ? this.horseAnimationActions.get('walk') : undefined)
+      ?? (state === 'turn-left' || state === 'turn-right' ? this.horseAnimationActions.get('walk') : undefined)
       ?? this.horseAnimationActions.get('idle')
       ?? this.horseAnimationActions.values().next().value
     if (!next) return
@@ -312,6 +318,21 @@ export class HorseMount {
       if (action !== next) action.fadeOut(0.18)
     }
     this.activeHorseAnimation = state
+  }
+
+  private playRiderAnimation(state: 'idle' | 'walk' | 'run'): void {
+    if (this.activeRiderAnimation === state) return
+    const next = this.riderAnimationActions.get(state)
+      ?? (state === 'run' ? this.riderAnimationActions.get('walk') : undefined)
+      ?? this.riderAnimationActions.get('idle')
+      ?? this.riderAnimationActions.values().next().value
+    if (!next) return
+    next.setLoop(THREE.LoopRepeat, Infinity)
+    next.reset().fadeIn(0.18).play()
+    for (const action of this.riderAnimationActions.values()) {
+      if (action !== next) action.fadeOut(0.18)
+    }
+    this.activeRiderAnimation = state
   }
 
   private loadHorseRiderModel(): void {
@@ -348,8 +369,22 @@ export class HorseMount {
         this.riderModel = model
         this.mesh.add(model)
         this.riderMixer = new THREE.AnimationMixer(model)
-        const animation = gltf.animations[0]
-        if (animation) this.riderMixer.clipAction(animation).setLoop(THREE.LoopRepeat, Infinity).play()
+        this.riderAnimationActions.clear()
+        this.activeRiderAnimation = ''
+        for (const clip of gltf.animations) {
+          const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+          const key = /gallop|canter|run|sprint/.test(name) ? 'run'
+            : /walk|trot|locomotion|move/.test(name) ? 'walk'
+              : /idle|stand|rest|breath|neutral/.test(name) ? 'idle' : null
+          if (key && !this.riderAnimationActions.has(key)) {
+            this.riderAnimationActions.set(key, this.riderMixer.clipAction(clip))
+          }
+        }
+        if (!this.riderAnimationActions.size && gltf.animations[0]) {
+          this.riderAnimationActions.set('idle', this.riderMixer.clipAction(gltf.animations[0]))
+        }
+        console.info(`[HorseMount] low_poly_horse_rider.glb: ${gltf.animations.length} animação(ões).`, gltf.animations.map((clip, index) => ({ index, name: clip.name || `(sem nome ${index + 1})`, duration: Number(clip.duration.toFixed(2)), tracks: clip.tracks.length })))
+        this.playRiderAnimation('idle')
         this.syncMountedVisuals()
         console.info('[HorseMount] Modelo combinado de cavalo e cavaleiro carregado.')
       },
@@ -543,12 +578,21 @@ export class HorseMount {
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
     if (this.horseMixer) {
-      this.playHorseAnimation(this.galloping ? 'run' : moving ? 'walk' : 'idle')
+      const turningLeft = this.pressed.has('KeyA') || this.pressed.has('ArrowLeft')
+      const turningRight = this.pressed.has('KeyD') || this.pressed.has('ArrowRight')
+      const horseState = moving
+        ? (this.galloping ? 'run' : 'walk')
+        : turningLeft && !turningRight ? 'turn-left'
+          : turningRight && !turningLeft ? 'turn-right' : 'idle'
+      this.playHorseAnimation(horseState)
       this.horseMixer.update(step)
     } else {
       this.updateProceduralAnimation(step, moving)
     }
-    this.riderMixer?.update(step)
+    if (this.riderMixer) {
+      this.playRiderAnimation(this.galloping ? 'run' : moving ? 'walk' : 'idle')
+      this.riderMixer.update(step)
+    }
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
       leg.rotation.x = Math.sin(this.animationTime + phase) * (moving ? (this.galloping ? 0.78 : 0.38) : 0.025)
