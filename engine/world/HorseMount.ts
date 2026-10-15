@@ -40,6 +40,11 @@ export class HorseMount {
   private readonly mountSeatLocal = new THREE.Vector3(0, 0, -0.07)
   private readonly mountLeftLocal = new THREE.Vector3(-0.39, 0, -0.07)
   private readonly mountRightLocal = new THREE.Vector3(0.39, 0, -0.07)
+  private parkedComponent: THREE.Mesh | null = null
+  private parkedComponentHeight = HORSE_HEIGHT
+  private parkedComponentWasVisible = true
+  private readonly mountColliderSize = new THREE.Vector3(0.95, 1.35, 1.6)
+  private readonly mountColliderOffset = new THREE.Vector3()
 
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -450,14 +455,22 @@ export class HorseMount {
     const yaw = this.mesh.rotation.y
     const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
+    // Reaproveita as dimensões configuradas no inspetor do componente montável.
+    const halfLength = Math.max(0.55, this.mountColliderSize.z * 0.38)
+    const halfWidth = Math.max(0.28, this.mountColliderSize.x * 0.34)
+    const lowY = Math.max(0.38, this.mountColliderSize.y * 0.32)
+    const midY = Math.max(lowY + 0.12, this.mountColliderSize.y * 0.62)
+    const highY = Math.max(midY + 0.08, Math.min(1.65, this.mountColliderSize.y * 0.82))
+    const frontBackRadius = Math.max(0.3, Math.min(0.48, this.mountColliderSize.x * 0.43))
+    const sideRadius = Math.max(0.28, Math.min(0.46, this.mountColliderSize.z * 0.22))
     const samples = [
-      { offset: forward.clone().multiplyScalar(0.78), y: 0.62, radius: 0.42 },
-      { offset: forward.clone().multiplyScalar(0.45), y: 1.12, radius: 0.46 },
-      { offset: new THREE.Vector3(), y: 1.48, radius: 0.42 },
-      { offset: forward.clone().multiplyScalar(-0.55), y: 1.12, radius: 0.46 },
-      { offset: forward.clone().multiplyScalar(-0.82), y: 0.62, radius: 0.40 },
-      { offset: right.clone().multiplyScalar(0.34), y: 0.95, radius: 0.42 },
-      { offset: right.clone().multiplyScalar(-0.34), y: 0.95, radius: 0.42 },
+      { offset: forward.clone().multiplyScalar(halfLength), y: lowY, radius: frontBackRadius },
+      { offset: forward.clone().multiplyScalar(halfLength * 0.55), y: midY, radius: frontBackRadius },
+      { offset: new THREE.Vector3(), y: highY, radius: frontBackRadius },
+      { offset: forward.clone().multiplyScalar(-halfLength * 0.55), y: midY, radius: frontBackRadius },
+      { offset: forward.clone().multiplyScalar(-halfLength), y: lowY, radius: frontBackRadius },
+      { offset: right.clone().multiplyScalar(halfWidth), y: midY * 0.82, radius: sideRadius },
+      { offset: right.clone().multiplyScalar(-halfWidth), y: midY * 0.82, radius: sideRadius },
     ]
     const triangle = new THREE.Triangle()
     const a = new THREE.Vector3()
@@ -466,7 +479,8 @@ export class HorseMount {
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
     const worldSamples = samples.map((sample) => ({
-      center: new THREE.Vector3(x + sample.offset.x, groundY + sample.y, z + sample.offset.z),
+      center: new THREE.Vector3(x + sample.offset.x, groundY + sample.y, z + sample.offset.z)
+        .add(new THREE.Vector3(this.mountColliderOffset.x, this.mountColliderOffset.y, this.mountColliderOffset.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw)),
       radiusSq: sample.radius * sample.radius,
     }))
 
@@ -533,18 +547,64 @@ export class HorseMount {
     if (!enabled) {
       this.dismount(false)
       this.mesh.visible = false
+      if (this.parkedComponent) {
+        this.parkedComponent.visible = this.parkedComponentWasVisible
+        this.parkedComponent = null
+      }
       return
     }
-    this.mesh.visible = true
-    if (playerPosition) {
-      const yaw = this.getCameraYaw()
+
+    // Se o Cavalo Low Poly da biblioteca estiver colocado no mundo, use sua
+    // posição e seus parâmetros de colisão como ponto de partida da montaria.
+    // O proxy original fica oculto durante o runtime para não duplicar o modelo;
+    // sua posição acompanha a montaria e é restaurada ao sair do modo Run.
+    const placedHorse = this.world.list()
+      .filter(object => object.mesh.visible && (
+        object.mesh.userData.componentId === 'builtin-horse-low-poly' ||
+        object.name.trim().toLowerCase() === 'cavalo low poly'
+      ))
+      .sort((a, b) => {
+        if (!playerPosition) return 0
+        return a.mesh.position.distanceToSquared(playerPosition) - b.mesh.position.distanceToSquared(playerPosition)
+      })[0]
+
+    this.parkedComponent = placedHorse?.mesh ?? null
+    if (this.parkedComponent) {
+      const component = this.parkedComponent
+      this.parkedComponentWasVisible = component.visible
+      this.parkedComponentHeight = Number(component.userData.importedModelHeight) > 0
+        ? Number(component.userData.importedModelHeight) : HORSE_HEIGHT
+      const colliderSize = component.userData.colliderSize
+      if (Array.isArray(colliderSize) && colliderSize.length === 3 && colliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
+        this.mountColliderSize.set(
+          Math.max(0.1, colliderSize[0]),
+          Math.max(0.1, colliderSize[1]),
+          Math.max(0.1, colliderSize[2]),
+        )
+      }
+      const colliderOffset = component.userData.colliderOffset
+      if (Array.isArray(colliderOffset) && colliderOffset.length === 3 && colliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
+        this.mountColliderOffset.set(colliderOffset[0], colliderOffset[1], colliderOffset[2])
+      } else {
+        this.mountColliderOffset.set(0, 0, 0)
+      }
       this.mesh.position.set(
-        THREE.MathUtils.clamp(playerPosition.x + Math.cos(yaw) * 3, -47, 47),
-        this.world.terrain.heightAt(playerPosition.x + Math.cos(yaw) * 3, playerPosition.z - Math.sin(yaw) * 3),
-        THREE.MathUtils.clamp(playerPosition.z - Math.sin(yaw) * 3, -47, 47),
+        component.position.x,
+        this.world.terrain.heightAt(component.position.x, component.position.z),
+        component.position.z,
       )
+      this.mesh.rotation.set(0, component.rotation.y, 0)
+      component.visible = false
+    } else if (playerPosition) {
+      this.mountColliderSize.set(0.95, 1.35, 1.6)
+      this.mountColliderOffset.set(0, 0, 0)
+      const yaw = this.getCameraYaw()
+      const x = THREE.MathUtils.clamp(playerPosition.x + Math.cos(yaw) * 3, -47, 47)
+      const z = THREE.MathUtils.clamp(playerPosition.z - Math.sin(yaw) * 3, -47, 47)
+      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      this.mesh.rotation.y = yaw + Math.PI
     }
-    this.mesh.rotation.y = this.getCameraYaw() + Math.PI
+    this.mesh.visible = true
   }
 
   update(dt: number): void {
@@ -576,6 +636,15 @@ export class HorseMount {
 
     const groundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = groundY
+    if (this.parkedComponent) {
+      this.parkedComponent.position.set(
+        this.mesh.position.x,
+        groundY + this.parkedComponentHeight / 2,
+        this.mesh.position.z,
+      )
+      this.parkedComponent.rotation.y = this.mesh.rotation.y
+      this.parkedComponent.updateMatrixWorld(true)
+    }
     this.animationTime += step * (this.galloping ? 15 : 8)
     if (this.horseMixer) {
       const turningLeft = this.pressed.has('KeyA') || this.pressed.has('ArrowLeft')
