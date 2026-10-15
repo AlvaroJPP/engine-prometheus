@@ -108,7 +108,7 @@ function refreshPreviewParts() {
   }
   visit(root, 0)
   previewParts.value = parts
-  if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = parts[0]?.id ?? ''
+  if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = ''
   if (!parts.some(part => part.id === soloPartId.value)) soloPartId.value = ''
 }
 
@@ -605,7 +605,7 @@ watch(modelHeight, (height) => {
 function confirmImport() {
   if (!model.value || !fileName.value) return
   const root = model.value
-  const chosenPart = findPreviewPart(selectedPartId.value)
+  const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
   let imported: THREE.Object3D
   let importedHeight = modelHeight.value
 
