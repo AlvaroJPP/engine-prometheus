@@ -909,13 +909,13 @@ onBeforeUnmount(disposePreview)
           </details>
           </section>
           <p v-if="error" class="model-import-error">{{ error }}</p>
-          <p class="model-import-tip">A prévia não altera o mundo. Confirme a importação quando o ativo estiver pronto.</p>
+          <p class="model-import-tip">A prévia não altera o mundo. Salve o ativo como componente para reutilizá-lo quando quiser.</p>
         </aside>
       </div>
 
       <footer class="model-import-footer">
-        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ model ? 'Ativo pronto para importar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">Cancelar</button><button class="model-import-primary" :disabled="!model || loading" @click="confirmImport"><span>↓</span> Importar para a cena</button></div>
+        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">Cancelar</button><button class="model-import-primary" :disabled="!model || loading" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
       </footer>
     </section>
   </div>
