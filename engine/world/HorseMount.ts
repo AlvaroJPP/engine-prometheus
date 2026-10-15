@@ -250,7 +250,8 @@ export class HorseMount {
           this.mesh.add(model)
           this.importedModel = model
           model.visible = !this.mounted
-          this.horseMixer = new THREE.AnimationMixer(model)
+          const horseMixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null
+          this.horseMixer = horseMixer
           this.horseAnimationActions.clear()
           this.activeHorseAnimation = ''
           for (const clip of gltf.animations) {
@@ -259,11 +260,11 @@ export class HorseMount {
               : /walk|trot|locomotion|move/.test(name) ? 'walk'
                 : /idle|stand|rest|breath/.test(name) ? 'idle' : null
             if (key && !this.horseAnimationActions.has(key)) {
-              this.horseAnimationActions.set(key, this.horseMixer.clipAction(clip))
+              if (horseMixer) this.horseAnimationActions.set(key, horseMixer.clipAction(clip))
             }
           }
           if (!this.horseAnimationActions.size && gltf.animations[0]) {
-            this.horseAnimationActions.set('idle', this.horseMixer.clipAction(gltf.animations[0]))
+            if (horseMixer) this.horseAnimationActions.set('idle', horseMixer.clipAction(gltf.animations[0]))
           }
           this.playHorseAnimation('idle')
           this.proceduralBones.length = 0
