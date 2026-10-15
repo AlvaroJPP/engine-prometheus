@@ -21,6 +21,8 @@ export interface SceneObjectData {
   groupId?: string | null
   mass?: number
   colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
+  colliderSize?: Vec3
+  colliderOffset?: Vec3
 }
 
 export interface TerrainData {
