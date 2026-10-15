@@ -43,7 +43,6 @@ export class HorseMount {
   private parkedComponent: THREE.Mesh | null = null
   private editorComponent: THREE.Mesh | null = null
   private parkedComponentHeight = HORSE_HEIGHT
-  private parkedComponentWasVisible = true
   private readonly mountColliderSize = new THREE.Vector3(0.95, 1.35, 1.6)
   private readonly mountColliderOffset = new THREE.Vector3()
 
@@ -607,7 +606,6 @@ export class HorseMount {
     this.editorComponent = this.parkedComponent
     if (this.parkedComponent) {
       const component = this.parkedComponent
-      this.parkedComponentWasVisible = component.visible
       this.parkedComponentHeight = Number(component.userData.importedModelHeight) > 0
         ? Number(component.userData.importedModelHeight) : HORSE_HEIGHT
       const colliderSize = component.userData.colliderSize
