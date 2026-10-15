@@ -8,6 +8,7 @@ import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
+import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
@@ -434,19 +435,17 @@ async function refreshSavedComponents() {
   }
 }
 
-function disposeComponentSource(root: import('three').Object3D) {
-  const geometries = new Set<import('three').BufferGeometry>()
-  const materials = new Set<import('three').Material>()
-  const textures = new Set<import('three').Texture>()
+function disposeComponentSource(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  const textures = new Set<THREE.Texture>()
   root.traverse(node => {
-    if (!(node instanceof (Object.getPrototypeOf(root).constructor as typeof import('three').Object3D)) && !('isMesh' in node)) return
-    const mesh = node as import('three').Mesh
-    if (!mesh.geometry) return
-    geometries.add(mesh.geometry)
-    const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    if (!(node instanceof THREE.Mesh)) return
+    geometries.add(node.geometry)
+    const list = Array.isArray(node.material) ? node.material : [node.material]
     list.forEach(material => {
       materials.add(material)
-      for (const value of Object.values(material)) if (value instanceof (THREE.Texture)) textures.add(value)
+      for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value)
     })
   })
   geometries.forEach(geometry => geometry.dispose())
