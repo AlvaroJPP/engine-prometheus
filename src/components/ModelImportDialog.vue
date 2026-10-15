@@ -7,7 +7,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{
@@ -442,6 +442,12 @@ async function importBlendZip() {
   loading.value = true
   error.value = ''
   try {
+    // O seletor nativo e o comando Rust só existem dentro do aplicativo Tauri.
+    // Em `npm run dev` aberto no navegador, evite chamar invoke sem runtime nativo.
+    if (!isTauri()) {
+      error.value = 'A importação por ZIP requer o aplicativo desktop Tauri. Execute `npm run tauri dev` e abra o Engine Prometheus pela janela do aplicativo. Para testar pelo navegador, selecione diretamente um arquivo GLB.'
+      return
+    }
     const selected = await openNativeDialog({
       multiple: false,
       directory: false,
