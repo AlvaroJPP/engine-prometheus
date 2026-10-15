@@ -176,7 +176,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!object || object.id === TERRAIN_ID) { say('Selecione um objeto para copiar.'); return }
     const sourceObject = engine?.world.get(object.id)
     if (sourceObject?.mesh.userData.importedModel === true) {
-      const visualModel = sourceObject.mesh.children.find(child => child.userData.importPart === true || child.type === 'Group' || child.type === 'Object3D')
+      const visualModel = sourceObject.mesh.children[0]
       if (!visualModel) {
         say('Não foi possível localizar a malha visual deste modelo.')
         return
