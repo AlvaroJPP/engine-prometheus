@@ -84,7 +84,7 @@ export class HumanoidAvatar {
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
   private animationTime = 0
-  private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3; restWorldPosition: THREE.Vector3 }> = []
+  private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
@@ -479,8 +479,6 @@ export class HumanoidAvatar {
               baseY: child.rotation.y,
               baseZ: child.rotation.z,
               basePosition: child.position.clone(),
-              // A posição no espaço do modelo permite animar rigs com nomes genéricos.
-              restWorldPosition: child.getWorldPosition(new THREE.Vector3()),
             })
           }
           if (child instanceof THREE.Mesh) {
@@ -567,9 +565,10 @@ export class HumanoidAvatar {
 
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
-    // Não confiamos apenas no nome do clipe: alguns GLBs trazem um clipe "walk"
-    // que não controla os ossos do rig usado pelo avatar. A camada procedural é
-    // aplicada sempre após o mixer para garantir movimento visível dos membros.
+    const hasStateClip = this.animationActions.has(state)
+      || (state === 'run' && this.animationActions.has('walk'))
+      || this.animationActions.has('idle')
+    if (hasStateClip) return
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
@@ -607,26 +606,11 @@ export class HumanoidAvatar {
       limbs.torso.rotation.x = movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0
     }
     for (const bone of this.animatedBones) {
-      const name = bone.name
-      const left = /left|_l\b|\.l\b|\bl_/.test(name) || (!/right|_r\b|\.r\b|\br_/.test(name) && bone.restWorldPosition.x < -0.08)
-      const right = /right|_r\b|\.r\b|\br_/.test(name) || (!/left|_l\b|\.l\b|\bl_/.test(name) && bone.restWorldPosition.x > 0.08)
-      const lowerBodyByPosition = bone.restWorldPosition.y > 0.12 && bone.restWorldPosition.y < 0.92
-      const upperBodyByPosition = bone.restWorldPosition.y >= 0.72 && bone.restWorldPosition.y < 1.58
-      const isLeg = /(upleg|upper.?leg|thigh|leg|calf|shin|foot|ankle)/.test(name) || (lowerBodyByPosition && Math.abs(bone.restWorldPosition.x) > 0.035)
-      const isArm = /(arm|hand|forearm|shoulder)/.test(name) || (upperBodyByPosition && Math.abs(bone.restWorldPosition.x) > 0.16)
-      if (isLeg && left) {
-        bone.node.rotation.x = bone.baseX + swing
-      } else if (isLeg && right) {
-        bone.node.rotation.x = bone.baseX - swing
-      } else if (isArm && left) {
-        bone.node.rotation.x = bone.baseX - swing * 0.55
-        bone.node.rotation.z = bone.baseZ
-      } else if (isArm && right) {
-        bone.node.rotation.x = bone.baseX + swing * 0.55
-        bone.node.rotation.z = bone.baseZ
-      } else if (/spine|hips|pelvis|chest/.test(name)) {
-        bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.035 : Math.sin(this.animationTime * 0.5) * 0.012)
-      }
+      if (/left.*(leg|thigh|calf)|thigh.*left|leg.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing
+      else if (/right.*(leg|thigh|calf)|thigh.*right|leg.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing
+      else if (/left.*(arm|hand)|arm.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing * 0.65
+      else if (/right.*(arm|hand)|arm.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing * 0.65
+      else if (/spine|hips|pelvis/.test(bone.name)) bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0)
     }
     if (!this.proceduralLimbs) {
       if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
