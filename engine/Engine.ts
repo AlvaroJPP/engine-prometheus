@@ -383,7 +383,20 @@ export class Engine {
   }
 
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
-  private placeNativeHorseComponent(x: number, baseY: number, z: number, name: string, componentLogic?: unknown): void {
+  private placeNativeHorseComponent(
+    x: number,
+    baseY: number,
+    z: number,
+    name: string,
+    componentLogic?: unknown,
+    componentMetadata?: {
+      importedModelData?: unknown
+      importedModelHeight?: unknown
+      importColliderType?: unknown
+      importColliderSize?: unknown
+      importColliderOffset?: unknown
+    },
+  ): void {
     const height = 2.05
     const root = new THREE.Mesh(
       new THREE.BoxGeometry(1.55, height, 2.8),
@@ -401,10 +414,24 @@ export class Engine {
     root.userData.nativeHorseComponent = true
     root.userData.componentId = 'builtin-horse-low-poly'
     root.userData.importedModel = true
-    root.userData.importedModelHeight = height
-    root.userData.colliderType = 'box'
-    root.userData.colliderSize = [0.95, 1.35, 1.6]
-    root.userData.colliderOffset = [0, 0.02, 0]
+    root.userData.importedModelData = typeof componentMetadata?.importedModelData === 'string'
+      ? componentMetadata.importedModelData
+      : undefined
+    root.userData.importedModelHeight = typeof componentMetadata?.importedModelHeight === 'number'
+      && Number.isFinite(componentMetadata.importedModelHeight) && componentMetadata.importedModelHeight > 0
+      ? componentMetadata.importedModelHeight : height
+    root.userData.colliderType = componentMetadata?.importColliderType === 'sphere'
+      || componentMetadata?.importColliderType === 'capsule'
+      || componentMetadata?.importColliderType === 'none'
+      ? componentMetadata.importColliderType : 'box'
+    const savedColliderSize = componentMetadata?.importColliderSize
+    root.userData.colliderSize = Array.isArray(savedColliderSize) && savedColliderSize.length === 3
+      && savedColliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0)
+      ? [...savedColliderSize] : [0.95, 1.35, 1.6]
+    const savedColliderOffset = componentMetadata?.importColliderOffset
+    root.userData.colliderOffset = Array.isArray(savedColliderOffset) && savedColliderOffset.length === 3
+      && savedColliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
+      ? [...savedColliderOffset] : [0, 0.02, 0]
     root.userData.locked = false
     root.userData.wireframeVisible = false
     const id = `horse_component_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
@@ -433,7 +460,11 @@ export class Engine {
     if (!pending) return false
     try {
       if (pending.model.userData.nativeHorseComponent === true) {
-        this.placeNativeHorseComponent(x, baseY, z, pending.name, pending.model.userData.componentLogic)
+        this.placeNativeHorseComponent(
+          x, baseY, z, pending.name,
+          pending.model.userData.componentLogic,
+          pending.model.userData,
+        )
       } else {
         const existingIds = new Set(this.world.list().map(object => object.id))
         const model = pending.model.clone(true)
