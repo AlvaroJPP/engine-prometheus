@@ -161,6 +161,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function copySelectedObject() {
     const object = objects.value.find(item => item.id === selectedId.value)
     if (!object || object.id === TERRAIN_ID) { say('Selecione um objeto para copiar.'); return }
+    if (engine?.world.get(object.id)?.mesh.userData.importedModel === true) {
+      say('A cópia de modelos 3D importados ainda não está disponível; esta ação funciona com objetos básicos.')
+      return
+    }
     clipboardObject = JSON.parse(JSON.stringify(object)) as ObjectInfo
     say(`Objeto "${object.name}" copiado.`)
   }
