@@ -696,7 +696,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div class="environment-editor">
               <h4>Céu</h4>
               <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
-              <input ref="skyFileInput" type="file" accept="image/*" hidden @change="onSkyTextureSelected" />
+              <input ref="skyFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onSkyTextureSelected" />
               <button class="primary environment-button" @click="skyFileInput?.click()">{{ skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>
               <div v-if="skyTextureDataUrl" class="environment-file"><span>▧ {{ skyTextureName || 'Textura carregada' }}</span><button class="ghost" @click="clearSkyTexture">Remover</button></div>
               <h4>Dia e noite</h4>
