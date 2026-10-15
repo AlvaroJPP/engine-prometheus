@@ -44,7 +44,6 @@ async function readAsset(dir: string, rel: string): Promise<string> {
 }
 
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
-  const totalObjects = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.length, 0)
   const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
   const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length, 0)
   const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length + 2)
