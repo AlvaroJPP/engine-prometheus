@@ -32,8 +32,8 @@ export interface SceneObjectData {
   colliderOffset?: Vec3
   /** ID do componente de biblioteca que originou o modelo, quando aplicável. */
   componentId?: string
-  /** Tipo de componente nativo do motor, reconstruído sem duplicar o modelo visual. */
-  nativeComponentType?: 'horse'
+  /** Tipo semântico genérico do elemento colocado na cena. */
+  sceneKind?: 'object' | 'entity'
   /** GLB incorporado ao projeto para reconstruir modelos importados. */
   importedModelData?: string
   importedModelHeight?: number
