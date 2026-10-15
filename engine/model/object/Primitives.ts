@@ -164,8 +164,8 @@ export function applyFaceTextures(mesh: THREE.Mesh, faceMap: FaceTextureMap): vo
         return
       }
       const canvas = document.createElement('canvas')
-      canvas.width = THREE.MathUtils.clamp(Math.round(config.pixelWidth || 128), 8, 2048)
-      canvas.height = THREE.MathUtils.clamp(Math.round(config.pixelHeight || 128), 8, 2048)
+      canvas.width = THREE.MathUtils.clamp(Math.round(config.pixelWidth || 128), 8, 10000)
+      canvas.height = THREE.MathUtils.clamp(Math.round(config.pixelHeight || 128), 8, 10000)
       const context = canvas.getContext('2d')
       if (!context) { loaded.dispose(); return }
       context.imageSmoothingEnabled = false
