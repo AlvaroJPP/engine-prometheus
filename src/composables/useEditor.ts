@@ -53,6 +53,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushRadius = ref(4)
   const gridVisible = ref(true)
   const polygonLinesVisible = ref(false)
+  const skyTextureDataUrl = ref('')
+  const timeOfDay = ref(12)
+  const dayNightCycleEnabled = ref(false)
+  const dayNightCycleSpeed = ref(0.1)
   const colliderDebugVisible = ref(false)
   const logicRules = ref<LogicRule[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
@@ -272,6 +276,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     objects.value = engine.listObjects()
     terrain.value = engine.terrainInfo()
     gridVisible.value = engine.isGridVisible()
+    const environment = engine.world.getEnvironment()
+    skyTextureDataUrl.value = environment.skyTextureDataUrl
+    timeOfDay.value = environment.timeOfDay
+    dayNightCycleEnabled.value = environment.cycleEnabled
+    dayNightCycleSpeed.value = environment.cycleSpeed
     logicRules.value = engine.listRules()
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
@@ -358,6 +367,35 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function setTransform(m: TransformMode) {
     engine?.setTransform(m)
+  }
+
+  function setSkyTexture(dataUrl: string) {
+    if (!engine) return
+    engine.world.setEnvironment({ skyTextureDataUrl: dataUrl })
+    skyTextureDataUrl.value = dataUrl
+    dirty.value = true
+    say(dataUrl ? 'Textura do céu aplicada. Salve o projeto para persistir.' : 'Textura do céu removida.')
+  }
+
+  function setTimeOfDay(value: number) {
+    if (!engine || !Number.isFinite(value)) return
+    timeOfDay.value = Math.max(0, Math.min(24, value))
+    engine.world.setEnvironment({ timeOfDay: timeOfDay.value })
+    dirty.value = true
+  }
+
+  function setDayNightCycleEnabled(value: boolean) {
+    if (!engine) return
+    dayNightCycleEnabled.value = value
+    engine.world.setEnvironment({ cycleEnabled: value })
+    dirty.value = true
+  }
+
+  function setDayNightCycleSpeed(value: number) {
+    if (!engine || !Number.isFinite(value)) return
+    dayNightCycleSpeed.value = Math.max(0.01, Math.min(4, value))
+    engine.world.setEnvironment({ cycleSpeed: dayNightCycleSpeed.value })
+    dirty.value = true
   }
 
   function addPrimitive(type: ObjectType) {
@@ -829,6 +867,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       brushStrength.value = 1.5
       brushRadius.value = 4
       gridVisible.value = true
+      skyTextureDataUrl.value = ''
+      timeOfDay.value = 12
+      dayNightCycleEnabled.value = false
+      dayNightCycleSpeed.value = 0.1
     } finally {
       applyingProjectSettings = false
     }
@@ -863,6 +905,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         brushStrength.value = bundle.project.settings.editor.brushStrength
         brushRadius.value = bundle.project.settings.editor.brushRadius
         gridVisible.value = bundle.project.settings.editor.gridVisible
+        const environment = eng.world.getEnvironment()
+        skyTextureDataUrl.value = environment.skyTextureDataUrl
+        timeOfDay.value = environment.timeOfDay
+        dayNightCycleEnabled.value = environment.cycleEnabled
+        dayNightCycleSpeed.value = environment.cycleSpeed
       } finally {
         applyingProjectSettings = false
       }
@@ -988,6 +1035,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setTool,
     setTransform,
     addPrimitive,
+    skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
+    setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
     addSpawnPlatform,
     addImportedModel,
     setBuildComponentPlacement,
