@@ -91,7 +91,7 @@ const emit = defineEmits<{
       <div v-for="component in components" :key="component.id" class="saved-component">
         <button class="saved-component-place" :title="'Adicionar ' + component.name + ' ao mundo'" @click="emit('place-component', component.id)"><span class="saved-component-icon">▧</span><span class="saved-component-copy"><strong>{{ component.name }}</strong><small>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : 'Caixa' }}</small></span><span class="saved-component-add">＋</span></button>
         <button class="saved-component-preview" :aria-label="'Ver animações de ' + component.name" title="Pré-visualizar modelo e animações" @click="emit('preview-component', component.id)">▶</button>
-        <button v-if="component.id !== 'builtin-horse-low-poly'" class="saved-component-delete" :aria-label="'Excluir componente ' + component.name" title="Excluir da biblioteca" @click="emit('delete-component', component.id)">×</button>
+        <button class="saved-component-delete" :aria-label="'Excluir componente ' + component.name" title="Excluir da biblioteca" @click="emit('delete-component', component.id)">×</button>
       </div>
     </div>
 
