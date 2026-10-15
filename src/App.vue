@@ -28,6 +28,7 @@ const {
   projectName,
   dirty,
   status,
+  ioProgress,
   objects,
   terrain,
   selectedId,
@@ -1123,6 +1124,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </aside>
       </div>
     </div>
+    <div v-if="ioProgress.active" class="project-io-overlay" role="status" aria-live="polite">
+      <section class="project-io-card">
+        <div class="project-io-icon">{{ ioProgress.kind === 'save' ? '↓' : '↑' }}</div>
+        <div class="project-io-heading">{{ ioProgress.kind === 'save' ? 'Salvando projeto' : 'Carregando projeto' }}</div>
+        <p class="project-io-message">{{ ioProgress.message }}</p>
+        <div class="project-io-track"><div class="project-io-fill" :style="{ width: ioProgress.percent + '%' }"></div></div>
+        <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
+      </section>
+    </div>
     <ModelImportDialog :open="modelImportOpen" @close="modelImportOpen = false" @import="handleModelImport" />
   </div>
 </template>
@@ -1996,4 +2006,16 @@ input[type='range'] { accent-color: #e98524; }
 .model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
 .model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
 .model-import-launch span{font-size:17px;line-height:10px}
+</style>
+
+<style>
+.project-io-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:rgba(10,12,16,.72);backdrop-filter:blur(3px)}
+.project-io-card{width:min(420px,100%);padding:24px;border:1px solid #454b57;border-radius:8px;background:#242830;color:#edf0f6;box-shadow:0 20px 70px #0008}
+.project-io-icon{display:grid;place-items:center;width:38px;height:38px;margin-bottom:16px;border:1px solid #5e4b35;border-radius:7px;background:#342a20;color:#f0b879;font-size:23px}
+.project-io-heading{font-size:16px;font-weight:650}
+.project-io-message{min-height:20px;margin:9px 0 18px;color:#aeb6c4;font-size:12px;overflow-wrap:anywhere}
+.project-io-track{height:7px;overflow:hidden;border-radius:10px;background:#11151b}
+.project-io-fill{height:100%;border-radius:10px;background:#d89a55;transition:width .18s ease}
+.project-io-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:#8993a3;font-size:10px}
+.project-io-meta strong{color:#f0c18f;font-size:11px;font-variant-numeric:tabular-nums}
 </style>
