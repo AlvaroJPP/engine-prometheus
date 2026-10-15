@@ -57,8 +57,8 @@ export class CollisionSystem {
 
   update(): void {
     const objects = this.world.list().filter(object => object.mesh.visible)
-    // Modelos importados têm uma caixa proxy para seleção e terreno. Não os inclua
-    // no SAT de pares: modelos externos podem ser grandes e não são colisores convexos.
+    // Modelos importados usam a caixa proxy por padrão; quando necessário, o usuário
+    // pode escolher um colisor simplificado no inspetor para maior estabilidade.
     this.keepObjectsAboveTerrain(objects)
     const collidableObjects = objects.filter(object => this.colliderType(object) !== 'none')
     const previousPairs = this.activePairs
