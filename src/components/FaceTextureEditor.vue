@@ -35,8 +35,8 @@ function loadImage(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (!file.type.startsWith('image/')) return
-  if (file.size > 8 * 1024 * 1024) {
-    window.alert('Escolha uma imagem de até 8 MB.')
+  if (file.size > 20 * 1024 * 1024) {
+    window.alert('Escolha uma imagem de até 20 MB.')
     return
   }
   const reader = new FileReader()
