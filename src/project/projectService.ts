@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
 import { MAIN_SCENE_PATH, parseProject, parseScene } from '@engine'
-import type { ProjectBundle } from '@engine'
+import type { FaceTextureMap, ProjectBundle, SceneFile, SceneObjectData } from '@engine'
+
+export type ProjectProgress = (message: string, percent: number) => void
 
 export async function chooseFolder(title: string): Promise<string | null> {
   const picked = await open({ directory: true, multiple: false, title })
@@ -12,28 +14,134 @@ export async function projectExistsIn(dir: string): Promise<boolean> {
   return invoke<boolean>('project_exists', { dir })
 }
 
-export async function saveProjectTo(dir: string, bundle: ProjectBundle): Promise<void> {
-  // As cenas vão primeiro; o project.json por último, para nunca apontar para cena que não foi gravada.
-  for (const [path, scene] of Object.entries(bundle.scenes)) {
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
+  }
+  return btoa(binary)
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+function parseDataUrl(dataUrl: string): { mime: string; base64: string; extension: string } {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/.exec(dataUrl)
+  if (!match) throw new Error('Uma textura do projeto tem um formato de imagem inválido.')
+  const mime = match[1].toLowerCase()
+  const extension = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'png'
+  return { mime, base64: match[2], extension }
+}
+
+function safeAssetId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100) || 'asset'
+}
+
+async function writeAsset(dir: string, rel: string, base64: string): Promise<void> {
+  await invoke('write_project_asset', { dir, rel, base64 })
+}
+
+async function readAsset(dir: string, rel: string): Promise<string> {
+  return invoke<string>('read_project_asset', { dir, rel })
+}
+
+export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
+  const totalObjects = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.length, 0)
+  const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
+  const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length, 0)
+  const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length + 2)
+  let completed = 0
+  const report = (message: string) => onProgress?.(message, Math.min(99, Math.round((completed / total) * 100)))
+  const scenes: Record<string, SceneFile> = JSON.parse(JSON.stringify(bundle.scenes)) as Record<string, SceneFile>
+
+  // Recursos binários ficam em resources/, enquanto as cenas guardam apenas referências.
+  for (const [scenePath, scene] of Object.entries(scenes)) {
+    for (const object of scene.objects as SceneObjectData[]) {
+      const faceTextures = object.faceTextures as FaceTextureMap | undefined
+      if (faceTextures) {
+        for (const [face, texture] of Object.entries(faceTextures)) {
+          if (!texture?.imageDataUrl || texture.imageDataUrl.startsWith('asset://')) continue
+          const parsed = parseDataUrl(texture.imageDataUrl)
+          const rel = `resources/textures/${safeAssetId(object.id)}-${face}.${parsed.extension}`
+          await writeAsset(dir, rel, parsed.base64)
+          texture.imageDataUrl = `asset://${rel}`
+          completed++
+          report(`Salvando textura ${face}…`)
+        }
+      }
+      if (object.importedModelData && !object.importedModelData.startsWith('asset://')) {
+        const rel = `resources/models/${safeAssetId(object.id)}.glb`
+        // importedModelData é o conteúdo binário GLB codificado em Base64.
+        await writeAsset(dir, rel, object.importedModelData.replace(/^data:.*?;base64,/, ''))
+        object.importedModelData = `asset://${rel}`
+        completed++
+        report(`Salvando modelo 3D ${object.name}…`)
+      }
+    }
+    completed++
+    report(`Preparando cena ${scenePath}…`)
+  }
+
+  for (const [path, scene] of Object.entries(scenes)) {
     await invoke('write_project_file', { dir, rel: path, contents: JSON.stringify(scene, null, 2) })
+    completed++
+    report(`Gravando ${path}…`)
   }
   await invoke('write_project_file', {
     dir,
     rel: 'logic/events.json',
     contents: JSON.stringify(bundle.logic ?? { formatVersion: 1, variables: {}, events: [] }, null, 2),
   })
-  await invoke('write_project_file', {
-    dir,
-    rel: 'project.json',
-    contents: JSON.stringify(bundle.project, null, 2),
-  })
+  completed++
+  report('Gravando eventos e regras…')
+  await invoke('write_project_file', { dir, rel: 'project.json', contents: JSON.stringify(bundle.project, null, 2) })
+  onProgress?.('Salvamento concluído.', 100)
 }
 
-export async function loadProjectFrom(dir: string): Promise<ProjectBundle> {
+async function hydrateSceneAssets(dir: string, rawText: string, label: string): Promise<string> {
+  let scene: SceneFile
+  try {
+    scene = JSON.parse(rawText) as SceneFile
+  } catch {
+    // Deixa o validador emitir a mensagem de JSON inválido.
+    return rawText
+  }
+  for (const object of scene.objects ?? []) {
+    const faces = object.faceTextures as FaceTextureMap | undefined
+    if (faces) {
+      for (const texture of Object.values(faces)) {
+        if (!texture?.imageDataUrl?.startsWith('asset://')) continue
+        const rel = texture.imageDataUrl.slice('asset://'.length)
+        const base64 = await readAsset(dir, rel)
+        const extension = rel.split('.').pop()?.toLowerCase()
+        const mime = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/png'
+        texture.imageDataUrl = `data:${mime};base64,${base64}`
+      }
+    }
+    if (typeof object.importedModelData === 'string' && object.importedModelData.startsWith('asset://')) {
+      const rel = object.importedModelData.slice('asset://'.length)
+      object.importedModelData = await readAsset(dir, rel)
+    }
+  }
+  return JSON.stringify(scene)
+}
+
+export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress): Promise<ProjectBundle> {
+  onProgress?.('Lendo configurações do projeto…', 3)
   const project = parseProject(await invoke<string>('read_project_file', { dir, rel: 'project.json' }))
   const scenes: ProjectBundle['scenes'] = {}
-  for (const path of project.scenes) {
-    scenes[path] = parseScene(await invoke<string>('read_project_file', { dir, rel: path }), path)
+  const totalScenes = project.scenes.length
+  for (let index = 0; index < totalScenes; index++) {
+    const path = project.scenes[index]
+    const raw = await invoke<string>('read_project_file', { dir, rel: path })
+    onProgress?.(`Carregando recursos da cena ${index + 1}/${totalScenes}…`, Math.round(5 + ((index + 1) / totalScenes) * 65))
+    const hydrated = await hydrateSceneAssets(dir, raw, path)
+    scenes[path] = parseScene(hydrated, path)
   }
   if (!scenes[MAIN_SCENE_PATH] && Object.keys(scenes).length === 0) {
     throw new Error('Nenhuma cena foi carregada.')
@@ -41,6 +149,7 @@ export async function loadProjectFrom(dir: string): Promise<ProjectBundle> {
   let logic: ProjectBundle['logic'] = { formatVersion: 1, variables: {}, events: [] }
   const logicExists = await invoke<boolean>('project_file_exists', { dir, rel: 'logic/events.json' })
   if (logicExists) {
+    onProgress?.('Carregando eventos e regras…', 85)
     const rawText = await invoke<string>('read_project_file', { dir, rel: 'logic/events.json' })
     let raw: unknown
     try {
@@ -57,6 +166,7 @@ export async function loadProjectFrom(dir: string): Promise<ProjectBundle> {
     }
     logic = candidate as NonNullable<ProjectBundle['logic']>
   }
+  onProgress?.('Projeto carregado; preparando o mundo…', 95)
   return { project, scenes, logic }
 }
 
