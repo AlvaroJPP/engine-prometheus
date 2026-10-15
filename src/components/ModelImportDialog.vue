@@ -539,12 +539,12 @@ onBeforeUnmount(disposePreview)
               <span>Texturas <b>{{ diagnosticSummary.textures }}</b></span>
               <span>Animações <b>{{ diagnosticSummary.clips }}</b></span>
             </div>
-            <p class="model-diagnostics-hint">Uma árvore por malha indica que o modelo pode ser separado pela hierarquia. Uma única malha com vários elementos pode exigir separar a geometria.</p>
+            <p class="model-diagnostics-hint">URI data: indica imagem incorporada no JSON; URI externa indica arquivo referenciado. Imagens presentes no ZIP só serão usadas como cor se algum material as referenciar em baseColorTexture.</p>
             <div v-if="model" class="model-diagnostics-list">
               <div class="model-diagnostic-row">
                 <div class="model-diagnostic-title"><b>GLTF</b><span>Imagens e texturas declaradas no arquivo</span></div>
                 <template v-for="image in ((model.userData.importGltfMetadata as GltfMetadata | undefined)?.images ?? [])" :key="'image-' + image.index">
-                  <small>Imagem {{ image.index }}: {{ image.name || '(sem nome)' }} · {{ image.mimeType || 'tipo não declarado' }} · {{ image.uri ? 'URI externa' : image.bufferView !== null ? 'incorporada no GLB' : 'origem não identificada' }}</small>
+                  <small>Imagem {{ image.index }}: {{ image.name || '(sem nome)' }} · {{ image.mimeType || (image.uri.startsWith('data:') ? (image.uri.slice(5, image.uri.indexOf(';')) || 'tipo não declarado') : 'tipo não declarado') }} · {{ image.uri.startsWith('data:') ? 'incorporada (data URI)' : image.uri ? 'URI externa' : image.bufferView !== null ? 'incorporada por bufferView' : 'origem não identificada' }}</small>
                 </template>
                 <small v-if="!((model.userData.importGltfMetadata as GltfMetadata | undefined)?.images?.length)">Nenhuma imagem declarada no JSON glTF.</small>
               </div>
