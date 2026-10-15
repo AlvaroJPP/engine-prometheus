@@ -162,6 +162,18 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.addPrimitive(type)
   }
 
+  function addImportedModel(name: string, model: import('three').Object3D, height: number) {
+    if (!engine) return
+    try {
+      engine.addImportedModel(name, model, height)
+      dirty.value = true
+      refresh()
+      say(`Modelo "${name}" importado para a cena.`)
+    } catch (e) {
+      say(`Não foi possível importar o modelo: ${errMsg(e)}`)
+    }
+  }
+
   /** Cria um exemplo pronto: o cubo fica azul no primeiro clique e marca click=true. */
   function addClickableCubeExample() {
     if (!engine) return
@@ -632,6 +644,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setTool,
     setTransform,
     addPrimitive,
+    addImportedModel,
     addClickableCubeExample,
     cycleCamera,
     setFirstPersonMode,
