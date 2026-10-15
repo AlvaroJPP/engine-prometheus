@@ -221,6 +221,48 @@ export class HorseMount {
         model.position.z -= center.z
         model.position.y -= bounds.min.y
 
+        // Corrige a cabeçada do GLB: algumas peças finas da correia/redeas
+        // ultrapassam o focinho. Mantém apenas as peças estreitas na região
+        // frontal da cabeça dentro do limite do focinho, sem afetar a sela.
+        model.updateMatrixWorld(true)
+        const modelBounds = new THREE.Box3().setFromObject(model)
+        const frontZ = modelBounds.max.z
+        model.traverse((node) => {
+          if (!(node instanceof THREE.Mesh)) return
+          const bounds = new THREE.Box3().setFromObject(node)
+          if (bounds.isEmpty()) return
+          const size = bounds.getSize(new THREE.Vector3())
+          const center = bounds.getCenter(new THREE.Vector3())
+          const thinHeadStrap =
+            center.z > frontZ - size.z - 0.65 &&
+            center.y > modelBounds.min.y + (modelBounds.max.y - modelBounds.min.y) * 0.68 &&
+            size.x < 0.28 &&
+            size.y < 0.42 &&
+            size.z > 0.45 &&
+            size.z < 1.8
+          if (thinHeadStrap) {
+            const geometry = node.geometry
+            const position = geometry.getAttribute('position')
+            if (!position) return
+            // Recolhe os vértices que passam da extremidade do focinho,
+            // limitando a correia na direção frontal do cavalo.
+            const muzzleLimit = frontZ - 0.22
+            let changed = false
+            for (let i = 0; i < position.count; i += 1) {
+              const z = position.getZ(i)
+              if (z > muzzleLimit) {
+                position.setZ(i, muzzleLimit)
+                changed = true
+              }
+            }
+            if (changed) {
+              position.needsUpdate = true
+              geometry.computeVertexNormals()
+              geometry.computeBoundingSphere()
+            }
+          }
+        })
+
         // O modelo do commit substitui o cavalo temporário, sem alterar o sistema de montaria.
         for (const child of [...this.mesh.children]) {
           this.mesh.remove(child)
