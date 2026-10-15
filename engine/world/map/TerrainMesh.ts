@@ -60,7 +60,7 @@ export class TerrainMesh {
         this.positions[i * 3] = Heightfield.worldX(ix)
         this.positions[i * 3 + 1] = h
         this.positions[i * 3 + 2] = Heightfield.worldX(iy)
-        const [r, g, b] = colorForHeight(h)
+        const [r, g, b] = colorForHeight(h, Heightfield.worldX(ix), Heightfield.worldX(iy))
         this.colors[i * 3] = r
         this.colors[i * 3 + 1] = g
         this.colors[i * 3 + 2] = b
