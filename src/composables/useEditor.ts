@@ -62,7 +62,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const offs: Array<() => void> = []
   let clipboardObject: ObjectInfo | null = null
   let applyingHistory = false
-  type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo }
+  type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo; kind?: 'paste' }
   const undoStack: ObjectHistoryEntry[] = []
   const redoStack: ObjectHistoryEntry[] = []
   const HISTORY_LIMIT = 100
@@ -101,6 +101,20 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function undo() {
     const entry = undoStack.pop()
     if (!entry) { say('Não há alterações de objeto para desfazer.'); return }
+    if (entry.kind === 'paste') {
+      if (!engine || !objects.value.some(object => object.id === entry.id)) { undoStack.push(entry); say('A cópia não está mais na cena.'); return }
+      applyingHistory = true
+      try {
+        engine.removeObject(entry.id)
+        refresh()
+        dirty.value = true
+      } finally {
+        applyingHistory = false
+      }
+      redoStack.push(entry)
+      say('Colagem desfeita.')
+      return
+    }
     const current = objects.value.find(object => object.id === entry.id)
     if (!current) { undoStack.push(entry); say('Não é possível desfazer: o objeto não está mais na cena.'); return }
     redoStack.push({ ...entry, after: { ...current } })
@@ -111,6 +125,33 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function redo() {
     const entry = redoStack.pop()
     if (!entry) { say('Não há alterações para refazer.'); return }
+    if (entry.kind === 'paste') {
+      if (!engine) { redoStack.push(entry); return }
+      const existingIds = new Set(engine.listObjects().map(object => object.id))
+      engine.addPrimitive(entry.after.type)
+      const created = engine.listObjects().find(object => !existingIds.has(object.id))
+      if (!created) { redoStack.push(entry); say('Não foi possível refazer a colagem.'); return }
+      applyingHistory = true
+      try {
+        engine.updateObject(created.id, {
+          x: entry.after.x, y: entry.after.y, z: entry.after.z,
+          rotationX: entry.after.rotationX, rotationY: entry.after.rotationY, rotationZ: entry.after.rotationZ,
+          scaleX: entry.after.scaleX, scaleY: entry.after.scaleY, scaleZ: entry.after.scaleZ,
+          color: entry.after.color, visible: entry.after.visible, locked: false,
+          wireframeVisible: entry.after.wireframeVisible, groupId: null, mass: entry.after.mass,
+          colliderType: entry.after.colliderType, colliderSize: [...entry.after.colliderSize], colliderOffset: [...entry.after.colliderOffset],
+        })
+        engine.renameObject(created.id, entry.after.name)
+        engine.select(created.id)
+        refresh()
+        dirty.value = true
+      } finally {
+        applyingHistory = false
+      }
+      undoStack.push({ ...entry, id: created.id })
+      say('Colagem refeita.')
+      return
+    }
     if (!objects.value.some(object => object.id === entry.id)) { redoStack.push(entry); say('Não é possível refazer: o objeto não está mais na cena.'); return }
     undoStack.push({ ...entry, before: { ...(objects.value.find(object => object.id === entry.id) ?? entry.before) } })
     applyObjectState(entry.id, entry.after)
@@ -155,9 +196,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     } finally {
       applyingHistory = false
     }
-    undoStack.push({ id: created.id, before: { ...pastedState, name: pastedState.name }, after: { ...pastedState } })
+    undoStack.push({ id: created.id, before: { ...pastedState }, after: { ...pastedState }, kind: 'paste' })
     // Colagem é uma ação própria: Ctrl+Z remove a cópia recém-criada.
-    say(`"${pastedState.name}" colado. (Ctrl+Z desfaz alterações de propriedades.)`)
+    say(`"${pastedState.name}" colado. Use Ctrl+Z para desfazer.`)
   }
 
   function say(message: string) {
