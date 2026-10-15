@@ -225,7 +225,7 @@ for image in bpy.data.images:
     current_path = bpy.path.abspath(image.filepath)
     if current_path and os.path.isfile(current_path):
         continue
-    filename = image.filepath.replace("\\\\", "/").split("/")[-1]
+    filename = image.filepath.replace("\\", "/").split("/")[-1]
     matches = image_index.get(filename.casefold(), [])
     if len(matches) == 1:
         image.filepath = matches[0]
