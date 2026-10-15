@@ -401,6 +401,10 @@ function cycleCameraView() {
 }
 function runWorld() {
   graphOpen.value = false
+  if (firstPersonMode.value) {
+    firstPersonMode.value = false
+    setFirstPersonMode(false)
+  }
   setRuntimeMode(true)
   executionMode.value = 'running'
   status.value = 'Modo Run ativo · WASD move, Shift corre, Espaço pula e mouse controla a câmera.'
