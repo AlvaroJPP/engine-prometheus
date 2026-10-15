@@ -88,6 +88,41 @@ export class GrassLayer {
     this.mesh.receiveShadow = false
     this.mesh.frustumCulled = false
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+
+    // Vento calculado na GPU: as raízes ficam presas ao chão e as pontas balançam.
+    const windUniforms = {
+      uGrassTime: { value: 0 },
+      uGrassWindStrength: { value: 0.11 },
+    }
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, windUniforms)
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform float uGrassTime;
+uniform float uGrassWindStrength;`,
+      )
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+#ifdef USE_INSTANCING
+  float grassWorldX = instanceMatrix[3].x;
+  float grassWorldZ = instanceMatrix[3].z;
+#else
+  float grassWorldX = 0.0;
+  float grassWorldZ = 0.0;
+#endif
+  float grassTip = clamp(position.y / 0.92, 0.0, 1.0);
+  float grassBend = pow(grassTip, 1.7);
+  float grassWave = sin(uGrassTime * 1.15 + grassWorldX * 0.31 + grassWorldZ * 0.23)
+                  + 0.42 * sin(uGrassTime * 1.9 + grassWorldX * 0.13 - grassWorldZ * 0.37);
+  transformed.x += grassWave * uGrassWindStrength * grassBend;`,
+      )
+    }
+    // Atualiza o tempo sem percorrer as milhares de instâncias no JavaScript.
+    this.mesh.onBeforeRender = () => {
+      windUniforms.uGrassTime.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001
+    }
   }
 
   /** Distribui tufos em manchas, com altura, escala, tonalidade e inclinação variadas. */
