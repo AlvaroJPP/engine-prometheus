@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -21,7 +21,7 @@ const loading = ref(false)
 const modelHeight = ref(2)
 const originalHeight = ref(0)
 const dimensions = ref<[number, number, number]>([0, 0, 0])
-const model = ref<THREE.Object3D | null>(null)
+const model = shallowRef<THREE.Object3D | null>(null)
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
