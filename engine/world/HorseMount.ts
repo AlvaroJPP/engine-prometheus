@@ -50,6 +50,11 @@ export class HorseMount {
     this.world = world
     this.avatar = avatar
     this.avatar.setExternalCollider(this.mesh)
+    // Colisor físico independente da geometria visual importada do cavalo.
+    // A origem do grupo fica no chão; por isso o centro do colisor sobe 0,8 m.
+    this.mesh.userData.colliderType = 'box'
+    this.mesh.userData.colliderSize = [0.95, 1.35, 1.6]
+    this.mesh.userData.colliderOffset = [0, 0.8, 0]
     this.cameraTarget = cameraTarget
     this.getCameraYaw = getCameraYaw
     this.buildModel()
