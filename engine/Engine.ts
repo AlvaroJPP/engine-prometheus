@@ -540,23 +540,18 @@ export class Engine {
     })
 
     const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
-    // O diálogo de importação já centraliza o modelo. Não subtraia o centro
-    // do Box3 diretamente de model.position: Box3 está em coordenadas de mundo,
-    // enquanto position é local e o modelo já pode estar escalado.
+    // Preserva o nó raiz original do glTF: os clips podem referenciar seu nome
+    // e seus transforms. A centralização fica num pivô externo e estável.
     const scaleFactor = height / originalSize.y
     model.scale.multiplyScalar(scaleFactor)
     model.updateMatrixWorld(true)
-
-    // Centraliza a malha na origem local do objeto-raiz. O Box3 é calculado
-    // em coordenadas de mundo; como o GLB foi removido de qualquer pai acima,
-    // seu centro pode ser compensado na posição local do próprio modelo.
-    model.updateMatrixWorld(true)
     const scaledBounds = new THREE.Box3().setFromObject(model)
     const visualCenter = scaledBounds.getCenter(new THREE.Vector3())
-    model.position.sub(visualCenter)
-    model.updateMatrixWorld(true)
-    const finalBounds = new THREE.Box3().setFromObject(model)
-    const finalSize = finalBounds.getSize(new THREE.Vector3())
+    const finalSize = scaledBounds.getSize(new THREE.Vector3())
+    const visualPivot = new THREE.Group()
+    visualPivot.name = 'ImportedVisualPivot'
+    visualPivot.position.copy(visualCenter).negate()
+    visualPivot.add(model)
 
     // Use os clips originais do GLTFLoader: filtrar os nomes dos tracks por
     // comparação textual removia animações válidas em alguns rigs/exportadores.
@@ -606,7 +601,7 @@ export class Engine {
       root.visible = restoreData.visible
     }
     if (animationMixer) root.userData.importAnimationMixer = animationMixer
-    root.add(model)
+    root.add(visualPivot)
     // Atualiza toda a hierarquia antes de entrar no loop de renderização.
     // Isso também garante bounds corretos para GLB com nós e transforms aninhados.
     root.updateMatrixWorld(true)
@@ -836,7 +831,7 @@ export class Engine {
           loader.parse(binary, '', resolve, reject)
         })
         const model = gltf.scene
-        model.name = data.name
+        // O nome visível fica no proxy; preservar o nome do nó glTF mantém os bindings de animação.
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
         model.userData.importedModelData = data.importedModelData
