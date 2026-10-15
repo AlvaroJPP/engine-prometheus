@@ -495,6 +495,18 @@ export class Engine {
     root.userData.groupId = null
     root.userData.wireframeVisible = false
     root.userData.mass = 1
+    // O colisor é configurado no importador e fica independente da malha visual.
+    root.userData.colliderType = model.userData.importColliderType === 'box' || model.userData.importColliderType === 'sphere' || model.userData.importColliderType === 'capsule' || model.userData.importColliderType === 'none'
+      ? model.userData.importColliderType
+      : 'box'
+    const importedColliderSize = model.userData.importColliderSize
+    if (Array.isArray(importedColliderSize) && importedColliderSize.length === 3 && importedColliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
+      root.userData.colliderSize = importedColliderSize.map((value: number) => clamp(value, 0.05, 100))
+    }
+    const importedColliderOffset = model.userData.importColliderOffset
+    if (Array.isArray(importedColliderOffset) && importedColliderOffset.length === 3 && importedColliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
+      root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
+    }
     root.userData.importedModel = true
     this.world.add({ id, name: root.name, type: 'cube', mesh: root })
     this.world.select(id)
