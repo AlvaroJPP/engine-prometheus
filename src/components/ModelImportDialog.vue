@@ -82,12 +82,24 @@ function updateColliderPreview() {
   geometry.dispose()
 }
 
+function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'none') {
+  colliderType.value = value
+  if (value === 'sphere') {
+    const diameter = Math.max(0.05, Math.min(...colliderSize.value))
+    colliderSize.value = [diameter, diameter, diameter]
+  }
+  updateColliderPreview()
+}
+
 function setColliderVector(field: 'colliderSize' | 'colliderOffset', axis: 0 | 1 | 2, value: number) {
   if (!Number.isFinite(value)) return
   const vector: [number, number, number] = [...(field === 'colliderSize' ? colliderSize.value : colliderOffset.value)]
-  vector[axis] = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
-  if (field === 'colliderSize') colliderSize.value = vector
-  else colliderOffset.value = vector
+  const safeValue = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
+  vector[axis] = safeValue
+  if (field === 'colliderSize') {
+    if (colliderType.value === 'sphere') vector.splice(0, 3, safeValue, safeValue, safeValue)
+    colliderSize.value = vector
+  } else colliderOffset.value = vector
   updateColliderPreview()
 }
 
@@ -798,7 +810,7 @@ onBeforeUnmount(disposePreview)
             <div class="model-panel-heading"><span>04</span> COLISOR FÍSICO</div>
             <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
             <label class="model-collider-field">Forma
-              <select :value="colliderType" :disabled="!model" @change="colliderType = ($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none'; updateColliderPreview()">
+              <select :value="colliderType" :disabled="!model" @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
                 <option value="box">Caixa</option>
                 <option value="sphere">Esfera</option>
                 <option value="capsule">Cápsula</option>
