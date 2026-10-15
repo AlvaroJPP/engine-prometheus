@@ -387,9 +387,11 @@ export class PointerController {
 
     // Ctrl+clique mantém exatamente o posicionamento antigo, na face atingida.
     // Clique normal procura a base de colisão abaixo do ponto clicado.
+    // O objeto clicado também pode servir de apoio. Excluí-lo fazia a nova peça
+    // ignorar o topo da plataforma e voltar para a altura do terreno, sobrepondo-a.
     const baseY = e.ctrlKey
       ? (useObject ? hit.point.y : this.world.terrain.heightAt(x, z))
-      : this.buildSupportBelow(x, z, hit.point.y, useObject ? this.objectIdFromHit(hit.object) : null)
+      : this.buildSupportBelow(x, z, hit.point.y, null)
 
     if (this.onBuildAt?.(x, baseY, z)) return
     this.world.place(this.state.buildShape, x, baseY, z)
