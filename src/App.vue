@@ -435,6 +435,16 @@ async function refreshSavedComponents() {
   }
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
+  }
+  return btoa(binary)
+}
+
 function disposeComponentSource(root: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>()
   const materials = new Set<THREE.Material>()
@@ -508,6 +518,8 @@ async function placeSavedComponent(id: string) {
     })
     model.name = component.name
     model.userData.importPart = true
+    model.userData.importedModelData = arrayBufferToBase64(component.bytes)
+    model.userData.importedModelHeight = component.height
     model.userData.importColliderType = component.colliderType
     model.userData.importColliderSize = [...component.colliderSize]
     model.userData.importColliderOffset = [...component.colliderOffset]
