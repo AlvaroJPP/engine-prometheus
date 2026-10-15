@@ -49,7 +49,7 @@ export class PointerController {
     }),
   )
 
-  constructor(canvas: HTMLCanvasElement, orbit: OrbitCamera, world: World, state: EditorState, isGizmoDragging: () => boolean = () => false, onBuildAt?: (x: number, y: number, z: number) => boolean) {
+  constructor(canvas: HTMLCanvasElement, orbit: OrbitCamera, world: World, state: EditorState, isGizmoDragging: () => boolean = () => false, onBuildAt?: (x: number, y: number, z: number) => boolean, onRuntimeObjectClick?: (id: string) => void) {
     this.canvas = canvas
     this.orbit = orbit
     this.world = world
@@ -154,8 +154,18 @@ export class PointerController {
   // ---------- eventos ----------
   private onDown = (e: PointerEvent): void => {
     if (this.runtimeMode) {
-      // Em Run, o mouse controla somente a câmera do jogador; nunca seleciona,
-      // move, constrói ou edita objetos da cena.
+      // Em Run, o clique esquerdo dispara o Visual Script do objeto atingido.
+      // Se clicar em espaço vazio, continua controlando a câmera como antes.
+      if (e.button === 0) {
+        this.aim(e)
+        const hit = this.objectHit()
+        const id = hit ? this.objectIdFromHit(hit.object) : null
+        if (id) {
+          e.preventDefault()
+          onRuntimeObjectClick?.(id)
+          return
+        }
+      }
       if (e.button === 0 || e.button === 1 || e.button === 2) {
         e.preventDefault()
         this.begin({ kind: 'orbit', lastX: e.clientX, lastY: e.clientY }, e)
