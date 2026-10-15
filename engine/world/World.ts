@@ -152,6 +152,8 @@ export class World {
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
     if (patch.mass !== undefined && Number.isFinite(patch.mass)) m.userData.mass = Math.max(0, patch.mass)
     if (patch.colliderType !== undefined && ['auto', 'box', 'sphere', 'capsule', 'none'].includes(patch.colliderType)) m.userData.colliderType = patch.colliderType
+    if (patch.colliderSize !== undefined && patch.colliderSize.length === 3 && patch.colliderSize.every(Number.isFinite)) m.userData.colliderSize = patch.colliderSize.map(value => clamp(value, 0.05, 100))
+    if (patch.colliderOffset !== undefined && patch.colliderOffset.length === 3 && patch.colliderOffset.every(Number.isFinite)) m.userData.colliderOffset = patch.colliderOffset.map(value => clamp(value, -100, 100))
     this.events.emit('objectChanged', { id })
   }
 
@@ -220,6 +222,8 @@ export class World {
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
       mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
       colliderType: o.mesh.userData.colliderType === 'box' || o.mesh.userData.colliderType === 'sphere' || o.mesh.userData.colliderType === 'capsule' || o.mesh.userData.colliderType === 'none' ? o.mesh.userData.colliderType : 'auto',
+      colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).x ?? 1, o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).y ?? 1, o.mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).z ?? 1],
+      colliderOffset: Array.isArray(o.mesh.userData.colliderOffset) && o.mesh.userData.colliderOffset.length === 3 ? [...o.mesh.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
   }
