@@ -13,6 +13,7 @@ const props = defineProps<{
   graphOpen: boolean
   gridVisible: boolean
   polygonLinesVisible: boolean
+  performanceMode: boolean
 }>()
 
 const emit = defineEmits<{
@@ -24,6 +25,7 @@ const emit = defineEmits<{
   'add-clickable-example': []
   'toggle-grid': []
   'toggle-polygon-lines': []
+  'toggle-performance-mode': []
 }>()
 </script>
 
@@ -58,5 +60,6 @@ const emit = defineEmits<{
     <span class="vsep" />
     <button class="tool grid-toggle" :class="{ active: props.gridVisible }" @click="emit('toggle-grid')" title="Mostrar ou ocultar a malha">▦ Malha</button>
     <button class="tool grid-toggle" :class="{ active: props.polygonLinesVisible }" @click="emit('toggle-polygon-lines')" :title="props.polygonLinesVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'">⬡ Linhas</button>
+    <button class="tool grid-toggle" :class="{ active: props.performanceMode }" @click="emit('toggle-performance-mode')" :title="props.performanceMode ? 'Voltar à qualidade normal' : 'Reduzir a resolução do viewport para melhorar o desempenho'">{{ props.performanceMode ? '⚡ Desempenho' : '⚡ Qualidade' }}</button>
   </nav>
 </template>
