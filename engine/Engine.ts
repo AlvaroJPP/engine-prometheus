@@ -807,6 +807,7 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
+    this.horseMount.setEditorComponent(null)
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
     this.collisions.clear()
@@ -860,6 +861,30 @@ export class Engine {
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
     this.world.replaceAll(restoredObjects, scene.terrain)
+    // Reconstrói o proxy editável do cavalo nativo e o conecta ao mesmo HorseMount
+    // que executa animações, colisão e montaria. O GLB não é duplicado no projeto.
+    const nativeHorseData = regularObjects.find(object => object.nativeComponentType === 'horse')
+    if (nativeHorseData) {
+      const nativeHorse = this.world.get(nativeHorseData.id)?.mesh
+      if (nativeHorse) {
+        nativeHorse.geometry.dispose()
+        nativeHorse.geometry = new THREE.BoxGeometry(1.55, nativeHorseData.importedModelHeight ?? 2.05, 2.8)
+        const materials = Array.isArray(nativeHorse.material) ? nativeHorse.material : [nativeHorse.material]
+        materials.forEach(material => material.dispose())
+        nativeHorse.material = new THREE.MeshBasicMaterial({
+          transparent: true, opacity: 0, colorWrite: false, depthWrite: false, depthTest: false,
+        })
+        nativeHorse.userData.nativeComponentType = 'horse'
+        nativeHorse.userData.nativeHorseComponent = true
+        nativeHorse.userData.componentId = nativeHorseData.componentId ?? 'builtin-horse-low-poly'
+        nativeHorse.userData.importedModel = true
+        nativeHorse.userData.importedModelHeight = nativeHorseData.importedModelHeight ?? 2.05
+        nativeHorse.userData.colliderType = nativeHorseData.colliderType ?? 'box'
+        nativeHorse.userData.colliderSize = nativeHorseData.colliderSize ?? [0.95, 1.35, 1.6]
+        nativeHorse.userData.colliderOffset = nativeHorseData.colliderOffset ?? [0, 0.02, 0]
+        this.horseMount.setEditorComponent(nativeHorse)
+      }
+    }
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     report('Terreno pronto. Restaurando modelos 3D…', 28)
 
