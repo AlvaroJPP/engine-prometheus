@@ -123,7 +123,7 @@ fn prune_project_assets(dir: String, keep: Vec<String>) -> Result<(), String> {
         }
         // Reutiliza a validação de caminhos para bloquear caminhos absolutos e traversal.
         project_path(&dir, &rel)?;
-        retained.insert(rel.replace('\\\\', "/"));
+        retained.insert(rel.replace('\\', "/"));
     }
 
     let resources = project_root.join("resources");
@@ -154,7 +154,7 @@ fn prune_resource_directory(
             let relative = path.strip_prefix(project_root)
                 .map_err(|_| "Caminho de recurso fora da pasta do projeto.".to_string())?
                 .to_string_lossy()
-                .replace('\\\\', "/");
+                .replace('\\', "/");
             if !retained.contains(&relative) {
                 fs::remove_file(&path)
                     .map_err(|e| format!("Não foi possível excluir recurso sem referência ({relative}): {e}"))?;
