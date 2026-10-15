@@ -513,6 +513,18 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (Number.isFinite(n)) engine.updateObject(id, { color: n })
   }
 
+  function onTexture(ev: Event) {
+    const id = selectedId.value
+    const value = (ev.target as HTMLSelectElement).value
+    const allowed = ['none', 'grass', 'stone', 'brick', 'wood', 'sand', 'metal']
+    if (!engine || !id || id === TERRAIN_ID || !allowed.includes(value)) return
+    engine.updateObject(id, { texturePreset: value as ObjectPatch['texturePreset'] })
+    dirty.value = true
+    refresh()
+    const labels: Record<string, string> = { none: 'Sem textura', grass: 'Grama', stone: 'Pedra', brick: 'Tijolo', wood: 'Madeira', sand: 'Areia', metal: 'Metal' }
+    say(`Textura aplicada: ${labels[value] ?? value}.`)
+  }
+
   function colorHex(n: number): string {
     return `#${n.toString(16).padStart(6, '0')}`
   }
@@ -897,6 +909,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     colliderDebugVisible,
     toggleColliderDebug,
     onColor,
+    onTexture,
     colorHex,
     regenerateTerrain,
     clearTerrain,
