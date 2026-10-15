@@ -78,6 +78,11 @@ function updateColliderPreview() {
   )
   colliderPreview.name = 'import-collider-preview'
   colliderPreview.renderOrder = 1000
+  const selectedPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  if (selectedPart) {
+    const partBounds = new THREE.Box3().setFromObject(selectedPart.object)
+    if (!partBounds.isEmpty()) colliderPreview.position.copy(partBounds.getCenter(new THREE.Vector3()))
+  }
   scene.add(colliderPreview)
   geometry.dispose()
 }
@@ -182,6 +187,7 @@ function findPreviewPart(id: string) {
 function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   selectedPartId.value = part.id
   fitCamera(part.object)
+  updateColliderPreview()
 }
 
 function togglePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
