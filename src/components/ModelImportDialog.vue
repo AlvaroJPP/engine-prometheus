@@ -6,6 +6,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{
@@ -320,6 +322,88 @@ async function parseFile(file: File) {
   throw new Error('Formato não suportado. Escolha GLB, glTF, OBJ, STL ou FBX.')
 }
 
+async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
+  clearLoadedModel()
+  loaded.name = displayName.replace(/\.[^.]+$/, '') || 'Modelo importado'
+  const height = centerAndMeasure(loaded)
+  const initialScale = 2 / height
+  loaded.scale.setScalar(initialScale)
+  const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
+  loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
+  loaded.updateMatrixWorld(true)
+  modelHeight.value = 2
+  model.value = loaded
+  refreshPreviewParts()
+  refreshModelDiagnostics()
+  const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
+  if (clips?.length) {
+    previewMixer = new THREE.AnimationMixer(loaded)
+    for (const clip of clips) previewMixer.clipAction(clip).play()
+    previewClock.start()
+  }
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+  initPreview()
+  if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
+  scene.add(loaded)
+  fitCamera(loaded)
+}
+
+async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
+  const loader = new GLTFLoader()
+  return await new Promise<THREE.Object3D>((resolve, reject) => {
+    loader.parse(bytes, '', (gltf) => {
+      gltf.scene.userData.importAnimations = gltf.animations ?? []
+      gltf.scene.userData.importGltfMetadata = {
+        images: (gltf.parser.json.images ?? []).map((image, index) => ({
+          index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
+        })),
+        textures: (gltf.parser.json.textures ?? []).map((texture, index) => ({
+          index, name: texture.name ?? '', source: texture.source ?? null,
+        })),
+        materials: (gltf.parser.json.materials ?? []).map((material, index) => ({
+          index, name: material.name ?? '',
+          baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
+          normalTexture: material.normalTexture?.index ?? null,
+          occlusionTexture: material.occlusionTexture?.index ?? null,
+          emissiveTexture: material.emissiveTexture?.index ?? null,
+          baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
+        })),
+        animations: (gltf.parser.json.animations ?? []).map((clip, index) => ({
+          index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
+        })),
+      }
+      resolve(gltf.scene)
+    }, reject)
+  })
+}
+
+async function importBlendZip() {
+  loading.value = true
+  error.value = ''
+  try {
+    const selected = await openNativeDialog({
+      multiple: false,
+      directory: false,
+      title: 'Selecionar ZIP com projeto Blender e texturas',
+      filters: [{ name: 'Arquivo ZIP', extensions: ['zip'] }],
+    })
+    if (!selected || Array.isArray(selected)) return
+    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo Blender.zip'
+    const encoded = await invoke<string>('convert_blend_zip', { zipPath: selected })
+    const binary = atob(encoded)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+    const loaded = await parseGlbBytes(bytes.buffer)
+    await showLoadedModel(loaded, fileName.value.replace(/\.zip$/i, '.glb'))
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e || 'Falha ao converter ZIP do Blender.')
+    fileName.value = ''
+    clearLoadedModel()
+  } finally {
+    loading.value = false
+  }
+}
+
 async function chooseFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
@@ -327,32 +411,8 @@ async function chooseFile(event: Event) {
   error.value = ''
   fileName.value = file.name
   try {
-    // Não recria o WebGLRenderer a cada arquivo. Alguns navegadores/Tauri não
-    // permitem reutilizar de forma confiável o canvas após destruir seu contexto.
-    clearLoadedModel()
     const loaded = await parseFile(file)
-    loaded.name = file.name.replace(/\.[^.]+$/, '') || 'Modelo importado'
-    const height = centerAndMeasure(loaded)
-    const initialScale = 2 / height
-    loaded.scale.setScalar(initialScale)
-    const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
-    loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
-    loaded.updateMatrixWorld(true)
-    modelHeight.value = 2
-    model.value = loaded
-    refreshPreviewParts()
-    refreshModelDiagnostics()
-    const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
-    if (clips?.length) {
-      previewMixer = new THREE.AnimationMixer(loaded)
-      for (const clip of clips) previewMixer.clipAction(clip).play()
-      previewClock.start()
-    }
-    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-    initPreview()
-    if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
-    scene.add(loaded)
-    fitCamera(loaded)
+    await showLoadedModel(loaded, file.name)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Falha ao ler o modelo.'
     fileName.value = ''
@@ -425,6 +485,8 @@ onBeforeUnmount(disposePreview)
         </div>
         <aside class="model-import-settings">
           <div class="model-import-section-title">ARQUIVO</div>
+          <button class="model-file-picker model-blend-zip-picker" :disabled="loading" @click="importBlendZip"><span class="file-icon">▣</span><span><strong>Importar ZIP do Blender</strong><small>.blend + texturas PNG/JPG</small></span><b>＋</b></button>
+          <p class="model-import-note">O Blender precisa estar instalado. O ZIP será extraído temporariamente e convertido para GLB com materiais e animações suportados.</p>
           <button class="model-file-picker" @click="fileInput?.click()"><span class="file-icon">▧</span><span><strong>{{ fileName || 'Selecionar arquivo' }}</strong><small>GLB · glTF · OBJ · STL · FBX</small></span><b>＋</b></button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.obj,.stl,.fbx" @change="chooseFile" />
           <p class="model-import-note">glTF com texturas externas pode exigir que os arquivos relacionados estejam acessíveis junto ao modelo.</p>
@@ -507,6 +569,6 @@ onBeforeUnmount(disposePreview)
 .model-import-close{width:32px;height:32px;border:1px solid #393e48;border-radius:5px;background:#252932;color:#bfc4ce;font-size:23px;cursor:pointer}
 .model-import-body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.8fr);gap:0;min-height:0;overflow:auto}
 .model-import-preview{position:relative;min-height:390px;background:#20232a;border-right:1px solid #30343c;overflow:hidden}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:390px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#20232ad9;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:48px;height:48px;border:1px solid #515866;border-radius:10px;color:#d8a16a;font-size:30px}.model-import-empty strong{font-size:13px}.model-import-empty small{color:#9ca4b2;font-size:11px}.preview-badge{position:absolute;top:12px;left:12px;padding:6px 8px;border:1px solid #424853;border-radius:4px;background:#191c22d9;color:#c7ccd6;font-size:9px;letter-spacing:.1em}.preview-dimensions{position:absolute;bottom:12px;left:12px;padding:7px 9px;border:1px solid #424853;border-radius:4px;background:#191c22df;color:#e5e8ee;font:10px ui-monospace,monospace}.model-import-loading{position:absolute;inset:0;display:grid;place-items:center;background:#17191fdb;color:#f0c18f;font-size:13px}
-.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-diagnostics{margin-top:12px;border:1px solid #343943;border-radius:4px;background:#20232a;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.08em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
+.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-blend-zip-picker{margin-bottom:8px}.model-blend-zip-picker:disabled{opacity:.5;cursor:wait}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-diagnostics{margin-top:12px;border:1px solid #343943;border-radius:4px;background:#20232a;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.08em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
 @media(max-width:720px){.model-import-backdrop{padding:8px}.model-import-dialog{max-height:96vh}.model-import-body{grid-template-columns:1fr}.model-import-preview{min-height:270px;border-right:0;border-bottom:1px solid #30343c}.model-import-preview canvas{min-height:270px}.model-import-settings{padding:15px}.model-import-footer{align-items:flex-start;flex-direction:column}.model-import-footer>div{width:100%;justify-content:flex-end}}
 </style>
