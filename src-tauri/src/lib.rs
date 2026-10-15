@@ -105,6 +105,68 @@ fn write_project_asset(dir: String, rel: String, base64: String) -> Result<(), S
     Ok(())
 }
 
+
+/// Remove arquivos de resources/ que não são mais referenciados pelas cenas salvas.
+#[tauri::command]
+fn prune_project_assets(dir: String, keep: Vec<String>) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    let project_root = PathBuf::from(&dir);
+    if !project_root.is_dir() {
+        return Err("Pasta do projeto não encontrada.".into());
+    }
+
+    let mut retained = HashSet::new();
+    for rel in keep {
+        if !rel.starts_with("resources/") {
+            return Err(format!("Caminho de recurso inválido: {rel}"));
+        }
+        // Reutiliza a validação de caminhos para bloquear caminhos absolutos e traversal.
+        project_path(&dir, &rel)?;
+        retained.insert(rel.replace('\\\\', "/"));
+    }
+
+    let resources = project_root.join("resources");
+    if !resources.exists() {
+        return Ok(());
+    }
+    prune_resource_directory(&resources, &project_root, &retained)?;
+    Ok(())
+}
+
+fn prune_resource_directory(
+    current: &Path,
+    project_root: &Path,
+    retained: &std::collections::HashSet<String>,
+) -> Result<bool, String> {
+    let entries = fs::read_dir(current)
+        .map_err(|e| format!("Não foi possível verificar recursos antigos: {e}"))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Não foi possível listar recursos: {e}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            if prune_resource_directory(&path, project_root, retained)? {
+                fs::remove_dir(&path)
+                    .map_err(|e| format!("Não foi possível remover pasta vazia de recursos: {e}"))?;
+            }
+        } else if path.is_file() {
+            let relative = path.strip_prefix(project_root)
+                .map_err(|_| "Caminho de recurso fora da pasta do projeto.".to_string())?
+                .to_string_lossy()
+                .replace('\\\\', "/");
+            if !retained.contains(&relative) {
+                fs::remove_file(&path)
+                    .map_err(|e| format!("Não foi possível excluir recurso sem referência ({relative}): {e}"))?;
+            }
+        }
+    }
+
+    let mut remaining = fs::read_dir(current)
+        .map_err(|e| format!("Não foi possível verificar pasta de recursos: {e}"))?;
+    Ok(remaining.next().is_none())
+}
+
 /// Lê um recurso binário e retorna Base64 para o carregador de cena.
 #[tauri::command]
 fn read_project_asset(dir: String, rel: String) -> Result<String, String> {
@@ -230,6 +292,7 @@ pub fn run() {
             write_project_file,
             write_project_asset,
             read_project_asset,
+            prune_project_assets,
             load_gltf_zip
         ])
         .setup(|app| {
