@@ -536,53 +536,19 @@ export class HumanoidAvatar {
 
   private collidesWithObjects(): boolean {
     const playerBox = this.playerBox()
-    const objects = this.world.list()
-    const raycaster = new THREE.Raycaster()
-    const playerFeetY = this.mesh.position.y
-
-    return objects.some((object) => {
+    return this.world.list().some((object) => {
       if (!object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
-
-      const objectBox = getColliderBounds(object.mesh)
-      if (objectBox === null || !this.hasVolumeOverlap(playerBox, objectBox)) return false
 
       const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 ||
         Math.abs(object.mesh.rotation.z) > 0.02
 
-      if (!rotatedRamp) return true
+      // Não usar o AABB de uma rampa inclinada como parede: o jogador deve
+      // conseguir avançar horizontalmente; findObjectLanding ajusta a altura
+      // usando a face superior real da rampa.
+      if (rotatedRamp) return false
 
-      // Para uma rampa, o AABB sozinho não basta: ele inclui espaço vazio acima
-      // e ao lado da malha. Só ignoramos o bloqueio quando um raio confirma que
-      // o jogador está sobre uma face superior caminhável, perto da altura dos pés.
-      object.mesh.updateWorldMatrix(true, true)
-      raycaster.set(
-        new THREE.Vector3(this.mesh.position.x, Math.max(playerBox.max.y, objectBox.max.y) + 0.25, this.mesh.position.z),
-        new THREE.Vector3(0, -1, 0),
-      )
-      raycaster.far = Math.max(0.5, Math.max(playerBox.max.y, objectBox.max.y) - Math.min(playerFeetY, objectBox.min.y) + 0.5)
-      const hits = raycaster.intersectObject(object.mesh, true)
-      let walkableSurfaceY: number | null = null
-
-      for (const hit of hits) {
-        if (!hit.face) continue
-        if (object.mesh.userData.importedModel === true && hit.object === object.mesh) continue
-        const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)
-        const normal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize()
-        if (normal.y < 0.45) continue
-        walkableSurfaceY = hit.point.y
-        break
-      }
-
-      if (walkableSurfaceY !== null) {
-        const feetToSurface = playerFeetY - walkableSurfaceY
-        // Sobre a rampa (ou a poucos centímetros dela): permitir o movimento
-        // horizontal para que o sistema de pouso acompanhe a inclinação.
-        if (feetToSurface >= -0.12 && feetToSurface <= 0.42) return false
-      }
-
-      // Se não estamos efetivamente sobre a face superior, a rampa continua
-      // sólida. Isso impede atravessá-la de frente ou pelas laterais.
-      return true
+      const objectBox = getColliderBounds(object.mesh)
+      return objectBox !== null && this.hasVolumeOverlap(playerBox, objectBox)
     })
   }
 
