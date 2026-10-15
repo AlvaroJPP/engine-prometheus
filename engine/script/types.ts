@@ -1,6 +1,7 @@
 export type RuleTrigger =
   | { type: 'object_clicked'; objectId: string }
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
+  | { type: 'key_pressed'; key: string }
 
 export type RuleCondition = { type: 'variable'; name: string; operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than'; value: boolean | number | string }
 
@@ -13,6 +14,7 @@ export type RuleAction =
   | { type: 'javascript'; code: string }
   | { type: 'horse_mount' }
   | { type: 'horse_dismount' }
+  | { type: 'horse_toggle_mount' }
 
 export interface LogicRule {
   /** Objeto proprietário deste evento; regras de objetos diferentes nunca são compartilhadas. */
