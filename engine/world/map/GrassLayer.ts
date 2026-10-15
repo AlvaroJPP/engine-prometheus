@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
-const GRASS_COUNT = 7200
+const GRASS_COUNT = 4800
 const WORLD_HALF = 50
 
 /** Grama procedural leve: uma única malha instanciada para manter poucos draw calls. */
@@ -36,7 +36,6 @@ export class GrassLayer {
     this.mesh.receiveShadow = false
     this.mesh.frustumCulled = false
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    this.refresh()
   }
 
   /** Reposiciona a grama para acompanhar o relevo editado, com aleatoriedade determinística. */
