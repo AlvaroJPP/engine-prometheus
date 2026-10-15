@@ -10,6 +10,13 @@ const GRAVITY = 18
 const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
 
+/** Usa a caixa de colisão da malha-raiz; não recalcula bounds percorrendo um GLB inteiro a cada frame. */
+function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
+  mesh.updateWorldMatrix(true, false)
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
+  return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
+}
+
 /** Avatar humanoide controlável por teclado, com gravidade e colisões com terreno/objetos. */
 export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
@@ -399,7 +406,7 @@ export class HumanoidAvatar {
     const playerBox = this.playerBox()
     return this.world.list().some((object) => {
       if (!object.mesh.visible) return false
-      const objectBox = new THREE.Box3().setFromObject(object.mesh)
+      const objectBox = getRootBounds(object.mesh)
       return this.hasVolumeOverlap(playerBox, objectBox)
     })
   }
@@ -410,7 +417,7 @@ export class HumanoidAvatar {
     let landing: number | null = null
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
-      const box = new THREE.Box3().setFromObject(object.mesh)
+      const box = getRootBounds(object.mesh)
       const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
         playerBox.max.z > box.min.z && playerBox.min.z < box.max.z
       if (!horizontalOverlap || oldY < box.max.y - 0.08 || nextY > box.max.y) continue
@@ -431,7 +438,7 @@ export class HumanoidAvatar {
     const next = new Map<string, { a: string; b: string }>()
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
-      const box = new THREE.Box3().setFromObject(object.mesh)
+      const box = getRootBounds(object.mesh)
       if (!this.hasVolumeOverlap(playerBox, box)) continue
       const key = object.id
       next.set(key, { a: PLAYER_ID, b: object.id })
