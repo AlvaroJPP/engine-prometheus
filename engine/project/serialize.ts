@@ -30,6 +30,7 @@ export function buildBundle(
       wireframeVisible: m.userData.wireframeVisible !== false,
       groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
       mass: typeof m.userData.mass === 'number' && Number.isFinite(m.userData.mass) ? Math.max(0, m.userData.mass) : 1,
+      colliderType: m.userData.colliderType === 'box' || m.userData.colliderType === 'sphere' || m.userData.colliderType === 'capsule' || m.userData.colliderType === 'none' ? m.userData.colliderType : 'auto',
       color: (m.material as THREE.MeshStandardMaterial).color.getHex(),
     }
   })
@@ -79,5 +80,6 @@ export function objectFromData(d: SceneObjectData): GameObject {
     wireframeVisible: d.wireframeVisible ?? true,
     groupId: d.groupId ?? null,
     mass: d.mass ?? 1,
+    colliderType: d.colliderType ?? 'auto',
   })
 }
