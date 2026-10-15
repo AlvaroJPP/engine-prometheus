@@ -69,6 +69,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   let engine: Engine | null = null
   let runtimeMode = false
   let statusTimer = 0
+  let environmentSyncTimer = 0
   const offs: Array<() => void> = []
   let clipboardObject: ObjectInfo | null = null
   let clipboardImportedModel: Object3D | null = null
@@ -252,6 +253,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function say(message: string) {
     status.value = message
     window.clearTimeout(statusTimer)
+    window.clearInterval(environmentSyncTimer)
     statusTimer = window.setTimeout(() => {
       status.value = ''
     }, 7000)
@@ -349,6 +351,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       }),
     )
     window.addEventListener('keydown', onKey)
+    environmentSyncTimer = window.setInterval(() => {
+      if (!engine || !dayNightCycleEnabled.value) return
+      timeOfDay.value = engine.world.getEnvironment().timeOfDay
+    }, 250)
     refresh()
   })
 
