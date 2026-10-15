@@ -23,6 +23,18 @@ const originalHeight = ref(0)
 const dimensions = ref<[number, number, number]>([0, 0, 0])
 const model = shallowRef<THREE.Object3D | null>(null)
 const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Mesh }>>([])
+
+type ModelDiagnostic = {
+  id: string
+  name: string
+  type: string
+  depth: number
+  meshInfo: string
+  materials: string
+}
+const modelDiagnostics = shallowRef<ModelDiagnostic[]>([])
+const diagnosticSummary = ref({ nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 })
+
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
@@ -65,6 +77,72 @@ function refreshPreviewParts() {
   previewParts.value = parts
 }
 
+
+function refreshModelDiagnostics() {
+  const root = model.value
+  if (!root) {
+    modelDiagnostics.value = []
+    diagnosticSummary.value = { nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 }
+    return
+  }
+
+  const rows: ModelDiagnostic[] = []
+  const materialIds = new Set<string>()
+  const textureIds = new Set<string>()
+  let meshes = 0
+  let skinned = 0
+  root.traverse((node) => {
+    const depth = (() => {
+      let value = 0
+      let parent = node.parent
+      while (parent && parent !== root) { value += 1; parent = parent.parent }
+      return value
+    })()
+    const isMesh = node instanceof THREE.Mesh
+    const mesh = isMesh ? node as THREE.Mesh : null
+    let meshInfo = ''
+    let materialsText = ''
+    if (mesh) {
+      meshes += 1
+      if (mesh instanceof THREE.SkinnedMesh) skinned += 1
+      const geometry = mesh.geometry
+      const position = geometry.getAttribute('position')
+      meshInfo = `vértices: ${position?.count ?? 0}; grupos: ${geometry.groups.length}`
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      materialsText = materials.map((material) => {
+        materialIds.add(material.uuid)
+        const maps = ['map', 'alphaMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap']
+          .filter((key) => {
+            const texture = (material as unknown as Record<string, unknown>)[key]
+            if (texture instanceof THREE.Texture) textureIds.add(texture.uuid)
+            return texture instanceof THREE.Texture
+          })
+        const mapInfo = maps.length ? `texturas: ${maps.join(', ')}` : 'sem mapas de textura reconhecidos'
+        const color = 'color' in material && (material as THREE.Material & { color?: THREE.Color }).color
+        return `${material.name || 'material sem nome'} [${material.type}; ${mapInfo}; cor: ${color ? '#' + color.getHexString() : 'n/a'}]`
+      }).join(' | ')
+    }
+    rows.push({
+      id: node.uuid,
+      name: node.name || '(sem nome)',
+      type: node.type,
+      depth,
+      meshInfo,
+      materials: materialsText,
+    })
+  })
+  const clips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+  modelDiagnostics.value = rows
+  diagnosticSummary.value = {
+    nodes: rows.length,
+    meshes,
+    skinned,
+    materials: materialIds.size,
+    textures: textureIds.size,
+    clips: clips.length,
+  }
+}
+
 function deletePreviewPart(part: { id: string; name: string; object: THREE.Mesh }) {
   if (!model.value || !part.object.parent) return
   // Apenas desanexa a malha da hierarquia. Não destrua geometria, materiais,
@@ -72,11 +150,13 @@ function deletePreviewPart(part: { id: string; name: string; object: THREE.Mesh 
   part.object.removeFromParent()
   model.value.updateMatrixWorld(true)
   refreshPreviewParts()
+  refreshModelDiagnostics()
   if (model.value) fitCamera(model.value)
 }
 
 function clearLoadedModel() {
   previewParts.value = []
+  refreshModelDiagnostics()
   previewMixer?.stopAllAction()
   previewMixer = null
   if (model.value) {
@@ -225,6 +305,7 @@ async function chooseFile(event: Event) {
     modelHeight.value = 2
     model.value = loaded
     refreshPreviewParts()
+    refreshModelDiagnostics()
     const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
     if (clips?.length) {
       previewMixer = new THREE.AnimationMixer(loaded)
@@ -327,6 +408,29 @@ onBeforeUnmount(disposePreview)
             </div>
           </div>
           <p v-else class="model-preview-parts-empty">Carregue um modelo para listar as malhas. Apagar uma parte não desativa a animação das demais.</p>
+
+          <div class="model-import-divider"></div>
+          <details class="model-diagnostics">
+            <summary>DIAGNÓSTICO TÉCNICO DO MODELO</summary>
+            <div class="model-diagnostics-summary">
+              <span>Nós <b>{{ diagnosticSummary.nodes }}</b></span>
+              <span>Malhas <b>{{ diagnosticSummary.meshes }}</b></span>
+              <span>Skinned <b>{{ diagnosticSummary.skinned }}</b></span>
+              <span>Materiais <b>{{ diagnosticSummary.materials }}</b></span>
+              <span>Texturas <b>{{ diagnosticSummary.textures }}</b></span>
+              <span>Animações <b>{{ diagnosticSummary.clips }}</b></span>
+            </div>
+            <p class="model-diagnostics-hint">Uma árvore por malha indica que o modelo pode ser separado pela hierarquia. Uma única malha com vários elementos pode exigir separar a geometria.</p>
+            <div v-if="modelDiagnostics.length" class="model-diagnostics-list">
+              <div v-for="item in modelDiagnostics" :key="item.id" class="model-diagnostic-row">
+                <div class="model-diagnostic-title" :style="{ paddingLeft: (item.depth * 10) + 'px' }">
+                  <b>{{ item.type }}</b><span>{{ item.name }}</span>
+                </div>
+                <small v-if="item.meshInfo">{{ item.meshInfo }}</small>
+                <small v-if="item.materials">{{ item.materials }}</small>
+              </div>
+            </div>
+          </details>
           <p v-if="error" class="model-import-error">{{ error }}</p>
           <div class="model-import-tip">Dica: arraste sobre a prévia para orbitar e use a roda do mouse para aproximar.</div>
         </aside>
@@ -344,6 +448,6 @@ onBeforeUnmount(disposePreview)
 .model-import-close{width:32px;height:32px;border:1px solid #393e48;border-radius:5px;background:#252932;color:#bfc4ce;font-size:23px;cursor:pointer}
 .model-import-body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.8fr);gap:0;min-height:0;overflow:auto}
 .model-import-preview{position:relative;min-height:390px;background:#20232a;border-right:1px solid #30343c;overflow:hidden}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:390px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#20232ad9;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:48px;height:48px;border:1px solid #515866;border-radius:10px;color:#d8a16a;font-size:30px}.model-import-empty strong{font-size:13px}.model-import-empty small{color:#9ca4b2;font-size:11px}.preview-badge{position:absolute;top:12px;left:12px;padding:6px 8px;border:1px solid #424853;border-radius:4px;background:#191c22d9;color:#c7ccd6;font-size:9px;letter-spacing:.1em}.preview-dimensions{position:absolute;bottom:12px;left:12px;padding:7px 9px;border:1px solid #424853;border-radius:4px;background:#191c22df;color:#e5e8ee;font:10px ui-monospace,monospace}.model-import-loading{position:absolute;inset:0;display:grid;place-items:center;background:#17191fdb;color:#f0c18f;font-size:13px}
-.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
+.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-diagnostics{margin-top:12px;border:1px solid #343943;border-radius:4px;background:#20232a;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.08em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
 @media(max-width:720px){.model-import-backdrop{padding:8px}.model-import-dialog{max-height:96vh}.model-import-body{grid-template-columns:1fr}.model-import-preview{min-height:270px;border-right:0;border-bottom:1px solid #30343c}.model-import-preview canvas{min-height:270px}.model-import-settings{padding:15px}.model-import-footer{align-items:flex-start;flex-direction:column}.model-import-footer>div{width:100%;justify-content:flex-end}}
 </style>
