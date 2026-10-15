@@ -480,9 +480,6 @@ export class HorseMount {
       this.avatar.mesh.position.y += easedProgress * gait * (this.galloping ? 0.045 : 0.018)
       this.avatar.mesh.rotation.y = this.mesh.rotation.y
       this.cameraTarget.set(this.mesh.position.x, groundY + seatHeight + 0.75, this.mesh.position.z)
-    } else if (this.mountProgress > 0) {
-      this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 0, 8, step)
-      this.avatar.setMountedPose(this.mountProgress)
     }
   }
 
@@ -553,6 +550,13 @@ export class HorseMount {
     if (!this.mounted) return
     this.mounted = false
     this.pressed.clear()
+
+    // Encerra a pose de montaria imediatamente. Se mountProgress continuar
+    // diminuindo no update(), a pose sentada será reaplicada por vários frames
+    // depois de o avatar já ter sido reativado, deixando o jogador rígido.
+    this.mountProgress = 0
+    this.avatar.setMountedPose(0)
+
     if (restorePlayer) {
       const side = new THREE.Vector3(1.25, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
       const x = THREE.MathUtils.clamp(this.mesh.position.x + side.x, -48, 48)
