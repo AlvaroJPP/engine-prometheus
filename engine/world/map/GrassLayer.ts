@@ -95,14 +95,12 @@ export class GrassLayer {
       ctx.bezierCurveTo(5, 28, 1, 72, 16, 128)
       ctx.bezierCurveTo(31, 72, 27, 28, 16, 0)
       ctx.fill()
-      ctx.globalCompositeOperation = 'destination-out'
-      ctx.strokeStyle = 'rgba(0,0,0,0.7)'
-      ctx.lineWidth = 2
+      ctx.strokeStyle = 'rgba(225,245,174,0.48)'
+      ctx.lineWidth = 1.2
       ctx.beginPath()
       ctx.moveTo(16, 8)
       ctx.quadraticCurveTo(14, 60, 16, 120)
       ctx.stroke()
-      ctx.globalCompositeOperation = 'source-over'
       ctx.strokeStyle = 'rgba(255,255,255,0.32)'
       ctx.lineWidth = 1
       for (let vein = 0; vein < 5; vein += 1) {
@@ -196,12 +194,20 @@ uniform float uGrassWindStrength;`,
       [0.26, 0.37, 0.08],
     ] as const
 
+    // Centros de vegetação criam manchas densas intercaladas com áreas mais abertas.
+    const clusters = Array.from({ length: 420 }, () => ({
+      x: (random() * 2 - 1) * WORLD_HALF,
+      z: (random() * 2 - 1) * WORLD_HALF,
+      spread: 1.5 + random() * 3.8,
+    }))
+
     for (let i = 0; i < GRASS_COUNT; i += 1) {
-      // Manchas suaves em vez de uma distribuição perfeitamente uniforme.
-      const clusterX = (random() * 2 - 1) * WORLD_HALF
-      const clusterZ = (random() * 2 - 1) * WORLD_HALF
-      const x = THREE.MathUtils.clamp(clusterX + (random() - 0.5) * 3.6, -WORLD_HALF, WORLD_HALF)
-      const z = THREE.MathUtils.clamp(clusterZ + (random() - 0.5) * 3.6, -WORLD_HALF, WORLD_HALF)
+      const cluster = clusters[Math.floor(random() * clusters.length)]!
+      // Soma de amostras cria uma distribuição concentrada perto do centro da mancha.
+      const offsetX = (random() + random() + random() - 1.5) * cluster.spread
+      const offsetZ = (random() + random() + random() - 1.5) * cluster.spread
+      const x = THREE.MathUtils.clamp(cluster.x + offsetX, -WORLD_HALF, WORLD_HALF)
+      const z = THREE.MathUtils.clamp(cluster.z + offsetZ, -WORLD_HALF, WORLD_HALF)
       const height = this.field.sample(x, z)
       const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
       const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
