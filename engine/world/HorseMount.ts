@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import type { HumanoidAvatar } from './HumanoidAvatar'
 import type { World } from './World'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import horseModelUrl from '../../low-poly_horse.glb?url'
 
 const WALK_SPEED = 3.8
 const GALLOP_SPEED = 8.5
@@ -20,6 +22,10 @@ export class HorseMount {
   private mounted = false
   private animationTime = 0
   private galloping = false
+  private modelMixer: THREE.AnimationMixer | null = null
+  private walkAction: THREE.AnimationAction | null = null
+  private gallopAction: THREE.AnimationAction | null = null
+  private idleAction: THREE.AnimationAction | null = null
 
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -27,6 +33,7 @@ export class HorseMount {
     this.cameraTarget = cameraTarget
     this.getCameraYaw = getCameraYaw
     this.buildModel()
+    this.loadCommittedHorseModel()
     this.mesh.name = 'LowPolyHorse'
     this.mesh.visible = false
     this.world.scene.add(this.mesh)
@@ -186,6 +193,80 @@ export class HorseMount {
     }
   }
 
+
+  /** Carrega o modelo GLB versionado no repositório; o modelo procedural permanece como fallback. */
+  private loadCommittedHorseModel(): void {
+    new GLTFLoader().load(
+      horseModelUrl,
+      (gltf) => {
+        if (!this.mesh.parent) return
+        const model = gltf.scene
+        model.name = 'CommittedLowPolyHorseModel'
+        model.updateMatrixWorld(true)
+
+        // Normaliza a escala e assenta o modelo no chão sem depender das unidades do arquivo.
+        const initialBounds = new THREE.Box3().setFromObject(model)
+        const size = initialBounds.getSize(new THREE.Vector3())
+        if (size.y <= 0 || !Number.isFinite(size.y)) {
+          console.warn('[HorseMount] O GLB não possui dimensões válidas; mantendo o cavalo de fallback.')
+          return
+        }
+        const targetHeight = 2.55
+        model.scale.multiplyScalar(targetHeight / size.y)
+        model.updateMatrixWorld(true)
+        const bounds = new THREE.Box3().setFromObject(model)
+        const center = bounds.getCenter(new THREE.Vector3())
+        model.position.x -= center.x
+        model.position.z -= center.z
+        model.position.y -= bounds.min.y
+
+        // O modelo do commit substitui o cavalo temporário, sem alterar o sistema de montaria.
+        for (const child of [...this.mesh.children]) {
+          this.mesh.remove(child)
+          child.traverse((node) => {
+            if (!(node instanceof THREE.Mesh)) return
+            node.geometry.dispose()
+            const materials = Array.isArray(node.material) ? node.material : [node.material]
+            materials.forEach((material) => material.dispose())
+          })
+        }
+        this.legs.length = 0
+        this.tailRoot = null
+        this.mesh.add(model)
+
+        if (gltf.animations.length > 0) {
+          this.modelMixer = new THREE.AnimationMixer(model)
+          const findClip = (pattern: RegExp) => gltf.animations.find((clip) => pattern.test(clip.name))
+          const idleClip = findClip(/idle|stand|breath/i)
+          const walkClip = findClip(/walk|trot/i)
+          const gallopClip = findClip(/gallop|run|canter/i)
+          this.idleAction = idleClip ? this.modelMixer.clipAction(idleClip) : null
+          this.walkAction = walkClip ? this.modelMixer.clipAction(walkClip) : null
+          this.gallopAction = gallopClip ? this.modelMixer.clipAction(gallopClip) : null
+          const initialAction = this.idleAction ?? this.walkAction ?? this.gallopAction
+          initialAction?.play()
+        }
+      },
+      undefined,
+      (error) => console.error('[HorseMount] Não foi possível carregar low-poly_horse.glb; mantendo o cavalo de fallback.', error),
+    )
+  }
+
+  private updateModelAnimation(dt: number): void {
+    if (!this.modelMixer) return
+    const desired = this.mounted && this.galloping
+      ? this.gallopAction ?? this.walkAction ?? this.idleAction
+      : this.mounted && (this.pressed.has('KeyW') || this.pressed.has('KeyA') || this.pressed.has('KeyS') || this.pressed.has('KeyD') || this.pressed.has('ArrowUp') || this.pressed.has('ArrowDown') || this.pressed.has('ArrowLeft') || this.pressed.has('ArrowRight'))
+        ? this.walkAction ?? this.gallopAction ?? this.idleAction
+        : this.idleAction ?? this.walkAction ?? this.gallopAction
+    for (const action of [this.idleAction, this.walkAction, this.gallopAction]) {
+      if (action && action !== desired && action.isRunning()) action.fadeOut(0.18)
+    }
+    if (desired && !desired.isRunning()) desired.reset().fadeIn(0.18).play()
+    if (desired) desired.timeScale = this.mounted && this.galloping ? 1.55 : 1
+    this.modelMixer.update(dt)
+  }
+
   setRuntimeMode(enabled: boolean, playerPosition?: THREE.Vector3): void {
     this.enabled = enabled
     this.pressed.clear()
@@ -230,6 +311,7 @@ export class HorseMount {
     const groundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
+    this.updateModelAnimation(step)
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
       leg.rotation.x = Math.sin(this.animationTime + phase) * (moving ? (this.galloping ? 0.78 : 0.38) : 0.025)
