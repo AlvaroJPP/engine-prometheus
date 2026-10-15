@@ -376,7 +376,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
     const firstLine = action.code.split(String.fromCharCode(10)).map(line => line.trim()).find(Boolean)
     return firstLine ? (firstLine.length > 42 ? firstLine.slice(0, 39) + '…' : firstLine) : 'Script vazio — clique para editar'
   }
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar ação'
+  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'mount_entity' ? 'Montar na entidade' : action.type === 'dismount_entity' ? 'Desmontar da entidade' : action.type === 'toggle_entity_mount' ? 'Alternar montaria' : 'Executar ação'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -405,7 +405,7 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pre
       : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount' | 'horse_toggle_mount') {
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'mount_entity' | 'dismount_entity' | 'toggle_entity_mount') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
@@ -416,7 +416,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'horse_mount' ? { type } : type === 'horse_dismount' ? { type } : type === 'horse_toggle_mount' ? { type } : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'mount_entity' ? { type } : type === 'dismount_entity' ? { type } : type === 'toggle_entity_mount' ? { type } : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -513,6 +513,17 @@ async function refreshSavedComponents() {
 async function ensureHorseComponent() {
   const componentId = 'builtin-horse-low-poly'
   try {
+    const existing = await getSavedComponent(componentId)
+    if (existing) {
+      const hasLegacyGate = existing.logic?.some(rule => rule.conditions.some(condition => condition.name === 'horse_enabled')) ?? false
+      if (existing.kind !== 'entity' || hasLegacyGate) {
+        existing.kind = 'entity'
+        existing.logic = (existing.logic ?? []).map(rule => ({ ...rule, conditions: rule.conditions.filter(condition => condition.name !== 'horse_enabled') }))
+        await saveComponentAsset(existing)
+      }
+      await refreshSavedComponents()
+      return
+    }
     const response = await fetch(horseComponentUrl)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const bytes = await response.arrayBuffer()
@@ -534,6 +545,7 @@ async function ensureHorseComponent() {
     ]
     const component: SavedComponent = {
       id: componentId,
+      kind: 'entity',
       name: 'Cavalo Low Poly',
       height: targetHeight,
       colliderType: 'box',
@@ -545,7 +557,7 @@ async function ensureHorseComponent() {
         name: 'Montar no cavalo',
         enabled: true,
         trigger: { type: 'object_clicked', objectId: '{ID_OBJECT}' },
-        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
+        conditions: [],
         actions: [{ type: 'javascript', code: 'api.mount()' }],
         graphLayout: {
           trigger: { x: 70, y: 70 },
@@ -558,7 +570,7 @@ async function ensureHorseComponent() {
         name: 'Montar ou desmontar (E)',
         enabled: true,
         trigger: { type: 'key_pressed', key: 'KeyE' },
-        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
+        conditions: [],
         actions: [{ type: 'javascript', code: 'api.toggleMount()' }],
         graphLayout: {
           trigger: { x: 70, y: 210 },
@@ -646,6 +658,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
       colliderSize: Array.isArray(size) && size.length === 3 ? [...size] as [number, number, number] : [1, 1, 1],
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
+      kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
       bytes: result,
       createdAt: Date.now(),
@@ -684,6 +697,7 @@ async function placeSavedComponent(id: string) {
     const sourceSize = sourceBounds.getSize(new THREE.Vector3())
     if (sourceBounds.isEmpty() || sourceSize.y <= 0) throw new Error('O componente não contém dimensões válidas.')
     model.userData.importPart = true
+    model.userData.sceneKind = component.kind ?? 'object'
     model.userData.componentId = component.id
     model.userData.componentLogic = component.logic ?? []
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
@@ -929,7 +943,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option><option value="key_pressed">Tecla pressionada</option></select>
             </label>
             <label class="field">Ação
-              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="horse_mount">Montar no cavalo</option><option value="horse_dismount">Desmontar do cavalo</option><option value="horse_toggle_mount">Alternar montaria (E)</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
+              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="mount_entity">Montar na entidade</option><option value="dismount_entity">Desmontar da entidade</option><option value="toggle_entity_mount">Alternar montaria</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir condição baseada em variável</label>
             <template v-if="ruleConditionEnabled">
@@ -1241,8 +1255,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-else>
               <label class="field">Tipo de ação
-                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount' | 'horse_toggle_mount')">
-                  <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'mount_entity' | 'dismount_entity' | 'toggle_entity_mount')">
+                  <option value="move">Mover elemento</option><option value="rotate">Rotacionar elemento</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="mount_entity">Montar na entidade</option><option value="dismount_entity">Desmontar da entidade</option><option value="toggle_entity_mount">Alternar montaria</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
                 </select>
               </label>
               <template v-if="selectedGraphRule.actions[0] && 'objectId' in selectedGraphRule.actions[0]">
