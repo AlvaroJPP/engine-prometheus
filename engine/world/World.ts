@@ -35,6 +35,10 @@ export class World {
   private hemisphereLight!: THREE.HemisphereLight
   private sunLight!: THREE.DirectionalLight
   private fillLight!: THREE.DirectionalLight
+  private proceduralSky!: THREE.Group
+  private stars!: THREE.Points
+  private sunVisual!: THREE.Mesh
+  private moonVisual!: THREE.Mesh
 
   constructor() {
     this.scene.background = new THREE.Color(BACKGROUND)
@@ -62,6 +66,55 @@ export class World {
     this.fillLight = new THREE.DirectionalLight(0x9dbaff, 0.55)
     this.fillLight.position.set(-30, 18, -24)
     this.scene.add(this.fillLight)
+    // Céu procedural usado quando o projeto não possui uma imagem de céu.
+    // Os elementos ficam longe do terreno e não dependem de arquivos externos.
+    this.proceduralSky = new THREE.Group()
+    this.proceduralSky.name = 'ProceduralSky'
+    const starPositions: number[] = []
+    let starSeed = 0x4a17c9
+    const randomStar = () => {
+      starSeed = (Math.imul(starSeed, 1664525) + 1013904223) >>> 0
+      return starSeed / 4294967296
+    }
+    for (let i = 0; i < 900; i += 1) {
+      const y = randomStar() * 2 - 1
+      const angle = randomStar() * Math.PI * 2
+      const horizontal = Math.sqrt(1 - y * y)
+      const radius = 118 + randomStar() * 4
+      starPositions.push(
+        Math.cos(angle) * horizontal * radius,
+        y * radius,
+        Math.sin(angle) * horizontal * radius,
+      )
+    }
+    const starGeometry = new THREE.BufferGeometry()
+    starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3))
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xeaf2ff,
+      size: 0.72,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      fog: false,
+    })
+    this.stars = new THREE.Points(starGeometry, starMaterial)
+    this.stars.name = 'SkyStars'
+    this.stars.renderOrder = 10
+    this.proceduralSky.add(this.stars)
+
+    const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xfff0bd, fog: false, depthWrite: false })
+    this.sunVisual = new THREE.Mesh(new THREE.SphereGeometry(3.2, 20, 16), sunMaterial)
+    this.sunVisual.name = 'SkySun'
+    this.sunVisual.renderOrder = 11
+    this.proceduralSky.add(this.sunVisual)
+
+    const moonMaterial = new THREE.MeshBasicMaterial({ color: 0xdce7ff, fog: false, depthWrite: false })
+    this.moonVisual = new THREE.Mesh(new THREE.SphereGeometry(2.35, 20, 16), moonMaterial)
+    this.moonVisual.name = 'SkyMoon'
+    this.moonVisual.renderOrder = 11
+    this.proceduralSky.add(this.moonVisual)
+    this.scene.add(this.proceduralSky)
     this.applyDayNight()
   }
 
@@ -91,6 +144,7 @@ export class World {
           texture.needsUpdate = true
           this.skyBackgroundTexture = texture
           this.scene.background = texture
+          this.proceduralSky.visible = false
         }, undefined, (error) => {
           console.error('[World] Não foi possível carregar a textura do céu:', error)
           if (this.skyTextureDataUrl === requestedDataUrl) {
@@ -123,6 +177,15 @@ export class World {
     this.hemisphereLight.color.set(daylight > 0.1 ? 0xc8e4ff : 0x18294f)
     this.hemisphereLight.groundColor.set(daylight > 0.1 ? 0x625b4d : 0x090d20)
     this.fillLight.intensity = 0.08 + (1 - daylight) * 0.35
+
+    // Sol e lua percorrem o céu em sentidos opostos conforme o horário.
+    const skyRadius = 105
+    this.sunVisual.position.set(Math.cos(angle) * skyRadius, Math.sin(angle) * skyRadius, -18)
+    this.moonVisual.position.set(-Math.cos(angle) * skyRadius, -Math.sin(angle) * skyRadius, -18)
+    this.proceduralSky.visible = !this.skyTextureDataUrl
+    this.stars.visible = !this.skyTextureDataUrl && daylight < 0.28
+    this.moonVisual.visible = !this.skyTextureDataUrl && daylight < 0.32
+    this.sunVisual.visible = !this.skyTextureDataUrl && daylight > 0.02
     if (!this.skyTextureDataUrl) {
       const night = new THREE.Color(0x080d22)
       const dawn = new THREE.Color(0xe58b67)
