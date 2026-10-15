@@ -246,15 +246,9 @@ export class Engine {
     const finalSize = finalBounds.getSize(new THREE.Vector3())
     const center = finalBounds.getCenter(new THREE.Vector3())
 
-    // Centraliza a hierarquia inteira com um grupo de deslocamento.
-    // Alterar model.position diretamente falha em assets com rotação,
-    // escala ou transforms internos, podendo afastar todas as malhas da caixa proxy.
-    const modelContainer = new THREE.Group()
-    modelContainer.name = 'imported-model-content'
-    modelContainer.add(model)
-    modelContainer.position.set(-center.x, -center.y, -center.z)
-    modelContainer.updateMatrixWorld(true)
-
+    // O diálogo de importação já centraliza o modelo antes de transferi-lo.
+    // Não aplique um segundo deslocamento: isso pode afastar a malha real da
+    // caixa invisível usada para seleção e transformação.
     const proxyGeometry = new THREE.BoxGeometry(
       Math.max(finalSize.x, 0.05),
       Math.max(height, 0.05),
@@ -273,7 +267,7 @@ export class Engine {
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
-    root.add(modelContainer)
+    root.add(model)
 
     const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
