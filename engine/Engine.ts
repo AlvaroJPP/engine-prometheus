@@ -396,8 +396,11 @@ export class Engine {
     // personalizadas. A tecla E também possui uma interação nativa de montaria
     // como fallback: projetos antigos/componentes sem regra KeyE não ficam
     // impossibilitados de montar. executeNodeAction valida modo Run, alvo e alcance.
+    const wasMounted = this.horseMount.isMounted
     const executed = this.logic.triggerKeyPressed(event.code)
-    if (event.code === 'KeyE' && !this.horseMount.isMounted) {
+    // Se alguma regra realmente alterou o estado da montaria, não repete a ação.
+    // Caso contrário, E usa a interação nativa como fallback para montar/desmontar.
+    if (event.code === 'KeyE' && this.horseMount.isMounted === wasMounted) {
       this.horseMount.executeNodeAction('toggle')
     }
 
