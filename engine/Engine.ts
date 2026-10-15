@@ -119,6 +119,7 @@ export class Engine {
         mixer?.update(dt)
       }
       this.avatar.update(dt)
+      this.world.updateEnvironment(dt)
       this.logic.update()
       this.orbit.update()
       this.viewport.renderer.render(this.world.scene, this.orbit.camera)
@@ -741,6 +742,7 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
+    this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
     this.collisions.clear()
     this.world.setGridVisible(true)
@@ -754,6 +756,8 @@ export class Engine {
       brushStrength: this.state.brush.strength,
       brushRadius: this.state.brush.radius,
     })
+    const scenePath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
+    bundle.scenes[scenePath].environment = this.world.getEnvironment()
     bundle.logic = this.logic.exportData()
     return bundle
   }
@@ -769,6 +773,7 @@ export class Engine {
     this.orbit.restore(scene.camera)
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
     this.world.replaceAll(scene.objects.filter(object => !object.importedModelData).map(objectFromData), scene.terrain)
+    this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     const loader = new GLTFLoader()
     for (const data of scene.objects) {
       if (!data.importedModelData) continue
