@@ -221,50 +221,46 @@ export class HorseMount {
         model.position.z -= center.z
         model.position.y -= bounds.min.y
 
-        // Ajusta as peças da cabeçada no espaço mundial. As geometrias do GLB
-        // usam coordenadas locais, então alterar diretamente o eixo Z local não
-        // corrige a posição visual quando o nó possui rotação/escala.
-        model.updateMatrixWorld(true)
-        const horseBounds = new THREE.Box3().setFromObject(model)
-        const horseSize = horseBounds.getSize(new THREE.Vector3())
-        const muzzleFrontLimit = horseBounds.max.z - horseSize.z * 0.055
+        // Ajuste manual baseado na inspeção dos dados do GLB:
+        // Mesh.001_DarkLeather_0 contém a cabeçada e as rédeas junto com
+        // outras correias. No espaço de bind do modelo, a zona da cabeça fica
+        // na parte alta e dianteira; movemos apenas esses vértices para trás.
+        // Não usamos Box3 mundial aqui porque a malha é esquelética (SkinnedMesh).
         model.traverse((node) => {
-          if (!(node instanceof THREE.Mesh)) return
-          const bounds = new THREE.Box3().setFromObject(node)
-          if (bounds.isEmpty()) return
-          const size = bounds.getSize(new THREE.Vector3())
-          const center = bounds.getCenter(new THREE.Vector3())
-          const nearFrontOfHead =
-            center.z > horseBounds.max.z - horseSize.z * 0.30 &&
-            center.y > horseBounds.min.y + horseSize.y * 0.60
-          const narrowStrap =
-            size.x < horseSize.x * 0.22 &&
-            size.y < horseSize.y * 0.20 &&
-            size.z > horseSize.z * 0.035 &&
-            size.z < horseSize.z * 0.40
-          if (!nearFrontOfHead || !narrowStrap || bounds.max.z <= muzzleFrontLimit) return
+          if (!(node instanceof THREE.SkinnedMesh)) return
+          const materials = Array.isArray(node.material) ? node.material : [node.material]
+          const isDarkLeather = materials.some((material) => material.name === 'DarkLeather')
+          if (!isDarkLeather) return
 
-          // Clone para não alterar outras peças que compartilhem a mesma geometria.
           node.geometry = node.geometry.clone()
-          const position = node.geometry.getAttribute('position')
+          const geometry = node.geometry
+          const position = geometry.getAttribute('position')
           if (!position) return
-          const vertex = new THREE.Vector3()
-          const inverseWorld = node.matrixWorld.clone().invert()
-          let changed = false
+
+          // Limites observados na malha original do GLB: a cabeçada fica
+          // acima do pescoço e à frente; sela/estribos ficam abaixo/atrás.
+          // Puxamos progressivamente a ponta frontal para junto do focinho.
+          let movedVertices = 0
           for (let i = 0; i < position.count; i += 1) {
-            vertex.fromBufferAttribute(position, i).applyMatrix4(node.matrixWorld)
-            if (vertex.z > muzzleFrontLimit) {
-              vertex.z = muzzleFrontLimit
-              vertex.applyMatrix4(inverseWorld)
-              position.setXYZ(i, vertex.x, vertex.y, vertex.z)
-              changed = true
-            }
+            const x = position.getX(i)
+            const y = position.getY(i)
+            const z = position.getZ(i)
+            if (y < 3.68 || z < 0.62) continue
+            const headRegionWeight = THREE.MathUtils.clamp((y - 3.68) / 0.34, 0, 1)
+            const frontWeight = THREE.MathUtils.clamp((z - 0.62) / 0.42, 0, 1)
+            const pullBack = 0.32 * headRegionWeight * frontWeight
+            if (pullBack <= 0.001) continue
+            position.setXYZ(i, x, y, z - pullBack)
+            movedVertices += 1
           }
-          if (changed) {
+          if (movedVertices > 0) {
             position.needsUpdate = true
-            node.geometry.computeVertexNormals()
-            node.geometry.computeBoundingBox()
-            node.geometry.computeBoundingSphere()
+            geometry.computeVertexNormals()
+            geometry.computeBoundingBox()
+            geometry.computeBoundingSphere()
+            console.info(`[HorseMount] Ajustados manualmente ${movedVertices} vértices da cabeçada.`)
+          } else {
+            console.warn('[HorseMount] Nenhum vértice da cabeçada foi encontrado para o ajuste manual.')
           }
         })
 
