@@ -212,12 +212,17 @@ export class Engine {
     // evitar trabalho desnecessário durante renderização e seleção.
     let meshCount = 0
     let triangleCount = 0
+    const importedMeshes: THREE.Mesh[] = []
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
+      importedMeshes.push(child)
       meshCount += 1
       child.castShadow = false
       child.receiveShadow = false
-      child.frustumCulled = true
+      // Assets GLB podem trazer bounding spheres incorretas ou muito pequenas.
+      // Desativar frustum culling evita que a malha desapareça após ser movida
+      // do preview para a cena principal, sem afetar a caixa de seleção.
+      child.frustumCulled = false
       const geometries = child.geometry
       if (!geometries.boundingSphere) geometries.computeBoundingSphere()
       if (!geometries.boundingBox) geometries.computeBoundingBox()
@@ -230,9 +235,26 @@ export class Engine {
         material.needsUpdate = true
       }
     })
+    if (meshCount === 0 || triangleCount === 0) {
+      throw new Error('O arquivo foi carregado, mas não contém malhas trianguladas para renderizar.')
+    }
+    // Evita manter uma hierarquia invisível herdada do preview.
+    // A visibilidade de qualquer ancestral controla todos os descendentes.
+    let ancestor: THREE.Object3D | null = model
+    while (ancestor) {
+      ancestor.visible = true
+      ancestor = ancestor.parent
+    }
     // A seleção usa uma caixa simples; o modelo real não precisa ser testado
     // face por face pelo raycaster a cada clique.
     model.userData.importStats = { meshCount, triangleCount }
+    console.info('[Engine] Modelo importado preparado:', {
+      name,
+      meshCount,
+      triangleCount,
+      bounds: originalSize.toArray(),
+      visibleMeshes: importedMeshes.filter((mesh) => mesh.visible).length,
+    })
 
     const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
     // O diálogo de importação já centraliza o modelo. Não subtraia o centro
@@ -267,6 +289,8 @@ export class Engine {
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
     root.add(model)
+    root.frustumCulled = false
+    root.updateMatrixWorld(true)
 
     const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
