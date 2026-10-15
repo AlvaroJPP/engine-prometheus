@@ -46,6 +46,51 @@ const textureRepairSelections = ref<Record<string, string>>({})
 const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
 const gltfMetadata = computed(() => model.value?.userData.importGltfMetadata as GltfMetadata | undefined)
+const colliderType = ref<'box' | 'sphere' | 'capsule' | 'none'>('box')
+const colliderSize = ref<[number, number, number]>([1, 1, 1])
+const colliderOffset = ref<[number, number, number]>([0, 0, 0])
+let colliderPreview: THREE.LineSegments | null = null
+
+function updateColliderPreview() {
+  if (!scene || !model) return
+  if (colliderPreview) {
+    scene.remove(colliderPreview)
+    colliderPreview.geometry.dispose()
+    ;(colliderPreview.material as THREE.Material).dispose()
+    colliderPreview = null
+  }
+  if (!model.value || colliderType.value === 'none') return
+  const [width, height, depth] = colliderSize.value.map(value => Math.max(0.05, value))
+  let geometry: THREE.BufferGeometry
+  if (colliderType.value === 'sphere') {
+    geometry = new THREE.IcosahedronGeometry(Math.max(width, height, depth) / 2, 2)
+  } else if (colliderType.value === 'capsule') {
+    const radius = Math.max(0.025, Math.min(width, depth) / 4)
+    geometry = new THREE.CapsuleGeometry(radius, Math.max(0, height - radius * 2), 4, 8)
+    geometry.scale(width / Math.max(radius * 2, 0.05), 1, depth / Math.max(radius * 2, 0.05))
+  } else {
+    geometry = new THREE.BoxGeometry(width, height, depth)
+  }
+  geometry.translate(...colliderOffset.value)
+  colliderPreview = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geometry),
+    new THREE.LineBasicMaterial({ color: 0x65e6a0, depthTest: false, transparent: true, opacity: 0.98 }),
+  )
+  colliderPreview.name = 'import-collider-preview'
+  colliderPreview.renderOrder = 1000
+  scene.add(colliderPreview)
+  geometry.dispose()
+}
+
+function setColliderVector(field: 'colliderSize' | 'colliderOffset', axis: 0 | 1 | 2, value: number) {
+  if (!Number.isFinite(value)) return
+  const vector: [number, number, number] = [...(field === 'colliderSize' ? colliderSize.value : colliderOffset.value)]
+  vector[axis] = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
+  if (field === 'colliderSize') colliderSize.value = vector
+  else colliderOffset.value = vector
+  updateColliderPreview()
+}
+
 const recoverableColorImages = computed(() => (gltfMetadata.value?.images ?? []).filter(image => image.uri.startsWith('data:image/')))
 const materialsMissingColorTexture = computed(() => (gltfMetadata.value?.materials ?? []).filter(material => material.baseColorTexture === null))
 
@@ -307,6 +352,7 @@ function clearLoadedModel() {
     disposeModel(model.value)
   }
   model.value = null
+  if (colliderPreview) { scene?.remove(colliderPreview); colliderPreview.geometry.dispose(); (colliderPreview.material as THREE.Material).dispose(); colliderPreview = null }
   textureRepairSelections.value = {}
   textureRepairMessage.value = ''
   refreshModelDiagnostics()
@@ -458,6 +504,8 @@ async function parseFile(file: File) {
 
 async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   clearLoadedModel()
+  colliderType.value = 'box'
+  colliderOffset.value = [0, 0, 0]
   loaded.name = displayName.replace(/\.[^.]+$/, '') || 'Modelo importado'
   const height = centerAndMeasure(loaded)
   const initialScale = 2 / height
@@ -466,6 +514,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
   loaded.updateMatrixWorld(true)
   modelHeight.value = 2
+  colliderSize.value = [Math.max(0.05, dimensions.value[0] * 2 / height), 2, Math.max(0.05, dimensions.value[2] * 2 / height)]
   model.value = loaded
   refreshPreviewParts()
   refreshModelDiagnostics()
@@ -480,6 +529,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
   scene.add(loaded)
   fitCamera(loaded)
+  updateColliderPreview()
 }
 
 async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
@@ -608,6 +658,9 @@ watch(modelHeight, (height) => {
   }
   model.value.updateMatrixWorld(true)
   fitCamera(model.value)
+  const factor = height / Math.max(0.1, modelHeight.value)
+  colliderSize.value = colliderSize.value.map(value => Math.max(0.05, value * factor)) as [number, number, number]
+  updateColliderPreview()
 })
 
 function confirmImport() {
@@ -644,6 +697,10 @@ function confirmImport() {
   } else {
     imported = root
   }
+
+  imported.userData.importColliderType = colliderType.value
+  imported.userData.importColliderSize = [...colliderSize.value]
+  imported.userData.importColliderOffset = [...colliderOffset.value]
 
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
@@ -737,8 +794,34 @@ onBeforeUnmount(disposePreview)
             </div>
           </section>
           <div class="model-panel-separator"></div>
+          <section class="model-panel-section model-collider-section">
+            <div class="model-panel-heading"><span>04</span> COLISOR FÍSICO</div>
+            <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
+            <label class="model-collider-field">Forma
+              <select :value="colliderType" :disabled="!model" @change="colliderType = ($event.target as HTMLSelectElement).value as typeof colliderType; updateColliderPreview()">
+                <option value="box">Caixa</option>
+                <option value="sphere">Esfera</option>
+                <option value="capsule">Cápsula</option>
+                <option value="none">Sem colisão</option>
+              </select>
+            </label>
+            <div class="model-collider-subtitle">{{ colliderType === 'sphere' ? 'DIÂMETRO DA ESFERA (raio = metade)' : 'DIMENSÕES DO COLISOR' }}</div>
+            <div class="model-collider-grid">
+              <label>{{ colliderType === 'sphere' ? 'Diâmetro X' : 'Largura X' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[0]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 0, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>{{ colliderType === 'sphere' ? 'Diâmetro Y' : 'Altura Y' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[1]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 1, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>{{ colliderType === 'sphere' ? 'Diâmetro Z' : 'Prof. Z' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[2]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 2, Number(($event.target as HTMLInputElement).value))" /></label>
+            </div>
+            <div class="model-collider-subtitle">DESLOCAMENTO RELATIVO AO CENTRO DO MODELO</div>
+            <div class="model-collider-grid">
+              <label>X<input type="number" step="0.1" :value="colliderOffset[0]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderOffset', 0, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>Y<input type="number" step="0.1" :value="colliderOffset[1]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderOffset', 1, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>Z<input type="number" step="0.1" :value="colliderOffset[2]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderOffset', 2, Number(($event.target as HTMLInputElement).value))" /></label>
+            </div>
+            <p class="model-collider-example">Exemplo: para uma esfera de raio 0,5, informe 1,0 nos três diâmetros. Em uma árvore, ajuste o deslocamento Y para posicionar a esfera no tronco.</p>
+          </section>
+          <div class="model-panel-separator"></div>
           <section class="model-panel-section">
-            <div class="model-panel-heading"><span>04</span> INFORMAÇÕES</div>
+            <div class="model-panel-heading"><span>05</span> INFORMAÇÕES</div>
             <div class="model-asset-info-row"><span>Arquivo</span><strong :title="fileName">{{ fileName || '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Tipo</span><strong>{{ fileName ? (fileName.split('.').pop() || '—').toUpperCase() : '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Geometria</span><strong>{{ diagnosticSummary.meshes }} malhas</strong></div>
@@ -748,7 +831,7 @@ onBeforeUnmount(disposePreview)
           </section>
           <div class="model-panel-separator"></div>
           <section class="model-panel-section model-diagnostic-section">
-            <div class="model-panel-heading"><span>05</span> FERRAMENTAS</div>
+            <div class="model-panel-heading"><span>06</span> FERRAMENTAS</div>
                       <details class="model-diagnostics">
             <summary>DIAGNÓSTICO TÉCNICO DO MODELO</summary>
             <div class="model-diagnostics-summary">
@@ -830,7 +913,17 @@ onBeforeUnmount(disposePreview)
 .model-import-close{width:29px;height:29px;border:1px solid #3c414b;border-radius:4px;background:#252931;color:#aeb5c1;font-size:21px;cursor:pointer}.model-import-close:hover{background:#353a44;color:#fff}
 .model-import-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:7px 14px;border-bottom:1px solid #30343c;background:#202329}.model-import-toolbar-group{display:flex;gap:7px}.model-toolbar-button{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #414650;border-radius:4px;background:#292d35;color:#d5d9e1;font-size:10px;cursor:pointer}.model-toolbar-button span{color:#d4a171;font-size:14px}.model-toolbar-button:hover{background:#353a43}.model-toolbar-button:disabled{opacity:.45;cursor:wait}.model-toolbar-primary{border-color:#9b704d;background:#493526;color:#ffe0c3}.model-import-toolbar-file{display:flex;align-items:center;gap:8px;max-width:45%;overflow:hidden;color:#9fa7b4;font-size:10px}.model-import-toolbar-file span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .model-import-workspace{display:grid;grid-template-columns:245px minmax(300px,1fr) 275px;flex:1;min-height:0;overflow:hidden}
-.model-import-left-panel,.model-import-right-panel{min-width:0;overflow:auto;background:#1b1e24;scrollbar-color:#414650 #1b1e24;scrollbar-width:thin}.model-import-left-panel{border-right:1px solid #30343c}.model-import-right-panel{border-left:1px solid #30343c}.model-panel-section{padding:15px 13px}.model-panel-heading{display:flex;align-items:center;gap:8px;margin-bottom:12px;color:#c8cdd6;font-size:9px;font-weight:800;letter-spacing:.09em}.model-panel-heading>span{color:#bd8a60;font:10px ui-monospace,monospace}.model-panel-heading>b{display:grid;place-items:center;min-width:19px;height:17px;margin-left:auto;padding:0 5px;border-radius:3px;background:#30343d;color:#d8dce4;font-size:9px}.model-panel-separator{height:1px;background:#30343c}.model-panel-hint{margin:9px 0 0;color:#818a98;font-size:9px;line-height:1.65}
+.model-import-left-panel,
+.model-collider-section{display:flex;flex-direction:column;gap:9px}
+.model-collider-help,.model-collider-example{margin:0;color:#9ca5b3;font-size:10px;line-height:1.5}
+.model-collider-field{display:flex;flex-direction:column;gap:5px;color:#aeb6c4;font-size:10px}
+.model-collider-field select,.model-collider-grid input{width:100%;min-width:0;box-sizing:border-box;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;padding:7px 6px;font:11px ui-monospace,monospace}
+.model-collider-subtitle{color:#c69b75;font-size:9px;font-weight:750;letter-spacing:.08em;margin-top:3px}
+.model-collider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.model-collider-grid label{display:flex;flex-direction:column;gap:5px;color:#aeb6c4;font-size:9px;min-width:0}
+.model-collider-grid input{padding:7px 4px}
+.model-collider-grid input:disabled,.model-collider-field select:disabled{opacity:.45}
+.model-import-right-panel{min-width:0;overflow:auto;background:#1b1e24;scrollbar-color:#414650 #1b1e24;scrollbar-width:thin}.model-import-left-panel{border-right:1px solid #30343c}.model-import-right-panel{border-left:1px solid #30343c}.model-panel-section{padding:15px 13px}.model-panel-heading{display:flex;align-items:center;gap:8px;margin-bottom:12px;color:#c8cdd6;font-size:9px;font-weight:800;letter-spacing:.09em}.model-panel-heading>span{color:#bd8a60;font:10px ui-monospace,monospace}.model-panel-heading>b{display:grid;place-items:center;min-width:19px;height:17px;margin-left:auto;padding:0 5px;border-radius:3px;background:#30343d;color:#d8dce4;font-size:9px}.model-panel-separator{height:1px;background:#30343c}.model-panel-hint{margin:9px 0 0;color:#818a98;font-size:9px;line-height:1.65}
 .model-file-input{display:none}.model-file-dropzone{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;padding:13px 10px;border:1px dashed #4a505c;border-radius:5px;background:#20242b;color:#d9dde5;text-align:left;cursor:pointer}.model-file-dropzone:hover{border-color:#b98255;background:#29251f}.model-file-dropzone:disabled{opacity:.5;cursor:wait}.model-dropzone-icon{display:grid;place-items:center;width:28px;height:28px;border:1px solid #66503c;border-radius:4px;background:#33271e;color:#e1aa78;font-size:19px}.model-file-dropzone strong{font-size:10px}.model-file-dropzone small{color:#929aa7;font-size:9px}.model-dropzone-formats{color:#b7bdc8;font-size:8px;line-height:1.5}.model-hierarchy-section{padding-top:14px}.model-preview-parts{display:flex;flex-direction:column;gap:3px;max-height:none;overflow:visible}.model-preview-part{display:flex;align-items:center;gap:2px;min-width:0;padding:3px;border:1px solid transparent;border-radius:3px;background:transparent}.model-preview-part:hover{background:#252930}.model-preview-part.is-selected{border-color:#805b3d;background:#34291f}.model-preview-part-select{display:flex;align-items:center;gap:5px;flex:1;min-width:0;padding:4px 2px;border:0;background:transparent;color:#d5dae3;text-align:left;cursor:pointer}.model-preview-part-index{color:#727c8b;font:8px ui-monospace,monospace}.model-tree-cube{color:#d4a171;font-size:12px}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#cfd4de;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-select small{flex:none;color:#8d96a5;font-size:8px}.model-preview-part-eye,.model-preview-part-solo{width:20px;height:21px;flex:none;border:1px solid #3b414b;border-radius:3px;background:#262a31;color:#b8c0cc;font-size:9px;cursor:pointer}.model-preview-part-solo.active{border-color:#ba8759;color:#f3c79f}.model-preview-part-delete{width:19px;height:21px;flex:none;border:1px solid transparent;border-radius:3px;background:transparent;color:#a77c78;font-size:15px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{border-color:#6a3936;background:#3c2525;color:#ffb7ad}.model-preview-show-all{width:100%;margin-top:8px;padding:7px;border:1px solid #3c424d;border-radius:3px;background:#272b33;color:#c5cbd5;font-size:9px;cursor:pointer}.model-hierarchy-empty{display:flex;flex-direction:column;align-items:center;padding:24px 10px;text-align:center;color:#697382}.model-hierarchy-empty>span{font-size:25px;color:#4d5664}.model-hierarchy-empty p{margin:8px 0 4px;color:#aab1bd;font-size:10px}.model-hierarchy-empty small{font-size:9px;line-height:1.5}
 .model-import-center-panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:#13151a}.model-viewport-topline,.model-viewport-statusbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:31px;padding:0 12px;background:#1b1e24;color:#87909e;font:8px ui-monospace,monospace;letter-spacing:.07em}.model-viewport-topline{border-bottom:1px solid #2b3038}.model-viewport-topline span:first-child,.model-viewport-statusbar span:first-child{display:flex;align-items:center;gap:7px}.model-viewport-topline i,.model-viewport-statusbar i{width:5px;height:5px;border-radius:50%;background:#bd8a60}.model-viewport-statusbar{border-top:1px solid #2b3038;letter-spacing:0}.model-viewport-statusbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.model-viewport-statusbar span:last-child{color:#8d96a4}.model-viewport-statusbar b{color:#555e6b}
 .model-import-preview{position:relative;flex:1;min-height:280px;overflow:hidden;background-color:#171a20;background-image:radial-gradient(#343943 0.7px,transparent .7px);background-size:18px 18px}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:280px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:#171a20b8;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:53px;height:53px;border:1px solid #555d6b;border-radius:9px;background:#22262e;color:#d7a06d;font-size:30px}.model-import-empty strong{font-size:14px;font-weight:600;color:#e1e4ea}.model-import-empty small{color:#929aa8;font-size:10px}.model-import-empty .model-import-primary{margin-top:4px}.preview-badge{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #414752;border-radius:3px;background:#1b1e24e8;color:#c2c9d4;font:8px ui-monospace,monospace;letter-spacing:.1em;pointer-events:none}.model-live-dot{width:5px;height:5px;border-radius:50%;background:#82bd9c}.preview-dimensions{position:absolute;bottom:35px;left:12px;padding:7px 9px;border:1px solid #414752;border-radius:3px;background:#1b1e24ed;color:#e0e4eb;font:9px ui-monospace,monospace;pointer-events:none}.preview-dimensions b{color:#606a78}.preview-dimensions small{margin-left:4px;color:#8d96a4;font-size:8px}.model-viewport-controls{position:absolute;right:10px;bottom:10px;display:flex;gap:10px;color:#7e8795;font:7px ui-monospace,monospace;pointer-events:none}.model-import-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#13151aeb;color:#e2e5ec;font-size:12px}.model-import-loading small{color:#8f98a6;font-size:9px}.model-loading-spinner{width:25px;height:25px;border:2px solid #414752;border-top-color:#d4a171;border-radius:50%;animation:model-import-spin .8s linear infinite}@keyframes model-import-spin{to{transform:rotate(360deg)}}
