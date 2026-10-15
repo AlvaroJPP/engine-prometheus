@@ -581,11 +581,9 @@ export class HorseMount {
     this.pressed.clear()
     if (!enabled) {
       this.dismount(false)
-      this.mesh.visible = false
-      if (this.parkedComponent) {
-        this.parkedComponent.visible = this.parkedComponentWasVisible
-        this.parkedComponent = null
-      }
+      this.parkedComponent = this.editorComponent
+      this.mesh.visible = !!this.editorComponent
+      if (this.editorComponent) this.syncTransformFromComponent()
       return
     }
 
@@ -595,6 +593,8 @@ export class HorseMount {
     // sua posição acompanha a montaria e é restaurada ao sair do modo Run.
     const placedHorse = this.world.list()
       .filter(object => object.mesh.visible && (
+        object.mesh.userData.nativeComponentType === 'horse' ||
+        object.mesh.userData.nativeHorseComponent === true ||
         object.mesh.userData.componentId === 'builtin-horse-low-poly' ||
         object.name.trim().toLowerCase() === 'cavalo low poly'
       ))
@@ -603,7 +603,8 @@ export class HorseMount {
         return a.mesh.position.distanceToSquared(playerPosition) - b.mesh.position.distanceToSquared(playerPosition)
       })[0]
 
-    this.parkedComponent = placedHorse?.mesh ?? null
+    this.parkedComponent = placedHorse?.mesh ?? this.editorComponent
+    this.editorComponent = this.parkedComponent
     if (this.parkedComponent) {
       const component = this.parkedComponent
       this.parkedComponentWasVisible = component.visible
@@ -629,7 +630,8 @@ export class HorseMount {
         component.position.z,
       )
       this.mesh.rotation.set(0, component.rotation.y, 0)
-      component.visible = false
+      component.visible = true
+      this.mesh.scale.copy(component.scale)
     } else if (playerPosition) {
       this.mountColliderSize.set(0.95, 1.35, 1.6)
       this.mountColliderOffset.set(0, 0, 0)
@@ -643,11 +645,22 @@ export class HorseMount {
   }
 
   update(dt: number): void {
-    if (!this.enabled || !this.mesh.visible) return
+    if (!this.mesh.visible) return
     const step = Math.min(Math.max(dt, 0), 0.05)
+    if (!this.enabled) {
+      this.syncTransformFromComponent()
+      this.animationTime += step
+      if (this.horseMixer) {
+        this.playHorseAnimation('idle')
+        this.horseMixer.update(step)
+      } else {
+        this.updateProceduralAnimation(step, false)
+      }
+      return
+    }
     const forward = Number(this.pressed.has('KeyW') || this.pressed.has('ArrowUp')) - Number(this.pressed.has('KeyS') || this.pressed.has('ArrowDown'))
     const side = Number(this.pressed.has('KeyD') || this.pressed.has('ArrowRight')) - Number(this.pressed.has('KeyA') || this.pressed.has('ArrowLeft'))
-    const moving = forward !== 0 || side !== 0
+    const moving = this.mounted && (forward !== 0 || side !== 0)
     this.galloping = moving && (this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight'))
     const speed = this.galloping ? GALLOP_SPEED : WALK_SPEED
 
@@ -678,6 +691,7 @@ export class HorseMount {
         this.mesh.position.z,
       )
       this.parkedComponent.rotation.y = this.mesh.rotation.y
+      this.parkedComponent.scale.copy(this.mesh.scale)
       this.parkedComponent.updateMatrixWorld(true)
     }
     this.animationTime += step * (this.galloping ? 15 : 8)
