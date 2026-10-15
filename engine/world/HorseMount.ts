@@ -832,14 +832,47 @@ export class HorseMount {
     this.syncMountedVisuals()
 
     if (restorePlayer) {
-      const side = new THREE.Vector3(1.25, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
-      const x = THREE.MathUtils.clamp(this.mesh.position.x + side.x, -48, 48)
-      const z = THREE.MathUtils.clamp(this.mesh.position.z + side.z, -48, 48)
-      this.avatar.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      // O ponto fixo ao lado do cavalo podia deixar o jogador parcialmente dentro
+      // da malha real (principalmente quando o cavalo era girado ou redimensionado).
+      // Procura uma posição livre ao redor do modelo, respeitando colisões do mundo.
+      this.mesh.updateWorldMatrix(true, true)
+      const horseBounds = new THREE.Box3().setFromObject(this.importedModel ?? this.mesh)
+      const horseSize = horseBounds.getSize(new THREE.Vector3())
+      const clearance = Math.max(1.55, Math.max(horseSize.x, horseSize.z) * 0.5 + 0.55)
+      const directions = [
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 0, -1),
+        new THREE.Vector3(1, 0, 1).normalize(),
+        new THREE.Vector3(-1, 0, 1).normalize(),
+        new THREE.Vector3(1, 0, -1).normalize(),
+        new THREE.Vector3(-1, 0, -1).normalize(),
+      ]
+      let exit: THREE.Vector3 | null = null
+      for (const extra of [0, 0.65, 1.3]) {
+        for (const direction of directions) {
+          const x = THREE.MathUtils.clamp(this.mesh.position.x + direction.x * (clearance + extra), -48, 48)
+          const z = THREE.MathUtils.clamp(this.mesh.position.z + direction.z * (clearance + extra), -48, 48)
+          if (this.avatar.canOccupyPosition(x, z)) {
+            exit = new THREE.Vector3(x, this.world.terrain.heightAt(x, z), z)
+            break
+          }
+        }
+        if (exit) break
+      }
+      // Em um espaço totalmente cercado, ainda afasta o jogador do cavalo.
+      if (!exit) {
+        const fallback = directions[0]!.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
+        const x = THREE.MathUtils.clamp(this.mesh.position.x + fallback.x * (clearance + 1.3), -48, 48)
+        const z = THREE.MathUtils.clamp(this.mesh.position.z + fallback.z * (clearance + 1.3), -48, 48)
+        exit = new THREE.Vector3(x, this.world.terrain.heightAt(x, z), z)
+      }
+      this.avatar.mesh.position.copy(exit)
       this.avatar.mesh.visible = true
       this.avatar.setEnabled(true)
       this.avatar.resetVerticalState()
-      this.cameraTarget.set(x, this.avatar.mesh.position.y + 0.9, z)
+      this.cameraTarget.set(exit.x, exit.y + 0.9, exit.z)
     } else {
       this.avatar.setEnabled(false)
     }
