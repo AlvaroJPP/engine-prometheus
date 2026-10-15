@@ -860,6 +860,7 @@ export class Engine {
       report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
+    this.horseMount.setEditorComponent(null)
     this.world.replaceAll(restoredObjects, scene.terrain)
     // Reconstrói o proxy editável do cavalo nativo e o conecta ao mesmo HorseMount
     // que executa animações, colisão e montaria. O GLB não é duplicado no projeto.
