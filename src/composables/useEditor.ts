@@ -68,7 +68,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const offs: Array<() => void> = []
   let clipboardObject: ObjectInfo | null = null
   let applyingHistory = false
-  type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo; kind?: 'paste' }
+  type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo; kind?: 'paste' | 'create' }
   const undoStack: ObjectHistoryEntry[] = []
   const redoStack: ObjectHistoryEntry[] = []
   const HISTORY_LIMIT = 100
@@ -107,8 +107,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function undo() {
     const entry = undoStack.pop()
     if (!entry) { say('Não há alterações de objeto para desfazer.'); return }
-    if (entry.kind === 'paste') {
-      if (!engine || !objects.value.some(object => object.id === entry.id)) { undoStack.push(entry); say('A cópia não está mais na cena.'); return }
+    if (entry.kind === 'paste' || entry.kind === 'create') {
+      if (!engine || !objects.value.some(object => object.id === entry.id)) { undoStack.push(entry); say('O objeto não está mais na cena.'); return }
       applyingHistory = true
       try {
         engine.removeObject(entry.id)
@@ -118,7 +118,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         applyingHistory = false
       }
       redoStack.push(entry)
-      say('Colagem desfeita.')
+      say(entry.kind === 'paste' ? 'Colagem desfeita.' : 'Construção desfeita.')
       return
     }
     const current = objects.value.find(object => object.id === entry.id)
@@ -131,12 +131,18 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function redo() {
     const entry = redoStack.pop()
     if (!entry) { say('Não há alterações para refazer.'); return }
-    if (entry.kind === 'paste') {
+    if (entry.kind === 'paste' || entry.kind === 'create') {
       if (!engine) { redoStack.push(entry); return }
+      // Modelos importados precisam conservar a geometria original para refazer.
+      if (engine.world.get(entry.id)?.mesh.userData.importedModel === true) {
+        redoStack.push(entry)
+        say('Não é possível refazer este modelo importado ainda.')
+        return
+      }
       const existingIds = new Set(engine.listObjects().map(object => object.id))
       engine.addPrimitive(entry.after.type)
       const created = engine.listObjects().find(object => !existingIds.has(object.id))
-      if (!created) { redoStack.push(entry); say('Não foi possível refazer a colagem.'); return }
+      if (!created) { redoStack.push(entry); say('Não foi possível refazer a construção.'); return }
       applyingHistory = true
       try {
         engine.updateObject(created.id, {
@@ -154,8 +160,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       } finally {
         applyingHistory = false
       }
-      undoStack.push({ ...entry, id: created.id })
-      say('Colagem refeita.')
+      undoStack.push({ ...entry, id: created.id, after: { ...entry.after, id: created.id } })
+      say(entry.kind === 'paste' ? 'Colagem refeita.' : 'Construção refeita.')
       return
     }
     if (!objects.value.some(object => object.id === entry.id)) { redoStack.push(entry); say('Não é possível refazer: o objeto não está mais na cena.'); return }
@@ -261,7 +267,14 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       const next = engine?.listObjects() ?? []
       for (const after of next) {
         const before = previous.find(object => object.id === after.id)
-        if (before) rememberObjectChange(before, after)
+        if (before) {
+          rememberObjectChange(before, after)
+        } else if (!applyingHistory && engine?.world.get(after.id)?.mesh.userData.importedModel !== true) {
+          // Uma nova primitiva é uma ação de histórico: Ctrl+Z deve removê-la.
+          undoStack.push({ id: after.id, before: { ...after }, after: { ...after }, kind: 'create' })
+          if (undoStack.length > HISTORY_LIMIT) undoStack.shift()
+          redoStack.length = 0
+        }
       }
       refresh()
     }
