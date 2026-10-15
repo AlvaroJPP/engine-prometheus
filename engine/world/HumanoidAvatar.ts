@@ -302,6 +302,44 @@ export class HumanoidAvatar {
     this.pressed.clear()
   }
 
+  /**
+   * Mistura uma pose de montaria sem depender de um clipe de animação externo.
+   * Funciona tanto no avatar procedural quanto no modelo humanoide importado.
+   * O valor 0 restaura a pose-base; 1 aplica a postura sentada com braços à frente
+   * e pernas dobradas para acompanhar a sela.
+   */
+  setMountedPose(amount: number): void {
+    const blend = THREE.MathUtils.clamp(amount, 0, 1)
+    if (this.proceduralLimbs) {
+      const limbs = this.proceduralLimbs
+      limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(0, -1.05, blend)
+      limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(0, -1.05, blend)
+      limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(0, -0.12, blend)
+      limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(0, 0.12, blend)
+      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend)
+      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend)
+      limbs.torso.rotation.x = THREE.MathUtils.lerp(0, -0.06, blend)
+      limbs.leftShoe.rotation.x = THREE.MathUtils.lerp(0, 0.25, blend)
+      limbs.rightShoe.rotation.x = THREE.MathUtils.lerp(0, 0.25, blend)
+    }
+
+    for (const bone of this.animatedBones) {
+      const name = bone.name
+      if (/left.*(leg|thigh)|thigh.*left|leg.*left/.test(name)) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.95, blend)
+      } else if (/right.*(leg|thigh)|thigh.*right|leg.*right/.test(name)) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.95, blend)
+      } else if (/left.*(arm|hand)|arm.*left/.test(name)) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend)
+      } else if (/right.*(arm|hand)|arm.*right/.test(name)) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend)
+      } else if (/spine|hips|pelvis/.test(name)) {
+        bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.06, blend)
+      }
+    }
+    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend)
+  }
+
   resetVerticalState(): void {
     this.verticalVelocity = 0
     this.grounded = true
