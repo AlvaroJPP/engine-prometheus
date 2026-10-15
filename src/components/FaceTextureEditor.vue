@@ -42,8 +42,22 @@ function loadImage(event: Event) {
   const reader = new FileReader()
   reader.onload = () => {
     if (typeof reader.result !== 'string') return
-    imagePreview.value = reader.result
-    applyImage()
+    const dataUrl = reader.result
+    const image = new Image()
+    image.onload = () => {
+      imagePreview.value = dataUrl
+      // A resolução inicial segue as dimensões reais do arquivo, sem forçar 128×128.
+      pixelWidth.value = Math.max(8, Math.min(10000, image.naturalWidth || 128))
+      pixelHeight.value = Math.max(8, Math.min(10000, image.naturalHeight || 128))
+      applyImage()
+    }
+    image.onerror = () => {
+      imagePreview.value = dataUrl
+      pixelWidth.value = 128
+      pixelHeight.value = 128
+      applyImage()
+    }
+    image.src = dataUrl
   }
   reader.readAsDataURL(file)
   ;(event.target as HTMLInputElement).value = ''
@@ -95,7 +109,7 @@ function removeImage() {
       <label>Pixels X <input v-model.number="pixelWidth" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
       <label>Pixels Y <input v-model.number="pixelHeight" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
     </div>
-    <p class="face-texture-help">Ajuste a resolução usada na face (8–10000 px). Imagens são reduzidas ou ampliadas para esse tamanho.</p>
+    <p class="face-texture-help">Por padrão, usa a resolução original da imagem. Você pode ajustar manualmente entre 8 e 10000 px.</p>
     <button v-if="selected" class="face-remove-button" @click="removeImage">Remover textura desta face</button>
   </div>
 </template>
