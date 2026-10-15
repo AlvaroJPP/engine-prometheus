@@ -151,6 +151,7 @@ export class World {
     }
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
     if (patch.mass !== undefined && Number.isFinite(patch.mass)) m.userData.mass = Math.max(0, patch.mass)
+    if (patch.colliderType !== undefined && ['auto', 'box', 'sphere', 'capsule', 'none'].includes(patch.colliderType)) m.userData.colliderType = patch.colliderType
     this.events.emit('objectChanged', { id })
   }
 
@@ -218,6 +219,7 @@ export class World {
       wireframeVisible: o.mesh.userData.wireframeVisible !== false,
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
       mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
+      colliderType: o.mesh.userData.colliderType === 'box' || o.mesh.userData.colliderType === 'sphere' || o.mesh.userData.colliderType === 'capsule' || o.mesh.userData.colliderType === 'none' ? o.mesh.userData.colliderType : 'auto',
       color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
   }
