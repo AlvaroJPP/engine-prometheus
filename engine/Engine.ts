@@ -217,6 +217,8 @@ export class Engine {
       if (!(child instanceof THREE.Mesh)) return
       importedMeshes.push(child)
       meshCount += 1
+      // Não herdar estado de visibilidade de exporters/visualizadores externos.
+      child.visible = true
       child.castShadow = false
       child.receiveShadow = false
       // Assets GLB podem trazer bounding spheres incorretas ou muito pequenas.
@@ -232,7 +234,13 @@ export class Engine {
         : position.count / 3
       const materials = Array.isArray(child.material) ? child.material : [child.material]
       for (const material of materials) {
+        // Alguns exportadores deixam flags de renderização incompatíveis com
+        // o viewport principal. Restauramos os estados essenciais sem remover
+        // mapas de textura, cores ou parâmetros PBR do material.
+        material.visible = true
         material.needsUpdate = true
+        const renderMaterial = material as THREE.Material & { colorWrite?: boolean }
+        if ('colorWrite' in renderMaterial) renderMaterial.colorWrite = true
       }
     })
     if (meshCount === 0 || triangleCount === 0) {
@@ -289,8 +297,29 @@ export class Engine {
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
     root.add(model)
+    // Atualiza toda a hierarquia antes de entrar no loop de renderização.
+    // Isso também garante bounds corretos para GLB com nós e transforms aninhados.
+    root.updateMatrixWorld(true)
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.visible = true
+        child.frustumCulled = false
+      }
+    })
     root.frustumCulled = false
     root.updateMatrixWorld(true)
+    const renderedBounds = new THREE.Box3().setFromObject(model)
+    console.info('[Engine] Modelo na cena:', {
+      name: root.name,
+      rootPosition: root.position.toArray(),
+      modelPosition: model.position.toArray(),
+      bounds: renderedBounds.isEmpty() ? 'empty' : {
+        min: renderedBounds.min.toArray(),
+        max: renderedBounds.max.toArray(),
+      },
+      meshesVisible: importedMeshes.filter(mesh => mesh.visible).length,
+      meshCount: importedMeshes.length,
+    })
 
     const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
