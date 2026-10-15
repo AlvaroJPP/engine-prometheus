@@ -6,6 +6,10 @@ export type ObjectType = 'cube' | 'platform'
 export type CameraPreset = 'free' | 'isometric' | 'top'
 export type Vec3 = [number, number, number]
 
+export type TextureFace = 'right' | 'left' | 'top' | 'bottom' | 'front' | 'back'
+export interface FaceTextureData { imageDataUrl: string; pixelWidth: number; pixelHeight: number }
+export type FaceTextureMap = Partial<Record<TextureFace, FaceTextureData>>
+
 export interface SceneObjectData {
   id: string
   name: string
@@ -18,6 +22,7 @@ export interface SceneObjectData {
   color: number
   texturePreset?: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   textureRepeat?: number
+  faceTextures?: FaceTextureMap
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
