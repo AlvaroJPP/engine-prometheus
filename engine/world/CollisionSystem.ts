@@ -50,20 +50,23 @@ export class CollisionSystem {
 
   update(): void {
     const objects = this.world.list().filter(object => object.mesh.visible)
+    // Modelos importados têm uma caixa proxy para seleção e terreno. Não os inclua
+    // no SAT de pares: modelos externos podem ser grandes e não são colisores convexos.
     this.keepObjectsAboveTerrain(objects)
+    const collidableObjects = objects.filter(object => object.mesh.userData.importedModel !== true)
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
 
     for (let pass = 0; pass < MAX_RESOLUTION_PASSES; pass += 1) {
       let resolvedAny = false
-      for (let i = 0; i < objects.length; i += 1) {
-        const a = objects[i]
+      for (let i = 0; i < collidableObjects.length; i += 1) {
+        const a = collidableObjects[i]
         if (!a) continue
-        for (let j = i + 1; j < objects.length; j += 1) {
+        for (let j = i + 1; j < collidableObjects.length; j += 1) {
           const shapeA = this.buildShape(a)
           if (!shapeA) break
           const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
-          const b = objects[j]
+          const b = collidableObjects[j]
           if (!b) continue
           const shapeB = this.buildShape(b)
           if (!shapeB) continue
@@ -98,14 +101,14 @@ export class CollisionSystem {
 
     // Calcula os pares ativos com as posições já corrigidas.
     currentPairs.clear()
-    for (let i = 0; i < objects.length; i += 1) {
-      const a = objects[i]
+    for (let i = 0; i < collidableObjects.length; i += 1) {
+      const a = collidableObjects[i]
       if (!a) continue
       const shapeA = this.buildShape(a)
       if (!shapeA) continue
       const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
-      for (let j = i + 1; j < objects.length; j += 1) {
-        const b = objects[j]
+      for (let j = i + 1; j < collidableObjects.length; j += 1) {
+        const b = collidableObjects[j]
         if (!b) continue
         const shapeB = this.buildShape(b)
         if (!shapeB) continue
