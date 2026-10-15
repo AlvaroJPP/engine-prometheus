@@ -73,6 +73,11 @@ export class ScriptMountRuntime {
       Number(this.pressed.has('KeyS') || this.pressed.has('ArrowDown'))
     const side = Number(this.pressed.has('KeyD') || this.pressed.has('ArrowRight')) -
       Number(this.pressed.has('KeyA') || this.pressed.has('ArrowLeft'))
+    const moving = forward !== 0 || side !== 0
+    const animationState = moving
+      ? (this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight') ? 'run' : 'walk')
+      : 'idle'
+    this.setObjectAnimation(object.mesh, animationState)
     if (forward || side) {
       const yaw = this.getCameraYaw()
       const direction = new THREE.Vector3(
@@ -91,6 +96,26 @@ export class ScriptMountRuntime {
       this.world.notifyChanged(object.id)
     }
     this.followMount(object.mesh)
+  }
+
+  private setObjectAnimation(mesh: THREE.Object3D, requested: 'idle' | 'walk' | 'run'): void {
+    const actions = mesh.userData.importAnimationActions as
+      | Partial<Record<'idle' | 'walk' | 'run', THREE.AnimationAction>>
+      | undefined
+    if (!actions) return
+    const nextKey = actions[requested] ? requested
+      : requested === 'run' && actions.walk ? 'walk'
+        : requested !== 'idle' && actions.run ? 'run'
+          : actions.idle ? 'idle'
+            : actions.walk ? 'walk' : actions.run ? 'run' : ''
+    if (!nextKey || mesh.userData.importAnimationState === nextKey) return
+    const next = actions[nextKey]
+    if (!next) return
+    const previousKey = mesh.userData.importAnimationState as 'idle' | 'walk' | 'run' | ''
+    const previous = previousKey ? actions[previousKey] : undefined
+    next.reset().setLoop(THREE.LoopRepeat, Infinity).play()
+    if (previous && previous !== next) previous.crossFadeTo(next, 0.18, false)
+    mesh.userData.importAnimationState = nextKey
   }
 
   private getObjectHeight(mesh: THREE.Object3D): number {
