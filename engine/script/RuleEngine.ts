@@ -19,13 +19,13 @@ type ScriptApi = {
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
-  private horseActionHandler: ((action: 'mount' | 'dismount', objectId?: string) => void) | null = null
+  private horseActionHandler: ((action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void) | null = null
 
   constructor(world: World) {
     this.world = world
   }
 
-  setHorseActionHandler(handler: (action: 'mount' | 'dismount', objectId?: string) => void): void {
+  setHorseActionHandler(handler: (action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void): void {
     this.horseActionHandler = handler
   }
 
@@ -130,6 +130,17 @@ export class RuleEngine {
 
     // Executa somente os eventos elegíveis, na ordem configurada.
     for (const rule of matchingRules) this.run(rule, objectId, true)
+  }
+
+  triggerKeyPressed(key: string, objectId?: string): void {
+    const matchingRules = this.rulesInHierarchyOrder().filter((rule) =>
+      rule.enabled &&
+      rule.trigger.type === 'key_pressed' &&
+      rule.trigger.key === key &&
+      (!objectId || rule.ownerObjectId === objectId) &&
+      this.conditionsMatch(rule, rule.ownerObjectId ?? objectId)
+    )
+    for (const rule of matchingRules) this.run(rule, rule.ownerObjectId ?? objectId, true)
   }
 
   update(): void {
@@ -269,6 +280,7 @@ export class RuleEngine {
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
       case 'horse_mount': this.horseActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
       case 'horse_dismount': this.horseActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
+      case 'horse_toggle_mount': this.horseActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
