@@ -29,6 +29,8 @@ let controls: OrbitControls | null = null
 let frame = 0
 let resizeObserver: ResizeObserver | null = null
 let currentObjectUrl = ''
+let previewMixer: THREE.AnimationMixer | null = null
+const previewClock = new THREE.Clock()
 
 function disposeModel(object: THREE.Object3D) {
   object.traverse((child) => {
@@ -44,6 +46,8 @@ function disposeModel(object: THREE.Object3D) {
 }
 
 function clearLoadedModel() {
+  previewMixer?.stopAllAction()
+  previewMixer = null
   if (model.value) {
     scene?.remove(model.value)
     disposeModel(model.value)
@@ -86,6 +90,9 @@ function initPreview() {
   scene.background = new THREE.Color('#20232a')
   camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
   renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false })
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.NoToneMapping
+  renderer.toneMappingExposure = 1
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false)
   scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 2))
@@ -112,6 +119,7 @@ function initPreview() {
   const animate = () => {
     frame = requestAnimationFrame(animate)
     controls?.update()
+    previewMixer?.update(Math.min(previewClock.getDelta(), 0.1))
     if (scene && camera && renderer) renderer.render(scene, camera)
   }
   animate()
@@ -147,7 +155,12 @@ async function parseFile(file: File) {
     const url = URL.createObjectURL(file)
     currentObjectUrl = url
     return await new Promise<THREE.Object3D>((resolve, reject) => {
-      loader.parse(buffer, url.substring(0, url.lastIndexOf('/') + 1), gltf => resolve(gltf.scene), reject)
+      loader.parse(buffer, url.substring(0, url.lastIndexOf('/') + 1), gltf => {
+        // GLTFLoader mantém as animações separadas da hierarquia da cena; guarde-as
+        // no root para transferi-las junto com o modelo ao confirmar a importação.
+        gltf.scene.userData.importAnimations = gltf.animations ?? []
+        resolve(gltf.scene)
+      }, reject)
     })
   }
   if (ext === 'obj') return new OBJLoader().parse(new TextDecoder().decode(buffer))
@@ -180,6 +193,12 @@ async function chooseFile(event: Event) {
     loaded.updateMatrixWorld(true)
     modelHeight.value = 2
     model.value = loaded
+    const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
+    if (clips?.length) {
+      previewMixer = new THREE.AnimationMixer(loaded)
+      for (const clip of clips) previewMixer.clipAction(clip).play()
+      previewClock.start()
+    }
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     initPreview()
     if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
@@ -224,6 +243,9 @@ watch(modelHeight, (height) => {
 function confirmImport() {
   if (!model.value || !fileName.value) return
   const imported = model.value
+  // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
+  previewMixer?.stopAllAction()
+  previewMixer = null
   // Remove do preview sem destruir a geometria: ela será usada pelo mundo.
   scene?.remove(imported)
   model.value = null
