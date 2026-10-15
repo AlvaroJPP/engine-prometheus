@@ -30,6 +30,9 @@ export class HorseMount {
   private importedModel: THREE.Object3D | null = null
   private riderModel: THREE.Object3D | null = null
   private riderMixer: THREE.AnimationMixer | null = null
+  private horseMixer: THREE.AnimationMixer | null = null
+  private readonly horseAnimationActions = new Map<'idle' | 'walk' | 'run', THREE.AnimationAction>()
+  private activeHorseAnimation: 'idle' | 'walk' | 'run' | '' = ''
   private readonly mountRaycaster = new THREE.Raycaster()
   private readonly mountDown = new THREE.Vector3(0, -1, 0)
   private readonly mountSeatLocal = new THREE.Vector3(0, 0, -0.07)
@@ -247,6 +250,22 @@ export class HorseMount {
           this.mesh.add(model)
           this.importedModel = model
           model.visible = !this.mounted
+          this.horseMixer = new THREE.AnimationMixer(model)
+          this.horseAnimationActions.clear()
+          this.activeHorseAnimation = ''
+          for (const clip of gltf.animations) {
+            const name = clip.name.toLowerCase()
+            const key = /gallop|canter|run|sprint/.test(name) ? 'run'
+              : /walk|trot|locomotion|move/.test(name) ? 'walk'
+                : /idle|stand|rest|breath/.test(name) ? 'idle' : null
+            if (key && !this.horseAnimationActions.has(key)) {
+              this.horseAnimationActions.set(key, this.horseMixer.clipAction(clip))
+            }
+          }
+          if (!this.horseAnimationActions.size && gltf.animations[0]) {
+            this.horseAnimationActions.set('idle', this.horseMixer.clipAction(gltf.animations[0]))
+          }
+          this.playHorseAnimation('idle')
           this.proceduralBones.length = 0
           this.proceduralNodes.length = 0
 
@@ -277,6 +296,21 @@ export class HorseMount {
       undefined,
       (error) => console.error('[HorseMount] Não foi possível carregar low_poly_horse.glb; usando o cavalo procedural integrado.', error),
     )
+  }
+
+  private playHorseAnimation(state: 'idle' | 'walk' | 'run'): void {
+    if (this.activeHorseAnimation === state) return
+    const next = this.horseAnimationActions.get(state)
+      ?? (state === 'run' ? this.horseAnimationActions.get('walk') : undefined)
+      ?? this.horseAnimationActions.get('idle')
+      ?? this.horseAnimationActions.values().next().value
+    if (!next) return
+    next.setLoop(THREE.LoopRepeat, Infinity)
+    next.reset().fadeIn(0.18).play()
+    for (const action of this.horseAnimationActions.values()) {
+      if (action !== next) action.fadeOut(0.18)
+    }
+    this.activeHorseAnimation = state
   }
 
   private loadHorseRiderModel(): void {
@@ -507,7 +541,12 @@ export class HorseMount {
     const groundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
-    this.updateProceduralAnimation(step, moving)
+    if (this.horseMixer) {
+      this.playHorseAnimation(this.galloping ? 'run' : moving ? 'walk' : 'idle')
+      this.horseMixer.update(step)
+    } else {
+      this.updateProceduralAnimation(step, moving)
+    }
     this.riderMixer?.update(step)
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
