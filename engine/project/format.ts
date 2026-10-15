@@ -41,6 +41,8 @@ export interface TerrainData {
   visible: boolean
   /** Edições esparsas: [índice do vértice, deslocamento de altura]. */
   edits: Array<[number, number]>
+  /** Tufts painted by the user: [x, z, scale, color]. Optional for old projects. */
+  paintedGrass?: Array<[number, number, number, number]>
 }
 
 export interface CameraData {
