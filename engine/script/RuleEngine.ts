@@ -19,9 +19,14 @@ type ScriptApi = {
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
+  private horseActionHandler: ((action: 'mount' | 'dismount', objectId?: string) => void) | null = null
 
   constructor(world: World) {
     this.world = world
+  }
+
+  setHorseActionHandler(handler: (action: 'mount' | 'dismount', objectId?: string) => void): void {
+    this.horseActionHandler = handler
   }
 
   exportData(): LogicEventsFile {
@@ -262,6 +267,8 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
+      case 'horse_mount': this.horseActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
+      case 'horse_dismount': this.horseActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
