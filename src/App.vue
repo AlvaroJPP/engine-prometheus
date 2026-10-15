@@ -366,7 +366,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : 'Ao entrar na área'
   if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
   const action = rule.actions[0]; if (!action) return 'Sem ação'
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : 'Executar script'
+  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : 'Executar script'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -394,7 +394,7 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area') {
     : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript') {
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
@@ -405,7 +405,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'horse_mount' ? { type } : type === 'horse_dismount' ? { type } : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -899,7 +899,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
             </label>
             <label class="field">Ação
-              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
+              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="horse_mount">Montar no cavalo</option><option value="horse_dismount">Desmontar do cavalo</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir condição baseada em variável</label>
             <template v-if="ruleConditionEnabled">
