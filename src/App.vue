@@ -666,6 +666,13 @@ async function placeSavedComponent(id: string) {
       nativeHorse.userData.nativeHorseComponent = true
       nativeHorse.userData.componentId = component.id
       nativeHorse.userData.componentLogic = component.logic ?? []
+      // Mantém os bytes originais do GLB no objeto de cena, mesmo usando o runtime
+      // nativo de montaria. Assim o projeto salva o asset junto com o grafo visual.
+      nativeHorse.userData.importedModelData = arrayBufferToBase64(component.bytes)
+      nativeHorse.userData.importedModelHeight = component.height
+      nativeHorse.userData.importColliderType = component.colliderType
+      nativeHorse.userData.importColliderSize = [...component.colliderSize]
+      nativeHorse.userData.importColliderOffset = [...component.colliderOffset]
       setBuildComponentPlacement(component.name, nativeHorse, component.height)
       status.value = 'Cavalo Low Poly nativo selecionado. Clique em Construir e depois no mundo para colocá-lo.'
       return
