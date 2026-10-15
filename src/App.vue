@@ -51,6 +51,7 @@ const {
   removeSelected,
   onRename,
   onNumber,
+  onColliderChange,
   onColor,
   colorHex,
   regenerateTerrain,
@@ -693,6 +694,16 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     <input class="mono" type="number" min="0" max="1000000" step="0.1" :value="selected.mass.toFixed(2)" @change="onNumber('mass', $event)" />
                   </label>
                   <p class="component-note">Massa 0 = corpo estático. A massa distribui a correção de penetração durante colisões.</p>
+                  <label class="field">Tipo de colisor
+                    <select :value="selected.colliderType" @change="onColliderChange(selected.id, $event)">
+                      <option value="auto">Automático (malha)</option>
+                      <option value="box">Caixa (Box)</option>
+                      <option value="sphere">Esfera (Sphere)</option>
+                      <option value="capsule">Cápsula (Capsule)</option>
+                      <option value="none">Sem colisão</option>
+                    </select>
+                  </label>
+                  <p class="component-note">Caixa, esfera e cápsula usam formas simplificadas para colisões mais estáveis. Automático usa a geometria do objeto.</p>
                   <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
                 </div>
               </div>
