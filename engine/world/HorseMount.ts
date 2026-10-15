@@ -26,6 +26,7 @@ export class HorseMount {
   private walkAction: THREE.AnimationAction | null = null
   private gallopAction: THREE.AnimationAction | null = null
   private idleAction: THREE.AnimationAction | null = null
+  private activeAction: THREE.AnimationAction | null = null
 
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -243,8 +244,8 @@ export class HorseMount {
           this.idleAction = idleClip ? this.modelMixer.clipAction(idleClip) : null
           this.walkAction = walkClip ? this.modelMixer.clipAction(walkClip) : null
           this.gallopAction = gallopClip ? this.modelMixer.clipAction(gallopClip) : null
-          const initialAction = this.idleAction ?? this.walkAction ?? this.gallopAction
-          initialAction?.play()
+          this.activeAction = this.idleAction ?? this.walkAction ?? this.gallopAction
+          this.activeAction?.play()
         }
       },
       undefined,
@@ -254,16 +255,16 @@ export class HorseMount {
 
   private updateModelAnimation(dt: number): void {
     if (!this.modelMixer) return
-    const desired = this.mounted && this.galloping
-      ? this.gallopAction ?? this.walkAction ?? this.idleAction
-      : this.mounted && (this.pressed.has('KeyW') || this.pressed.has('KeyA') || this.pressed.has('KeyS') || this.pressed.has('KeyD') || this.pressed.has('ArrowUp') || this.pressed.has('ArrowDown') || this.pressed.has('ArrowLeft') || this.pressed.has('ArrowRight'))
-        ? this.walkAction ?? this.gallopAction ?? this.idleAction
-        : this.idleAction ?? this.walkAction ?? this.gallopAction
-    for (const action of [this.idleAction, this.walkAction, this.gallopAction]) {
-      if (action && action !== desired && action.isRunning()) action.fadeOut(0.18)
+    const moving = this.mounted && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].some((key) => this.pressed.has(key))
+    const desired = moving
+      ? (this.galloping ? this.gallopAction ?? this.walkAction ?? this.idleAction : this.walkAction ?? this.gallopAction ?? this.idleAction)
+      : this.idleAction ?? this.walkAction ?? this.gallopAction
+    if (desired && desired !== this.activeAction) {
+      this.activeAction?.fadeOut(0.18)
+      desired.reset().fadeIn(0.18).play()
+      this.activeAction = desired
     }
-    if (desired && !desired.isRunning()) desired.reset().fadeIn(0.18).play()
-    if (desired) desired.timeScale = this.mounted && this.galloping ? 1.55 : 1
+    if (this.activeAction) this.activeAction.timeScale = this.mounted && this.galloping ? 1.55 : 1
     this.modelMixer.update(dt)
   }
 
