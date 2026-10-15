@@ -205,6 +205,59 @@ export class HorseMount {
         model.name = 'CommittedLowPolyHorseModel'
         model.updateMatrixWorld(true)
 
+        // O GLB guarda todas as tiras de couro em uma única malha skinned.
+        // Ocultar o Mesh inteiro esconderia também outras peças; por isso
+        // removemos apenas os triângulos da correia solta na região do focinho.
+        model.traverse((node) => {
+          if (!(node instanceof THREE.SkinnedMesh)) return
+          const materials = Array.isArray(node.material) ? node.material : [node.material]
+          if (!materials.some((material) => material.name === 'DarkLeather')) return
+
+          node.geometry = node.geometry.clone()
+          const geometry = node.geometry
+          const positions = geometry.getAttribute('position')
+          const index = geometry.getIndex()
+          if (!positions || !index) return
+
+          const kept: number[] = []
+          let removedTriangles = 0
+          for (let i = 0; i + 2 < index.count; i += 3) {
+            const ia = index.getX(i)
+            const ib = index.getX(i + 1)
+            const ic = index.getX(i + 2)
+            const ax = positions.getX(ia), ay = positions.getY(ia), az = positions.getZ(ia)
+            const bx = positions.getX(ib), by = positions.getY(ib), bz = positions.getZ(ib)
+            const cx = positions.getX(ic), cy = positions.getY(ic), cz = positions.getZ(ic)
+            const x = (ax + bx + cx) / 3
+            const y = (ay + by + cy) / 3
+            const z = (az + bz + cz) / 3
+
+            // Coordenadas locais verificadas no próprio low-poly_horse.glb:
+            // este volume contém os triângulos da correia que fica solta junto
+            // à boca. Filtramos faces inteiras, não movemos vértices skinned.
+            const looseMouthStrap =
+              y >= 2.02 && y <= 2.49 &&
+              Math.abs(x) <= 0.82 &&
+              z >= 0.22 && z <= 0.66
+
+            if (looseMouthStrap) {
+              removedTriangles += 1
+              continue
+            }
+            kept.push(ia, ib, ic)
+          }
+
+          if (removedTriangles > 0) {
+            geometry.setIndex(kept)
+            geometry.computeVertexNormals()
+            geometry.computeBoundingBox()
+            geometry.computeBoundingSphere()
+            console.info(`[HorseMount] Removidos ${removedTriangles} triângulos da correia antiga junto à boca.`)
+          } else {
+            console.warn('[HorseMount] A correia antiga não foi localizada na região esperada do GLB.')
+          }
+        })
+
         // Normaliza a escala e assenta o modelo no chão sem depender das unidades do arquivo.
         const initialBounds = new THREE.Box3().setFromObject(model)
         const size = initialBounds.getSize(new THREE.Vector3())
