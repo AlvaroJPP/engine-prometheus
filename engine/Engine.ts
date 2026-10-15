@@ -892,7 +892,16 @@ export class Engine {
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
         model.userData.componentId = data.componentId
-        model.userData.sceneKind = data.sceneKind === 'entity' ? 'entity' : 'object'
+        // Migra projetos antigos a partir do comportamento salvo, não do nome do modelo.
+        const hasSavedEntityBehavior = bundle.logic.events.some(rule =>
+          (rule.ownerObjectId === data.id ||
+            (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === data.id)) &&
+          rule.actions.some(action =>
+            action.type === 'javascript' &&
+            /\bapi\.(mount|dismount|toggleMount)\s*\(/.test(action.code),
+          ),
+        )
+        model.userData.sceneKind = data.sceneKind === 'entity' || hasSavedEntityBehavior ? 'entity' : 'object'
         model.userData.importedModelData = data.importedModelData
         model.userData.importColliderType = data.colliderType ?? 'box'
         model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
