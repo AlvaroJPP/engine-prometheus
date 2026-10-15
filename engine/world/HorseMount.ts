@@ -75,6 +75,7 @@ export class HorseMount {
     component.userData.nativeHorseComponent = true
     component.userData.componentId = 'builtin-horse-low-poly'
     component.userData.importedModelHeight = HORSE_HEIGHT
+    this.parkedComponentHeight = HORSE_HEIGHT
     this.mesh.visible = true
     this.syncTransformFromComponent()
   }
@@ -588,8 +589,8 @@ export class HorseMount {
 
     // Se o Cavalo Low Poly da biblioteca estiver colocado no mundo, use sua
     // posição e seus parâmetros de colisão como ponto de partida da montaria.
-    // O proxy original fica oculto durante o runtime para não duplicar o modelo;
-    // sua posição acompanha a montaria e é restaurada ao sair do modo Run.
+    // O componente permanece no mundo como raiz editável; o cavalo visual nativo
+    // acompanha sua transformação e a raiz acompanha a posição durante a montaria.
     const placedHorse = this.world.list()
       .filter(object => object.mesh.visible && (
         object.mesh.userData.nativeComponentType === 'horse' ||
