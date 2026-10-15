@@ -528,6 +528,20 @@ async function ensureHorseComponent() {
       colliderType: 'box',
       colliderSize,
       colliderOffset: [0, 0.02, 0],
+      logic: [{
+        ownerObjectId: '{ID_OBJECT}',
+        id: 'horse-mount-template',
+        name: 'Montar no cavalo',
+        enabled: true,
+        trigger: { type: 'object_clicked', objectId: '{ID_OBJECT}' },
+        conditions: [],
+        actions: [{ type: 'horse_mount' }],
+        graphLayout: {
+          trigger: { x: 70, y: 70 },
+          condition: { x: 350, y: 70 },
+          action: { x: 630, y: 70 },
+        },
+      }],
       bytes,
       createdAt: Date.now(),
     }
@@ -608,6 +622,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
       colliderSize: Array.isArray(size) && size.length === 3 ? [...size] as [number, number, number] : [1, 1, 1],
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
+      logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
       bytes: result,
       createdAt: Date.now(),
     }
@@ -636,6 +651,7 @@ async function placeSavedComponent(id: string) {
       const nativeHorse = new THREE.Group()
       nativeHorse.userData.nativeHorseComponent = true
       nativeHorse.userData.componentId = component.id
+      nativeHorse.userData.componentLogic = component.logic ?? []
       setBuildComponentPlacement(component.name, nativeHorse, component.height)
       status.value = 'Cavalo Low Poly nativo selecionado. Clique em Construir e depois no mundo para colocá-lo.'
       return
@@ -656,6 +672,7 @@ async function placeSavedComponent(id: string) {
     if (sourceBounds.isEmpty() || sourceSize.y <= 0) throw new Error('O componente não contém dimensões válidas.')
     model.userData.importPart = true
     model.userData.componentId = component.id
+    model.userData.componentLogic = component.logic ?? []
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
     model.userData.importedModelHeight = component.height
     model.userData.importColliderType = component.colliderType
