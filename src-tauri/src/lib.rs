@@ -335,7 +335,7 @@ fn load_gltf_zip(zip_path: String) -> Result<String, String> {
             for item in array {
                 let Some(uri) = item.get("uri").and_then(|v| v.as_str()).map(str::to_owned) else { continue };
                 if uri.starts_with("data:") { continue; }
-                if uri.contains("://") || uri.starts_with('/') || uri.starts_with('\\\\') {
+                if uri.contains("://") || uri.starts_with('/') || uri.starts_with('\\') {
                     return Err(format!("O glTF referencia um recurso externo não incluído no ZIP: {uri}"));
                 }
                 let decoded_uri = uri.replace("%20", " ");
