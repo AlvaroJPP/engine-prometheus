@@ -6,6 +6,7 @@ export class Viewport {
   private observer: ResizeObserver
   private onResize: (aspect: number) => void
   private frame = 0
+  private performanceMode = false
 
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
     this.canvas = canvas
@@ -16,10 +17,23 @@ export class Viewport {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.NoToneMapping
     this.renderer.toneMappingExposure = 1
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this.applyPixelRatio()
     this.observer = new ResizeObserver(() => this.resize())
     this.observer.observe(canvas)
     this.resize()
+  }
+
+  /** Reduz a resolução interna do viewport sem alterar o tamanho visual do canvas. */
+  setPerformanceMode(enabled: boolean): void {
+    if (this.performanceMode === enabled) return
+    this.performanceMode = enabled
+    this.applyPixelRatio()
+    this.resize()
+  }
+
+  private applyPixelRatio(): void {
+    const deviceRatio = window.devicePixelRatio || 1
+    this.renderer.setPixelRatio(Math.min(deviceRatio, this.performanceMode ? 1 : 2))
   }
 
   private resize(): void {
