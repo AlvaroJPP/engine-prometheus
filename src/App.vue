@@ -90,7 +90,7 @@ function onSkyTextureSelected(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (!file.type.startsWith('image/')) { status.value = 'Escolha um arquivo de imagem para o céu.'; return }
-  if (file.size > 15 * 1024 * 1024) { status.value = 'A textura do céu deve ter no máximo 15 MB.'; return }
+  if (file.size > 20 * 1024 * 1024) { status.value = 'A textura do céu deve ter no máximo 20 MB.'; return }
   const reader = new FileReader()
   reader.onload = () => {
     if (typeof reader.result !== 'string') return
