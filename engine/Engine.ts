@@ -672,7 +672,7 @@ export class Engine {
         model.name = data.name
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
-        model.userData.importModelData = data.importedModelData
+        model.userData.importedModelData = data.importedModelData
         model.userData.importColliderType = data.colliderType ?? 'box'
         model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
         model.userData.importColliderOffset = data.colliderOffset ?? [0, 0, 0]
