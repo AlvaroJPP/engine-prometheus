@@ -53,6 +53,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushRadius = ref(4)
   const gridVisible = ref(true)
   const polygonLinesVisible = ref(false)
+  const performanceMode = ref(false)
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -530,6 +531,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function toggleTerrain() {
     engine?.setTerrainVisible(!terrain.value.visible)
+  }
+
+  function togglePerformanceMode() {
+    if (!engine) return
+    performanceMode.value = !performanceMode.value
+    engine.setPerformanceMode(performanceMode.value)
+    say(performanceMode.value
+      ? 'Modo desempenho ativado: resolução do viewport reduzida para aliviar a GPU.'
+      : 'Modo qualidade ativado: resolução do viewport restaurada.')
   }
 
   function toggleGrid() {
@@ -1035,6 +1045,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushRadius,
     gridVisible,
     polygonLinesVisible,
+    performanceMode,
     logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
@@ -1058,6 +1069,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleObjectWireframe,
     toggleTerrain,
     toggleGrid,
+    togglePerformanceMode,
     togglePolygonLines,
     removeSelected,
     onRename,
