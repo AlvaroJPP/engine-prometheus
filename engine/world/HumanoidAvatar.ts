@@ -68,6 +68,7 @@ export class HumanoidAvatar {
   private activeAnimation = ''
   private animationTime = 0
   private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseZ: number }> = []
+  private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
@@ -104,14 +105,14 @@ export class HumanoidAvatar {
     const pants = new THREE.MeshStandardMaterial({ color: 0x263e61, roughness: 0.9 })
     const shoes = new THREE.MeshStandardMaterial({ color: 0x24272d, roughness: 0.8 })
     const hair = new THREE.MeshStandardMaterial({ color: 0x39291f, roughness: 1 })
-    const addPart = (name: string, geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number], scale?: [number, number, number]) => {
+    const addPart = (name: string, geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number], scale?: [number, number, number], parent: THREE.Object3D = this.visualRoot) => {
       const part = new THREE.Mesh(geometry, material)
       part.name = name
       part.position.set(...position)
       if (scale) part.scale.set(...scale)
       part.castShadow = true
       part.receiveShadow = true
-      this.visualRoot.add(part)
+      parent.add(part)
       return part
     }
 
@@ -119,17 +120,34 @@ export class HumanoidAvatar {
     addPart('head', new THREE.SphereGeometry(0.19, 16, 12), skin, [0, 1.57, 0])
     addPart('hair', new THREE.SphereGeometry(0.195, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), hair, [0, 1.65, -0.015])
     addPart('neck', new THREE.CylinderGeometry(0.065, 0.07, 0.12, 10), skin, [0, 1.34, 0])
-    // Tronco e braços.
-    addPart('torso', new THREE.BoxGeometry(0.48, 0.58, 0.27), shirt, [0, 1.02, 0])
-    addPart('left-arm', new THREE.CapsuleGeometry(0.075, 0.38, 4, 8), shirt, [-0.32, 1.02, 0], [1, 1, 1])
-    addPart('right-arm', new THREE.CapsuleGeometry(0.075, 0.38, 4, 8), shirt, [0.32, 1.02, 0])
-    addPart('left-hand', new THREE.SphereGeometry(0.07, 10, 8), skin, [-0.33, 0.77, 0])
-    addPart('right-hand', new THREE.SphereGeometry(0.07, 10, 8), skin, [0.33, 0.77, 0])
-    // Pernas e pés.
-    addPart('left-leg', new THREE.CapsuleGeometry(0.095, 0.48, 4, 8), pants, [-0.13, 0.43, 0])
-    addPart('right-leg', new THREE.CapsuleGeometry(0.095, 0.48, 4, 8), pants, [0.13, 0.43, 0])
-    addPart('left-shoe', new THREE.BoxGeometry(0.17, 0.1, 0.27), shoes, [-0.13, 0.08, 0.045])
-    addPart('right-shoe', new THREE.BoxGeometry(0.17, 0.1, 0.27), shoes, [0.13, 0.08, 0.045])
+    // Tronco e membros articulados: os pivôs permitem animar cada bloco proceduralmente.
+    const torso = addPart('torso', new THREE.BoxGeometry(0.48, 0.58, 0.27), shirt, [0, 1.02, 0])
+    const leftArm = new THREE.Group()
+    leftArm.name = 'left-arm-pivot'
+    leftArm.position.set(-0.27, 1.2, 0)
+    this.visualRoot.add(leftArm)
+    addPart('left-arm', new THREE.CapsuleGeometry(0.075, 0.32, 4, 8), shirt, [-0.045, -0.17, 0], undefined, leftArm)
+    addPart('left-hand', new THREE.SphereGeometry(0.07, 10, 8), skin, [-0.045, -0.39, 0], undefined, leftArm)
+    const rightArm = new THREE.Group()
+    rightArm.name = 'right-arm-pivot'
+    rightArm.position.set(0.27, 1.2, 0)
+    this.visualRoot.add(rightArm)
+    addPart('right-arm', new THREE.CapsuleGeometry(0.075, 0.32, 4, 8), shirt, [0.045, -0.17, 0], undefined, rightArm)
+    addPart('right-hand', new THREE.SphereGeometry(0.07, 10, 8), skin, [0.045, -0.39, 0], undefined, rightArm)
+
+    const leftLeg = new THREE.Group()
+    leftLeg.name = 'left-leg-pivot'
+    leftLeg.position.set(-0.13, 0.66, 0)
+    this.visualRoot.add(leftLeg)
+    addPart('left-leg', new THREE.CapsuleGeometry(0.095, 0.36, 4, 8), pants, [0, -0.19, 0], undefined, leftLeg)
+    const leftShoe = addPart('left-shoe', new THREE.BoxGeometry(0.17, 0.1, 0.27), shoes, [0, -0.49, 0.045], undefined, leftLeg)
+    const rightLeg = new THREE.Group()
+    rightLeg.name = 'right-leg-pivot'
+    rightLeg.position.set(0.13, 0.66, 0)
+    this.visualRoot.add(rightLeg)
+    addPart('right-leg', new THREE.CapsuleGeometry(0.095, 0.36, 4, 8), pants, [0, -0.19, 0], undefined, rightLeg)
+    const rightShoe = addPart('right-shoe', new THREE.BoxGeometry(0.17, 0.1, 0.27), shoes, [0, -0.49, 0.045], undefined, rightLeg)
+    this.proceduralLimbs = { leftArm, rightArm, leftLeg, rightLeg, leftShoe, rightShoe, torso }
 
     this.mesh.position.set(0, world.terrain.heightAt(0, 0), 0)
     this.mesh.traverse((child) => {
@@ -424,6 +442,39 @@ export class HumanoidAvatar {
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
+    if (this.proceduralLimbs) {
+      const limbs = this.proceduralLimbs
+      limbs.leftLeg.rotation.x = swing
+      limbs.rightLeg.rotation.x = -swing
+      limbs.leftArm.rotation.x = -swing * 0.72
+      limbs.rightArm.rotation.x = swing * 0.72
+
+      // Inclina o corpo em relação à inclinação real do terreno, amostrando a altura
+      // em quatro pontos próximos ao avatar; os pés recebem ajustes independentes.
+      const x = this.mesh.position.x
+      const z = this.mesh.position.z
+      const sample = 0.28
+      const centerY = this.world.terrain.heightAt(x, z)
+      const slopeX = (this.world.terrain.heightAt(x + sample, z) - this.world.terrain.heightAt(x - sample, z)) / (sample * 2)
+      const slopeZ = (this.world.terrain.heightAt(x, z + sample) - this.world.terrain.heightAt(x, z - sample)) / (sample * 2)
+      const yaw = this.mesh.rotation.y
+      const localSlopeX = slopeX * Math.cos(yaw) - slopeZ * Math.sin(yaw)
+      const localSlopeZ = slopeX * Math.sin(yaw) + slopeZ * Math.cos(yaw)
+      const targetTiltX = THREE.MathUtils.clamp(localSlopeZ, -0.45, 0.45)
+      const targetTiltZ = THREE.MathUtils.clamp(-localSlopeX, -0.45, 0.45)
+      this.visualRoot.rotation.x = THREE.MathUtils.damp(this.visualRoot.rotation.x, targetTiltX, 7, dt)
+      this.visualRoot.rotation.z = THREE.MathUtils.damp(this.visualRoot.rotation.z, targetTiltZ, 7, dt)
+
+      const leftGround = this.world.terrain.heightAt(x - Math.cos(yaw) * 0.13, z + Math.sin(yaw) * 0.13)
+      const rightGround = this.world.terrain.heightAt(x + Math.cos(yaw) * 0.13, z - Math.sin(yaw) * 0.13)
+      const footAdjustLeft = THREE.MathUtils.clamp(leftGround - centerY, -0.18, 0.18)
+      const footAdjustRight = THREE.MathUtils.clamp(rightGround - centerY, -0.18, 0.18)
+      limbs.leftShoe.position.y = -0.49 + footAdjustLeft
+      limbs.rightShoe.position.y = -0.49 + footAdjustRight
+      const bob = movingNow ? Math.abs(Math.sin(this.animationTime * 2)) * (running ? 0.055 : 0.028) : Math.sin(this.animationTime * 0.5) * 0.012
+      this.visualRoot.position.y = bob
+      limbs.torso.rotation.x = movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0
+    }
     for (const bone of this.animatedBones) {
       if (/left.*(leg|thigh|calf)|thigh.*left|leg.*left/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing
       else if (/right.*(leg|thigh|calf)|thigh.*right|leg.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX - swing
@@ -431,8 +482,10 @@ export class HumanoidAvatar {
       else if (/right.*(arm|hand)|arm.*right/.test(bone.name)) bone.node.rotation.x = bone.baseX + swing * 0.65
       else if (/spine|hips|pelvis/.test(bone.name)) bone.node.rotation.z = bone.baseZ + (movingNow ? Math.sin(this.animationTime * 2) * 0.025 : 0)
     }
-    if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
-    else this.visualRoot.position.y = 0
+    if (!this.proceduralLimbs) {
+      if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
+      else this.visualRoot.position.y = 0
+    }
   }
 
   private disposeObject(object: THREE.Object3D): void {
