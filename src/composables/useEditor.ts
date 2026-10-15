@@ -63,7 +63,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area'>('object_clicked')
-  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
+  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount'>('rotate')
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
   const ruleConditionEnabled = ref(false)
 
@@ -789,7 +789,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             ? { type: 'javascript', code: scriptCode?.trim() || "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
-              : { type: 'set_variable', name: 'has_key', value: true }
+              : ruleAction.value === 'horse_mount'
+                ? { type: 'horse_mount' }
+                : ruleAction.value === 'horse_dismount'
+                  ? { type: 'horse_dismount' }
+                  : { type: 'set_variable', name: 'has_key', value: true }
     const rule: LogicRule = { ownerObjectId: target, id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
