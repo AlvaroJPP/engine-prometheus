@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import type { HumanoidAvatar } from './HumanoidAvatar'
 import type { World } from './World'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import horseModelUrl from '../../low-poly_horse.glb?url'
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import horseModelUrl from '../../Horse_LP.fbx?url'
 
 const WALK_SPEED = 3.8
 const GALLOP_SPEED = 8.5
@@ -195,89 +195,38 @@ export class HorseMount {
   }
 
 
-  /** Carrega o modelo GLB versionado no repositório; o modelo procedural permanece como fallback. */
+  /** Carrega o cavalo FBX versionado no commit c8e49c2; o modelo procedural é fallback. */
   private loadCommittedHorseModel(): void {
-    new GLTFLoader().load(
+    new FBXLoader().load(
       horseModelUrl,
-      (gltf) => {
+      (model) => {
         if (!this.mesh.parent) return
-        const model = gltf.scene
-        model.name = 'CommittedLowPolyHorseModel'
+
+        model.name = 'CommittedHorseLPFBX'
         model.updateMatrixWorld(true)
 
-        // O GLB guarda todas as tiras de couro em uma única malha skinned.
-        // Ocultar o Mesh inteiro esconderia também outras peças; por isso
-        // removemos apenas os triângulos da correia solta na região do focinho.
-        model.traverse((node) => {
-          if (!(node instanceof THREE.SkinnedMesh)) return
-          const materials = Array.isArray(node.material) ? node.material : [node.material]
-          if (!materials.some((material) => material.name === 'DarkLeather')) return
-
-          node.geometry = node.geometry.clone()
-          const geometry = node.geometry
-          const positions = geometry.getAttribute('position')
-          const index = geometry.getIndex()
-          if (!positions || !index) return
-
-          const kept: number[] = []
-          let removedTriangles = 0
-          for (let i = 0; i + 2 < index.count; i += 3) {
-            const ia = index.getX(i)
-            const ib = index.getX(i + 1)
-            const ic = index.getX(i + 2)
-            const ax = positions.getX(ia), ay = positions.getY(ia), az = positions.getZ(ia)
-            const bx = positions.getX(ib), by = positions.getY(ib), bz = positions.getZ(ib)
-            const cx = positions.getX(ic), cy = positions.getY(ic), cz = positions.getZ(ic)
-            const x = (ax + bx + cx) / 3
-            const y = (ay + by + cy) / 3
-            const z = (az + bz + cz) / 3
-
-            // Coordenadas locais verificadas no próprio low-poly_horse.glb:
-            // este volume contém os triângulos da correia que fica solta junto
-            // à boca. Filtramos faces inteiras, não movemos vértices skinned.
-            const looseMouthStrap =
-              y >= 2.02 && y <= 2.49 &&
-              Math.abs(x) <= 0.82 &&
-              z >= 0.22 && z <= 0.66
-
-            if (looseMouthStrap) {
-              removedTriangles += 1
-              continue
-            }
-            kept.push(ia, ib, ic)
-          }
-
-          if (removedTriangles > 0) {
-            geometry.setIndex(kept)
-            geometry.computeVertexNormals()
-            geometry.computeBoundingBox()
-            geometry.computeBoundingSphere()
-            console.info(`[HorseMount] Removidos ${removedTriangles} triângulos da correia antiga junto à boca.`)
-          } else {
-            console.warn('[HorseMount] A correia antiga não foi localizada na região esperada do GLB.')
-          }
-        })
-
-        // Normaliza a escala e assenta o modelo no chão sem depender das unidades do arquivo.
+        // Normaliza as unidades do FBX para a escala usada pelo mundo.
         const initialBounds = new THREE.Box3().setFromObject(model)
         const size = initialBounds.getSize(new THREE.Vector3())
         if (size.y <= 0 || !Number.isFinite(size.y)) {
-          console.warn('[HorseMount] O GLB não possui dimensões válidas; mantendo o cavalo de fallback.')
+          console.warn('[HorseMount] O FBX não possui dimensões válidas; mantendo o cavalo de fallback.')
           return
         }
+
         const targetHeight = 2.55
         model.scale.multiplyScalar(targetHeight / size.y)
         model.updateMatrixWorld(true)
+
+        // Centraliza o modelo e apoia os cascos no chão.
         const bounds = new THREE.Box3().setFromObject(model)
         const center = bounds.getCenter(new THREE.Vector3())
         model.position.x -= center.x
         model.position.z -= center.z
         model.position.y -= bounds.min.y
+        model.updateMatrixWorld(true)
 
-        // A geometria original da cabeçada não é deformada: ela é substituída por uma
-        // cabeçada nova, construída em coordenadas normalizadas do cavalo.
-
-        // O modelo do commit substitui o cavalo temporário, sem alterar o sistema de montaria.
+        // Substitui o cavalo procedural pelo modelo do commit sem modificar
+        // ou filtrar os polígonos originais do arquivo FBX.
         for (const child of [...this.mesh.children]) {
           this.mesh.remove(child)
           child.traverse((node) => {
@@ -290,12 +239,13 @@ export class HorseMount {
         this.legs.length = 0
         this.tailRoot = null
         this.mesh.add(model)
+
         const normalizedBounds = new THREE.Box3().setFromObject(model)
         this.rebuildBridle(model, normalizedBounds)
 
-        if (gltf.animations.length > 0) {
+        if (model.animations.length > 0) {
           this.modelMixer = new THREE.AnimationMixer(model)
-          const findClip = (pattern: RegExp) => gltf.animations.find((clip) => pattern.test(clip.name))
+          const findClip = (pattern: RegExp) => model.animations.find((clip) => pattern.test(clip.name))
           const idleClip = findClip(/idle|stand|breath/i)
           const walkClip = findClip(/walk|trot/i)
           const gallopClip = findClip(/gallop|run|canter/i)
@@ -305,17 +255,14 @@ export class HorseMount {
           this.activeAction = this.idleAction ?? this.walkAction ?? this.gallopAction
           this.activeAction?.play()
         }
+
+        console.info('[HorseMount] Modelo Horse_LP.fbx carregado com sucesso.')
       },
       undefined,
-      (error) => console.error('[HorseMount] Não foi possível carregar low-poly_horse.glb; mantendo o cavalo de fallback.', error),
+      (error) => console.error('[HorseMount] Não foi possível carregar Horse_LP.fbx; mantendo o cavalo de fallback.', error),
     )
   }
 
-  /**
-   * Reconstrói a cabeçada fora da malha original do GLB.
-   * Todas as posições são calculadas depois da normalização do modelo, evitando
-   * misturar coordenadas locais da geometria com coordenadas do cavalo.
-   */
   private rebuildBridle(model: THREE.Object3D, bounds: THREE.Box3): void {
     const size = bounds.getSize(new THREE.Vector3())
     const height = size.y
