@@ -111,6 +111,21 @@ export class HorseMount {
   private loadEmbeddedHorseModel(component: THREE.Mesh): void {
     const encoded = component.userData.importedModelData
     if (typeof encoded !== 'string' || encoded.length === 0) return
+
+    // O GLB incorporado ao componente é a única representação em repouso.
+    // Retire já o GLB genérico do HorseMount antes do parse assíncrono, para
+    // impedir que os dois cavalos fiquem visíveis ao mesmo tempo após reabrir.
+    if (this.importedModel) {
+      const previous = this.importedModel
+      previous.parent?.remove(previous)
+      this.disposeLoadedModel(previous)
+      this.importedModel = null
+      this.horseMixer?.stopAllAction()
+      this.horseMixer = null
+      this.horseAnimationActions.clear()
+      this.activeHorseAnimation = ''
+    }
+
     try {
       const binary = Uint8Array.from(atob(encoded), char => char.charCodeAt(0)).buffer
       new GLTFLoader().parse(binary, '', (gltf) => {
@@ -943,7 +958,8 @@ export class HorseMount {
       ? !!target && (
         target.userData.nativeComponentType === 'horse' ||
         target.userData.nativeHorseComponent === true ||
-        target.userData.componentId === 'builtin-horse-low-poly'
+        target.userData.componentId === 'builtin-horse-low-poly' ||
+        target.name.trim().toLowerCase() === 'cavalo low poly'
       )
       : true
     if (!isHorseTarget) return
@@ -956,16 +972,30 @@ export class HorseMount {
     }
     if (this.mounted) return
 
-    const targetPosition = target?.position ?? this.mesh.position
-    if (this.avatar.mesh.position.distanceTo(targetPosition) >= 3.4) return
-    if (target && target !== this.editorComponent) {
+    // Reassocia a raiz clicada antes de validar a distância. Isso recupera mundos
+    // antigos/reabertos mesmo se a referência editorComponent ainda estiver vazia.
+    if (target) {
       this.editorComponent = target as THREE.Mesh
       this.parkedComponent = target as THREE.Mesh
       this.parkedComponentHeight = Number(target.userData.importedModelHeight) > 0
         ? Number(target.userData.importedModelHeight)
         : HORSE_HEIGHT
       this.syncTransformFromComponent()
+      this.mesh.visible = true
+    } else if (this.parkedComponent) {
+      this.syncTransformFromComponent()
+      this.mesh.visible = true
     }
+
+    const targetPosition = target?.position ?? this.parkedComponent?.position ?? this.mesh.position
+    const horizontalDistance = Math.hypot(
+      this.avatar.mesh.position.x - targetPosition.x,
+      this.avatar.mesh.position.z - targetPosition.z,
+    )
+    const groundY = target
+      ? target.position.y - this.parkedComponentHeight / 2
+      : this.mesh.position.y
+    if (horizontalDistance >= 3.4 || Math.abs(this.avatar.mesh.position.y - groundY) >= 3.2) return
     if (this.mesh.visible) this.mount()
   }
 
