@@ -161,8 +161,8 @@ function parseFaceTextures(value: unknown, label: string, id: string): import('.
       fail(`${label}: textura da face ${face} inválida em "${id}".`)
     }
     if (entry.imageDataUrl.length > 12_000_000) fail(`${label}: imagem da face ${face} é grande demais em "${id}".`)
-    const pixelWidth = isNum(entry.pixelWidth) ? Math.min(2048, Math.max(8, Math.round(entry.pixelWidth))) : 128
-    const pixelHeight = isNum(entry.pixelHeight) ? Math.min(2048, Math.max(8, Math.round(entry.pixelHeight))) : 128
+    const pixelWidth = isNum(entry.pixelWidth) ? Math.min(10000, Math.max(8, Math.round(entry.pixelWidth))) : 128
+    const pixelHeight = isNum(entry.pixelHeight) ? Math.min(10000, Math.max(8, Math.round(entry.pixelHeight))) : 128
     result[face] = { imageDataUrl: entry.imageDataUrl, pixelWidth, pixelHeight }
   }
   return result
