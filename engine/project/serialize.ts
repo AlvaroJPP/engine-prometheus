@@ -68,6 +68,7 @@ export function buildBundle(
         name: 'Mundo principal',
         camera,
         terrain,
+        environment: { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 },
         objects: data,
       },
     },
