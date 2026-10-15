@@ -130,6 +130,11 @@ export class Engine {
     return this.world.events
   }
 
+  /** Ativa renderização em menor resolução para aliviar a GPU em cenas pesadas. */
+  setPerformanceMode(enabled: boolean): void {
+    this.viewport.setPerformanceMode(enabled)
+  }
+
   listRules(): LogicRule[] { return this.logic.list() }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
