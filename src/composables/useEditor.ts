@@ -59,6 +59,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleConditionEnabled = ref(false)
 
   let engine: Engine | null = null
+  let runtimeMode = false
   let statusTimer = 0
   const offs: Array<() => void> = []
   let clipboardObject: ObjectInfo | null = null
@@ -368,6 +369,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function setFirstPersonMode(enabled: boolean) {
     engine?.setFirstPersonMode(enabled)
     say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; WASD move, Shift corre, Espaço pula e Esc libera o mouse.' : 'Modo primeira pessoa desativado.')
+  }
+
+  function setRuntimeMode(enabled: boolean) {
+    runtimeMode = enabled
+    engine?.setRuntimeMode(enabled)
   }
 
   // ---- hierarquia / inspetor ----
@@ -791,6 +797,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   // ---- atalhos ----
   function onKey(ev: KeyboardEvent) {
+    // Em Run, nenhum atalho do editor pode alterar ou salvar a cena.
+    if (runtimeMode) return
     const mod = ev.ctrlKey || ev.metaKey
     const key = ev.key.toLowerCase()
     if (mod && key === 's') {
@@ -872,6 +880,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     addClickableCubeExample,
     cycleCamera,
     setFirstPersonMode,
+    setRuntimeMode,
     selectItem,
     groupSelectedObjects,
     ungroupSelectedObjects,
