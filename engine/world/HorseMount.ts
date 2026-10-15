@@ -91,6 +91,97 @@ export class HorseMount {
       : [0, HORSE_HEIGHT / 2, 0]
     this.mesh.visible = true
     this.syncTransformFromComponent()
+    this.loadEmbeddedHorseModel(component)
+  }
+
+  /**
+   * Prefere o asset incorporado no próprio componente. O GLB bundled só é usado
+   * como fallback para projetos antigos que ainda não guardam os bytes do modelo.
+   */
+  private loadEmbeddedHorseModel(component: THREE.Mesh): void {
+    const encoded = component.userData.importedModelData
+    if (typeof encoded !== 'string' || encoded.length === 0) return
+    try {
+      const binary = Uint8Array.from(atob(encoded), char => char.charCodeAt(0)).buffer
+      new GLTFLoader().parse(binary, '', (gltf) => {
+        if (this.editorComponent !== component || !this.mesh.parent) {
+          this.disposeLoadedModel(gltf.scene)
+          return
+        }
+        const model = gltf.scene
+        model.name = 'ComponentHorseGLB'
+        model.updateMatrixWorld(true)
+        const bounds = new THREE.Box3().setFromObject(model)
+        const size = bounds.getSize(new THREE.Vector3())
+        const targetHeight = Number(component.userData.importedModelHeight) > 0
+          ? Number(component.userData.importedModelHeight) : HORSE_HEIGHT
+        if (!bounds.isEmpty() && size.y > 0.0001) {
+          model.scale.multiplyScalar(targetHeight / size.y)
+          model.updateMatrixWorld(true)
+          const normalized = new THREE.Box3().setFromObject(model)
+          const center = normalized.getCenter(new THREE.Vector3())
+          model.position.x -= center.x
+          model.position.y -= normalized.min.y
+          model.position.z -= center.z
+        }
+        const previous = this.importedModel
+        if (previous) {
+          this.mesh.remove(previous)
+          this.disposeLoadedModel(previous)
+        }
+        // Retira a malha procedural antiga, mantendo o modelo combinado com
+        // cavaleiro separado para a transição visual ao montar/desmontar.
+        for (const child of [...this.mesh.children]) {
+          if (child === model || child === this.riderModel) continue
+          this.mesh.remove(child)
+          this.disposeLoadedModel(child)
+        }
+        this.legs.length = 0
+        this.tailRoot = null
+        this.mesh.add(model)
+        this.importedModel = model
+        this.horseMixer?.stopAllAction()
+        this.horseMixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null
+        this.horseAnimationActions.clear()
+        this.activeHorseAnimation = ''
+        for (const clip of gltf.animations) {
+          const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+          const key = /turnleft|leftturn|pivotleft|rotateleft/.test(name) ? 'turn-left'
+            : /turnright|rightturn|pivotright|rotateright/.test(name) ? 'turn-right'
+              : /gallop|canter|run|sprint/.test(name) ? 'run'
+                : /walk|trot|locomotion|move/.test(name) ? 'walk'
+                  : /idle|stand|rest|breath|neutral/.test(name) ? 'idle' : null
+          if (key && this.horseMixer && !this.horseAnimationActions.has(key)) {
+            this.horseAnimationActions.set(key, this.horseMixer.clipAction(clip))
+          }
+        }
+        if (!this.horseAnimationActions.size && gltf.animations[0] && this.horseMixer) {
+          this.horseAnimationActions.set('idle', this.horseMixer.clipAction(gltf.animations[0]))
+        }
+        model.traverse((node) => {
+          if (node instanceof THREE.Mesh) {
+            node.castShadow = true
+            node.receiveShadow = true
+          }
+        })
+        this.playHorseAnimation('idle')
+        this.mesh.updateMatrixWorld(true)
+        this.syncMountedVisuals()
+      }, (error) => {
+        console.error('[HorseMount] Não foi possível carregar o GLB incorporado ao componente.', error)
+      })
+    } catch (error) {
+      console.error('[HorseMount] Dados GLB incorporados inválidos; mantendo o modelo de fallback.', error)
+    }
+  }
+
+  private disposeLoadedModel(root: THREE.Object3D): void {
+    root.traverse((node) => {
+      if (!(node instanceof THREE.Mesh)) return
+      node.geometry.dispose()
+      const materials = Array.isArray(node.material) ? node.material : [node.material]
+      materials.forEach((material) => material.dispose())
+    })
   }
 
   private syncTransformFromComponent(): void {
