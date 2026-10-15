@@ -12,9 +12,9 @@ export type RuleAction =
   | { type: 'set_variable'; name: string; value: boolean | number | string; objectId?: string; scope?: 'global' | 'object' }
   | { type: 'script'; code: string }
   | { type: 'javascript'; code: string }
-  | { type: 'horse_mount' }
-  | { type: 'horse_dismount' }
-  | { type: 'horse_toggle_mount' }
+  | { type: 'mount_entity' }
+  | { type: 'dismount_entity' }
+  | { type: 'toggle_entity_mount' }
 
 export interface LogicRule {
   /** Objeto proprietário deste evento; regras de objetos diferentes nunca são compartilhadas. */
