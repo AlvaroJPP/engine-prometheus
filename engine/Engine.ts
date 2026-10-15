@@ -698,6 +698,7 @@ export class Engine {
       root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
     }
     root.userData.importedModel = true
+    root.userData.sceneKind = model.userData.sceneKind === 'entity' ? 'entity' : 'object'
     root.userData.componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : undefined
     root.userData.componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
     root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
