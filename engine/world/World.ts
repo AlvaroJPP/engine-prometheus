@@ -256,15 +256,15 @@ export class World {
 
   private dispose(obj: GameObject): void {
     this.scene.remove(obj.mesh)
-    // Libera também as geometrias e os materiais das linhas que mostram os polígonos.
+    // Libera as malhas importadas que ficam como filhas do objeto transformável,
+    // além das linhas de wireframe usadas pelos primitivos.
     obj.mesh.traverse((child) => {
       if (child === obj.mesh) return
-      if (child instanceof THREE.LineSegments) {
-        child.geometry.dispose()
-        const material = child.material
-        if (Array.isArray(material)) material.forEach((item) => item.dispose())
-        else material.dispose()
-      }
+      if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.Line)) return
+      child.geometry.dispose()
+      const material = child.material
+      if (Array.isArray(material)) material.forEach((item) => item.dispose())
+      else material.dispose()
     })
     obj.mesh.geometry.dispose()
     const material = obj.mesh.material
