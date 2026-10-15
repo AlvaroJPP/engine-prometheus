@@ -328,69 +328,6 @@ export class Engine {
     }
   }
 
-  /** Garante que o cavalo tenha regras completas e editáveis no Visual Script. */
-  private ensureHorseLogic(objectId: string): void {
-    // A habilitação do cavalo é global: continua disponível após salvar/reabrir
-    // o projeto, mesmo que a versão anterior guardasse a variável no escopo do objeto.
-    this.logic.removeVariable('horse_enabled', objectId)
-    if (this.logic.getVariable('horse_enabled') === undefined) {
-      this.logic.setVariable('horse_enabled', true)
-    }
-
-    const rules = this.logic.list()
-    const existingMount = rules.find(rule =>
-      rule.ownerObjectId === objectId &&
-      rule.trigger.type === 'object_clicked' &&
-      rule.trigger.objectId === objectId &&
-      (/montar no cavalo/i.test(rule.name) || rule.actions.some(action =>
-        action.type === 'horse_mount' || (action.type === 'javascript' && action.code.includes('api.mount')),
-      )),
-    )
-    // Regras já salvas são conteúdo do usuário: não sobrescrever condições,
-    // ações ou scripts personalizados ao reabrir o projeto.
-    if (!existingMount) {
-      this.logic.upsert({
-        ownerObjectId: objectId,
-        id: `horse-mount-${objectId}`,
-        name: 'Montar no cavalo',
-        enabled: true,
-        trigger: { type: 'object_clicked', objectId },
-        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
-        actions: [{ type: 'javascript', code: 'api.mount()' }],
-        graphLayout: {
-          trigger: { x: 70, y: 70 },
-          condition: { x: 350, y: 70 },
-          action: { x: 630, y: 70 },
-        },
-      })
-    }
-
-    const existingToggle = rules.find(rule =>
-      rule.ownerObjectId === objectId &&
-      rule.trigger.type === 'key_pressed' &&
-      rule.trigger.key === 'KeyE' &&
-      (/montar ou desmontar/i.test(rule.name) || rule.actions.some(action =>
-        action.type === 'horse_toggle_mount' || (action.type === 'javascript' && action.code.includes('api.toggleMount')),
-      )),
-    )
-    if (!existingToggle) {
-      this.logic.upsert({
-        ownerObjectId: objectId,
-        id: `horse-toggle-mount-${objectId}`,
-        name: 'Montar ou desmontar (E)',
-        enabled: true,
-        trigger: { type: 'key_pressed', key: 'KeyE' },
-        conditions: [{ type: 'variable', name: 'horse_enabled', operator: 'equals', value: true }],
-        actions: [{ type: 'javascript', code: 'api.toggleMount()' }],
-        graphLayout: {
-          trigger: { x: 70, y: 210 },
-          condition: { x: 350, y: 210 },
-          action: { x: 630, y: 210 },
-        },
-      })
-    }
-  }
-
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
 
