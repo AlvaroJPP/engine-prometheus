@@ -84,7 +84,7 @@ export class HumanoidAvatar {
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
   private animationTime = 0
-  private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseZ: number }> = []
+  private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
   private readonly world: World
   private readonly cameraTarget: THREE.Vector3
@@ -308,39 +308,56 @@ export class HumanoidAvatar {
    * O valor 0 restaura a pose-base; 1 aplica a postura sentada com braços à frente
    * e pernas dobradas para acompanhar a sela.
    */
-  setMountedPose(amount: number): void {
+  setMountedPose(amount: number, gait = 0, leftDrop = 0.3, rightDrop = 0.3): void {
     const blend = THREE.MathUtils.clamp(amount, 0, 1)
+    const bounce = THREE.MathUtils.clamp(gait, -1, 1)
+    // Ângulo de cada perna calculado com a diferença entre o topo da sela e o
+    // polígono encontrado sob cada lado do cavalo.
+    const leftAngle = THREE.MathUtils.clamp(-0.62 - leftDrop * 0.72, -1.3, -0.68)
+    const rightAngle = THREE.MathUtils.clamp(-0.62 - rightDrop * 0.72, -1.3, -0.68)
+
     if (this.proceduralLimbs) {
       const limbs = this.proceduralLimbs
-      limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(0, -1.05, blend)
-      limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(0, -1.05, blend)
-      limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(0, -0.12, blend)
-      limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(0, 0.12, blend)
-      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend)
-      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend)
+      limbs.leftLeg.rotation.x = leftAngle * blend + bounce * 0.035 * blend
+      limbs.rightLeg.rotation.x = rightAngle * blend - bounce * 0.035 * blend
+      limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(0, -0.16, blend)
+      limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(0, 0.16, blend)
+      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) + bounce * 0.025 * blend
+      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) - bounce * 0.025 * blend
       limbs.torso.rotation.x = THREE.MathUtils.lerp(0, -0.06, blend)
-      limbs.leftShoe.rotation.x = THREE.MathUtils.lerp(0, 0.25, blend)
-      limbs.rightShoe.rotation.x = THREE.MathUtils.lerp(0, 0.25, blend)
+      limbs.torso.position.y = 1.02 - 0.035 * blend + Math.abs(bounce) * 0.012 * blend
+      limbs.leftShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + leftDrop * 0.15, blend)
+      limbs.rightShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + rightDrop * 0.15, blend)
     }
 
     for (const bone of this.animatedBones) {
       const name = bone.name
-      if (/left.*(leg|thigh)|thigh.*left|leg.*left/.test(name)) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.95, blend)
-      } else if (/right.*(leg|thigh)|thigh.*right|leg.*right/.test(name)) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.95, blend)
-      } else if (/left.*(arm|hand)|arm.*left/.test(name)) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend)
-      } else if (/right.*(arm|hand)|arm.*right/.test(name)) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend)
-      } else if (/spine|hips|pelvis/.test(name)) {
+      const left = /left|_l\\b|\\.l\\b|\\bl_/.test(name)
+      const right = /right|_r\\b|\\.r\\b|\\br_/.test(name)
+      if (/pelvis|hips|hip/.test(name)) {
+        bone.node.position.y = bone.basePosition.y - 0.035 * blend + Math.abs(bounce) * 0.012 * blend
         bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.06, blend)
+      } else if (/thigh|upper.?leg|upleg/.test(name) && left) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle, blend) + bounce * 0.025 * blend
+      } else if (/thigh|upper.?leg|upleg/.test(name) && right) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle, blend) - bounce * 0.025 * blend
+      } else if (/leg|calf|shin|knee/.test(name) && left) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle * 0.48, blend)
+      } else if (/leg|calf|shin|knee/.test(name) && right) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle * 0.48, blend)
+      } else if (/arm|hand|forearm/.test(name) && (left || !right)) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend) + bounce * 0.02 * blend
+      } else if (/arm|hand|forearm/.test(name) && right) {
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX - 0.7, blend) - bounce * 0.02 * blend
+      } else if (/spine|torso|chest/.test(name)) {
+        bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.04, blend)
       }
     }
-    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend)
+    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend) + Math.abs(bounce) * 0.012 * blend
   }
 
   resetVerticalState(): void {
+    this.setMountedPose(0)
     this.verticalVelocity = 0
     this.grounded = true
     this.pressed.clear()
@@ -426,7 +443,14 @@ export class HumanoidAvatar {
         this.animatedBones = []
         gltf.scene.traverse((child) => {
           if (child instanceof THREE.Bone || /arm|leg|thigh|calf|foot|hand|spine|hips|pelvis/i.test(child.name)) {
-            this.animatedBones.push({ node: child, name: child.name.toLowerCase(), baseX: child.rotation.x, baseZ: child.rotation.z })
+            this.animatedBones.push({
+              node: child,
+              name: child.name.toLowerCase(),
+              baseX: child.rotation.x,
+              baseY: child.rotation.y,
+              baseZ: child.rotation.z,
+              basePosition: child.position.clone(),
+            })
           }
           if (child instanceof THREE.Mesh) {
             child.castShadow = true
