@@ -310,7 +310,11 @@ export class Engine {
       if (position) triangleCount += geometries.index
         ? geometries.index.count / 3
         : position.count / 3
-      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material]
+      // Cada objeto importado recebe materiais próprios: alterar a cor de uma
+      // árvore não deve modificar as outras árvores que compartilham materiais no GLB.
+      const materials = sourceMaterials.map((material) => material.clone())
+      child.material = Array.isArray(child.material) ? materials : (materials[0] ?? child.material)
       for (const material of materials) {
         // Preserve os valores PBR do glTF e garanta que mapas de cor sejam lidos
         // como sRGB, inclusive em arquivos exportados com metadados incompletos.
