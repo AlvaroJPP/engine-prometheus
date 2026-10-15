@@ -186,6 +186,7 @@ export function parseScene(text: string, label = 'cena'): SceneFile {
       scale,
       visible: item.visible !== false,
       color,
+      texturePreset: item.texturePreset === 'grass' || item.texturePreset === 'stone' || item.texturePreset === 'brick' || item.texturePreset === 'wood' || item.texturePreset === 'sand' || item.texturePreset === 'metal' ? item.texturePreset : 'none',
       locked: item.locked === true,
       wireframeVisible: item.wireframeVisible !== false,
       groupId: typeof item.groupId === 'string' && item.groupId.trim() !== '' ? item.groupId : null,
