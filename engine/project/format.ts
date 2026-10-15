@@ -17,6 +17,7 @@ export interface SceneObjectData {
   visible: boolean
   color: number
   texturePreset?: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
+  textureRepeat?: number
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
