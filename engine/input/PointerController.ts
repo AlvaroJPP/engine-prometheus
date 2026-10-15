@@ -30,6 +30,7 @@ export class PointerController {
   private world: World
   private state: EditorState
   private isGizmoDragging: () => boolean
+  private onBuildAt?: (x: number, y: number, z: number) => boolean
   private raycaster = new THREE.Raycaster()
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
@@ -45,12 +46,13 @@ export class PointerController {
     }),
   )
 
-  constructor(canvas: HTMLCanvasElement, orbit: OrbitCamera, world: World, state: EditorState, isGizmoDragging: () => boolean = () => false) {
+  constructor(canvas: HTMLCanvasElement, orbit: OrbitCamera, world: World, state: EditorState, isGizmoDragging: () => boolean = () => false, onBuildAt?: (x: number, y: number, z: number) => boolean) {
     this.canvas = canvas
     this.orbit = orbit
     this.world = world
     this.state = state
     this.isGizmoDragging = isGizmoDragging
+    this.onBuildAt = onBuildAt
     this.ring.rotation.x = -Math.PI / 2
     this.ring.renderOrder = 10
     this.ring.visible = false
@@ -329,6 +331,7 @@ export class PointerController {
     const x = clamp(snap(hit.point.x, GRID), -50, 50)
     const z = clamp(snap(hit.point.z, GRID), -50, 50)
     const baseY = useObject ? hit.point.y : this.world.terrain.heightAt(x, z)
+    if (this.onBuildAt?.(x, baseY, z)) return
     this.world.place(this.state.buildShape, x, baseY, z)
   }
 
