@@ -221,50 +221,8 @@ export class HorseMount {
         model.position.z -= center.z
         model.position.y -= bounds.min.y
 
-        // Ajuste manual orientado pelos limites reais da geometria do GLB.
-        // A cabeçada/redeas estão na faixa baixa da malha DarkLeather, perto
-        // do focinho (Y ~2.05–2.40 e Z positivo). O patch anterior mirava a
-        // parte alta do modelo e por isso não atingia as correias da boca.
-        model.traverse((node) => {
-          if (!(node instanceof THREE.SkinnedMesh)) return
-          const materials = Array.isArray(node.material) ? node.material : [node.material]
-          if (!materials.some((material) => material.name === 'DarkLeather')) return
-
-          node.geometry = node.geometry.clone()
-          const geometry = node.geometry
-          const position = geometry.getAttribute('position')
-          if (!position) return
-
-          let adjusted = 0
-          for (let i = 0; i < position.count; i += 1) {
-            const x = position.getX(i)
-            const y = position.getY(i)
-            const z = position.getZ(i)
-
-            // Apenas as tiras frontais que saem do focinho; exclui as peças
-            // de sela (Z negativo/baixo) e as correias verticais do corpo.
-            const mouthHeight = y >= 2.04 && y <= 2.42
-            const muzzleSide = Math.abs(x) <= 0.78
-            const forwardStrap = z >= 0.28 && z <= 0.60
-            if (!mouthHeight || !muzzleSide || !forwardStrap) continue
-
-            // Recolhe as pontas soltas para trás e ligeiramente para dentro,
-            // aproximando-as do focinho em vez de deformar toda a cabeçada.
-            const weight = THREE.MathUtils.clamp((z - 0.28) / 0.32, 0, 1)
-            position.setXYZ(i, x * (1 - 0.10 * weight), y, z - 0.20 * weight)
-            adjusted += 1
-          }
-
-          if (adjusted > 0) {
-            position.needsUpdate = true
-            geometry.computeVertexNormals()
-            geometry.computeBoundingBox()
-            geometry.computeBoundingSphere()
-            console.info(`[HorseMount] Reposicionados ${adjusted} vértices das correias junto à boca.`)
-          } else {
-            console.warn('[HorseMount] Não foram encontrados vértices da cabeçada na região esperada.')
-          }
-        })
+        // A geometria original da cabeçada não é deformada: ela é substituída por uma
+        // cabeçada nova, construída em coordenadas normalizadas do cavalo.
 
         // O modelo do commit substitui o cavalo temporário, sem alterar o sistema de montaria.
         for (const child of [...this.mesh.children]) {
@@ -279,6 +237,8 @@ export class HorseMount {
         this.legs.length = 0
         this.tailRoot = null
         this.mesh.add(model)
+        const normalizedBounds = new THREE.Box3().setFromObject(model)
+        this.rebuildBridle(model, normalizedBounds)
 
         if (gltf.animations.length > 0) {
           this.modelMixer = new THREE.AnimationMixer(model)
@@ -296,6 +256,124 @@ export class HorseMount {
       undefined,
       (error) => console.error('[HorseMount] Não foi possível carregar low-poly_horse.glb; mantendo o cavalo de fallback.', error),
     )
+  }
+
+  /**
+   * Reconstrói a cabeçada fora da malha original do GLB.
+   * Todas as posições são calculadas depois da normalização do modelo, evitando
+   * misturar coordenadas locais da geometria com coordenadas do cavalo.
+   */
+  private rebuildBridle(model: THREE.Object3D, bounds: THREE.Box3): void {
+    const size = bounds.getSize(new THREE.Vector3())
+    const height = size.y
+    const depth = size.z
+    const width = size.x
+    if (height <= 0 || depth <= 0 || width <= 0) return
+
+    // Remove somente peças reconhecidas como cabeçada/redeas pelo nome ou
+    // pequenas peças de couro localizadas junto ao focinho. Não mexe na sela.
+    const bridleName = /bridle|halter|headstall|nose.?band|brow.?band|rein|reins|bit.?strap|cheek.?piece|cabe[cç]ada|rédea|redea|focinheira/i
+    model.traverse((node) => {
+      if (!(node instanceof THREE.Mesh)) return
+      if (bridleName.test(node.name)) {
+        node.visible = false
+        return
+      }
+
+      const materials = Array.isArray(node.material) ? node.material : [node.material]
+      const isLeather = materials.some((material) => /leather|strap|bridle|rein/i.test(material.name))
+      if (!isLeather) return
+
+      const partBounds = new THREE.Box3().setFromObject(node)
+      if (partBounds.isEmpty()) return
+      const partSize = partBounds.getSize(new THREE.Vector3())
+      const center = partBounds.getCenter(new THREE.Vector3())
+      const nearMuzzle = center.z > bounds.max.z - depth * 0.25
+      const headHeight = center.y > bounds.min.y + height * 0.68 &&
+        center.y < bounds.min.y + height * 0.96
+      const smallPiece = partSize.length() < depth * 0.75
+      if (nearMuzzle && headHeight && smallPiece) node.visible = false
+    })
+
+    // O cavalo do projeto olha para +Z. A nova cabeçada usa dimensões reais
+    // do modelo carregado, sem alterar vértices nem depender dos ossos do GLB.
+    const xSide = Math.min(width * 0.17, 0.19)
+    const muzzleY = bounds.min.y + height * 0.755
+    const browY = bounds.min.y + height * 0.875
+    const muzzleZ = bounds.max.z - depth * 0.045
+    const browZ = bounds.max.z - depth * 0.17
+    const bitZ = muzzleZ - depth * 0.045
+    const reinEndZ = bounds.min.z + depth * 0.60
+    const reinEndY = bounds.min.y + height * 0.64
+    const leather = new THREE.MeshStandardMaterial({
+      color: 0x302018,
+      roughness: 0.9,
+      metalness: 0.02,
+      flatShading: true,
+    })
+    const brass = new THREE.MeshStandardMaterial({
+      color: 0xb28a49,
+      roughness: 0.65,
+      metalness: 0.28,
+      flatShading: true,
+    })
+    const group = new THREE.Group()
+    group.name = 'RebuiltHorseBridle'
+    group.userData.generatedBridle = true
+
+    const strap = (name: string, points: THREE.Vector3[], radius = 0.012) => {
+      const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal')
+      const geometry = new THREE.TubeGeometry(curve, Math.max(8, points.length * 6), radius, 5, false)
+      const mesh = new THREE.Mesh(geometry, leather)
+      mesh.name = name
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      group.add(mesh)
+      return mesh
+    }
+    const stud = (name: string, position: THREE.Vector3, radius = 0.022) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 6, 4), brass)
+      mesh.name = name
+      mesh.position.copy(position)
+      mesh.castShadow = true
+      group.add(mesh)
+    }
+
+    // Tira frontal sobre a testa e focinheira contornando o focinho.
+    strap('rebuilt-browband', [
+      new THREE.Vector3(-xSide, browY, browZ),
+      new THREE.Vector3(0, browY + height * 0.012, browZ + depth * 0.018),
+      new THREE.Vector3(xSide, browY, browZ),
+    ], 0.014)
+    strap('rebuilt-noseband', [
+      new THREE.Vector3(-xSide * 0.9, muzzleY + height * 0.012, muzzleZ - depth * 0.018),
+      new THREE.Vector3(-xSide * 0.48, muzzleY, muzzleZ + depth * 0.008),
+      new THREE.Vector3(0, muzzleY - height * 0.006, muzzleZ + depth * 0.014),
+      new THREE.Vector3(xSide * 0.48, muzzleY, muzzleZ + depth * 0.008),
+      new THREE.Vector3(xSide * 0.9, muzzleY + height * 0.012, muzzleZ - depth * 0.018),
+    ], 0.015)
+
+    for (const side of [-1, 1]) {
+      const browPoint = new THREE.Vector3(side * xSide, browY, browZ)
+      const cheekPoint = new THREE.Vector3(side * xSide * 0.88, muzzleY + height * 0.025, muzzleZ - depth * 0.025)
+      const bitPoint = new THREE.Vector3(side * xSide * 0.92, muzzleY - height * 0.025, bitZ)
+      const reinEnd = new THREE.Vector3(side * width * 0.23, reinEndY, reinEndZ)
+      strap(`rebuilt-cheek-strap-${side}`, [
+        browPoint,
+        new THREE.Vector3(side * xSide * 1.08, (browY + muzzleY) * 0.5, (browZ + muzzleZ) * 0.5),
+        cheekPoint,
+      ], 0.012)
+      strap(`rebuilt-rein-${side}`, [
+        bitPoint,
+        new THREE.Vector3(side * width * 0.22, muzzleY - height * 0.045, muzzleZ - depth * 0.13),
+        new THREE.Vector3(side * width * 0.28, reinEndY + height * 0.04, bounds.min.z + depth * 0.78),
+        reinEnd,
+      ], 0.009)
+      stud(`rebuilt-bit-${side}`, bitPoint, 0.018)
+      stud(`rebuilt-buckle-${side}`, cheekPoint, 0.014)
+    }
+
+    this.mesh.add(group)
   }
 
   private updateModelAnimation(dt: number): void {
