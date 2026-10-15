@@ -18,14 +18,11 @@ function extensionOf(fileName: string) {
   return fileName.split('.').pop()?.toLowerCase() ?? ''
 }
 
-function parseWith<T>(loader: { parse: (...args: any[]) => T }, data: ArrayBuffer | string, ...args: unknown[]): T {
-  return loader.parse(data, ...args)
-}
-
 async function loadImageAsset(file: File): Promise<THREE.Object3D> {
   const url = URL.createObjectURL(file)
   try {
     const texture = await new THREE.TextureLoader().loadAsync(url)
+    URL.revokeObjectURL(url)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.needsUpdate = true
     const image = texture.image as HTMLImageElement | ImageBitmap
@@ -43,7 +40,6 @@ async function loadImageAsset(file: File): Promise<THREE.Object3D> {
     plane.name = file.name.replace(/\.[^.]+$/, '') || 'Imagem 2D'
     plane.userData.importAssetKind = '2d-image'
     plane.userData.importOriginalDimensions = { width, height }
-    plane.userData.importOwnedObjectUrl = url
     return plane
   } catch (error) {
     URL.revokeObjectURL(url)
@@ -70,7 +66,7 @@ export async function loadAssetFile(file: File): Promise<THREE.Object3D> {
         for (const shape of shapes) {
           const geometry = new THREE.ShapeGeometry(shape)
           const material = new THREE.MeshBasicMaterial({
-            color: path.color,
+            color: path.color ?? 0xffffff,
             side: THREE.DoubleSide,
             depthWrite: false,
           })
@@ -115,7 +111,7 @@ export async function loadAssetFile(file: File): Promise<THREE.Object3D> {
       break
     }
     case 'dae': {
-      const collada = parseWith(new ColladaLoader(), new TextDecoder().decode(buffer), '')
+      const collada = new ColladaLoader().parse(new TextDecoder().decode(buffer), '')
       object = collada.scene
       object.userData.importAnimations = collada.animations ?? []
       break
