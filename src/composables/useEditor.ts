@@ -88,7 +88,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         x: state.x, y: state.y, z: state.z,
         rotationX: state.rotationX, rotationY: state.rotationY, rotationZ: state.rotationZ,
         scaleX: state.scaleX, scaleY: state.scaleY, scaleZ: state.scaleZ,
-        color: state.color, visible: state.visible, locked: state.locked,
+        color: state.color, texturePreset: state.texturePreset, textureRepeat: state.textureRepeat, visible: state.visible, locked: state.locked,
         wireframeVisible: state.wireframeVisible, groupId: state.groupId, mass: state.mass,
         colliderType: state.colliderType, colliderSize: [...state.colliderSize], colliderOffset: [...state.colliderOffset],
       })
@@ -139,7 +139,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
           x: entry.after.x, y: entry.after.y, z: entry.after.z,
           rotationX: entry.after.rotationX, rotationY: entry.after.rotationY, rotationZ: entry.after.rotationZ,
           scaleX: entry.after.scaleX, scaleY: entry.after.scaleY, scaleZ: entry.after.scaleZ,
-          color: entry.after.color, visible: entry.after.visible, locked: false,
+          color: entry.after.color, texturePreset: entry.after.texturePreset, textureRepeat: entry.after.textureRepeat, visible: entry.after.visible, locked: false,
           wireframeVisible: entry.after.wireframeVisible, groupId: null, mass: entry.after.mass,
           colliderType: entry.after.colliderType, colliderSize: [...entry.after.colliderSize], colliderOffset: [...entry.after.colliderOffset],
         })
@@ -191,7 +191,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         x: pastedState.x, y: pastedState.y, z: pastedState.z,
         rotationX: pastedState.rotationX, rotationY: pastedState.rotationY, rotationZ: pastedState.rotationZ,
         scaleX: pastedState.scaleX, scaleY: pastedState.scaleY, scaleZ: pastedState.scaleZ,
-        color: pastedState.color, visible: pastedState.visible, locked: false,
+        color: pastedState.color, texturePreset: pastedState.texturePreset, textureRepeat: pastedState.textureRepeat, visible: pastedState.visible, locked: false,
         wireframeVisible: pastedState.wireframeVisible, groupId: null, mass: pastedState.mass,
         colliderType: pastedState.colliderType, colliderSize: [...pastedState.colliderSize], colliderOffset: [...pastedState.colliderOffset],
       })
