@@ -211,10 +211,38 @@ export class Engine {
         node.traverse((child) => { if (child instanceof THREE.Mesh && child.geometry.getAttribute('position')) found = true })
         return found
       }
+      const boundsOf = (node: THREE.Object3D): THREE.Box3 => new THREE.Box3().setFromObject(node)
+      const horizontallySeparated = (nodes: THREE.Object3D[]): boolean => {
+        if (nodes.length < 2) return false
+        const bounds = nodes.map(boundsOf)
+        const centers = bounds.map((box) => box.getCenter(new THREE.Vector3()))
+        const spans = bounds.map((box) => {
+          const size = box.getSize(new THREE.Vector3())
+          return Math.max(size.x, size.z, 0.001)
+        })
+        // Tronco e copa costumam ter centros X/Z coincidentes. Só considere
+        // objetos irmãos como árvores distintas quando seus centros horizontais
+        // estiverem afastados, evitando separar folhas e tronco do mesmo exemplar.
+        for (let i = 0; i < centers.length; i += 1) {
+          for (let j = i + 1; j < centers.length; j += 1) {
+            const a = centers[i]
+            const b = centers[j]
+            if (!a || !b) return false
+            const distance = Math.hypot(a.x - b.x, a.z - b.z)
+            const minimum = Math.max(0.35, Math.min(spans[i] ?? 0, spans[j] ?? 0) * 0.3)
+            if (distance < minimum) return false
+          }
+        }
+        return true
+      }
       const findPartContainer = (node: THREE.Object3D): THREE.Object3D | null => {
         const candidates = node.children.filter(hasMesh)
-        if (candidates.length >= 2) return node
-        if (candidates.length === 1 && candidates[0]) return findPartContainer(candidates[0])
+        // Prefira grupos com três ou mais componentes espacialmente separados.
+        if (candidates.length >= 2 && horizontallySeparated(candidates)) return node
+        for (const child of node.children) {
+          const nested = findPartContainer(child)
+          if (nested) return nested
+        }
         return null
       }
       const container = findPartContainer(model)
