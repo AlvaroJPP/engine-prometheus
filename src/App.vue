@@ -8,6 +8,10 @@ import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
+import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -16,6 +20,8 @@ const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
+const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
+const componentBusy = ref(false)
 const {
   projectName,
   dirty,
@@ -420,9 +426,114 @@ function importPublicRule(rule: LogicRule) {
 }
 const publicLogicRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) !== selectedId.value))
 const cameraLabel = computed(() => CAMERA_LABELS[cameraPreset.value])
-function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number }) {
-  addImportedModel(payload.name, payload.model, payload.height)
+async function refreshSavedComponents() {
+  try {
+    savedComponents.value = await listSavedComponents()
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível carregar a biblioteca de componentes.'
+  }
 }
+
+function disposeComponentSource(root: import('three').Object3D) {
+  const geometries = new Set<import('three').BufferGeometry>()
+  const materials = new Set<import('three').Material>()
+  const textures = new Set<import('three').Texture>()
+  root.traverse(node => {
+    if (!(node instanceof (Object.getPrototypeOf(root).constructor as typeof import('three').Object3D)) && !('isMesh' in node)) return
+    const mesh = node as import('three').Mesh
+    if (!mesh.geometry) return
+    geometries.add(mesh.geometry)
+    const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    list.forEach(material => {
+      materials.add(material)
+      for (const value of Object.values(material)) if (value instanceof (THREE.Texture)) textures.add(value)
+    })
+  })
+  geometries.forEach(geometry => geometry.dispose())
+  materials.forEach(material => material.dispose())
+  textures.forEach(texture => texture.dispose())
+}
+
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number }) {
+  if (componentBusy.value) return
+  componentBusy.value = true
+  status.value = 'Salvando modelo na biblioteca de componentes…'
+  const exportRoot = payload.model.clone(true)
+  exportRoot.userData = { ...exportRoot.userData }
+  for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl']) {
+    delete exportRoot.userData[key]
+  }
+  try {
+    const exporter = new GLTFExporter()
+    const result = await exporter.parseAsync(exportRoot, { binary: true })
+    if (!(result instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
+    const colliderType = payload.model.userData.importColliderType
+    const size = payload.model.userData.importColliderSize
+    const offset = payload.model.userData.importColliderOffset
+    const component: SavedComponent = {
+      id,
+      name: payload.name.trim() || 'Modelo 3D',
+      height: payload.height,
+      colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
+      colliderSize: Array.isArray(size) && size.length === 3 ? [...size] as [number, number, number] : [1, 1, 1],
+      colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
+      bytes: result,
+      createdAt: Date.now(),
+    }
+    await saveComponentAsset(component)
+    await refreshSavedComponents()
+    status.value = 'Componente "' + component.name + '" salvo. Abra a aba Componentes e clique nele para inserir cópias.'
+  } catch (error) {
+    status.value = 'Não foi possível salvar o componente: ' + (error instanceof Error ? error.message : String(error))
+  } finally {
+    componentBusy.value = false
+    disposeComponentSource(exportRoot)
+    // A importação passa a ser dona da biblioteca; a prévia já foi encerrada.
+    disposeComponentSource(payload.model)
+  }
+}
+
+async function placeSavedComponent(id: string) {
+  if (componentBusy.value) return
+  componentBusy.value = true
+  try {
+    const component = await getSavedComponent(id)
+    if (!component) throw new Error('Este componente não está mais na biblioteca.')
+    const loader = new GLTFLoader()
+    const model = await new Promise<import('three').Object3D>((resolve, reject) => {
+      loader.parse(component.bytes.slice(0), '', gltf => {
+        gltf.scene.userData.importAnimations = gltf.animations ?? []
+        resolve(gltf.scene)
+      }, reject)
+    })
+    model.name = component.name
+    model.userData.importPart = true
+    model.userData.importColliderType = component.colliderType
+    model.userData.importColliderSize = [...component.colliderSize]
+    model.userData.importColliderOffset = [...component.colliderOffset]
+    addImportedModel(component.name, model, component.height)
+    status.value = 'Componente "' + component.name + '" inserido no mundo.'
+  } catch (error) {
+    status.value = 'Não foi possível inserir o componente: ' + (error instanceof Error ? error.message : String(error))
+  } finally {
+    componentBusy.value = false
+  }
+}
+
+async function removeSavedComponent(id: string) {
+  const component = savedComponents.value.find(item => item.id === id)
+  if (!component || !window.confirm('Excluir "' + component.name + '" da biblioteca? Os objetos já colocados no mundo não serão removidos.')) return
+  try {
+    await deleteSavedComponent(id)
+    await refreshSavedComponents()
+    status.value = 'Componente removido da biblioteca.'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível excluir o componente.'
+  }
+}
+
+onMounted(() => { void refreshSavedComponents() })
 
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
@@ -461,6 +572,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     <div class="main">
       <SceneHierarchy
         v-model:root-open="rootOpen"
+        :components="savedComponents"
         :objects="objects"
         :terrain="terrain"
         :selected-id="selectedId"
@@ -473,6 +585,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @toggle-visible="toggleVisible"
         @toggle-lock="toggleObjectLock"
         @toggle-wireframe="toggleObjectWireframe"
+        @place-component="placeSavedComponent"
+        @delete-component="removeSavedComponent"
       />
 
       <!-- Viewport -->
