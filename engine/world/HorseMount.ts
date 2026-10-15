@@ -28,6 +28,7 @@ export class HorseMount {
   private readonly proceduralBones: Array<{ node: THREE.Bone; name: string; rotation: THREE.Euler }> = []
   private readonly proceduralNodes: Array<{ node: THREE.Object3D; name: string; rotation: THREE.Euler; position: THREE.Vector3 }> = []
   private importedModel: THREE.Object3D | null = null
+  private componentModelPivot: THREE.Group | null = null
   private riderModel: THREE.Object3D | null = null
   private riderMixer: THREE.AnimationMixer | null = null
   private horseMixer: THREE.AnimationMixer | null = null
@@ -70,10 +71,16 @@ export class HorseMount {
 
   /** Vincula a representação do editor ao mesmo cavalo animado usado no runtime. */
   setEditorComponent(component: THREE.Mesh | null): void {
+    if (this.componentModelPivot && this.componentModelPivot.parent) {
+      this.componentModelPivot.parent.remove(this.componentModelPivot)
+      this.componentModelPivot = null
+    }
     this.editorComponent = component
     this.parkedComponent = component
     if (!component) {
+      if (this.importedModel && this.importedModel.parent !== this.mesh) this.mesh.add(this.importedModel)
       if (!this.enabled) this.mesh.visible = false
+      this.syncMountedVisuals()
       return
     }
     component.userData.nativeComponentType = 'horse'
@@ -129,19 +136,27 @@ export class HorseMount {
         }
         const previous = this.importedModel
         if (previous) {
-          this.mesh.remove(previous)
+          previous.parent?.remove(previous)
           this.disposeLoadedModel(previous)
         }
-        // Retira a malha procedural antiga, mantendo o modelo combinado com
-        // cavaleiro separado para a transição visual ao montar/desmontar.
+        // O modelo editável passa a ser filho da raiz selecionável do mundo.
+        // O pivô compensa a origem central do componente: o GLB normalizado
+        // começa no chão, enquanto a raiz editável fica no centro do colisor.
+        const pivot = new THREE.Group()
+        pivot.name = 'HorseComponentVisual'
+        pivot.position.y = -targetHeight / 2
+        component.add(pivot)
+        pivot.add(model)
+        this.componentModelPivot = pivot
+        // O HorseMount conserva apenas o conjunto de montaria/fallback. A malha
+        // editável é a que o editor e o projeto realmente possuem.
         for (const child of [...this.mesh.children]) {
-          if (child === model || child === this.riderModel) continue
+          if (child === this.riderModel) continue
           this.mesh.remove(child)
           this.disposeLoadedModel(child)
         }
         this.legs.length = 0
         this.tailRoot = null
-        this.mesh.add(model)
         this.importedModel = model
         this.horseMixer?.stopAllAction()
         this.horseMixer = gltf.animations.length ? new THREE.AnimationMixer(model) : null
@@ -553,6 +568,9 @@ export class HorseMount {
         ? child === this.riderModel
         : child !== this.riderModel
     }
+    // O GLB anexado à raiz editável é a representação em repouso; ao montar,
+    // esconde-o para não sobrepor o GLB combinado com cavaleiro.
+    if (this.componentModelPivot) this.componentModelPivot.visible = !this.mounted
     if (this.riderModel && this.mounted) this.avatar.mesh.visible = false
     else if (this.mounted) this.avatar.mesh.visible = true
   }
@@ -878,6 +896,7 @@ export class HorseMount {
    */
   private sampleMountSurfaces(): { seatY: number; leftY: number; rightY: number } {
     this.mesh.updateWorldMatrix(true, true)
+    this.editorComponent?.updateWorldMatrix(true, true)
     const bounds = new THREE.Box3().setFromObject(this.importedModel ?? this.mesh)
     const top = bounds.max.y + 1.5
     const sample = (localX: number): number | null => {
