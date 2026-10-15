@@ -637,22 +637,13 @@ async function placeSavedComponent(id: string) {
         resolve(gltf.scene)
       }, reject)
     })
-    model.name = component.name
-    // Os bytes salvos na biblioteca são o GLB original, não a cena centralizada
-    // do preview. Normaliza a escala e centraliza a malha em torno da origem para
-    // alinhar renderização, proxy de seleção e colisor.
+    // Não renomeie nem transforme o nó raiz do glTF aqui: os clips podem usar
+    // seu nome e seus transforms. Engine.addImportedModel aplica escala e centro
+    // num pivô externo, mantendo animação, seleção e colisor alinhados.
     model.updateMatrixWorld(true)
     const sourceBounds = new THREE.Box3().setFromObject(model)
     const sourceSize = sourceBounds.getSize(new THREE.Vector3())
     if (sourceBounds.isEmpty() || sourceSize.y <= 0) throw new Error('O componente não contém dimensões válidas.')
-    model.scale.multiplyScalar(component.height / sourceSize.y)
-    model.updateMatrixWorld(true)
-    const scaledBounds = new THREE.Box3().setFromObject(model)
-    const center = scaledBounds.getCenter(new THREE.Vector3())
-    model.position.x -= center.x
-    model.position.y -= center.y
-    model.position.z -= center.z
-    model.updateMatrixWorld(true)
     model.userData.importPart = true
     model.userData.componentId = component.id
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
