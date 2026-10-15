@@ -22,6 +22,7 @@ export interface PrimitiveInit {
   colliderSize?: Vec3
   colliderOffset?: Vec3
   texturePreset?: TexturePreset
+  textureRepeat?: number
 }
 
 const TEXTURE_COLORS: Record<Exclude<TexturePreset, 'none'>, [string, string, string]> = {
@@ -107,7 +108,7 @@ function createProceduralTexture(preset: Exclude<TexturePreset, 'none'>): THREE.
 }
 
 /** Aplica ou remove uma textura procedural no material principal do cubo/plataforma. */
-export function applyTexturePreset(mesh: THREE.Mesh, preset: TexturePreset): void {
+export function applyTexturePreset(mesh: THREE.Mesh, preset: TexturePreset, repeat = 2): void {
   const material = mesh.material
   if (!(material instanceof THREE.MeshStandardMaterial)) return
   const previous = mesh.userData.generatedTexture as THREE.Texture | undefined
@@ -119,10 +120,11 @@ export function applyTexturePreset(mesh: THREE.Mesh, preset: TexturePreset): voi
   } else {
     const texture = createProceduralTexture(preset)
     material.map = texture
-    material.color.setHex(typeof mesh.userData.baseColor === 'number' ? mesh.userData.baseColor : 0xffffff)
+    material.color.setHex(0xffffff)
     mesh.userData.generatedTexture = texture
   }
   mesh.userData.texturePreset = preset
+  mesh.userData.textureRepeat = THREE.MathUtils.clamp(repeat, 1, 8)
   material.needsUpdate = true
 }
 
@@ -168,7 +170,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   mesh.userData.colliderSize = init.colliderSize?.map(v => Number.isFinite(v) ? Math.max(0.05, v) : 1) ?? null
   mesh.userData.colliderOffset = init.colliderOffset?.map(v => Number.isFinite(v) ? v : 0) ?? [0, 0, 0]
   mesh.userData.baseColor = init.color ?? def.color
-  applyTexturePreset(mesh, init.texturePreset ?? 'none')
+  applyTexturePreset(mesh, init.texturePreset ?? 'none', init.textureRepeat ?? 2)
   const name = init.name ?? `${def.label} ${id.split('_')[1] ?? ''}`.trim()
   return { id, name, type, mesh }
 }
