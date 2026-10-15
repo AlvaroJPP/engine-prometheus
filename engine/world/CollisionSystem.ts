@@ -19,8 +19,8 @@ interface Contact {
   depth: number
 }
 
-const EPSILON = 0.0005
-const MAX_RESOLUTION_PASSES = 4
+const CONTACT_TOLERANCE = 1e-7
+const MAX_RESOLUTION_PASSES = 12
 const AXIS_EPSILON_SQ = 1e-10
 const EDGE_KEY_SCALE = 100000
 
@@ -82,7 +82,9 @@ export class CollisionSystem {
           const totalInverseMass = inverseA + inverseB
           if (totalInverseMass <= 0) continue
 
-          const correction = contact.normal.clone().multiplyScalar(contact.depth + EPSILON)
+          // Corrige somente a penetração real: adicionar um epsilon à profundidade
+          // empurrava os corpos para longe e criava frestas visíveis entre superfícies.
+          const correction = contact.normal.clone().multiplyScalar(contact.depth)
           if (inverseA > 0) {
             a.mesh.position.addScaledVector(correction, -inverseA / totalInverseMass)
             a.mesh.updateMatrixWorld(true)
@@ -218,7 +220,9 @@ export class CollisionSystem {
       const projectionA = this.project(a.vertices, axis)
       const projectionB = this.project(b.vertices, axis)
       const overlap = Math.min(projectionA.max, projectionB.max) - Math.max(projectionA.min, projectionB.min)
-      if (overlap <= EPSILON) return null
+      // Encostar não é penetrar. A tolerância serve apenas para ruído numérico,
+      // sem introduzir uma margem física que afaste objetos que deveriam se tocar.
+      if (overlap <= CONTACT_TOLERANCE) return null
       if (overlap < minimumOverlap) {
         minimumOverlap = overlap
         minimumAxis = axis
