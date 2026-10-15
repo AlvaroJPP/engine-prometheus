@@ -60,6 +60,105 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   let engine: Engine | null = null
   let statusTimer = 0
   const offs: Array<() => void> = []
+  let clipboardObject: ObjectInfo | null = null
+  let applyingHistory = false
+  type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo }
+  const undoStack: ObjectHistoryEntry[] = []
+  const redoStack: ObjectHistoryEntry[] = []
+  const HISTORY_LIMIT = 100
+
+  function sameObjectState(a: ObjectInfo, b: ObjectInfo): boolean {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+
+  function rememberObjectChange(before: ObjectInfo, after: ObjectInfo) {
+    if (applyingHistory || sameObjectState(before, after)) return
+    undoStack.push({ id: after.id, before: { ...before }, after: { ...after } })
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift()
+    redoStack.length = 0
+  }
+
+  function applyObjectState(id: string, state: ObjectInfo) {
+    if (!engine) return
+    applyingHistory = true
+    try {
+      engine.updateObject(id, {
+        x: state.x, y: state.y, z: state.z,
+        rotationX: state.rotationX, rotationY: state.rotationY, rotationZ: state.rotationZ,
+        scaleX: state.scaleX, scaleY: state.scaleY, scaleZ: state.scaleZ,
+        color: state.color, visible: state.visible, locked: state.locked,
+        wireframeVisible: state.wireframeVisible, groupId: state.groupId, mass: state.mass,
+        colliderType: state.colliderType, colliderSize: [...state.colliderSize], colliderOffset: [...state.colliderOffset],
+      })
+      engine.renameObject(id, state.name)
+      refresh()
+      dirty.value = true
+    } finally {
+      applyingHistory = false
+    }
+  }
+
+  function undo() {
+    const entry = undoStack.pop()
+    if (!entry) { say('Não há alterações de objeto para desfazer.'); return }
+    const current = objects.value.find(object => object.id === entry.id)
+    if (!current) { undoStack.push(entry); say('Não é possível desfazer: o objeto não está mais na cena.'); return }
+    redoStack.push({ ...entry, after: { ...current } })
+    applyObjectState(entry.id, entry.before)
+    say('Última alteração do objeto desfeita.')
+  }
+
+  function redo() {
+    const entry = redoStack.pop()
+    if (!entry) { say('Não há alterações para refazer.'); return }
+    if (!objects.value.some(object => object.id === entry.id)) { redoStack.push(entry); say('Não é possível refazer: o objeto não está mais na cena.'); return }
+    undoStack.push({ ...entry, before: { ...(objects.value.find(object => object.id === entry.id) ?? entry.before) } })
+    applyObjectState(entry.id, entry.after)
+    say('Alteração refeita.')
+  }
+
+  function copySelectedObject() {
+    const object = objects.value.find(item => item.id === selectedId.value)
+    if (!object || object.id === TERRAIN_ID) { say('Selecione um objeto para copiar.'); return }
+    clipboardObject = JSON.parse(JSON.stringify(object)) as ObjectInfo
+    say(`Objeto "${object.name}" copiado.`)
+  }
+
+  function pasteObject() {
+    if (!engine || !clipboardObject) { say('Copie um objeto antes de colar.'); return }
+    const source = clipboardObject
+    const existingIds = new Set(engine.listObjects().map(object => object.id))
+    engine.addPrimitive(source.type)
+    const created = engine.listObjects().find(object => !existingIds.has(object.id))
+    if (!created) { say('Não foi possível colar o objeto.'); return }
+    const pastedState: ObjectInfo = {
+      ...source,
+      id: created.id,
+      name: source.name.endsWith(' - cópia') ? source.name : `${source.name} - cópia`,
+      x: source.x + 1,
+      z: source.z + 1,
+    }
+    applyingHistory = true
+    try {
+      engine.updateObject(created.id, {
+        x: pastedState.x, y: pastedState.y, z: pastedState.z,
+        rotationX: pastedState.rotationX, rotationY: pastedState.rotationY, rotationZ: pastedState.rotationZ,
+        scaleX: pastedState.scaleX, scaleY: pastedState.scaleY, scaleZ: pastedState.scaleZ,
+        color: pastedState.color, visible: pastedState.visible, locked: false,
+        wireframeVisible: pastedState.wireframeVisible, groupId: null, mass: pastedState.mass,
+        colliderType: pastedState.colliderType, colliderSize: [...pastedState.colliderSize], colliderOffset: [...pastedState.colliderOffset],
+      })
+      engine.renameObject(created.id, pastedState.name)
+      engine.select(created.id)
+      refresh()
+      dirty.value = true
+    } finally {
+      applyingHistory = false
+    }
+    undoStack.push({ id: created.id, before: { ...pastedState, name: pastedState.name }, after: { ...pastedState } })
+    // Colagem é uma ação própria: Ctrl+Z remove a cópia recém-criada.
+    say(`"${pastedState.name}" colado. (Ctrl+Z desfaz alterações de propriedades.)`)
+  }
 
   function say(message: string) {
     status.value = message
@@ -106,7 +205,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function markDirty() {
     dirty.value = true
-    if (!colliderInputActive) refresh()
+    if (!colliderInputActive) {
+      const previous = objects.value
+      const next = engine?.listObjects() ?? []
+      for (const after of next) {
+        const before = previous.find(object => object.id === after.id)
+        if (before) rememberObjectChange(before, after)
+      }
+      refresh()
+    }
   }
 
   let applyingProjectSettings = false
@@ -634,13 +741,36 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   // ---- atalhos ----
   function onKey(ev: KeyboardEvent) {
     const mod = ev.ctrlKey || ev.metaKey
-    if (mod && ev.key.toLowerCase() === 's') {
+    const key = ev.key.toLowerCase()
+    if (mod && key === 's') {
       ev.preventDefault()
       void saveProject(ev.shiftKey)
       return
     }
     const tag = (ev.target as HTMLElement | null)?.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || mod || ev.altKey) return
+    const editingText = tag === 'INPUT' || tag === 'TEXTAREA' || (ev.target as HTMLElement | null)?.isContentEditable
+    if (mod && !editingText && key === 'c') {
+      ev.preventDefault()
+      copySelectedObject()
+      return
+    }
+    if (mod && !editingText && key === 'v') {
+      ev.preventDefault()
+      pasteObject()
+      return
+    }
+    if (mod && !editingText && key === 'z') {
+      ev.preventDefault()
+      if (ev.shiftKey) redo()
+      else undo()
+      return
+    }
+    if (mod && !editingText && key === 'y') {
+      ev.preventDefault()
+      redo()
+      return
+    }
+    if (editingText || mod || ev.altKey) return
     switch (ev.key.toLowerCase()) {
       case 'q':
         setTool('select')
