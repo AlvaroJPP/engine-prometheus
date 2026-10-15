@@ -23,6 +23,9 @@ export interface SceneObjectData {
   colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
   colliderSize?: Vec3
   colliderOffset?: Vec3
+  /** GLB incorporado ao projeto para reconstruir modelos importados. */
+  importedModelData?: string
+  importedModelHeight?: number
 }
 
 export interface TerrainData {
