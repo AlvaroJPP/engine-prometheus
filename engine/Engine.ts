@@ -17,7 +17,7 @@ import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
-import { HorseMount } from './world/HorseMount'
+import { ScriptMountRuntime } from './script/ScriptMountRuntime'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -34,7 +34,7 @@ export class Engine {
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
-  private horseMount: HorseMount
+  private mountRuntime: ScriptMountRuntime
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -45,8 +45,8 @@ export class Engine {
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
-    this.horseMount = new HorseMount(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
-    this.logic.setHorseActionHandler((action, objectId) => this.horseMount.executeNodeAction(action, objectId))
+    this.mountRuntime = new ScriptMountRuntime(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
+    this.logic.setHorseActionHandler((action, objectId) => this.mountRuntime.executeAction(action, objectId))
     window.addEventListener('keydown', this.onRuleKeyDown)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
@@ -103,18 +103,6 @@ export class Engine {
     })
     this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging, (x, y, z) => this.placePendingBuildComponent(x, y, z), (id) => {
       this.events.emit('objectClicked', { id })
-      // O clique no componente do cavalo também oferece montaria nativa como
-      // fallback, caso o projeto tenha regras antigas/incompletas.
-      const clicked = this.world.get(id)?.mesh
-      const isHorse = !!clicked && (
-        clicked.userData.nativeComponentType === 'horse' ||
-        clicked.userData.nativeHorseComponent === true ||
-        clicked.userData.componentId === 'builtin-horse-low-poly' ||
-        clicked.name.trim().toLowerCase() === 'cavalo low poly'
-      )
-      if (isHorse && !this.horseMount.isMounted) {
-        this.horseMount.executeNodeAction('mount', id)
-      }
     })
     this.events.on('selectionChanged', ({ id }) => {
       const object = id ? this.world.get(id) : undefined
@@ -137,7 +125,7 @@ export class Engine {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
         mixer?.update(dt)
       }
-      this.horseMount.update(dt)
+      this.mountRuntime.update(dt)
       this.avatar.update(dt)
       this.world.updateEnvironment(dt)
       this.logic.update()
@@ -241,7 +229,7 @@ export class Engine {
       }
       this.avatar.mesh.visible = true
       this.avatar.setEnabled(true)
-      this.horseMount.setRuntimeMode(true, this.avatar.mesh.position)
+      this.mountRuntime.setRuntimeMode(true, this.avatar.mesh.position)
       this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
       this.orbit.distance = 10
       this.input.setRuntimeMode(true)
@@ -250,7 +238,7 @@ export class Engine {
       return
     }
 
-    this.horseMount.setRuntimeMode(false)
+    this.mountRuntime.setRuntimeMode(false)
     this.input.setRuntimeMode(false)
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = false
@@ -406,86 +394,9 @@ export class Engine {
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
 
-    // O Visual Script continua sendo executado primeiro, preservando regras
-    // personalizadas. A tecla E também possui uma interação nativa de montaria
-    // como fallback: projetos antigos/componentes sem regra KeyE não ficam
-    // impossibilitados de montar. executeNodeAction valida modo Run, alvo e alcance.
-    const wasMounted = this.horseMount.isMounted
+    // A montaria só ocorre quando uma regra salva do Visual Script é disparada.
     const executed = this.logic.triggerKeyPressed(event.code)
-    // Se alguma regra realmente alterou o estado da montaria, não repete a ação.
-    // Caso contrário, E usa a interação nativa como fallback para montar/desmontar.
-    if (event.code === 'KeyE' && this.horseMount.isMounted === wasMounted) {
-      this.horseMount.executeNodeAction('toggle')
-    }
-
-    if (executed || event.code === 'KeyE') event.preventDefault()
-  }
-
-  /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
-  private placeNativeHorseComponent(
-    x: number,
-    baseY: number,
-    z: number,
-    name: string,
-    componentLogic?: unknown,
-    componentMetadata?: {
-      importedModelData?: unknown
-      importedModelHeight?: unknown
-      importColliderType?: unknown
-      importColliderSize?: unknown
-      importColliderOffset?: unknown
-    },
-  ): void {
-    const height = 2.05
-    const root = new THREE.Mesh(
-      new THREE.BoxGeometry(1.55, height, 2.8),
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        colorWrite: false,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    )
-    root.name = name || 'Cavalo Low Poly'
-    root.position.set(x, baseY + height / 2, z)
-    root.userData.nativeComponentType = 'horse'
-    root.userData.nativeHorseComponent = true
-    root.userData.componentId = 'builtin-horse-low-poly'
-    root.userData.importedModel = true
-    root.userData.importedModelData = typeof componentMetadata?.importedModelData === 'string'
-      ? componentMetadata.importedModelData
-      : undefined
-    root.userData.importedModelHeight = typeof componentMetadata?.importedModelHeight === 'number'
-      && Number.isFinite(componentMetadata.importedModelHeight) && componentMetadata.importedModelHeight > 0
-      ? componentMetadata.importedModelHeight : height
-    root.userData.colliderType = componentMetadata?.importColliderType === 'sphere'
-      || componentMetadata?.importColliderType === 'capsule'
-      || componentMetadata?.importColliderType === 'none'
-      ? componentMetadata.importColliderType : 'box'
-    const savedColliderSize = componentMetadata?.importColliderSize
-    root.userData.colliderSize = Array.isArray(savedColliderSize) && savedColliderSize.length === 3
-      && savedColliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0)
-      ? [...savedColliderSize] : [0.95, 1.35, 1.6]
-    const savedColliderOffset = componentMetadata?.importColliderOffset
-    root.userData.colliderOffset = Array.isArray(savedColliderOffset) && savedColliderOffset.length === 3
-      && savedColliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
-      ? [...savedColliderOffset] : [0, 0.02, 0]
-    root.userData.locked = false
-    root.userData.wireframeVisible = false
-    const id = `horse_component_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
-    root.userData.id = id
-    this.world.add({ id, name: root.name, type: 'cube', mesh: root })
-    root.userData.componentLogic = Array.isArray(componentLogic) ? componentLogic : []
-    this.applyComponentLogic(id, componentLogic)
-    this.ensureHorseLogic(id)
-    this.horseMount.setEditorComponent(root)
-    this.world.select(id)
-    this.state.tool = 'select'
-    this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform)
-    this.transformControls.attach(root)
-    this.transformControls.enabled = true
-    this.emitTool()
+    if (executed) event.preventDefault()
   }
 
   /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
@@ -498,24 +409,19 @@ export class Engine {
     const pending = this.pendingBuildComponent
     if (!pending) return false
     try {
-      if (pending.model.userData.nativeHorseComponent === true) {
-        this.placeNativeHorseComponent(
-          x, baseY, z, pending.name,
-          pending.model.userData.componentLogic,
-          pending.model.userData,
-        )
-      } else {
-        const existingIds = new Set(this.world.list().map(object => object.id))
-        const model = pending.model.clone(true)
-        model.userData = { ...pending.model.userData, importPart: true }
-        this.addImportedModel(pending.name, model, pending.height)
-        const created = this.world.list().find(object => !existingIds.has(object.id))
-        if (!created) return false
-        created.mesh.position.set(x, baseY + pending.height / 2, z)
-        created.mesh.updateMatrixWorld(true)
-        this.world.notifyChanged(created.id)
-        this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
-      }
+      const existingIds = new Set(this.world.list().map(object => object.id))
+      const model = pending.model.clone(true)
+      model.userData = { ...pending.model.userData, importPart: true }
+      // Mantém o GLB como um único objeto real da Hierarquia.
+      model.userData.nativeHorseComponent = false
+      model.userData.nativeComponentType = undefined
+      this.addImportedModel(pending.name, model, pending.height)
+      const created = this.world.list().find(object => !existingIds.has(object.id))
+      if (!created) return false
+      created.mesh.position.set(x, baseY + pending.height / 2, z)
+      created.mesh.updateMatrixWorld(true)
+      this.world.notifyChanged(created.id) 
+      this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
       // A ferramenta Construir permanece ativa para colocar várias cópias.
       this.state.tool = 'build'
       this.transformControls.detach()
@@ -874,8 +780,7 @@ export class Engine {
 
   removeObject(id: string): void {
     const object = this.world.get(id)
-    if (object?.mesh.userData.nativeComponentType === 'horse') this.horseMount.setEditorComponent(null)
-    this.world.remove(id)
+    if (object?.mesh.userData.nativeComponentType === 'horse')     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
 
@@ -1003,7 +908,7 @@ export class Engine {
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
 
     report('Preparando o terreno e os objetos básicos…', 5)
-    const regularObjects = scene.objects.filter(object => !object.importedModelData || object.nativeComponentType === 'horse')
+    const regularObjects = scene.objects.filter(object => !object.importedModelData)
     const restoredObjects: ReturnType<typeof objectFromData>[] = []
     // Construir objetos em lotes permite que a interface atualize o progresso
     // em projetos com muitas centenas ou milhares de objetos.
@@ -1016,37 +921,11 @@ export class Engine {
       report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
-    this.horseMount.setEditorComponent(null)
     this.world.replaceAll(restoredObjects, scene.terrain)
-    // Reconstrói o proxy editável do cavalo nativo e o conecta ao mesmo HorseMount
-    // que executa animações, colisão e montaria. O GLB não é duplicado no projeto.
-    const nativeHorseData = regularObjects.find(object => object.nativeComponentType === 'horse')
-    if (nativeHorseData) {
-      const nativeHorse = this.world.get(nativeHorseData.id)?.mesh
-      if (nativeHorse) {
-        nativeHorse.geometry.dispose()
-        nativeHorse.geometry = new THREE.BoxGeometry(1.55, nativeHorseData.importedModelHeight ?? 2.05, 2.8)
-        const materials = Array.isArray(nativeHorse.material) ? nativeHorse.material : [nativeHorse.material]
-        materials.forEach(material => material.dispose())
-        nativeHorse.material = new THREE.MeshBasicMaterial({
-          transparent: true, opacity: 0, colorWrite: false, depthWrite: false, depthTest: false,
-        })
-        nativeHorse.userData.nativeComponentType = 'horse'
-        nativeHorse.userData.nativeHorseComponent = true
-        nativeHorse.userData.componentId = nativeHorseData.componentId ?? 'builtin-horse-low-poly'
-        nativeHorse.userData.importedModel = true
-        nativeHorse.userData.importedModelData = nativeHorseData.importedModelData
-        nativeHorse.userData.importedModelHeight = nativeHorseData.importedModelHeight ?? 2.05
-        nativeHorse.userData.colliderType = nativeHorseData.colliderType ?? 'box'
-        nativeHorse.userData.colliderSize = nativeHorseData.colliderSize ?? [0.95, 1.35, 1.6]
-        nativeHorse.userData.colliderOffset = nativeHorseData.colliderOffset ?? [0, 0.02, 0]
-        this.horseMount.setEditorComponent(nativeHorse)
-      }
-    }
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     report('Terreno pronto. Restaurando modelos 3D…', 28)
 
-    const importedObjects = scene.objects.filter(object => !!object.importedModelData && object.nativeComponentType !== 'horse')
+    const importedObjects = scene.objects.filter(object => !!object.importedModelData)
     const loader = new GLTFLoader()
     for (let i = 0; i < importedObjects.length; i += 1) {
       const data = importedObjects[i]!
@@ -1080,19 +959,13 @@ export class Engine {
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
-    // Migra cavalos de projetos antigos para o fluxo visual embutido padrão.
-    for (const object of this.world.list()) {
-      if (object.mesh.userData.nativeComponentType === 'horse' || object.mesh.userData.nativeHorseComponent === true || object.mesh.userData.componentId === 'builtin-horse-low-poly') {
-        this.ensureHorseLogic(object.id)
-      }
-    }
     report('Mundo carregado.', 100)
   }
 
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
-    this.horseMount.dispose()
+    this.mountRuntime.dispose()
     this.avatar.dispose()
     this.collisions.clear()
     this.transformControls.dispose()
