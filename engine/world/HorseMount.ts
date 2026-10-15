@@ -355,8 +355,18 @@ export class HorseMount {
     new GLTFLoader().load(
       horseModelUrl,
       (gltf) => {
+          // Se o componente já fornece o seu próprio GLB, nunca substitua esse
+          // asset pelo arquivo bundled quando a requisição antiga terminar.
+          if (typeof this.editorComponent?.userData.importedModelData === 'string'
+            && this.editorComponent.userData.importedModelData.length > 0) {
+            this.disposeLoadedModel(gltf.scene)
+            return
+          }
           const model = gltf.scene;
-          if (!this.mesh.parent) return
+          if (!this.mesh.parent) {
+            this.disposeLoadedModel(gltf.scene)
+            return
+          }
           model.name = 'CommittedHorseGLB'
           // Normaliza o tamanho com escala uniforme: mantém as proporções do FBX
           // e limita a altura total do cavalo a aproximadamente 2,05 unidades do mundo.
