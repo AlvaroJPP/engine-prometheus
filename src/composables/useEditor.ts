@@ -52,7 +52,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushStrength = ref(1.5)
   const brushRadius = ref(4)
   const gridVisible = ref(true)
-  const polygonLinesVisible = ref(true)
+  const polygonLinesVisible = ref(false)
   const colliderDebugVisible = ref(false)
   const logicRules = ref<LogicRule[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
@@ -804,6 +804,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       applyingProjectSettings = true
       try {
         await eng.loadProject(bundle)
+        // Projetos antigos podem ter salvo wireframe ligado por padrão.
+        // A visualização das linhas começa desligada, mas pode ser reativada na toolbar.
+        polygonLinesVisible.value = false
+        for (const object of eng.listObjects()) {
+          eng.updateObject(object.id, { wireframeVisible: false })
+        }
         refresh()
         brushStrength.value = bundle.project.settings.editor.brushStrength
         brushRadius.value = bundle.project.settings.editor.brushRadius
