@@ -95,7 +95,7 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   onProgress?.('Salvamento concluído.', 100)
 }
 
-async function hydrateSceneAssets(dir: string, rawText: string): Promise<string> {
+async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: ProjectProgress, percent = 10): Promise<string> {
   let scene: SceneFile
   try {
     scene = JSON.parse(rawText) as SceneFile
@@ -109,6 +109,7 @@ async function hydrateSceneAssets(dir: string, rawText: string): Promise<string>
       for (const texture of Object.values(faces)) {
         if (!texture?.imageDataUrl?.startsWith('asset://')) continue
         const rel = texture.imageDataUrl.slice('asset://'.length)
+        onProgress?.(`Carregando textura ${rel.split('/').pop()}…`, percent)
         const base64 = await readAsset(dir, rel)
         const extension = rel.split('.').pop()?.toLowerCase()
         const mime = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/png'
@@ -117,6 +118,7 @@ async function hydrateSceneAssets(dir: string, rawText: string): Promise<string>
     }
     if (typeof object.importedModelData === 'string' && object.importedModelData.startsWith('asset://')) {
       const rel = object.importedModelData.slice('asset://'.length)
+      onProgress?.(`Carregando modelo 3D ${object.name}…`, percent)
       object.importedModelData = await readAsset(dir, rel)
     }
   }
@@ -132,7 +134,7 @@ export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress)
     const path = project.scenes[index]
     const raw = await invoke<string>('read_project_file', { dir, rel: path })
     onProgress?.(`Carregando recursos da cena ${index + 1}/${totalScenes}…`, Math.round(5 + ((index + 1) / totalScenes) * 65))
-    const hydrated = await hydrateSceneAssets(dir, raw)
+    const hydrated = await hydrateSceneAssets(dir, raw, onProgress, Math.round(5 + ((index + 1) / totalScenes) * 65))
     scenes[path] = parseScene(hydrated, path)
   }
   if (!scenes[MAIN_SCENE_PATH] && Object.keys(scenes).length === 0) {
