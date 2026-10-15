@@ -615,7 +615,9 @@ function confirmImport() {
     root.updateMatrixWorld(true)
     const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
     imported = chosenPart.object.clone(true)
-    imported.applyMatrix4(relativeMatrix)
+    imported.matrix.copy(relativeMatrix)
+    imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
+    imported.matrixAutoUpdate = true
     imported.name = chosenPart.name
     const bounds = new THREE.Box3().setFromObject(imported)
     const size = bounds.getSize(new THREE.Vector3())
