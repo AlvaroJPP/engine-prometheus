@@ -31,6 +31,7 @@ export class PointerController {
   private state: EditorState
   private isGizmoDragging: () => boolean
   private onBuildAt: ((x: number, y: number, z: number) => boolean) | undefined
+  private runtimeMode = false
   private raycaster = new THREE.Raycaster()
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
@@ -65,6 +66,14 @@ export class PointerController {
     canvas.addEventListener('pointerleave', this.onLeave)
     canvas.addEventListener('wheel', this.onWheel, { passive: false })
     canvas.addEventListener('contextmenu', this.onContext)
+  }
+
+  /** Bloqueia as ferramentas de edição durante a execução do mundo. */
+  setRuntimeMode(enabled: boolean): void {
+    this.runtimeMode = enabled
+    this.drag = { kind: 'none' }
+    this.lastEvent = null
+    if (document.pointerLockElement === this.canvas) document.exitPointerLock()
   }
 
   /** Chamado a cada quadro: esculpe enquanto o botão está pressionado. */
@@ -132,6 +141,15 @@ export class PointerController {
 
   // ---------- eventos ----------
   private onDown = (e: PointerEvent): void => {
+    if (this.runtimeMode) {
+      // Em Run, o mouse controla somente a câmera do jogador; nunca seleciona,
+      // move, constrói ou edita objetos da cena.
+      if (e.button === 0 || e.button === 1 || e.button === 2) {
+        e.preventDefault()
+        this.begin({ kind: 'orbit', lastX: e.clientX, lastY: e.clientY }, e)
+      }
+      return
+    }
     if (this.orbit.firstPerson) {
       if (e.button === 0 && document.pointerLockElement !== this.canvas) {
         void this.canvas.requestPointerLock()
