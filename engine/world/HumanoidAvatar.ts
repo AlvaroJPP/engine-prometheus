@@ -193,7 +193,7 @@ export class HumanoidAvatar {
     this.verticalVelocity -= GRAVITY * step
     const oldY = this.mesh.position.y
     const wasGrounded = this.grounded
-    const nextY = oldY + this.verticalVelocity * step
+    let nextY = oldY + this.verticalVelocity * step
     const terrainY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
 
     // Movimento relativo à orientação horizontal da câmera.
@@ -216,6 +216,16 @@ export class HumanoidAvatar {
     const newGroundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = nextY
     this.mesh.updateMatrixWorld(true)
+
+    // Durante o salto, testa a cabeça contra a face inferior das malhas. Sem esta
+    // verificação vertical, o personagem pode atravessar o teto de uma rampa e
+    // aparecer por cima mesmo que a colisão horizontal esteja funcionando.
+    if (this.verticalVelocity > 0 && this.collidesWithObjects(true)) {
+      nextY = oldY
+      this.mesh.position.y = oldY
+      this.verticalVelocity = 0
+      this.mesh.updateMatrixWorld(true)
+    }
     const landing = this.findObjectLanding(oldY, nextY)
 
     // Mantém contato com rampas descendentes: sem essa tolerância, a gravidade
@@ -543,9 +553,10 @@ export class HumanoidAvatar {
    * Verifica contato com polígonos reais, limitando o custo por frame:
    * usa bounds para broad phase e testa somente triângulos próximos ao jogador.
    */
-  private collidesWithObjects(): boolean {
+  private collidesWithObjects(blockCeilings = false): boolean {
     const playerBox = this.playerBox()
-    const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + PLAYER_HEIGHT * 0.5, this.mesh.position.z)
+    const sampleY = blockCeilings ? PLAYER_HEIGHT - PLAYER_RADIUS : PLAYER_HEIGHT * 0.5
+    const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + sampleY, this.mesh.position.z)
     const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
     const triangle = new THREE.Triangle()
     const a = new THREE.Vector3()
@@ -595,8 +606,13 @@ export class HumanoidAvatar {
           triangle.set(a, b, c)
           triangle.getNormal(normal).normalize()
 
-          // Faces caminháveis não devem agir como paredes.
-          if (normal.y >= 0.45) continue
+          // Faces superiores são piso; no teste vertical, somente faces inferiores
+          // podem bloquear o salto. Nos testes horizontais, faces superiores são ignoradas.
+          if (blockCeilings) {
+            if (normal.y > -0.45) continue
+          } else if (normal.y >= 0.45) {
+            continue
+          }
           triangle.closestPointToPoint(center, closest)
           if (center.distanceToSquared(closest) < radiusSq) return true
         }
