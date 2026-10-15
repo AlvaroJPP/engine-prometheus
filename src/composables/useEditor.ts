@@ -52,6 +52,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushStrength = ref(1.5)
   const brushRadius = ref(4)
   const gridVisible = ref(true)
+  const polygonLinesVisible = ref(true)
   const colliderDebugVisible = ref(false)
   const logicRules = ref<LogicRule[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
@@ -444,6 +445,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine.setGridVisible(gridVisible.value)
     markDirty()
     say(gridVisible.value ? 'Malha ativada' : 'Malha desativada')
+  }
+
+  function togglePolygonLines() {
+    if (!engine) return
+    polygonLinesVisible.value = !polygonLinesVisible.value
+    for (const object of objects.value) {
+      engine.updateObject(object.id, { wireframeVisible: polygonLinesVisible.value })
+    }
+    dirty.value = true
+    refresh()
+    say(polygonLinesVisible.value ? 'Linhas dos polígonos exibidas.' : 'Linhas dos polígonos ocultadas.')
   }
 
   function removeSelected() {
@@ -914,6 +926,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     brushStrength,
     brushRadius,
     gridVisible,
+    polygonLinesVisible,
     logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
@@ -934,6 +947,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleObjectWireframe,
     toggleTerrain,
     toggleGrid,
+    togglePolygonLines,
     removeSelected,
     onRename,
     onNumber,
