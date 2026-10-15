@@ -65,6 +65,7 @@ const {
   colliderDebugVisible,
   toggleColliderDebug,
   onColor,
+  onTexture,
   colorHex,
   regenerateTerrain,
   clearTerrain,
@@ -868,6 +869,18 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <label class="field">Material · cor base
                     <input type="color" class="color" :value="colorHex(selected.color)" @input="onColor" />
                   </label>
+                  <label class="field">Material · textura
+                    <select :value="selected.texturePreset" @change="onTexture">
+                      <option value="none">Sem textura</option>
+                      <option value="grass">Grama</option>
+                      <option value="stone">Pedra</option>
+                      <option value="brick">Tijolo</option>
+                      <option value="wood">Madeira</option>
+                      <option value="sand">Areia</option>
+                      <option value="metal">Metal</option>
+                    </select>
+                  </label>
+                  <p class="component-note">Texturas procedurais aplicadas ao cubo ou à plataforma e salvas junto com o projeto.</p>
                   <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
                   <div class="component-readonly"><span>Shader</span><strong>Standard / PBR</strong></div>
                 </div>
