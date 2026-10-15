@@ -166,8 +166,26 @@ export class World {
     if (patch.locked !== undefined) m.userData.locked = patch.locked
     if (patch.wireframeVisible !== undefined) {
       m.userData.wireframeVisible = patch.wireframeVisible
-      const overlay = m.getObjectByName('polygon-wireframe')
-      if (overlay) overlay.visible = patch.wireframeVisible
+      // Cria linhas também para modelos importados, que não possuem o overlay dos primitivos.
+      m.traverse((child) => {
+        if (!(child instanceof THREE.Mesh) || child.userData.editorOverlay === true) return
+        let overlay = child.getObjectByName('polygon-wireframe') as THREE.LineSegments | undefined
+        if (!overlay) {
+          const edges = new THREE.WireframeGeometry(child.geometry)
+          const material = new THREE.LineBasicMaterial({
+            color: 0x252832,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+          })
+          overlay = new THREE.LineSegments(edges, material)
+          overlay.name = 'polygon-wireframe'
+          overlay.userData.editorOverlay = true
+          overlay.renderOrder = 2
+          child.add(overlay)
+        }
+        overlay.visible = patch.wireframeVisible
+      })
     }
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
     if (patch.mass !== undefined && Number.isFinite(patch.mass)) m.userData.mass = Math.max(0, patch.mass)
