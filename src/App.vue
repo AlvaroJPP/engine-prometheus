@@ -366,7 +366,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : 'Ao entrar na área'
   if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
   const action = rule.actions[0]; if (!action) return 'Sem ação'
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : 'Executar script'
+  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar script'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -386,15 +386,16 @@ function patchSelectedCondition(patch: Record<string, unknown>) {
   const current = rule.conditions[0] ?? { type: 'variable' as const, name: 'has_key', operator: 'equals' as const, value: true }
   updateLogicRule({ ...rule, conditions: [{ ...current, ...patch } as LogicRule['conditions'][number], ...rule.conditions.slice(1)] })
 }
-function setSelectedTriggerType(type: 'object_clicked' | 'enter_area') {
+function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pressed') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const trigger: LogicRule['trigger'] = type === 'object_clicked'
     ? { type, objectId: objects.value.find(o => o.id === (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : ''))?.id ?? objects.value[0]?.id ?? '' }
-    : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
+    : type === 'key_pressed' ? { type, key: rule.trigger.type === 'key_pressed' ? rule.trigger.key : 'KeyE' }
+      : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount') {
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount' | 'horse_toggle_mount') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
@@ -405,7 +406,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'horse_mount' ? { type } : type === 'horse_dismount' ? { type } : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'horse_mount' ? { type } : type === 'horse_dismount' ? { type } : type === 'horse_toggle_mount' ? { type } : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
@@ -540,6 +541,19 @@ async function ensureHorseComponent() {
           trigger: { x: 70, y: 70 },
           condition: { x: 350, y: 70 },
           action: { x: 630, y: 70 },
+        },
+      }, {
+        ownerObjectId: '{ID_OBJECT}',
+        id: 'horse-toggle-mount-template',
+        name: 'Montar ou desmontar (E)',
+        enabled: true,
+        trigger: { type: 'key_pressed', key: 'KeyE' },
+        conditions: [],
+        actions: [{ type: 'horse_toggle_mount' }],
+        graphLayout: {
+          trigger: { x: 70, y: 210 },
+          condition: { x: 350, y: 210 },
+          action: { x: 630, y: 210 },
         },
       }],
       bytes,
@@ -913,10 +927,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-if="inspectorTab === 'nodes'">
             <label class="field">Gatilho
-              <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option></select>
+              <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option><option value="key_pressed">Tecla pressionada</option></select>
             </label>
             <label class="field">Ação
-              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="horse_mount">Montar no cavalo</option><option value="horse_dismount">Desmontar do cavalo</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
+              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="horse_mount">Montar no cavalo</option><option value="horse_dismount">Desmontar do cavalo</option><option value="horse_toggle_mount">Alternar montaria (E)</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir condição baseada em variável</label>
             <template v-if="ruleConditionEnabled">
@@ -1174,11 +1188,17 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <label class="checkline"><input type="checkbox" :checked="selectedGraphRule.enabled" @change="toggleLogicRule(selectedGraphRule)" /> Fluxo habilitado</label>
             <template v-if="graphSelection.part === 'trigger'">
               <label class="field">Tipo de evento
-                <select :value="selectedGraphRule.trigger.type" @change="setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area')">
+                <select :value="selectedGraphRule.trigger.type" @change="setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area' | 'key_pressed')">
                   <option value="object_clicked">Ao clicar no objeto</option>
                   <option value="enter_area">Ao entrar em uma área</option>
+                  <option value="key_pressed">Ao pressionar uma tecla</option>
                 </select>
               </label>
+              <template v-if="selectedGraphRule.trigger.type === 'key_pressed'">
+                <label class="field">Tecla (código)
+                  <input :value="selectedGraphRule.trigger.key" @change="patchSelectedTrigger({ key: ($event.target as HTMLInputElement).value })" placeholder="KeyE" />
+                </label>
+              </template>
               <template v-if="selectedGraphRule.trigger.type === 'object_clicked'">
                 <label class="field">Objeto-alvo
                   <select :value="selectedGraphRule.trigger.objectId" @change="patchSelectedTrigger({ objectId: ($event.target as HTMLSelectElement).value })">
@@ -1222,7 +1242,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-else>
               <label class="field">Tipo de ação
-                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount')">
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'horse_mount' | 'horse_dismount' | 'horse_toggle_mount')">
                   <option value="move">Mover objeto</option><option value="rotate">Rotacionar objeto</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
                 </select>
               </label>
