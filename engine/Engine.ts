@@ -204,7 +204,11 @@ export class Engine {
     // Alguns GLBs representam cada árvore como um grupo; outros exportam tronco,
     // copa e galhos como irmãos. Agrupamos irmãos pelo centro X/Z para separar
     // árvores sem transformar cada malha (tronco/folhas) em um objeto isolado.
-    if (model.userData.importPart !== true) {
+    const importedAnimations = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    // Modelos animados precisam manter a hierarquia original: separar malhas por
+    // proximidade espacial quebra os caminhos dos tracks (por exemplo, MorphBake).
+    // A divisão em componentes continua disponível para assets estáticos com várias cópias.
+    if (model.userData.importPart !== true && importedAnimations.length === 0) {
       model.removeFromParent()
       model.updateMatrixWorld(true)
 
