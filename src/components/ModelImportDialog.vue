@@ -1,0 +1,257 @@
+<script setup lang="ts">
+import { onBeforeUnmount, ref, watch } from 'vue'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
+import { STLLoader } from 'three/addons/loaders/STLLoader.js'
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+
+const props = defineProps<{ open: boolean }>()
+const emit = defineEmits<{
+  close: []
+  import: [payload: { name: string; model: THREE.Object3D; height: number }]
+}>()
+
+const fileInput = ref<HTMLInputElement | null>(null)
+const canvas = ref<HTMLCanvasElement | null>(null)
+const fileName = ref('')
+const error = ref('')
+const loading = ref(false)
+const modelHeight = ref(2)
+const originalHeight = ref(0)
+const dimensions = ref<[number, number, number]>([0, 0, 0])
+const model = ref<THREE.Object3D | null>(null)
+let renderer: THREE.WebGLRenderer | null = null
+let scene: THREE.Scene | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let controls: OrbitControls | null = null
+let frame = 0
+let resizeObserver: ResizeObserver | null = null
+let currentObjectUrl = ''
+
+function disposePreview() {
+  cancelAnimationFrame(frame)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  controls?.dispose()
+  controls = null
+  if (model.value) {
+    model.value.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose()
+        const materials = Array.isArray(child.material) ? child.material : [child.material]
+        materials.forEach(material => material.dispose())
+      }
+    })
+  }
+  model.value = null
+  renderer?.dispose()
+  renderer = null
+  scene = null
+  camera = null
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+  currentObjectUrl = ''
+}
+
+function fitCamera(object: THREE.Object3D) {
+  if (!scene || !camera || !controls) return
+  const bounds = new THREE.Box3().setFromObject(object)
+  const size = bounds.getSize(new THREE.Vector3())
+  const center = bounds.getCenter(new THREE.Vector3())
+  controls.target.copy(center)
+  const span = Math.max(size.x, size.y, size.z, 0.1)
+  camera.position.set(center.x + span * 1.7, center.y + span * 1.15, center.z + span * 2.1)
+  camera.near = Math.max(0.01, span / 1000)
+  camera.far = Math.max(100, span * 100)
+  camera.updateProjectionMatrix()
+  controls.update()
+}
+
+function initPreview() {
+  if (!canvas.value || renderer) return
+  scene = new THREE.Scene()
+  scene.background = new THREE.Color('#20232a')
+  camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
+  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false)
+  scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 2))
+  const key = new THREE.DirectionalLight(0xffffff, 2.2)
+  key.position.set(4, 8, 6)
+  scene.add(key)
+  const fill = new THREE.DirectionalLight(0x9dbaff, 0.8)
+  fill.position.set(-5, 3, -4)
+  scene.add(fill)
+  const grid = new THREE.GridHelper(20, 20, 0x858b98, 0x454a55)
+  grid.position.y = -0.002
+  scene.add(grid)
+  controls = new OrbitControls(camera, canvas.value)
+  controls.enableDamping = true
+  resizeObserver = new ResizeObserver(() => {
+    if (!canvas.value || !renderer || !camera) return
+    const w = Math.max(1, canvas.value.clientWidth)
+    const h = Math.max(1, canvas.value.clientHeight)
+    renderer.setSize(w, h, false)
+    camera.aspect = w / h
+    camera.updateProjectionMatrix()
+  })
+  resizeObserver.observe(canvas.value)
+  const animate = () => {
+    frame = requestAnimationFrame(animate)
+    controls?.update()
+    if (scene && camera && renderer) renderer.render(scene, camera)
+  }
+  animate()
+  if (model.value) {
+    scene.add(model.value)
+    fitCamera(model.value)
+  }
+}
+
+function centerAndMeasure(object: THREE.Object3D) {
+  object.updateMatrixWorld(true)
+  const bounds = new THREE.Box3().setFromObject(object)
+  if (bounds.isEmpty()) throw new Error('O arquivo não contém uma malha 3D visível.')
+  const size = bounds.getSize(new THREE.Vector3())
+  if (![size.x, size.y, size.z].every(Number.isFinite) || Math.max(size.x, size.y, size.z) <= 0) {
+    throw new Error('Não foi possível calcular o tamanho deste modelo.')
+  }
+  dimensions.value = [size.x, size.y, size.z]
+  originalHeight.value = size.y
+  const center = bounds.getCenter(new THREE.Vector3())
+  object.position.sub(center)
+  object.updateMatrixWorld(true)
+  return size.y
+}
+
+async function parseFile(file: File) {
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  const buffer = await file.arrayBuffer()
+  if (ext === 'glb' || ext === 'gltf') {
+    const loader = new GLTFLoader()
+    const url = URL.createObjectURL(file)
+    currentObjectUrl = url
+    return await new Promise<THREE.Object3D>((resolve, reject) => {
+      loader.parse(buffer, url.substring(0, url.lastIndexOf('/') + 1), gltf => resolve(gltf.scene), reject)
+    })
+  }
+  if (ext === 'obj') return new OBJLoader().parse(new TextDecoder().decode(buffer))
+  if (ext === 'stl') {
+    const geometry = new STLLoader().parse(buffer)
+    geometry.computeVertexNormals()
+    return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7c0ce, metalness: 0.12, roughness: 0.68 }))
+  }
+  if (ext === 'fbx') return new FBXLoader().parse(buffer, '')
+  throw new Error('Formato não suportado. Escolha GLB, glTF, OBJ, STL ou FBX.')
+}
+
+async function chooseFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  loading.value = true
+  error.value = ''
+  fileName.value = file.name
+  try {
+    disposePreview()
+    const loaded = await parseFile(file)
+    loaded.name = file.name.replace(/\.[^.]+$/, '') || 'Modelo importado'
+    const height = centerAndMeasure(loaded)
+    const fitScale = 2 / height
+    loaded.scale.multiplyScalar(fitScale)
+    modelHeight.value = 2
+    model.value = loaded
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    initPreview()
+    if (scene) scene.add(loaded)
+    fitCamera(loaded)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Falha ao ler o modelo.'
+    fileName.value = ''
+    disposePreview()
+  } finally {
+    loading.value = false
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+watch(() => props.open, async (open) => {
+  if (open) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    initPreview()
+  } else {
+    disposePreview()
+    error.value = ''
+  }
+})
+
+watch(modelHeight, (height) => {
+  if (!model.value || !Number.isFinite(height) || height <= 0 || originalHeight.value <= 0) return
+  const targetScale = height / originalHeight.value
+  model.value.scale.setScalar(targetScale)
+  model.value.updateMatrixWorld(true)
+  fitCamera(model.value)
+})
+
+function confirmImport() {
+  if (!model.value || !fileName.value) return
+  const imported = model.value
+  // Remove do preview sem destruir a geometria: ela será usada pelo mundo.
+  scene?.remove(imported)
+  model.value = null
+  emit('import', { name: imported.name || 'Modelo importado', model: imported, height: modelHeight.value })
+  emit('close')
+}
+
+onBeforeUnmount(disposePreview)
+</script>
+
+<template>
+  <div v-if="open" class="model-import-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
+    <section class="model-import-dialog" role="dialog" aria-modal="true" aria-labelledby="model-import-title">
+      <header class="model-import-header">
+        <div><span class="model-import-kicker">ASSET WORKSHOP</span><h2 id="model-import-title">Importar modelo 3D</h2><p>Visualize, ajuste o tamanho e adicione à cena.</p></div>
+        <button class="model-import-close" aria-label="Fechar" @click="emit('close')">×</button>
+      </header>
+      <div class="model-import-body">
+        <div class="model-import-preview">
+          <canvas ref="canvas" />
+          <div v-if="!model && !loading" class="model-import-empty">
+            <span class="upload-glyph">⇧</span><strong>Pré-visualização do modelo</strong><small>Selecione um arquivo para visualizar em 3D</small>
+            <button class="model-import-primary" @click="fileInput?.click()">Escolher modelo</button>
+          </div>
+          <div v-if="loading" class="model-import-loading">Carregando modelo…</div>
+          <div class="preview-badge">PREVIEW · 3D</div>
+          <div v-if="model" class="preview-dimensions">X {{ dimensions[0].toFixed(2) }} · Y {{ modelHeight.toFixed(2) }} · Z {{ dimensions[2].toFixed(2) }} u</div>
+        </div>
+        <aside class="model-import-settings">
+          <div class="model-import-section-title">ARQUIVO</div>
+          <button class="model-file-picker" @click="fileInput?.click()"><span class="file-icon">▧</span><span><strong>{{ fileName || 'Selecionar arquivo' }}</strong><small>GLB · glTF · OBJ · STL · FBX</small></span><b>＋</b></button>
+          <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.obj,.stl,.fbx" @change="chooseFile" />
+          <p class="model-import-note">glTF com texturas externas pode exigir que os arquivos relacionados estejam acessíveis junto ao modelo.</p>
+          <div class="model-import-divider"></div>
+          <div class="model-import-section-title">DIMENSÕES DA PRÉVIA</div>
+          <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} u</strong></label>
+          <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" />
+          <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }} u</button></div>
+          <div class="model-import-dimensions"><div><small>LARGURA X</small><strong>{{ dimensions[0] ? (dimensions[0] * modelHeight / 2).toFixed(2) : '—' }}</strong></div><div><small>ALTURA Y</small><strong>{{ model ? modelHeight.toFixed(2) : '—' }}</strong></div><div><small>PROF. Z</small><strong>{{ dimensions[2] ? (dimensions[2] * modelHeight / 2).toFixed(2) : '—' }}</strong></div></div>
+          <p v-if="error" class="model-import-error">{{ error }}</p>
+          <div class="model-import-tip">Dica: arraste sobre a prévia para orbitar e use a roda do mouse para aproximar.</div>
+        </aside>
+      </div>
+      <footer class="model-import-footer"><span>{{ model ? 'Modelo pronto para importar' : 'Nenhum modelo carregado' }}</span><div><button class="model-import-secondary" @click="emit('close')">Cancelar</button><button class="model-import-primary" :disabled="!model || loading" @click="confirmImport">Importar para a cena</button></div></footer>
+    </section>
+  </div>
+</template>
+
+<style>
+.model-import-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:22px;background:#080a0edb;backdrop-filter:blur(5px)}
+.model-import-dialog{display:flex;flex-direction:column;width:min(1000px,96vw);max-height:min(760px,94vh);overflow:hidden;border:1px solid #414651;border-radius:9px;background:#191c22;color:#e7e9ef;box-shadow:0 24px 90px #000a;font-family:Inter,system-ui,sans-serif}
+.model-import-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #30343c}
+.model-import-kicker{font-size:9px;letter-spacing:.16em;font-weight:800;color:#d49b62}.model-import-header h2{margin:5px 0 3px;font-size:20px;font-weight:650}.model-import-header p{margin:0;color:#929aa8;font-size:11px}
+.model-import-close{width:32px;height:32px;border:1px solid #393e48;border-radius:5px;background:#252932;color:#bfc4ce;font-size:23px;cursor:pointer}
+.model-import-body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.8fr);gap:0;min-height:0;overflow:auto}
+.model-import-preview{position:relative;min-height:390px;background:#20232a;border-right:1px solid #30343c;overflow:hidden}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:390px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#20232ad9;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:48px;height:48px;border:1px solid #515866;border-radius:10px;color:#d8a16a;font-size:30px}.model-import-empty strong{font-size:13px}.model-import-empty small{color:#9ca4b2;font-size:11px}.preview-badge{position:absolute;top:12px;left:12px;padding:6px 8px;border:1px solid #424853;border-radius:4px;background:#191c22d9;color:#c7ccd6;font-size:9px;letter-spacing:.1em}.preview-dimensions{position:absolute;bottom:12px;left:12px;padding:7px 9px;border:1px solid #424853;border-radius:4px;background:#191c22df;color:#e5e8ee;font:10px ui-monospace,monospace}.model-import-loading{position:absolute;inset:0;display:grid;place-items:center;background:#17191fdb;color:#f0c18f;font-size:13px}
+.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
+@media(max-width:720px){.model-import-backdrop{padding:8px}.model-import-dialog{max-height:96vh}.model-import-body{grid-template-columns:1fr}.model-import-preview{min-height:270px;border-right:0;border-bottom:1px solid #30343c}.model-import-preview canvas{min-height:270px}.model-import-settings{padding:15px}.model-import-footer{align-items:flex-start;flex-direction:column}.model-import-footer>div{width:100%;justify-content:flex-end}}
+</style>
