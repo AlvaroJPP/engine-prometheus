@@ -525,6 +525,16 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say(`Textura aplicada: ${labels[value] ?? value}.`)
   }
 
+  function onTextureRepeat(ev: Event) {
+    const id = selectedId.value
+    const repeat = Number((ev.target as HTMLInputElement).value)
+    if (!engine || !id || id === TERRAIN_ID || !Number.isFinite(repeat)) return
+    engine.updateObject(id, { textureRepeat: Math.min(8, Math.max(1, repeat)) })
+    dirty.value = true
+    refresh()
+    say(`Repetição da textura: ${Math.min(8, Math.max(1, repeat))}×.`)
+  }
+
   function colorHex(n: number): string {
     return `#${n.toString(16).padStart(6, '0')}`
   }
@@ -910,6 +920,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleColliderDebug,
     onColor,
     onTexture,
+    onTextureRepeat,
     colorHex,
     regenerateTerrain,
     clearTerrain,
