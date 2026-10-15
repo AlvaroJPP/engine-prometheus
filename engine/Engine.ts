@@ -195,6 +195,9 @@ export class Engine {
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
+    // O modelo vem do preview, cuja cena não deve continuar sendo dona dele.
+    // Removê-lo antes de calcular os limites evita misturar transformações de pais externos.
+    model.removeFromParent()
     model.updateMatrixWorld(true)
     const bounds = new THREE.Box3().setFromObject(model)
     if (bounds.isEmpty()) throw new Error('O modelo importado não possui geometria visível.')
@@ -242,12 +245,15 @@ export class Engine {
     const finalBounds = new THREE.Box3().setFromObject(model)
     const finalSize = finalBounds.getSize(new THREE.Vector3())
     const center = finalBounds.getCenter(new THREE.Vector3())
-    // Corrige qualquer deslocamento residual sem misturar coordenadas globais
-    // e locais; o modelo fica centrado dentro do objeto que será transformado.
-    model.position.x -= center.x
-    model.position.y -= center.y
-    model.position.z -= center.z
-    model.updateMatrixWorld(true)
+
+    // Centraliza a hierarquia inteira com um grupo de deslocamento.
+    // Alterar model.position diretamente falha em assets com rotação,
+    // escala ou transforms internos, podendo afastar todas as malhas da caixa proxy.
+    const modelContainer = new THREE.Group()
+    modelContainer.name = 'imported-model-content'
+    modelContainer.add(model)
+    modelContainer.position.set(-center.x, -center.y, -center.z)
+    modelContainer.updateMatrixWorld(true)
 
     const proxyGeometry = new THREE.BoxGeometry(
       Math.max(finalSize.x, 0.05),
@@ -267,7 +273,7 @@ export class Engine {
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
-    root.add(model)
+    root.add(modelContainer)
 
     const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
