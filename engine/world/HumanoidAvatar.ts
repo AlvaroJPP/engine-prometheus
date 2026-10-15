@@ -25,8 +25,25 @@ function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
     ? offsetData.map((value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0) as [number, number, number]
     : [0, 0, 0] as [number, number, number]
 
-  // O modo automático sem ajustes preserva o comportamento anterior baseado na malha-raiz.
+  // Em modelos importados, a raiz é apenas uma caixa proxy invisível. O modo automático
+  // deve usar os limites das malhas visuais filhas, senão o jogador colide com uma caixa
+  // que não corresponde ao modelo que aparece na tela.
   if ((type === undefined || type === 'auto') && !hasManualSize && offset.every(value => Math.abs(value) < 1e-9)) {
+    if (mesh.userData.importedModel === true) {
+      mesh.updateWorldMatrix(true, true)
+      const visualBounds = new THREE.Box3()
+      const childBounds = new THREE.Box3()
+      mesh.traverse((child) => {
+        if (child === mesh || !(child instanceof THREE.Mesh) || !child.visible) return
+        if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+        child.updateWorldMatrix(true, false)
+        if (!child.geometry.boundingBox) child.geometry.computeBoundingBox()
+        if (!child.geometry.boundingBox) return
+        childBounds.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
+        visualBounds.union(childBounds)
+      })
+      if (!visualBounds.isEmpty()) return visualBounds
+    }
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
     return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
   }
@@ -527,6 +544,7 @@ export class HumanoidAvatar {
       // superior inclinada em findObjectLanding(), não por essa caixa vertical.
       const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
       if (rotatedRamp) return false
+      if (object.mesh.userData.colliderType === 'none') return false
 
       const objectBox = getColliderBounds(object.mesh)
       return objectBox !== null && this.hasVolumeOverlap(playerBox, objectBox)
@@ -543,7 +561,12 @@ export class HumanoidAvatar {
     raycaster.ray.direction.set(0, -1, 0)
     const slopeCandidates = this.world.list().filter((object) =>
       object.mesh.visible &&
-      (Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02),
+      object.mesh.userData.colliderType !== 'none' &&
+      (
+        Math.abs(object.mesh.rotation.x) > 0.02 ||
+        Math.abs(object.mesh.rotation.z) > 0.02 ||
+        (object.mesh.userData.colliderType === 'auto' && object.mesh.userData.importedModel === true)
+      ),
     )
     if (slopeCandidates.length > 0) {
       raycaster.ray.origin.set(this.mesh.position.x, Math.max(oldY, nextY) + PLAYER_HEIGHT + 2, this.mesh.position.z)
