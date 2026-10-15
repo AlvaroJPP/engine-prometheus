@@ -175,6 +175,7 @@ export class HumanoidAvatar {
     }
     this.verticalVelocity -= GRAVITY * step
     const oldY = this.mesh.position.y
+    const wasGrounded = this.grounded
     const nextY = oldY + this.verticalVelocity * step
     const terrainY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
 
@@ -199,7 +200,17 @@ export class HumanoidAvatar {
     this.mesh.position.y = nextY
     this.mesh.updateMatrixWorld(true)
     const landing = this.findObjectLanding(oldY, nextY)
-    if (nextY <= newGroundY) {
+
+    // Mantém contato com rampas descendentes: sem essa tolerância, a gravidade
+    // deixa o avatar alguns frames no ar e alterna walk/jump rapidamente.
+    const terrainDrop = oldY - newGroundY
+    const canFollowSlopeDown = wasGrounded &&
+      length > 0 &&
+      this.verticalVelocity <= 0 &&
+      terrainDrop >= -0.08 &&
+      terrainDrop <= Math.max(0.32, speed * step * 1.5)
+
+    if (nextY <= newGroundY || canFollowSlopeDown) {
       this.mesh.position.y = newGroundY
       this.verticalVelocity = 0
       this.grounded = true
