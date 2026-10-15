@@ -779,8 +779,7 @@ export class Engine {
   }
 
   removeObject(id: string): void {
-    const object = this.world.get(id)
-    if (object?.mesh.userData.nativeComponentType === 'horse')     this.world.remove(id)
+    this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
 
@@ -868,7 +867,6 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
-    this.horseMount.setEditorComponent(null)
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
     this.collisions.clear()
