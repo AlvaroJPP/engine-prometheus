@@ -32,6 +32,12 @@ type ModelDiagnostic = {
   meshInfo: string
   materials: string
 }
+type GltfMetadata = {
+  images: Array<{ index: number; name: string; mimeType: string; uri: string; bufferView: number | null }>
+  textures: Array<{ index: number; name: string; source: number | null }>
+  materials: Array<{ index: number; name: string; baseColorTexture: number | null; normalTexture: number | null; occlusionTexture: number | null; emissiveTexture: number | null; baseColorFactor: number[] | null }>
+  animations: Array<{ index: number; name: string; channels: number }>
+}
 const modelDiagnostics = shallowRef<ModelDiagnostic[]>([])
 const diagnosticSummary = ref({ nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 })
 
@@ -270,6 +276,36 @@ async function parseFile(file: File) {
         // GLTFLoader mantém as animações separadas da hierarquia da cena; guarde-as
         // no root para transferi-las junto com o modelo ao confirmar a importação.
         gltf.scene.userData.importAnimations = gltf.animations ?? []
+        // Preserve metadata from the original glTF JSON so we can distinguish
+        // an embedded image from a texture actually assigned to baseColorTexture.
+        gltf.scene.userData.importGltfMetadata = {
+          images: (gltf.parser.json.images ?? []).map((image, index) => ({
+            index,
+            name: image.name ?? '',
+            mimeType: image.mimeType ?? '',
+            uri: image.uri ?? '',
+            bufferView: image.bufferView ?? null,
+          })),
+          textures: (gltf.parser.json.textures ?? []).map((texture, index) => ({
+            index,
+            name: texture.name ?? '',
+            source: texture.source ?? null,
+          })),
+          materials: (gltf.parser.json.materials ?? []).map((material, index) => ({
+            index,
+            name: material.name ?? '',
+            baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
+            normalTexture: material.normalTexture?.index ?? null,
+            occlusionTexture: material.occlusionTexture?.index ?? null,
+            emissiveTexture: material.emissiveTexture?.index ?? null,
+            baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
+          })),
+          animations: (gltf.parser.json.animations ?? []).map((clip, index) => ({
+            index,
+            name: clip.name ?? '',
+            channels: clip.channels?.length ?? 0,
+          })),
+        }
         resolve(gltf.scene)
       }, reject)
     })
@@ -421,6 +457,29 @@ onBeforeUnmount(disposePreview)
               <span>Animações <b>{{ diagnosticSummary.clips }}</b></span>
             </div>
             <p class="model-diagnostics-hint">Uma árvore por malha indica que o modelo pode ser separado pela hierarquia. Uma única malha com vários elementos pode exigir separar a geometria.</p>
+            <div v-if="model" class="model-diagnostics-list">
+              <div class="model-diagnostic-row">
+                <div class="model-diagnostic-title"><b>GLTF</b><span>Imagens e texturas declaradas no arquivo</span></div>
+                <template v-for="image in ((model.userData.importGltfMetadata as GltfMetadata | undefined)?.images ?? [])" :key="'image-' + image.index">
+                  <small>Imagem {{ image.index }}: {{ image.name || '(sem nome)' }} · {{ image.mimeType || 'tipo não declarado' }} · {{ image.uri ? 'URI externa' : image.bufferView !== null ? 'incorporada no GLB' : 'origem não identificada' }}</small>
+                </template>
+                <small v-if="!((model.userData.importGltfMetadata as GltfMetadata | undefined)?.images?.length)">Nenhuma imagem declarada no JSON glTF.</small>
+              </div>
+              <div class="model-diagnostic-row">
+                <div class="model-diagnostic-title"><b>MAPAS</b><span>Associação original de texturas por material</span></div>
+                <template v-for="material in ((model.userData.importGltfMetadata as GltfMetadata | undefined)?.materials ?? [])" :key="'material-' + material.index">
+                  <small>{{ material.name || ('Material ' + material.index) }}: cor={{ material.baseColorTexture ?? 'nenhuma' }}, normal={{ material.normalTexture ?? 'nenhuma' }}, oclusão={{ material.occlusionTexture ?? 'nenhuma' }}, emissiva={{ material.emissiveTexture ?? 'nenhuma' }}{{ material.baseColorFactor ? ', fator=' + material.baseColorFactor.join('/') : '' }}</small>
+                </template>
+                <small v-if="!((model.userData.importGltfMetadata as GltfMetadata | undefined)?.materials?.length)">Nenhum material declarado no JSON glTF.</small>
+              </div>
+              <div class="model-diagnostic-row">
+                <div class="model-diagnostic-title"><b>CLIPS</b><span>Clipes de animação originais</span></div>
+                <template v-for="clip in ((model.userData.importGltfMetadata as GltfMetadata | undefined)?.animations ?? [])" :key="'clip-' + clip.index">
+                  <small>{{ clip.name || ('Animação ' + clip.index) }} · {{ clip.channels }} canais</small>
+                </template>
+                <small v-if="!((model.userData.importGltfMetadata as GltfMetadata | undefined)?.animations?.length)">Nenhuma animação declarada no JSON glTF.</small>
+              </div>
+            </div>
             <div v-if="modelDiagnostics.length" class="model-diagnostics-list">
               <div v-for="item in modelDiagnostics" :key="item.id" class="model-diagnostic-row">
                 <div class="model-diagnostic-title" :style="{ paddingLeft: (item.depth * 10) + 'px' }">
