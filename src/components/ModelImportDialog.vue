@@ -3,9 +3,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
-import { STLLoader } from 'three/addons/loaders/STLLoader.js'
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
@@ -292,6 +290,12 @@ function clearLoadedModel() {
     scene?.remove(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
     recoveredTextures?.forEach(texture => texture.dispose())
+    const ownedUrls: string[] = []
+    model.value.traverse(node => {
+      const url = node.userData.importOwnedObjectUrl
+      if (typeof url === 'string') ownedUrls.push(url)
+    })
+    ownedUrls.forEach(url => URL.revokeObjectURL(url))
     disposeModel(model.value)
   }
   model.value = null
@@ -394,6 +398,9 @@ function centerAndMeasure(object: THREE.Object3D) {
 
 async function parseFile(file: File) {
   const ext = file.name.split('.').pop()?.toLowerCase()
+  if (ext !== 'glb' && ext !== 'gltf') {
+    return await loadAssetFile(file)
+  }
   const buffer = await file.arrayBuffer()
   if (ext === 'glb' || ext === 'gltf') {
     const loader = new GLTFLoader()
@@ -438,14 +445,7 @@ async function parseFile(file: File) {
       }, reject)
     })
   }
-  if (ext === 'obj') return new OBJLoader().parse(new TextDecoder().decode(buffer))
-  if (ext === 'stl') {
-    const geometry = new STLLoader().parse(buffer)
-    geometry.computeVertexNormals()
-    return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7c0ce, metalness: 0.12, roughness: 0.68 }))
-  }
-  if (ext === 'fbx') return new FBXLoader().parse(buffer, '')
-  throw new Error('Formato não suportado. Escolha GLB, glTF, OBJ, STL ou FBX.')
+  throw new Error('Não foi possível interpretar o arquivo GLB/glTF.')
 }
 
 async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
@@ -671,9 +671,9 @@ onBeforeUnmount(disposePreview)
           <div class="model-import-section-title">ARQUIVO</div>
           <button class="model-file-picker model-blend-zip-picker" :disabled="loading" @click="importBlendZip"><span class="file-icon">▣</span><span><strong>Importar ZIP com glTF</strong><small>.gltf + .bin + texturas</small></span><b>＋</b></button>
           <p class="model-import-note">Não precisa do Blender. O ZIP deve conter um arquivo .gltf e os arquivos .bin/texturas referenciados por ele.</p>
-          <button class="model-file-picker" @click="fileInput?.click()"><span class="file-icon">▧</span><span><strong>{{ fileName || 'Selecionar arquivo' }}</strong><small>GLB · glTF · OBJ · STL · FBX</small></span><b>＋</b></button>
-          <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.obj,.stl,.fbx" @change="chooseFile" />
-          <p class="model-import-note">glTF com texturas externas pode exigir que os arquivos relacionados estejam acessíveis junto ao modelo.</p>
+          <button class="model-file-picker" @click="fileInput?.click()"><span class="file-icon">▧</span><span><strong>{{ fileName || 'Selecionar arquivo' }}</strong><small>3D: GLB · glTF · FBX · OBJ · STL · PLY · DAE · 3DS</small><small>2D: PNG · JPG · WebP · SVG</small></span><b>＋</b></button>
+          <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3ds,.png,.jpg,.jpeg,.webp,.svg" @change="chooseFile" />
+          <p class="model-import-note">Arquivos com dependências externas (como OBJ/MTL ou glTF com texturas separadas) podem precisar de importação em pacote ZIP. Imagens 2D são importadas como planos no mundo.</p>
           <div class="model-import-divider"></div>
           <div class="model-import-section-title">DIMENSÕES DA PRÉVIA</div>
           <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} u</strong></label>
@@ -757,7 +757,7 @@ onBeforeUnmount(disposePreview)
             </div>
           </details>
           <p v-if="error" class="model-import-error">{{ error }}</p>
-          <div class="model-import-tip">Dica: arraste sobre a prévia para orbitar e use a roda do mouse para aproximar.</div>
+          <div class="model-import-tip">Dica: arraste para orbitar, use a roda para aproximar e selecione uma parte da hierarquia para importar apenas ela.</div>
         </aside>
       </div>
       <footer class="model-import-footer"><span>{{ model ? 'Modelo pronto para importar' : 'Nenhum modelo carregado' }}</span><div><button class="model-import-secondary" @click="emit('close')">Cancelar</button><button class="model-import-primary" :disabled="!model || loading" @click="confirmImport">Importar para a cena</button></div></footer>
