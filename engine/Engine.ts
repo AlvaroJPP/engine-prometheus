@@ -303,6 +303,43 @@ export class Engine {
     this.world.select(spawn.id)
   }
 
+  /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
+  private placeNativeHorseComponent(x: number, baseY: number, z: number, name: string): void {
+    const height = 2.05
+    const root = new THREE.Mesh(
+      new THREE.BoxGeometry(1.55, height, 2.8),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        colorWrite: false,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    )
+    root.name = name || 'Cavalo Low Poly'
+    root.position.set(x, baseY + height / 2, z)
+    root.userData.nativeComponentType = 'horse'
+    root.userData.nativeHorseComponent = true
+    root.userData.componentId = 'builtin-horse-low-poly'
+    root.userData.importedModel = true
+    root.userData.importedModelHeight = height
+    root.userData.colliderType = 'box'
+    root.userData.colliderSize = [0.95, 1.35, 1.6]
+    root.userData.colliderOffset = [0, 0.02, 0]
+    root.userData.locked = false
+    root.userData.wireframeVisible = false
+    const id = `horse_component_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
+    root.userData.id = id
+    this.world.add({ id, name: root.name, type: 'cube', mesh: root })
+    this.horseMount.setEditorComponent(root)
+    this.world.select(id)
+    this.state.tool = 'select'
+    this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform)
+    this.transformControls.attach(root)
+    this.transformControls.enabled = true
+    this.emitTool()
+  }
+
   /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
   setBuildComponentPlacement(name: string, model: THREE.Object3D, height: number): void {
     model.userData.importPart = true
@@ -312,16 +349,20 @@ export class Engine {
   private placePendingBuildComponent(x: number, baseY: number, z: number): boolean {
     const pending = this.pendingBuildComponent
     if (!pending) return false
-    const existingIds = new Set(this.world.list().map(object => object.id))
     try {
-      const model = pending.model.clone(true)
-      model.userData = { ...pending.model.userData, importPart: true }
-      this.addImportedModel(pending.name, model, pending.height)
-      const created = this.world.list().find(object => !existingIds.has(object.id))
-      if (!created) return false
-      created.mesh.position.set(x, baseY + pending.height / 2, z)
-      created.mesh.updateMatrixWorld(true)
-      this.world.notifyChanged(created.id)
+      if (pending.model.userData.nativeHorseComponent === true) {
+        this.placeNativeHorseComponent(x, baseY, z, pending.name)
+      } else {
+        const existingIds = new Set(this.world.list().map(object => object.id))
+        const model = pending.model.clone(true)
+        model.userData = { ...pending.model.userData, importPart: true }
+        this.addImportedModel(pending.name, model, pending.height)
+        const created = this.world.list().find(object => !existingIds.has(object.id))
+        if (!created) return false
+        created.mesh.position.set(x, baseY + pending.height / 2, z)
+        created.mesh.updateMatrixWorld(true)
+        this.world.notifyChanged(created.id)
+      }
       // A ferramenta Construir permanece ativa para colocar várias cópias.
       this.state.tool = 'build'
       this.transformControls.detach()
