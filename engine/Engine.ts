@@ -365,10 +365,13 @@ export class Engine {
       created.mesh.updateMatrixWorld(true)
       this.world.notifyChanged(created.id) 
       this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
-      // A ferramenta Construir permanece ativa para colocar várias cópias.
-      this.state.tool = 'build'
-      this.transformControls.detach()
-      this.transformControls.enabled = false
+      // Após posicionar o componente, devolve o controle ao editor e seleciona
+      // a raiz editável. Deixar a ferramenta Construir ativa impedia selecionar
+      // o modelo recém-colocado para mover, girar ou redimensionar.
+      this.state.tool = 'select'
+      this.transformControls.enabled = true
+      this.world.select(created.id)
+      this.transformControls.attach(created.mesh)
       this.emitTool()
       return true
     } catch (error) {
@@ -603,12 +606,22 @@ export class Engine {
     const idleClip = animationClips.find((clip) => /idle|stand|rest|breath|neutral/i.test(clip.name))
       ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
-    if (idleClip) {
+    const animationActions: Partial<Record<'idle' | 'walk' | 'run', THREE.AnimationAction>> = {}
+    if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
-      animationMixer.clipAction(idleClip).setLoop(THREE.LoopRepeat, Infinity).play()
-      console.info('[Engine] Animação inicial do componente:', {
+      for (const clip of animationClips) {
+        const normalizedName = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+        const state = /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
+          : /gallop|canter|run|sprint/.test(normalizedName) ? 'run'
+            : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : null
+        if (state && !animationActions[state]) animationActions[state] = animationMixer.clipAction(clip)
+      }
+      if (!animationActions.idle && idleClip) animationActions.idle = animationMixer.clipAction(idleClip)
+      const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run ?? animationMixer.clipAction(animationClips[0]!)
+      initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
+      console.info('[Engine] Animações do componente:', {
         name,
-        clip: idleClip.name || '(primeira animação do modelo)',
+        initialClip: initialAction.getClip().name || '(primeira animação do modelo)',
         availableClips: animationClips.map((clip) => clip.name),
       })
     }
@@ -643,7 +656,12 @@ export class Engine {
       root.scale.set(...restoreData.scale)
       root.visible = restoreData.visible
     }
-    if (animationMixer) root.userData.importAnimationMixer = animationMixer
+    if (animationMixer) {
+      root.userData.importAnimationMixer = animationMixer
+      root.userData.importAnimationActions = animationActions
+      root.userData.importAnimationState = animationActions.idle ? 'idle'
+        : animationActions.walk ? 'walk' : animationActions.run ? 'run' : ''
+    }
     root.add(visualPivot)
     // Atualiza toda a hierarquia antes de entrar no loop de renderização.
     // Isso também garante bounds corretos para GLB com nós e transforms aninhados.
