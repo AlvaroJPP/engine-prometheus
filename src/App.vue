@@ -464,7 +464,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
   }
   try {
     const exporter = new GLTFExporter()
-    const result = await exporter.parseAsync(exportRoot, { binary: true })
+    const result = await exporter.parseAsync(exportRoot, { binary: true, animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [] })
     if (!(result instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
     const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
     const colliderType = payload.model.userData.importColliderType
