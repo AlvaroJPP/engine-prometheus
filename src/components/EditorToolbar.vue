@@ -12,6 +12,7 @@ const props = defineProps<{
   inspectorMode: 'object' | 'terrain' | 'environment'
   graphOpen: boolean
   gridVisible: boolean
+  polygonLinesVisible: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   'add-primitive': [type: 'cube' | 'platform']
   'add-clickable-example': []
   'toggle-grid': []
+  'toggle-polygon-lines': []
 }>()
 </script>
 
@@ -53,5 +55,6 @@ const emit = defineEmits<{
     <button v-if="props.inspectorMode === 'environment'" class="tool add" @click="emit('add-primitive', 'platform')">+ Plataforma</button>
     <span class="vsep" />
     <button class="tool grid-toggle" :class="{ active: props.gridVisible }" @click="emit('toggle-grid')" title="Mostrar ou ocultar a malha">▦ Malha</button>
+    <button class="tool grid-toggle" :class="{ active: props.polygonLinesVisible }" @click="emit('toggle-polygon-lines')" :title="props.polygonLinesVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'">⬡ Linhas</button>
   </nav>
 </template>
