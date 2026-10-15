@@ -37,6 +37,8 @@ export function buildBundle(
       importedModelHeight: typeof m.userData.importedModelHeight === 'number' ? m.userData.importedModelHeight : undefined,
       color: typeof m.userData.baseColor === 'number' ? m.userData.baseColor : (m.material as THREE.MeshStandardMaterial).color.getHex(),
       texturePreset: m.userData.texturePreset === 'grass' || m.userData.texturePreset === 'stone' || m.userData.texturePreset === 'brick' || m.userData.texturePreset === 'wood' || m.userData.texturePreset === 'sand' || m.userData.texturePreset === 'metal' ? m.userData.texturePreset : 'none',
+      textureRepeat: typeof m.userData.textureRepeat === 'number' ? m.userData.textureRepeat : 2,
+      faceTextures: (m.userData.faceTextures ?? {}) as import('./format').FaceTextureMap,
     }
   })
 
@@ -79,6 +81,7 @@ export function objectFromData(d: SceneObjectData): GameObject {
     color: d.color,
     texturePreset: d.texturePreset ?? 'none',
     textureRepeat: d.textureRepeat ?? 2,
+    faceTextures: d.faceTextures ?? {},
     position: d.position,
     rotation: d.rotation,
     scale: d.scale,
