@@ -714,7 +714,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </div>
           </section>
 
-          <section v-if="inspectorMode === 'terrain'">
+          <section v-if="inspectorMode === 'terrain' || tool === 'grass'">
             <h4>Ferramentas do terreno</h4>
             <p class="muted">
               Selecione Editar terreno e clique no chão para elevar. Segure Shift e clique para rebaixar.
