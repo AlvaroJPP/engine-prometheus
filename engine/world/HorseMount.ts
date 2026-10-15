@@ -820,6 +820,23 @@ export class HorseMount {
   private onKeyUp = (event: KeyboardEvent): void => { this.pressed.delete(event.code) }
   private onBlur = (): void => { this.pressed.clear() }
 
+  /** Executado por uma ação do Visual Script; requer modo Run e proximidade segura. */
+  executeNodeAction(action: 'mount' | 'dismount', objectId?: string): void {
+    if (!this.enabled) return
+    if (action === 'dismount') {
+      this.dismount(true)
+      return
+    }
+    const target = objectId ? this.world.get(objectId)?.mesh : undefined
+    if (target && target.userData.nativeComponentType !== 'horse' && target.userData.nativeHorseComponent !== true && target.userData.componentId !== 'builtin-horse-low-poly') return
+    if (target && target !== this.editorComponent) {
+      this.editorComponent = target as THREE.Mesh
+      this.parkedComponent = target as THREE.Mesh
+      this.syncTransformFromComponent()
+    }
+    if (!this.mounted && this.mesh.visible && this.avatar.mesh.position.distanceTo(this.mesh.position) < 3.4) this.mount()
+  }
+
   private mount(): void {
     this.mounted = true
     this.mountProgress = 0
