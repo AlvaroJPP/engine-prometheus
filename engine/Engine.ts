@@ -244,7 +244,6 @@ export class Engine {
 
     const finalBounds = new THREE.Box3().setFromObject(model)
     const finalSize = finalBounds.getSize(new THREE.Vector3())
-    const center = finalBounds.getCenter(new THREE.Vector3())
 
     // O diálogo de importação já centraliza o modelo antes de transferi-lo.
     // Não aplique um segundo deslocamento: isso pode afastar a malha real da
