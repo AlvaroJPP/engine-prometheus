@@ -1,6 +1,8 @@
 export type SavedComponentCollider = 'box' | 'sphere' | 'capsule' | 'none'
 
 export interface SavedComponent {
+  /** Grafo visual reutilizável que acompanha o modelo ao inseri-lo no mundo. */
+  logic?: import('@engine').LogicRule[]
   id: string
   name: string
   height: number
