@@ -719,6 +719,8 @@ export class Engine {
   }
 
   removeObject(id: string): void {
+    const object = this.world.get(id)
+    if (object?.mesh.userData.nativeComponentType === 'horse') this.horseMount.setEditorComponent(null)
     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
