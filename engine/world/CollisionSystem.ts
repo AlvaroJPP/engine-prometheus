@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
 import type { GameObject } from '../model/object/GameObject'
 import type { World } from './World'
 
@@ -179,7 +180,60 @@ export class CollisionSystem {
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
-    if (type === 'auto' && !manualSize && offset.every(value => Math.abs(value) < 1e-9)) return sourceGeometry
+    if (type === 'auto' && !manualSize && offset.every(value => Math.abs(value) < 1e-9)) {
+      // Modelos importados têm uma caixa invisível na raiz para seleção e transformação.
+      // Usar sourceGeometry aqui transforma todo modelo num paralelepípedo e ignora sua malha real.
+      // Como o resolvedor SAT exige formas convexas, geramos um casco convexo das malhas visuais
+      // em coordenadas locais da raiz, em vez de usar a caixa proxy.
+      if (object.mesh.userData.importedModel === true) {
+        object.mesh.updateWorldMatrix(true, true)
+        const inverseRoot = object.mesh.matrixWorld.clone().invert()
+        const points: THREE.Vector3[] = []
+        const signatureParts: string[] = []
+        let totalVertices = 0
+        object.mesh.traverse((child) => {
+          if (child === object.mesh || !(child instanceof THREE.Mesh) || child.visible === false) return
+          const position = child.geometry.getAttribute('position')
+          if (!position || position.count < 3) return
+          totalVertices += position.count
+          signatureParts.push(`${child.uuid}:${child.geometry.uuid}:${child.matrix.elements.map(value => value.toFixed(4)).join(',')}`)
+        })
+        const signature = `auto-hull:${signatureParts.join('|')}`
+        const cached = this.colliderGeometries.get(object.id)
+        if (cached?.signature === signature) return cached.geometry
+        if (cached) {
+          cached.geometry.dispose()
+          this.colliderGeometries.delete(object.id)
+        }
+
+        // Limita o custo do casco para modelos muito densos sem mudar a malha visual.
+        const stride = Math.max(1, Math.ceil(totalVertices / 2500))
+        let vertexIndex = 0
+        object.mesh.traverse((child) => {
+          if (child === object.mesh || !(child instanceof THREE.Mesh) || child.visible === false) return
+          const position = child.geometry.getAttribute('position')
+          if (!position || position.count < 3) return
+          const toRoot = inverseRoot.clone().multiply(child.matrixWorld)
+          for (let i = 0; i < position.count; i += 1, vertexIndex += 1) {
+            if (vertexIndex % stride !== 0 && i !== 0 && i !== position.count - 1) continue
+            points.push(new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(toRoot))
+          }
+        })
+        if (points.length >= 4) {
+          try {
+            const hull = new ConvexGeometry(points)
+            if (hull.getAttribute('position').count >= 4) {
+              this.colliderGeometries.set(object.id, { geometry: hull, signature })
+              return hull
+            }
+            hull.dispose()
+          } catch (error) {
+            console.warn('[CollisionSystem] Não foi possível gerar o casco automático do modelo; usando a caixa proxy.', error)
+          }
+        }
+      }
+      return sourceGeometry
+    }
     const size = manualSize ?? sourceSize
     const width = Math.max(size.x, 0.05)
     const height = Math.max(size.y, 0.05)
