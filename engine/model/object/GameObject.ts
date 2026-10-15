@@ -29,6 +29,7 @@ export interface ObjectInfo {
   wireframeVisible: boolean
   groupId: string | null
   color: number
+  texturePreset: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   mass: number
   colliderType: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
   colliderSize: [number, number, number]
@@ -48,6 +49,7 @@ export interface ObjectPatch {
   scaleY?: number
   scaleZ?: number
   color?: number
+  texturePreset?: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   visible?: boolean
   locked?: boolean
   wireframeVisible?: boolean
