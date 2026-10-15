@@ -46,6 +46,7 @@ const {
   setTool,
   setTransform,
   addPrimitive,
+  addSpawnPlatform,
   addImportedModel,
   setBuildComponentPlacement,
   addClickableCubeExample,
@@ -592,6 +593,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @set-transform="setTransform"
       @toggle-graph="graphOpen = !graphOpen"
       @add-primitive="addPrimitive"
+      @add-spawn-platform="addSpawnPlatform"
       @add-clickable-example="addClickableCubeExample"
       @toggle-grid="toggleGrid"
       @toggle-polygon-lines="togglePolygonLines"
