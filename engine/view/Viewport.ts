@@ -29,10 +29,16 @@ export class Viewport {
   start(frame: (dt: number) => void): void {
     let last = performance.now()
     const loop = (now: number) => {
+      // Agenda o próximo quadro antes de executar o motor. Uma exceção isolada
+      // não deve encerrar permanentemente a renderização do editor.
+      this.frame = requestAnimationFrame(loop)
       const dt = Math.min((now - last) / 1000, 0.1)
       last = now
-      frame(dt)
-      this.frame = requestAnimationFrame(loop)
+      try {
+        frame(dt)
+      } catch (error) {
+        console.error('[Viewport] Erro durante a atualização do quadro:', error)
+      }
     }
     this.frame = requestAnimationFrame(loop)
   }
