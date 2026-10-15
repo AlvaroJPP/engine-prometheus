@@ -26,6 +26,11 @@ export class HorseMount {
   private readonly proceduralBones: Array<{ node: THREE.Bone; name: string; rotation: THREE.Euler }> = []
   private readonly proceduralNodes: Array<{ node: THREE.Object3D; name: string; rotation: THREE.Euler; position: THREE.Vector3 }> = []
   private importedModel: THREE.Object3D | null = null
+  private readonly mountRaycaster = new THREE.Raycaster()
+  private readonly mountDown = new THREE.Vector3(0, -1, 0)
+  private readonly mountSeatLocal = new THREE.Vector3(0, 0, -0.07)
+  private readonly mountLeftLocal = new THREE.Vector3(-0.39, 0, -0.07)
+  private readonly mountRightLocal = new THREE.Vector3(0.39, 0, -0.07)
 
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -448,8 +453,11 @@ export class HorseMount {
     if (this.mounted) {
       // A origem do avatar fica nos pés; posicionamos o quadril sobre a sela,
       // com o tronco erguido e as pernas inclinadas para os flancos do cavalo.
-      const seatHeight = HORSE_HEIGHT * 0.43
-      const riderOffset = new THREE.Vector3(0, seatHeight, -0.16)
+      // Usa os próprios triângulos do cavalo para descobrir a altura do assento
+      // e onde cada perna encontra o flanco, em vez de assumir uma altura fixa.
+      const surface = this.sampleMountSurfaces()
+      const seatHeight = surface.seatY
+      const riderOffset = new THREE.Vector3(0, seatHeight - 0.96, -0.07)
         .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
       const target = new THREE.Vector3(
         this.mesh.position.x + riderOffset.x,
@@ -458,16 +466,54 @@ export class HorseMount {
       )
       this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 1, 5.5, step)
       const easedProgress = this.mountProgress * this.mountProgress * (3 - 2 * this.mountProgress)
-      this.avatar.setMountedPose(easedProgress)
+      const gait = moving ? Math.sin(this.animationTime * (this.galloping ? 2.0 : 1.35)) : Math.sin(this.animationTime * 0.6) * 0.12
+      this.avatar.setMountedPose(
+        easedProgress,
+        gait,
+        surface.seatY - surface.leftY,
+        surface.seatY - surface.rightY,
+      )
       this.avatar.mesh.position.lerpVectors(this.mountStart, target, easedProgress)
-      // Pequeno arco vertical dá a sensação de subir e sentar na sela, em vez
-      // de apenas deslizar horizontalmente até a posição de montaria.
+      // O corpo acompanha o movimento do cavalo com um balanço pequeno e contínuo.
       this.avatar.mesh.position.y += Math.sin(Math.PI * easedProgress) * 0.48
+      this.avatar.mesh.position.y += easedProgress * gait * (this.galloping ? 0.045 : 0.018)
       this.avatar.mesh.rotation.y = this.mesh.rotation.y
-      this.cameraTarget.set(this.mesh.position.x, groundY + HORSE_HEIGHT + 0.25, this.mesh.position.z)
+      this.cameraTarget.set(this.mesh.position.x, groundY + seatHeight + 0.75, this.mesh.position.z)
     } else if (this.mountProgress > 0) {
       this.mountProgress = THREE.MathUtils.damp(this.mountProgress, 0, 8, step)
       this.avatar.setMountedPose(this.mountProgress)
+    }
+  }
+
+  /**
+   * Amostra o topo e os dois flancos do cavalo por raycast contra os polígonos
+   * renderizados. O fallback usa os mesmos raycasts sobre a malha procedural.
+   */
+  private sampleMountSurfaces(): { seatY: number; leftY: number; rightY: number } {
+    this.mesh.updateWorldMatrix(true, true)
+    const bounds = new THREE.Box3().setFromObject(this.importedModel ?? this.mesh)
+    const top = bounds.max.y + 1.5
+    const sample = (localX: number): number | null => {
+      const local = new THREE.Vector3(localX, 0, -0.07)
+      const origin = this.mesh.localToWorld(new THREE.Vector3(local.x, top - this.mesh.position.y, local.z))
+      this.mountRaycaster.set(origin, this.mountDown)
+      this.mountRaycaster.far = Math.max(3, bounds.max.y - bounds.min.y + 3)
+      const hits = this.mountRaycaster.intersectObject(this.importedModel ?? this.mesh, true)
+      const hit = hits.find((entry) => entry.object.visible && entry.object.userData.editorOverlay !== true)
+      return hit ? this.mesh.worldToLocal(hit.point.clone()).y : null
+    }
+    const seat = sample(0) ?? HORSE_HEIGHT * 0.78
+    const left = sample(-0.39) ?? seat - 0.3
+    const right = sample(0.39) ?? seat - 0.3
+    // O topo pode atingir dorso/garupa acima da sela. Limita a altura a uma faixa
+    // plausível relativa ao tamanho do modelo, sem modificar a malha do cavalo.
+    const minSeat = (bounds.min.y - this.mesh.position.y) + (bounds.max.y - bounds.min.y) * 0.48
+    const maxSeat = (bounds.min.y - this.mesh.position.y) + (bounds.max.y - bounds.min.y) * 0.86
+    const seatY = THREE.MathUtils.clamp(seat, minSeat, maxSeat)
+    return {
+      seatY,
+      leftY: THREE.MathUtils.clamp(left, seatY - 0.75, seatY - 0.08),
+      rightY: THREE.MathUtils.clamp(right, seatY - 0.75, seatY - 0.08),
     }
   }
 
