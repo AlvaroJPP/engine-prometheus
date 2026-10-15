@@ -349,9 +349,7 @@ export class Engine {
       const existingIds = new Set(this.world.list().map(object => object.id))
       const model = pending.model.clone(true)
       model.userData = { ...pending.model.userData, importPart: true }
-      // Mantém o GLB como um único objeto real da Hierarquia.
-      model.userData.nativeHorseComponent = false
-      model.userData.nativeComponentType = undefined
+      // Mantém o GLB como uma única instância editável na Hierarquia.
       this.addImportedModel(pending.name, model, pending.height)
       const created = this.world.list().find(object => !existingIds.has(object.id))
       if (!created) return false
