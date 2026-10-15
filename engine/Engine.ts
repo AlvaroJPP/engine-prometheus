@@ -376,23 +376,10 @@ export class Engine {
   }
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.cameraStateBeforeRun || event.repeat || event.code !== 'KeyE') return
-    const horses = this.world.list().filter(object =>
-      object.mesh.visible && (
-        object.mesh.userData.nativeComponentType === 'horse' ||
-        object.mesh.userData.nativeHorseComponent === true ||
-        object.mesh.userData.componentId === 'builtin-horse-low-poly'
-      ),
-    )
-    if (horses.length === 0) return
-    const nearest = horses.sort((a, b) =>
-      a.mesh.position.distanceToSquared(this.avatar.mesh.position) -
-      b.mesh.position.distanceToSquared(this.avatar.mesh.position),
-    )[0]
-    if (!nearest) return
-    if (!this.horseMount.isMounted && nearest.mesh.position.distanceTo(this.avatar.mesh.position) >= 3.4) return
-    event.preventDefault()
-    this.logic.triggerKeyPressed(event.code, nearest.id)
+    if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+    // O grafo visual decide quais objetos reagem à tecla; o motor não fixa a tecla E.
+    // A ação de montaria valida a proximidade do seu próprio componente.
+    if (this.logic.triggerKeyPressed(event.code)) event.preventDefault()
   }
 
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
