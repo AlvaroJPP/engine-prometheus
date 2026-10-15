@@ -221,46 +221,48 @@ export class HorseMount {
         model.position.z -= center.z
         model.position.y -= bounds.min.y
 
-        // Ajuste manual baseado na inspeção dos dados do GLB:
-        // Mesh.001_DarkLeather_0 contém a cabeçada e as rédeas junto com
-        // outras correias. No espaço de bind do modelo, a zona da cabeça fica
-        // na parte alta e dianteira; movemos apenas esses vértices para trás.
-        // Não usamos Box3 mundial aqui porque a malha é esquelética (SkinnedMesh).
+        // Ajuste manual orientado pelos limites reais da geometria do GLB.
+        // A cabeçada/redeas estão na faixa baixa da malha DarkLeather, perto
+        // do focinho (Y ~2.05–2.40 e Z positivo). O patch anterior mirava a
+        // parte alta do modelo e por isso não atingia as correias da boca.
         model.traverse((node) => {
           if (!(node instanceof THREE.SkinnedMesh)) return
           const materials = Array.isArray(node.material) ? node.material : [node.material]
-          const isDarkLeather = materials.some((material) => material.name === 'DarkLeather')
-          if (!isDarkLeather) return
+          if (!materials.some((material) => material.name === 'DarkLeather')) return
 
           node.geometry = node.geometry.clone()
           const geometry = node.geometry
           const position = geometry.getAttribute('position')
           if (!position) return
 
-          // Limites observados na malha original do GLB: a cabeçada fica
-          // acima do pescoço e à frente; sela/estribos ficam abaixo/atrás.
-          // Puxamos progressivamente a ponta frontal para junto do focinho.
-          let movedVertices = 0
+          let adjusted = 0
           for (let i = 0; i < position.count; i += 1) {
             const x = position.getX(i)
             const y = position.getY(i)
             const z = position.getZ(i)
-            if (y < 3.68 || z < 0.62) continue
-            const headRegionWeight = THREE.MathUtils.clamp((y - 3.68) / 0.34, 0, 1)
-            const frontWeight = THREE.MathUtils.clamp((z - 0.62) / 0.42, 0, 1)
-            const pullBack = 0.32 * headRegionWeight * frontWeight
-            if (pullBack <= 0.001) continue
-            position.setXYZ(i, x, y, z - pullBack)
-            movedVertices += 1
+
+            // Apenas as tiras frontais que saem do focinho; exclui as peças
+            // de sela (Z negativo/baixo) e as correias verticais do corpo.
+            const mouthHeight = y >= 2.04 && y <= 2.42
+            const muzzleSide = Math.abs(x) <= 0.78
+            const forwardStrap = z >= 0.28 && z <= 0.60
+            if (!mouthHeight || !muzzleSide || !forwardStrap) continue
+
+            // Recolhe as pontas soltas para trás e ligeiramente para dentro,
+            // aproximando-as do focinho em vez de deformar toda a cabeçada.
+            const weight = THREE.MathUtils.clamp((z - 0.28) / 0.32, 0, 1)
+            position.setXYZ(i, x * (1 - 0.10 * weight), y, z - 0.20 * weight)
+            adjusted += 1
           }
-          if (movedVertices > 0) {
+
+          if (adjusted > 0) {
             position.needsUpdate = true
             geometry.computeVertexNormals()
             geometry.computeBoundingBox()
             geometry.computeBoundingSphere()
-            console.info(`[HorseMount] Ajustados manualmente ${movedVertices} vértices da cabeçada.`)
+            console.info(`[HorseMount] Reposicionados ${adjusted} vértices das correias junto à boca.`)
           } else {
-            console.warn('[HorseMount] Nenhum vértice da cabeçada foi encontrado para o ajuste manual.')
+            console.warn('[HorseMount] Não foram encontrados vértices da cabeçada na região esperada.')
           }
         })
 
