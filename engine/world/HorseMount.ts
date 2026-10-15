@@ -201,9 +201,23 @@ export class HorseMount {
         (model) => {
           if (!this.mesh.parent) return
           model.name = 'CommittedHorseLPFBX'
-          // Preserva exatamente escala, orientação e origem do arquivo FBX.
-          // Não redimensiona nem recentraliza a malha, pois isso alterava sua aparência.
+          // Normaliza o tamanho com escala uniforme: mantém as proporções do FBX
+          // e limita a altura total do cavalo a aproximadamente 2,05 unidades do mundo.
+          // Centraliza a base para que os cascos assentem no terreno e o colisor
+          // acompanhe corretamente o centro do cavalo.
           model.updateMatrixWorld(true)
+          const originalBounds = new THREE.Box3().setFromObject(model)
+          const originalSize = originalBounds.getSize(new THREE.Vector3())
+          if (originalSize.y > 0.0001) {
+            model.scale.multiplyScalar(HORSE_HEIGHT / originalSize.y)
+            model.updateMatrixWorld(true)
+            const normalizedBounds = new THREE.Box3().setFromObject(model)
+            const center = normalizedBounds.getCenter(new THREE.Vector3())
+            model.position.x -= center.x
+            model.position.y -= normalizedBounds.min.y
+            model.position.z -= center.z
+            model.updateMatrixWorld(true)
+          }
 
           for (const child of [...this.mesh.children]) {
             if (child === model) continue
