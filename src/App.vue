@@ -501,7 +501,6 @@ async function refreshSavedComponents() {
 /** Registra o cavalo do projeto como componente reutilizável na biblioteca local. */
 async function ensureHorseComponent() {
   const componentId = 'builtin-horse-low-poly'
-  if (savedComponents.value.some(component => component.id === componentId || component.name === 'Cavalo Low Poly')) return
   try {
     const response = await fetch(horseComponentUrl)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -512,15 +511,15 @@ async function ensureHorseComponent() {
     })
     const bounds = new THREE.Box3().setFromObject(gltf.scene)
     const size = bounds.getSize(new THREE.Vector3())
-    if (bounds.isEmpty() || size.y <= 0) throw new Error('O modelo do cavalo não possui dimensões válidas.')
+    if (bounds.isEmpty() || size.x <= 0 || size.y <= 0 || size.z <= 0) throw new Error('O modelo do cavalo não possui dimensões válidas.')
     const targetHeight = 2.05
     const scale = targetHeight / size.y
-    // Caixa envolvendo principalmente o tronco, evitando um colisor que alcance
-    // desnecessariamente a cabeça e a cauda. Pode ser ajustada no Inspetor.
+    // Dimensões do colisor na mesma escala local que o modelo colocado no mundo.
+    // A caixa cobre o tronco, sem incluir a cabeça e a cauda por inteiro.
     const colliderSize: [number, number, number] = [
-      Math.max(0.6, size.x * scale * 1.08),
-      Math.max(0.65, Math.min(1.45, targetHeight * 0.68)),
-      Math.max(0.8, size.z * scale * 0.78),
+      Math.max(0.75, size.x * scale * 0.96),
+      Math.max(0.8, Math.min(1.5, targetHeight * 0.68)),
+      Math.max(1.05, size.z * scale * 0.72),
     ]
     const component: SavedComponent = {
       id: componentId,
@@ -528,10 +527,12 @@ async function ensureHorseComponent() {
       height: targetHeight,
       colliderType: 'box',
       colliderSize,
-      colliderOffset: [0, 0, 0],
+      colliderOffset: [0, 0.02, 0],
       bytes,
       createdAt: Date.now(),
     }
+    // Atualiza também componentes antigos já existentes: evita manter metadados
+    // de colisão incorretos de versões anteriores da biblioteca.
     await saveComponentAsset(component)
     await refreshSavedComponents()
   } catch (error) {
@@ -637,7 +638,23 @@ async function placeSavedComponent(id: string) {
       }, reject)
     })
     model.name = component.name
+    // Os bytes salvos na biblioteca são o GLB original, não a cena centralizada
+    // do preview. Normaliza a escala e centraliza a malha em torno da origem para
+    // alinhar renderização, proxy de seleção e colisor.
+    model.updateMatrixWorld(true)
+    const sourceBounds = new THREE.Box3().setFromObject(model)
+    const sourceSize = sourceBounds.getSize(new THREE.Vector3())
+    if (sourceBounds.isEmpty() || sourceSize.y <= 0) throw new Error('O componente não contém dimensões válidas.')
+    model.scale.multiplyScalar(component.height / sourceSize.y)
+    model.updateMatrixWorld(true)
+    const scaledBounds = new THREE.Box3().setFromObject(model)
+    const center = scaledBounds.getCenter(new THREE.Vector3())
+    model.position.x -= center.x
+    model.position.y -= center.y
+    model.position.z -= center.z
+    model.updateMatrixWorld(true)
     model.userData.importPart = true
+    model.userData.componentId = component.id
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
     model.userData.importedModelHeight = component.height
     model.userData.importColliderType = component.colliderType
