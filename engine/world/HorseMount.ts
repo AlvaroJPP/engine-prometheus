@@ -79,8 +79,11 @@ export class HorseMount {
     component.userData.nativeComponentType = 'horse'
     component.userData.nativeHorseComponent = true
     component.userData.componentId = 'builtin-horse-low-poly'
-    component.userData.importedModelHeight = HORSE_HEIGHT
-    this.parkedComponentHeight = HORSE_HEIGHT
+    const configuredHeight = Number(component.userData.importedModelHeight)
+    const componentHeight = Number.isFinite(configuredHeight) && configuredHeight > 0
+      ? configuredHeight : HORSE_HEIGHT
+    component.userData.importedModelHeight = componentHeight
+    this.parkedComponentHeight = componentHeight
     const configuredSize = component.userData.colliderSize
     this.mesh.userData.colliderSize = Array.isArray(configuredSize) && configuredSize.length === 3
       ? [...configuredSize]
@@ -145,7 +148,7 @@ export class HorseMount {
         this.horseAnimationActions.clear()
         this.activeHorseAnimation = ''
         for (const clip of gltf.animations) {
-          const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+          const name = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
           const key = /turnleft|leftturn|pivotleft|rotateleft/.test(name) ? 'turn-left'
             : /turnright|rightturn|pivotright|rotateright/.test(name) ? 'turn-right'
               : /gallop|canter|run|sprint/.test(name) ? 'run'
