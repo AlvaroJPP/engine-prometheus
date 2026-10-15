@@ -198,20 +198,48 @@ export class Engine {
     model.updateMatrixWorld(true)
     const bounds = new THREE.Box3().setFromObject(model)
     if (bounds.isEmpty()) throw new Error('O modelo importado não possui geometria visível.')
-    const size = bounds.getSize(new THREE.Vector3())
-    const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : size.y
-    const center = bounds.getCenter(new THREE.Vector3())
-    model.position.sub(center)
+
+    const originalSize = bounds.getSize(new THREE.Vector3())
+    if (!Number.isFinite(originalSize.y) || originalSize.y <= 0) {
+      throw new Error('Não foi possível calcular a altura do modelo importado.')
+    }
+
+    const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
+    // O diálogo de importação já centraliza o modelo. Não subtraia o centro
+    // do Box3 diretamente de model.position: Box3 está em coordenadas de mundo,
+    // enquanto position é local e o modelo já pode estar escalado.
+    const scaleFactor = height / originalSize.y
+    model.scale.multiplyScalar(scaleFactor)
     model.updateMatrixWorld(true)
 
-    const proxyGeometry = new THREE.BoxGeometry(Math.max(size.x, 0.05), Math.max(height, 0.05), Math.max(size.z, 0.05))
-    const proxyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
+    const finalBounds = new THREE.Box3().setFromObject(model)
+    const finalSize = finalBounds.getSize(new THREE.Vector3())
+    const center = finalBounds.getCenter(new THREE.Vector3())
+    // Corrige qualquer deslocamento residual sem misturar coordenadas globais
+    // e locais; o modelo fica centrado dentro do objeto que será transformado.
+    model.position.x -= center.x
+    model.position.y -= center.y
+    model.position.z -= center.z
+    model.updateMatrixWorld(true)
+
+    const proxyGeometry = new THREE.BoxGeometry(
+      Math.max(finalSize.x, 0.05),
+      Math.max(height, 0.05),
+      Math.max(finalSize.z, 0.05),
+    )
+    const proxyMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    })
     const root = new THREE.Mesh(proxyGeometry, proxyMaterial)
     root.name = name.trim() || 'Modelo importado'
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
     root.add(model)
+
     const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
     root.userData.locked = false
