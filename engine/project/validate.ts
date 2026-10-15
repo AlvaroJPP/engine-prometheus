@@ -147,7 +147,20 @@ function parseTerrain(v: unknown, version: number, label: string): TerrainData {
     }
     edits.push([i, d])
   }
-  return { seed, visible: v.visible !== false, edits }
+  const rawGrass = v.paintedGrass ?? []
+  if (!Array.isArray(rawGrass) || rawGrass.length > 16000) fail(`${label}: dados de grama pintada inválidos.`)
+  const paintedGrass: Array<[number, number, number, number]> = []
+  for (const tuft of rawGrass) {
+    if (!Array.isArray(tuft) || tuft.length !== 4 || !tuft.every(isNum)) {
+      fail(`${label}: tufo de grama inválido.`)
+    }
+    const [x, z, scale, color] = tuft
+    if (x < -50 || x > 50 || z < -50 || z > 50 || scale < 0.2 || scale > 2 || !Number.isInteger(color) || color < 0 || color > 0xffffff) {
+      fail(`${label}: tufo de grama fora dos limites.`)
+    }
+    paintedGrass.push([x, z, scale, color])
+  }
+  return { seed, visible: v.visible !== false, edits, paintedGrass }
 }
 
 function parseFaceTextures(value: unknown, label: string, id: string): import('./format').FaceTextureMap {
