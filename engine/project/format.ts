@@ -16,6 +16,7 @@ export interface SceneObjectData {
   scale: Vec3
   visible: boolean
   color: number
+  texturePreset?: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
