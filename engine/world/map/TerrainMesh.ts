@@ -7,6 +7,7 @@ import {
 } from '../worldGeneration/Heightfield'
 import { colorForHeight } from '../worldGeneration/terrainColors'
 import { GrassLayer } from './GrassLayer'
+import type { PaintedGrassTuft } from './GrassLayer'
 
 export const TERRAIN_ID = 'terrain'
 
@@ -73,9 +74,10 @@ export class TerrainMesh {
     this.grass.refresh()
   }
 
-  load(seed: number, edits: ReadonlyArray<readonly [number, number]>): void {
+  load(seed: number, edits: ReadonlyArray<readonly [number, number]>, paintedGrass: ReadonlyArray<PaintedGrassTuft> = []): void {
     this.field.reset(seed, edits)
     this.refresh()
+    this.grass.loadPainted(paintedGrass)
   }
 
   brush(x: number, z: number, radius: number, amount: number): void {
