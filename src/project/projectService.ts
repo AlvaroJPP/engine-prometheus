@@ -46,7 +46,7 @@ async function readAsset(dir: string, rel: string): Promise<string> {
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
   const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
   const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length, 0)
-  const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length + 2)
+  const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length * 2 + 2)
   let completed = 0
   const report = (message: string) => onProgress?.(message, Math.min(99, Math.round((completed / total) * 100)))
   const scenes: Record<string, SceneFile> = JSON.parse(JSON.stringify(bundle.scenes)) as Record<string, SceneFile>
