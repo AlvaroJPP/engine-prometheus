@@ -304,6 +304,32 @@ export class Engine {
     this.world.select(spawn.id)
   }
 
+  /** Garante que o componente de cavalo já venha com um fluxo visual de montaria. */
+  private ensureHorseLogic(objectId: string): void {
+    const existing = this.logic.list().some(rule =>
+      rule.ownerObjectId === objectId &&
+      rule.trigger.type === 'object_clicked' &&
+      rule.trigger.objectId === objectId &&
+      rule.actions.some(action => action.type === 'horse_mount'),
+    )
+    if (existing) return
+    const rule: LogicRule = {
+      ownerObjectId: objectId,
+      id: `horse-mount-${objectId}`,
+      name: 'Montar no cavalo',
+      enabled: true,
+      trigger: { type: 'object_clicked', objectId },
+      conditions: [],
+      actions: [{ type: 'horse_mount' }],
+      graphLayout: {
+        trigger: { x: 70, y: 70 },
+        condition: { x: 350, y: 70 },
+        action: { x: 630, y: 70 },
+      },
+    }
+    this.logic.upsert(rule)
+  }
+
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
   private placeNativeHorseComponent(x: number, baseY: number, z: number, name: string): void {
     const height = 2.05
@@ -332,6 +358,7 @@ export class Engine {
     const id = `horse_component_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
     this.world.add({ id, name: root.name, type: 'cube', mesh: root })
+    this.ensureHorseLogic(id)
     this.horseMount.setEditorComponent(root)
     this.world.select(id)
     this.state.tool = 'select'
@@ -926,6 +953,12 @@ export class Engine {
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
+    // Migra cavalos de projetos antigos para o fluxo visual embutido padrão.
+    for (const object of this.world.list()) {
+      if (object.mesh.userData.nativeComponentType === 'horse' || object.mesh.userData.nativeHorseComponent === true || object.mesh.userData.componentId === 'builtin-horse-low-poly') {
+        this.ensureHorseLogic(object.id)
+      }
+    }
     report('Mundo carregado.', 100)
   }
 
