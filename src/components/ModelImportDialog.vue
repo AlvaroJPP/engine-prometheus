@@ -52,7 +52,7 @@ const colliderOffset = ref<[number, number, number]>([0, 0, 0])
 let colliderPreview: THREE.LineSegments | null = null
 
 function updateColliderPreview() {
-  if (!scene || !model) return
+  if (!scene || !model.value) return
   if (colliderPreview) {
     scene.remove(colliderPreview)
     colliderPreview.geometry.dispose()
@@ -644,7 +644,7 @@ watch(() => props.open, async (open) => {
   }
 })
 
-watch(modelHeight, (height) => {
+watch(modelHeight, (height, previousHeight) => {
   if (!model.value || !Number.isFinite(height) || height <= 0 || originalHeight.value <= 0) return
   const targetScale = height / originalHeight.value
   model.value.scale.setScalar(targetScale)
@@ -658,7 +658,7 @@ watch(modelHeight, (height) => {
   }
   model.value.updateMatrixWorld(true)
   fitCamera(model.value)
-  const factor = height / Math.max(0.1, modelHeight.value)
+  const factor = height / Math.max(0.1, previousHeight)
   colliderSize.value = colliderSize.value.map(value => Math.max(0.05, value * factor)) as [number, number, number]
   updateColliderPreview()
 })
@@ -798,7 +798,7 @@ onBeforeUnmount(disposePreview)
             <div class="model-panel-heading"><span>04</span> COLISOR FÍSICO</div>
             <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
             <label class="model-collider-field">Forma
-              <select :value="colliderType" :disabled="!model" @change="colliderType = ($event.target as HTMLSelectElement).value as typeof colliderType; updateColliderPreview()">
+              <select :value="colliderType" :disabled="!model" @change="colliderType = ($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none'; updateColliderPreview()">
                 <option value="box">Caixa</option>
                 <option value="sphere">Esfera</option>
                 <option value="capsule">Cápsula</option>
