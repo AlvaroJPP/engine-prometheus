@@ -127,8 +127,14 @@ export class World {
             if (!colorMaterial.color) continue
             const saved = material.userData.importOriginalColor as number | undefined
             if (saved === undefined) material.userData.importOriginalColor = colorMaterial.color.getHex()
-            colorMaterial.color.setHex(material.userData.importOriginalColor as number)
-            colorMaterial.color.multiply(tint)
+            // A cor escolhida no inspetor substitui o fator de cor do material.
+            // Branco restaura o fator original do GLB; cores escuras/vermelhas não
+            // são multiplicadas por uma cor-base anterior, o que poderia apagá-las.
+            if (tint.getHex() === 0xffffff) {
+              colorMaterial.color.setHex(material.userData.importOriginalColor as number)
+            } else {
+              colorMaterial.color.copy(tint)
+            }
             material.needsUpdate = true
           }
         })
