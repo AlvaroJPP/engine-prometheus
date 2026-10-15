@@ -81,6 +81,14 @@ export class HorseMount {
     component.userData.componentId = 'builtin-horse-low-poly'
     component.userData.importedModelHeight = HORSE_HEIGHT
     this.parkedComponentHeight = HORSE_HEIGHT
+    const configuredSize = component.userData.colliderSize
+    this.mesh.userData.colliderSize = Array.isArray(configuredSize) && configuredSize.length === 3
+      ? [...configuredSize]
+      : [0.95, 1.35, 1.6]
+    const configuredOffset = component.userData.colliderOffset
+    this.mesh.userData.colliderOffset = Array.isArray(configuredOffset) && configuredOffset.length === 3
+      ? [configuredOffset[0], configuredOffset[1] + HORSE_HEIGHT / 2, configuredOffset[2]]
+      : [0, HORSE_HEIGHT / 2, 0]
     this.mesh.visible = true
     this.syncTransformFromComponent()
   }
