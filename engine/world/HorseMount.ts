@@ -770,16 +770,12 @@ export class HorseMount {
       this.mesh.rotation.set(0, component.rotation.y, 0)
       component.visible = true
       this.mesh.scale.copy(component.scale)
-    } else if (playerPosition) {
-      this.mountColliderSize.set(0.95, 1.35, 1.6)
-      this.mountColliderOffset.set(0, 0, 0)
-      const yaw = this.getCameraYaw()
-      const x = THREE.MathUtils.clamp(playerPosition.x + Math.cos(yaw) * 3, -47, 47)
-      const z = THREE.MathUtils.clamp(playerPosition.z - Math.sin(yaw) * 3, -47, 47)
-      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
-      this.mesh.rotation.y = yaw + Math.PI
     }
-    this.mesh.visible = true
+
+    // Não cria mais um cavalo automaticamente ao lado do ponto de spawn.
+    // O cavalo de runtime só fica visível quando existe um componente colocado
+    // na cena; assim o jogador nasce sozinho se o mundo não tiver cavalo.
+    this.mesh.visible = !!this.parkedComponent
   }
 
   update(dt: number): void {
