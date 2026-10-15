@@ -30,6 +30,7 @@ export interface ObjectInfo {
   groupId: string | null
   color: number
   mass: number
+  colliderType: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
 }
 
 export interface ObjectPatch {
@@ -50,4 +51,5 @@ export interface ObjectPatch {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
 }
