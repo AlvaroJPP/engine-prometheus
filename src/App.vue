@@ -156,10 +156,20 @@ function measureGraphPorts() {
     if (changed) portPositions.value = next
   })
 }
+function onRuntimeCameraKeydown(event: KeyboardEvent) {
+  if (event.code !== 'KeyQ' || event.repeat || executionMode.value !== 'running') return
+  const target = event.target as HTMLElement | null
+  const tag = target?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+  event.preventDefault()
+  toggleFirstPerson()
+}
+
 onMounted(() => {
   graphPortObserver = new ResizeObserver(measureGraphPorts)
   if (graphViewport.value) graphPortObserver.observe(graphViewport.value)
   if (graphStage.value) graphPortObserver.observe(graphStage.value)
+  window.addEventListener('keydown', onRuntimeCameraKeydown)
   measureGraphPorts()
 })
 watch(graphOpen, async (open) => {
@@ -170,7 +180,10 @@ watch(graphOpen, async (open) => {
   measureGraphPorts()
 })
 onUpdated(measureGraphPorts)
-onBeforeUnmount(() => graphPortObserver?.disconnect())
+onBeforeUnmount(() => {
+  graphPortObserver?.disconnect()
+  window.removeEventListener('keydown', onRuntimeCameraKeydown)
+})
 const graphObjectFilter = ref<'selected' | 'all'>('all')
 const graphObjectSearch = ref('')
 function ownerOfRule(rule: LogicRule): string | undefined {
