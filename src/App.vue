@@ -373,7 +373,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   }
   const action = rule.actions[0]; if (!action) return 'Sem ação'
   if (action.type === 'javascript' || action.type === 'script') {
-    const firstLine = action.code.split(/\\r?\\n/).map(line => line.trim()).find(Boolean)
+    const firstLine = action.code.split(String.fromCharCode(10)).map(line => line.trim()).find(Boolean)
     return firstLine ? (firstLine.length > 42 ? firstLine.slice(0, 39) + '…' : firstLine) : 'Script vazio — clique para editar'
   }
   return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar ação'
