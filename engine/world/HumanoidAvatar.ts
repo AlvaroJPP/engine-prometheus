@@ -679,14 +679,82 @@ export class HumanoidAvatar {
       if (!root.visible || root.userData.colliderType === 'none') continue
       root.updateWorldMatrix(true, true)
 
-      // O cavalo usa um colisor simples independente da malha visual. Não teste
-      // os triângulos de corpo, rédeas, sela, estribos ou cascos: eles criavam
-      // pequenas paredes invisíveis ao redor do modelo.
+      // O cavalo é testado pela superfície real das malhas principais. Isso evita
+      // que uma caixa envolvente bloqueie o jogador longe do corpo visível.
       const isHorseCollider = root === this.externalCollider ||
         root.userData.nativeHorseComponent === true ||
         root.userData.nativeComponentType === 'horse' ||
         root.userData.componentId === 'builtin-horse-low-poly'
       if (isHorseCollider) {
+        // A raiz nativa é apenas o proxy editável. Quando a malha real está ativa,
+        // não aplique também a caixa do proxy, pois ela recriaria a parede invisível.
+        if (root !== this.externalCollider && this.externalCollider?.visible) continue
+
+        if (root === this.externalCollider) {
+          const samplePoints = [
+            new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + 0.28, this.mesh.position.z),
+            new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + 0.9, this.mesh.position.z),
+            new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + 1.52, this.mesh.position.z),
+          ]
+          const horseMeshes: THREE.Mesh[] = []
+          root.traverse((child) => {
+            if (!(child instanceof THREE.Mesh) || !child.visible) return
+            if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+            // Rédeas, crina, sela, estribos, cauda e ferragens não devem funcionar
+            // como barreiras físicas independentes do corpo do animal.
+            if (/rein|bridle|saddle|stirrup|strap|buckle|mane|tail|reins|halter|r[eé]dea|estribo|sela|fivela|crina|cauda/i.test(child.name)) return
+            horseMeshes.push(child)
+          })
+
+          for (const mesh of horseMeshes) {
+            const geometry = mesh.geometry
+            const position = geometry.getAttribute('position')
+            if (!position || position.count < 3) continue
+            if (!geometry.boundingBox) geometry.computeBoundingBox()
+            if (!geometry.boundingBox) continue
+
+            const bounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+            const meshSize = bounds.getSize(new THREE.Vector3())
+            // Descarta detalhes muito pequenos, como olhos, narinas, fivelas e pontas.
+            if (Math.max(meshSize.x, meshSize.y, meshSize.z) < 0.24 ||
+                (meshSize.x < 0.07 && meshSize.z < 0.07)) continue
+            bounds.min.x -= PLAYER_RADIUS
+            bounds.max.x += PLAYER_RADIUS
+            bounds.min.y -= 0.12
+            bounds.max.y += 0.12
+            bounds.min.z -= PLAYER_RADIUS
+            bounds.max.z += PLAYER_RADIUS
+            if (!samplePoints.some(point => bounds.containsPoint(point))) {
+              const samplesBounds = new THREE.Box3().setFromPoints(samplePoints)
+              samplesBounds.expandByScalar(PLAYER_RADIUS)
+              if (!bounds.intersectsBox(samplesBounds)) continue
+            }
+
+            const index = geometry.getIndex()
+            const triangleCount = Math.floor((index ? index.count : position.count) / 3)
+            for (let i = 0; i < triangleCount; i++) {
+              const ia = index ? index.getX(i * 3) : i * 3
+              const ib = index ? index.getX(i * 3 + 1) : i * 3 + 1
+              const ic = index ? index.getX(i * 3 + 2) : i * 3 + 2
+              // getVertexPosition respeita morph targets e o esqueleto de SkinnedMesh.
+              mesh.getVertexPosition(ia, a).applyMatrix4(mesh.matrixWorld)
+              mesh.getVertexPosition(ib, b).applyMatrix4(mesh.matrixWorld)
+              mesh.getVertexPosition(ic, c).applyMatrix4(mesh.matrixWorld)
+              triangle.set(a, b, c)
+              triangle.getNormal(normal).normalize()
+              // Faces quase horizontais não bloqueiam o deslocamento lateral.
+              if (Math.abs(normal.y) > 0.82) continue
+              for (const point of samplePoints) {
+                triangle.closestPointToPoint(point, closest)
+                if (point.distanceToSquared(closest) <= radiusSq) return true
+              }
+            }
+          }
+          continue
+        }
+
+        // Se a malha visual ainda não está disponível, mantém o colisor configurável
+        // como fallback temporário, sem depender da geometria decorativa.
         const configuredSize = root.userData.colliderSize
         const size = Array.isArray(configuredSize) && configuredSize.length === 3
           ? new THREE.Vector3(
@@ -702,20 +770,14 @@ export class HumanoidAvatar {
             Number(configuredOffset[1]) || 0,
             Number(configuredOffset[2]) || 0,
           )
-          : new THREE.Vector3(0, root === this.externalCollider ? 0.8 : 0.02, 0)
+          : new THREE.Vector3(0, 0.02, 0)
         const localCollider = new THREE.Box3(
           offset.clone().sub(size.clone().multiplyScalar(0.5)),
           offset.clone().add(size.clone().multiplyScalar(0.5)),
         )
-        const colliderBounds = localCollider.applyMatrix4(root.matrixWorld)
-        colliderBounds.min.x -= PLAYER_RADIUS
-        colliderBounds.max.x += PLAYER_RADIUS
-        colliderBounds.min.z -= PLAYER_RADIUS
-        colliderBounds.max.z += PLAYER_RADIUS
-        if (playerBox.intersectsBox(colliderBounds)) return true
+        if (playerBox.intersectsBox(localCollider.applyMatrix4(root.matrixWorld))) return true
         continue
       }
-
       const meshes: THREE.Mesh[] = []
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || !child.visible) return
