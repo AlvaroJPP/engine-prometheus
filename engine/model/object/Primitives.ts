@@ -16,6 +16,7 @@ export interface PrimitiveInit {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
 }
 
 export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): GameObject {
@@ -56,6 +57,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   mesh.userData.groupId = init.groupId ?? null
   mesh.userData.wireframeVisible = init.wireframeVisible ?? true
   mesh.userData.mass = Number.isFinite(init.mass) ? Math.max(0, init.mass as number) : 1
+  mesh.userData.colliderType = init.colliderType ?? 'auto'
   const name = init.name ?? `${def.label} ${id.split('_')[1] ?? ''}`.trim()
   return { id, name, type, mesh }
 }
