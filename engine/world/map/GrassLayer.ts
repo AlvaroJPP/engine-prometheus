@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
 const GRASS_COUNT = 7200
+const PAINTED_CAPACITY = 16000
+export type PaintedGrassTuft = [x: number, z: number, scale: number, color: number]
 const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
 
@@ -11,6 +13,8 @@ export class GrassLayer {
   private readonly field: Heightfield
   private readonly dummy = new THREE.Object3D()
   private readonly color = new THREE.Color()
+  private readonly painted: PaintedGrassTuft[] = []
+  private randomState = 0x12345678
 
   constructor(field: Heightfield) {
     this.field = field
@@ -42,13 +46,14 @@ export class GrassLayer {
       roughness: 1,
       metalness: 0,
     })
-    this.mesh = new THREE.InstancedMesh(geometry, material, GRASS_COUNT)
+    this.mesh = new THREE.InstancedMesh(geometry, material, GRASS_COUNT + PAINTED_CAPACITY)
+    this.mesh.count = GRASS_COUNT
     this.mesh.name = 'ProceduralGrass'
     this.mesh.castShadow = false
     this.mesh.receiveShadow = false
     // O terreno é limitado e a malha cobre toda a área; evita recalcular bounds a cada quadro.
     this.mesh.frustumCulled = false
-    this.mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
   }
 
   /** Gera distribuição determinística, tufos variados e inclinação que acompanha o relevo. */
@@ -100,6 +105,85 @@ export class GrassLayer {
       this.mesh.setColorAt(i, this.color)
     }
 
+    this.rebuildPainted()
+    this.mesh.instanceMatrix.needsUpdate = true
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+    this.mesh.computeBoundingSphere()
+  }
+
+  /** Pinta tufos no pincel atual. Retorna quantos foram adicionados. */
+  paint(x: number, z: number, radius: number, density = 1): number {
+    const available = PAINTED_CAPACITY - this.painted.length
+    if (available <= 0) return 0
+    const area = Math.PI * radius * radius
+    const amount = Math.min(available, Math.max(1, Math.round(area * 1.4 * Math.max(0.1, density))))
+    let added = 0
+    for (let i = 0; i < amount; i += 1) {
+      const angle = this.random() * Math.PI * 2
+      const distance = Math.sqrt(this.random()) * radius
+      const px = THREE.MathUtils.clamp(x + Math.cos(angle) * distance, -WORLD_HALF, WORLD_HALF)
+      const pz = THREE.MathUtils.clamp(z + Math.sin(angle) * distance, -WORLD_HALF, WORLD_HALF)
+      const scale = 0.65 + this.random() * 0.9
+      const palette = [0x386b1c, 0x477f22, 0x5c8e2b, 0x2f5c18, 0x70963a]
+      const color = palette[Math.floor(this.random() * palette.length)] ?? 0x477f22
+      this.painted.push([px, pz, scale, color])
+      added += 1
+    }
+    this.rebuildPainted()
+    return added
+  }
+
+  /** Remove tufos pintados dentro do raio sem afetar a grama procedural. */
+  erase(x: number, z: number, radius: number): number {
+    const radiusSquared = radius * radius
+    const before = this.painted.length
+    for (let i = this.painted.length - 1; i >= 0; i -= 1) {
+      const tuft = this.painted[i]!
+      if ((tuft[0] - x) ** 2 + (tuft[1] - z) ** 2 <= radiusSquared) this.painted.splice(i, 1)
+    }
+    const removed = before - this.painted.length
+    if (removed) this.rebuildPainted()
+    return removed
+  }
+
+  exportPainted(): PaintedGrassTuft[] {
+    return this.painted.map((tuft) => [...tuft] as PaintedGrassTuft)
+  }
+
+  loadPainted(tufts: ReadonlyArray<PaintedGrassTuft> = []): void {
+    this.painted.length = 0
+    for (const tuft of tufts.slice(0, PAINTED_CAPACITY)) {
+      if (tuft.length !== 4 || !tuft.every(Number.isFinite)) continue
+      this.painted.push([
+        THREE.MathUtils.clamp(tuft[0], -WORLD_HALF, WORLD_HALF),
+        THREE.MathUtils.clamp(tuft[1], -WORLD_HALF, WORLD_HALF),
+        THREE.MathUtils.clamp(tuft[2], 0.2, 2),
+        Math.max(0, Math.min(0xffffff, Math.floor(tuft[3]))),
+      ])
+    }
+    this.rebuildPainted()
+  }
+
+  private random(): number {
+    this.randomState = (this.randomState + 0x6d2b79f5) >>> 0
+    let value = this.randomState
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296
+  }
+
+  private rebuildPainted(): void {
+    this.mesh.count = GRASS_COUNT + this.painted.length
+    for (let i = 0; i < this.painted.length; i += 1) {
+      const [x, z, scale, color] = this.painted[i]!
+      this.dummy.position.set(x, this.field.sample(x, z) + 0.012, z)
+      this.dummy.rotation.set(0, this.random() * Math.PI * 2, 0)
+      this.dummy.scale.set(0.08 * scale, (0.24 + this.random() * 0.48) * scale, 0.08 * scale)
+      this.dummy.updateMatrix()
+      this.mesh.setMatrixAt(GRASS_COUNT + i, this.dummy.matrix)
+      this.color.setHex(color)
+      this.mesh.setColorAt(GRASS_COUNT + i, this.color)
+    }
     this.mesh.instanceMatrix.needsUpdate = true
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
     this.mesh.computeBoundingSphere()
