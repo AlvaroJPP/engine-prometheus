@@ -24,7 +24,9 @@ const modelHeight = ref(2)
 const originalHeight = ref(0)
 const dimensions = ref<[number, number, number]>([0, 0, 0])
 const model = shallowRef<THREE.Object3D | null>(null)
-const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Mesh }>>([])
+const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }>>([])
+const selectedPartId = ref('')
+const soloPartId = ref('')
 
 type ModelDiagnostic = {
   id: string
@@ -73,22 +75,92 @@ function disposeModel(object: THREE.Object3D) {
 }
 
 function refreshPreviewParts() {
-  if (!model.value) {
+  const root = model.value
+  if (!root) {
     previewParts.value = []
+    selectedPartId.value = ''
+    soloPartId.value = ''
     return
   }
-  const parts: Array<{ id: string; name: string; object: THREE.Mesh }> = []
-  let index = 0
-  model.value.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    index += 1
+  const parts: Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }> = []
+  let unnamedIndex = 0
+  const countMeshes = (object: THREE.Object3D) => {
+    let count = 0
+    object.traverse(child => { if (child instanceof THREE.Mesh) count += 1 })
+    return count
+  }
+  const visit = (node: THREE.Object3D, depth: number) => {
+    if (node === root) {
+      node.children.forEach(child => visit(child, 0))
+      return
+    }
+    const meshCount = countMeshes(node)
+    if (!meshCount) return
+    unnamedIndex += 1
     parts.push({
-      id: child.uuid,
-      name: child.name.trim() || `Parte ${index}`,
-      object: child,
+      id: node.uuid,
+      name: node.name.trim() || (node instanceof THREE.Mesh ? `Malha ${unnamedIndex}` : `Grupo ${unnamedIndex}`),
+      object: node,
+      depth,
+      meshCount,
     })
-  })
+    node.children.forEach(child => visit(child, depth + 1))
+  }
+  visit(root, 0)
   previewParts.value = parts
+  if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = parts[0]?.id ?? ''
+  if (!parts.some(part => part.id === soloPartId.value)) soloPartId.value = ''
+}
+
+function findPreviewPart(id: string) {
+  return previewParts.value.find(part => part.id === id)
+}
+
+function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  selectedPartId.value = part.id
+  fitCamera(part.object)
+}
+
+function togglePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  part.object.visible = !part.object.visible
+  if (soloPartId.value) soloPartId.value = ''
+}
+
+function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  const root = model.value
+  if (!root) return
+  if (soloPartId.value === part.id) {
+    root.traverse(node => { node.visible = true })
+    soloPartId.value = ''
+  } else {
+    root.traverse(node => { node.visible = node === part.object || isDescendantOf(node, part.object) })
+    soloPartId.value = part.id
+    selectedPartId.value = part.id
+    fitCamera(part.object)
+  }
+}
+
+function isDescendantOf(node: THREE.Object3D, ancestor: THREE.Object3D) {
+  let current: THREE.Object3D | null = node
+  while (current) {
+    if (current === ancestor) return true
+    current = current.parent
+  }
+  return false
+}
+
+function restorePreviewVisibility() {
+  model.value?.traverse(node => { node.visible = true })
+  soloPartId.value = ''
+}
+
+function deletePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  if (!model.value || !part.object.parent) return
+  part.object.removeFromParent()
+  model.value.updateMatrixWorld(true)
+  refreshPreviewParts()
+  refreshModelDiagnostics()
+  if (model.value) fitCamera(model.value)
 }
 
 
@@ -208,19 +280,12 @@ function refreshModelDiagnostics() {
   }
 }
 
-function deletePreviewPart(part: { id: string; name: string; object: THREE.Mesh }) {
-  if (!model.value || !part.object.parent) return
-  // Apenas desanexa a malha da hierarquia. Não destrua geometria, materiais,
-  // morph targets ou clips: o mixer continua ligado à raiz e às partes restantes.
-  part.object.removeFromParent()
-  model.value.updateMatrixWorld(true)
-  refreshPreviewParts()
-  refreshModelDiagnostics()
-  if (model.value) fitCamera(model.value)
-}
+
 
 function clearLoadedModel() {
   previewParts.value = []
+  selectedPartId.value = ''
+  soloPartId.value = ''
   previewMixer?.stopAllAction()
   previewMixer = null
   if (model.value) {
@@ -539,14 +604,43 @@ watch(modelHeight, (height) => {
 
 function confirmImport() {
   if (!model.value || !fileName.value) return
-  const imported = model.value
+  const root = model.value
+  const chosenPart = findPreviewPart(selectedPartId.value)
+  let imported: THREE.Object3D
+  let importedHeight = modelHeight.value
+
+  if (chosenPart && chosenPart.object !== root) {
+    // Clona somente o nó selecionado e preserva seu transform relativo à raiz.
+    // Isso permite importar uma árvore/grupo sem carregar o restante da floresta.
+    root.updateMatrixWorld(true)
+    const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
+    imported = chosenPart.object.clone(true)
+    imported.applyMatrix4(relativeMatrix)
+    imported.name = chosenPart.name
+    const bounds = new THREE.Box3().setFromObject(imported)
+    const size = bounds.getSize(new THREE.Vector3())
+    const center = bounds.getCenter(new THREE.Vector3())
+    if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
+      error.value = 'Não foi possível calcular o tamanho da parte selecionada.'
+      return
+    }
+    imported.position.sub(center)
+    const scale = 2 / size.y
+    imported.scale.multiplyScalar(scale)
+    imported.position.multiplyScalar(scale)
+    imported.userData.importAnimations = root.userData.importAnimations ?? []
+    imported.userData.importGltfMetadata = root.userData.importGltfMetadata
+    importedHeight = 2
+  } else {
+    imported = root
+  }
+
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
   previewMixer = null
-  // Remove do preview sem destruir a geometria: ela será usada pelo mundo.
-  scene?.remove(imported)
+  scene?.remove(root)
   model.value = null
-  emit('import', { name: imported.name || 'Modelo importado', model: imported, height: modelHeight.value })
+  emit('import', { name: imported.name || 'Modelo importado', model: imported, height: importedHeight })
   emit('close')
 }
 
@@ -585,15 +679,22 @@ onBeforeUnmount(disposePreview)
           <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }} u</button></div>
           <div class="model-import-dimensions"><div><small>LARGURA X</small><strong>{{ dimensions[0] ? (dimensions[0] * modelHeight / 2).toFixed(2) : '—' }}</strong></div><div><small>ALTURA Y</small><strong>{{ model ? modelHeight.toFixed(2) : '—' }}</strong></div><div><small>PROF. Z</small><strong>{{ dimensions[2] ? (dimensions[2] * modelHeight / 2).toFixed(2) : '—' }}</strong></div></div>
           <div class="model-import-divider"></div>
-          <div class="model-import-section-title">PARTES DO MODELO · {{ previewParts.length }}</div>
+          <div class="model-import-section-title">HIERARQUIA DO MODELO · {{ previewParts.length }}</div>
+          <p class="model-import-note">Selecione um grupo ou malha para visualizar só essa parte e importar apenas ela. Grupos podem conter várias malhas.</p>
           <div v-if="previewParts.length" class="model-preview-parts">
-            <div v-for="(part, index) in previewParts" :key="part.id" class="model-preview-part">
-              <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
-              <span class="model-preview-part-name" :title="part.name">{{ part.name }}</span>
-              <button class="model-preview-part-delete" :aria-label="`Apagar ${part.name} da prévia`" title="Apagar esta parte" @click="deletePreviewPart(part)">×</button>
+            <div v-for="(part, index) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (7 + Math.min(part.depth, 5) * 10) + 'px' }">
+              <button class="model-preview-part-select" :title="`Selecionar ${part.name}`" @click="selectPreviewPart(part)">
+                <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="model-preview-part-name" :title="part.name">{{ part.name }}</span>
+                <small>{{ part.meshCount }} malha{{ part.meshCount === 1 ? '' : 's' }}</small>
+              </button>
+              <button class="model-preview-part-eye" :aria-label="`Mostrar ou ocultar ${part.name}`" :title="part.object.visible ? 'Ocultar parte' : 'Mostrar parte'" @click="togglePreviewPart(part)">{{ part.object.visible ? '◉' : '○' }}</button>
+              <button class="model-preview-part-solo" :class="{ active: soloPartId === part.id }" :aria-label="`Visualizar somente ${part.name}`" title="Ver somente esta parte" @click="showOnlyPreviewPart(part)">1×</button>
+              <button class="model-preview-part-delete" :aria-label="`Remover ${part.name} da importação`" title="Remover esta parte" @click="deletePreviewPart(part)">×</button>
             </div>
+            <button class="model-preview-show-all" @click="restorePreviewVisibility">Mostrar todas as partes</button>
           </div>
-          <p v-else class="model-preview-parts-empty">Carregue um modelo para listar as malhas. Apagar uma parte não desativa a animação das demais.</p>
+          <p v-else class="model-preview-parts-empty">Carregue um modelo para listar seus grupos e malhas.</p>
 
           <div class="model-import-divider"></div>
           <details class="model-diagnostics">
@@ -670,6 +771,6 @@ onBeforeUnmount(disposePreview)
 .model-import-close{width:32px;height:32px;border:1px solid #393e48;border-radius:5px;background:#252932;color:#bfc4ce;font-size:23px;cursor:pointer}
 .model-import-body{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.8fr);gap:0;min-height:0;overflow:auto}
 .model-import-preview{position:relative;min-height:390px;background:#20232a;border-right:1px solid #30343c;overflow:hidden}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:390px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#20232ad9;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:48px;height:48px;border:1px solid #515866;border-radius:10px;color:#d8a16a;font-size:30px}.model-import-empty strong{font-size:13px}.model-import-empty small{color:#9ca4b2;font-size:11px}.preview-badge{position:absolute;top:12px;left:12px;padding:6px 8px;border:1px solid #424853;border-radius:4px;background:#191c22d9;color:#c7ccd6;font-size:9px;letter-spacing:.1em}.preview-dimensions{position:absolute;bottom:12px;left:12px;padding:7px 9px;border:1px solid #424853;border-radius:4px;background:#191c22df;color:#e5e8ee;font:10px ui-monospace,monospace}.model-import-loading{position:absolute;inset:0;display:grid;place-items:center;background:#17191fdb;color:#f0c18f;font-size:13px}
-.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-blend-zip-picker{margin-bottom:8px}.model-blend-zip-picker:disabled{opacity:.5;cursor:wait}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-diagnostics{margin-top:12px;border:1px solid #343943;border-radius:4px;background:#20232a;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.08em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}.model-texture-repair p{margin:7px 0;color:#929aa8;font-size:9px;line-height:1.5}.model-texture-repair-item{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-texture-repair-item label{color:#dce0e8;font-size:9px}.model-texture-repair-item select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:10px}.model-texture-repair-item button{padding:7px;border:1px solid #a66e3d;border-radius:4px;background:#3d3025;color:#ffd2a3;font-size:10px;cursor:pointer}.model-texture-repair-item button:disabled{opacity:.45;cursor:wait}.model-texture-repair-message{display:block;margin-top:8px;color:#d9b58f;font-size:9px;line-height:1.5}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
+.model-import-settings{padding:20px 18px;min-width:0}.model-import-section-title{margin-bottom:11px;color:#929aa8;font-size:9px;font-weight:800;letter-spacing:.13em}.model-file-picker{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid #414752;border-radius:5px;background:#252932;color:#e6e8ee;text-align:left;cursor:pointer}.file-icon{display:grid;place-items:center;width:31px;height:34px;border-radius:4px;background:#343943;color:#e4b17b;font-size:20px}.model-blend-zip-picker{margin-bottom:8px}.model-blend-zip-picker:disabled{opacity:.5;cursor:wait}.model-file-picker span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.model-file-picker strong{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.model-file-picker small{color:#9da5b2;font-size:9px}.model-file-picker>b{font-size:18px;color:#e4b17b}.model-file-input{display:none}.model-import-note{font-size:10px;line-height:1.6;color:#848d9b}.model-preview-parts{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}.model-preview-part{display:flex;align-items:center;gap:4px;min-width:0;padding:4px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-preview-part.is-selected{border-color:#d19a64;background:#302820}.model-preview-part-select{display:flex;align-items:center;gap:7px;flex:1;min-width:0;padding:3px;border:0;background:transparent;text-align:left;cursor:pointer}.model-preview-part-index{color:#8d96a5;font:9px ui-monospace,monospace}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#dce0e8;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-select small{flex:none;color:#929aa8;font-size:8px}.model-preview-part-eye,.model-preview-part-solo{width:24px;height:24px;flex:none;border:1px solid #414752;border-radius:4px;background:#292d35;color:#d8dce5;font-size:11px;cursor:pointer}.model-preview-part-solo.active{border-color:#d19a64;color:#ffd2a3}.model-preview-part-delete{width:23px;height:23px;flex:none;border:1px solid #63403c;border-radius:4px;background:#382725;color:#ffb4a9;font-size:17px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{background:#63342e}.model-preview-show-all{width:100%;margin-top:6px;padding:6px;border:1px solid #414752;border-radius:4px;background:#292d35;color:#c6cbd4;font-size:9px;cursor:pointer}.model-preview-parts-empty{color:#858e9d;font-size:10px;line-height:1.6}.model-import-divider{height:1px;margin:18px 0;border-top:1px solid #30343c}.model-diagnostics{margin-top:12px;border:1px solid #343943;border-radius:4px;background:#20232a;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.08em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}.model-texture-repair p{margin:7px 0;color:#929aa8;font-size:9px;line-height:1.5}.model-texture-repair-item{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-texture-repair-item label{color:#dce0e8;font-size:9px}.model-texture-repair-item select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:10px}.model-texture-repair-item button{padding:7px;border:1px solid #a66e3d;border-radius:4px;background:#3d3025;color:#ffd2a3;font-size:10px;cursor:pointer}.model-texture-repair-item button:disabled{opacity:.45;cursor:wait}.model-texture-repair-message{display:block;margin-top:8px;color:#d9b58f;font-size:9px;line-height:1.5}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c6cbd4;font-size:11px}.model-height-label strong{color:#f1bd85;font:600 12px ui-monospace,monospace}.model-height-slider{width:100%;margin:15px 0;accent-color:#cf8b4d}.model-height-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.model-height-presets button{padding:7px 3px;border:1px solid #3d424c;border-radius:4px;background:#252932;color:#bfc5d0;font-size:10px;cursor:pointer}.model-height-presets button.active{border-color:#a66e3d;background:#3d3025;color:#ffd2a3}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:17px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:5px;padding:9px 6px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-import-dimensions small{font-size:8px;color:#8992a0;letter-spacing:.05em}.model-import-dimensions strong{font:600 12px ui-monospace,monospace;color:#e5e8ee}.model-import-error{padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5}.model-import-tip{margin-top:17px;color:#858e9d;font-size:10px;line-height:1.6}.model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid #30343c;color:#969eac;font-size:10px}.model-import-footer>div{display:flex;gap:8px}.model-import-primary,.model-import-secondary{padding:9px 12px;border-radius:4px;font-size:11px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}
 @media(max-width:720px){.model-import-backdrop{padding:8px}.model-import-dialog{max-height:96vh}.model-import-body{grid-template-columns:1fr}.model-import-preview{min-height:270px;border-right:0;border-bottom:1px solid #30343c}.model-import-preview canvas{min-height:270px}.model-import-settings{padding:15px}.model-import-footer{align-items:flex-start;flex-direction:column}.model-import-footer>div{width:100%;justify-content:flex-end}}
 </style>
