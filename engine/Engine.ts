@@ -328,8 +328,11 @@ export class Engine {
 
   /** Garante que o cavalo tenha regras completas e editáveis no Visual Script. */
   private ensureHorseLogic(objectId: string): void {
-    if (this.logic.getVariable('horse_enabled', objectId) === undefined) {
-      this.logic.setVariable('horse_enabled', true, objectId)
+    // A habilitação do cavalo é global: continua disponível após salvar/reabrir
+    // o projeto, mesmo que a versão anterior guardasse a variável no escopo do objeto.
+    this.logic.removeVariable('horse_enabled', objectId)
+    if (this.logic.getVariable('horse_enabled') === undefined) {
+      this.logic.setVariable('horse_enabled', true)
     }
 
     const rules = this.logic.list()
