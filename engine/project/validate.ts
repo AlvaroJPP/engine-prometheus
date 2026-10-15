@@ -219,17 +219,19 @@ export function parseScene(text: string, label = 'cena'): SceneFile {
     })
   }
 
+  const environment = isRecord(obj.environment) ? obj.environment : undefined
+
   return {
     formatVersion: FORMAT_VERSION, // já migrado para o formato atual
     id: reqString(obj, 'id', label),
     name: typeof obj.name === 'string' ? obj.name : 'Cena',
     camera: parseCamera(obj.camera, label),
     terrain: parseTerrain(obj.terrain, version, label),
-    environment: obj.environment && typeof obj.environment === 'object' ? {
-      ...(typeof obj.environment.skyTextureDataUrl === 'string' ? { skyTextureDataUrl: obj.environment.skyTextureDataUrl } : {}),
-      timeOfDay: isNum(obj.environment.timeOfDay) ? Math.min(24, Math.max(0, obj.environment.timeOfDay)) : 12,
-      cycleEnabled: obj.environment.cycleEnabled === true,
-      cycleSpeed: isNum(obj.environment.cycleSpeed) ? Math.min(4, Math.max(0.01, obj.environment.cycleSpeed)) : 0.1,
+    environment: environment ? {
+      ...(typeof environment.skyTextureDataUrl === 'string' ? { skyTextureDataUrl: environment.skyTextureDataUrl } : {}),
+      timeOfDay: isNum(environment.timeOfDay) ? Math.min(24, Math.max(0, environment.timeOfDay)) : 12,
+      cycleEnabled: environment.cycleEnabled === true,
+      cycleSpeed: isNum(environment.cycleSpeed) ? Math.min(4, Math.max(0.01, environment.cycleSpeed)) : 0.1,
     } : undefined,
     objects,
   }
