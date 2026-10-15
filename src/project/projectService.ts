@@ -23,13 +23,6 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 function parseDataUrl(dataUrl: string): { mime: string; base64: string; extension: string } {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/.exec(dataUrl)
   if (!match) throw new Error('Uma textura do projeto tem um formato de imagem inválido.')
@@ -103,7 +96,7 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   onProgress?.('Salvamento concluído.', 100)
 }
 
-async function hydrateSceneAssets(dir: string, rawText: string, label: string): Promise<string> {
+async function hydrateSceneAssets(dir: string, rawText: string): Promise<string> {
   let scene: SceneFile
   try {
     scene = JSON.parse(rawText) as SceneFile
@@ -140,7 +133,7 @@ export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress)
     const path = project.scenes[index]
     const raw = await invoke<string>('read_project_file', { dir, rel: path })
     onProgress?.(`Carregando recursos da cena ${index + 1}/${totalScenes}…`, Math.round(5 + ((index + 1) / totalScenes) * 65))
-    const hydrated = await hydrateSceneAssets(dir, raw, path)
+    const hydrated = await hydrateSceneAssets(dir, raw)
     scenes[path] = parseScene(hydrated, path)
   }
   if (!scenes[MAIN_SCENE_PATH] && Object.keys(scenes).length === 0) {
