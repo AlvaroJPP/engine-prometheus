@@ -129,6 +129,9 @@ async function applyRecoveredColorTexture(materialIndex: number) {
     const applied = (root.userData.importRecoveredColorTextures as Record<string, number> | undefined) ?? {}
     applied[String(materialIndex)] = imageIndex
     root.userData.importRecoveredColorTextures = applied
+    const recoveredTextures = (root.userData.importRecoveredTextures as THREE.Texture[] | undefined) ?? []
+    recoveredTextures.push(texture)
+    root.userData.importRecoveredTextures = recoveredTextures
     textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialInfo.name || materialIndex}. O mapa normal e os demais mapas foram preservados.`
     refreshModelDiagnostics()
   } catch (e) {
@@ -220,6 +223,8 @@ function clearLoadedModel() {
   previewMixer = null
   if (model.value) {
     scene?.remove(model.value)
+    const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
+    recoveredTextures?.forEach(texture => texture.dispose())
     disposeModel(model.value)
   }
   model.value = null
@@ -605,7 +610,7 @@ onBeforeUnmount(disposePreview)
               <div class="model-diagnostic-row">
                 <div class="model-diagnostic-title"><b>MAPAS</b><span>Associação original de texturas por material</span></div>
                 <template v-for="material in ((model.userData.importGltfMetadata as GltfMetadata | undefined)?.materials ?? [])" :key="'material-' + material.index">
-                  <small>{{ material.name || ('Material ' + material.index) }}: cor={{ material.baseColorTexture ?? 'nenhuma' }}, normal={{ material.normalTexture ?? 'nenhuma' }}, oclusão={{ material.occlusionTexture ?? 'nenhuma' }}, emissiva={{ material.emissiveTexture ?? 'nenhuma' }}{{ material.baseColorFactor ? ', fator=' + material.baseColorFactor.join('/') : '' }}</small>
+                  <small>{{ material.name || ('Material ' + material.index) }}: cor={{ material.baseColorTexture ?? (((model.userData.importRecoveredColorTextures as Record<string, number> | undefined)?.[String(material.index)] !== undefined) ? 'imagem recuperada ' + (model.userData.importRecoveredColorTextures as Record<string, number>)[String(material.index)] : 'nenhuma') }}, normal={{ material.normalTexture ?? 'nenhuma' }}, oclusão={{ material.occlusionTexture ?? 'nenhuma' }}, emissiva={{ material.emissiveTexture ?? 'nenhuma' }}{{ material.baseColorFactor ? ', fator=' + material.baseColorFactor.join('/') : '' }}</small>
                 </template>
                 <small v-if="!((model.userData.importGltfMetadata as GltfMetadata | undefined)?.materials?.length)">Nenhum material declarado no JSON glTF.</small>
               </div>
