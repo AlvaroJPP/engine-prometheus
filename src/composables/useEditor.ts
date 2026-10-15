@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Ref } from 'vue'
+import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID } from '@engine'
 import type {
   CameraPreset,
@@ -315,6 +316,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function addPrimitive(type: ObjectType) {
     engine?.addPrimitive(type)
+  }
+
+  function setBuildComponentPlacement(name: string, model: Object3D, height: number) {
+    engine?.setBuildComponentPlacement(name, model, height)
+    say(`Componente "${name}" selecionado. Clique em Construir e depois no mundo para posicioná-lo.`)
   }
 
   function addImportedModel(name: string, model: import('three').Object3D, height: number) {
@@ -862,6 +868,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setTransform,
     addPrimitive,
     addImportedModel,
+    setBuildComponentPlacement,
     addClickableCubeExample,
     cycleCamera,
     setFirstPersonMode,
