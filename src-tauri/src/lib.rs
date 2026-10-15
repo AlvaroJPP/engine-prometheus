@@ -97,22 +97,35 @@ fn find_blender() -> Result<PathBuf, String> {
         for variable in ["ProgramFiles", "ProgramW6432", "LOCALAPPDATA"] {
             if let Some(root) = std::env::var_os(variable) {
                 let root = PathBuf::from(root);
-                let candidates = [
-                    root.join("Blender Foundation").join("Blender"),
-                    root.join("Programs").join("Blender Foundation").join("Blender"),
+                let roots = [
+                    root.join("Blender Foundation"),
+                    root.join("Programs").join("Blender Foundation"),
                 ];
-                for directory in candidates {
+                for directory in roots {
                     if directory.is_dir() {
                         if let Ok(entries) = fs::read_dir(&directory) {
-                            let mut versions: Vec<PathBuf> = entries.flatten()
+                            let mut installs: Vec<PathBuf> = entries.flatten()
                                 .map(|entry| entry.path())
                                 .filter(|path| path.is_dir())
                                 .collect();
-                            versions.sort();
-                            versions.reverse();
-                            for version in versions {
-                                let exe = version.join("blender.exe");
+                            installs.sort();
+                            installs.reverse();
+                            for install in installs {
+                                let exe = install.join("blender.exe");
                                 if exe.is_file() { return Ok(exe); }
+                                // Também reconhece instalações organizadas como Blender/4.x.
+                                if let Ok(versions) = fs::read_dir(&install) {
+                                    let mut versions: Vec<PathBuf> = versions.flatten()
+                                        .map(|entry| entry.path())
+                                        .filter(|path| path.is_dir())
+                                        .collect();
+                                    versions.sort();
+                                    versions.reverse();
+                                    for version in versions {
+                                        let exe = version.join("blender.exe");
+                                        if exe.is_file() { return Ok(exe); }
+                                    }
+                                }
                             }
                         }
                     }
