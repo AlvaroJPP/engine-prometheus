@@ -287,9 +287,9 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'horse_mount': this.mountActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
-      case 'horse_dismount': this.mountActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
-      case 'horse_toggle_mount': this.mountActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
+      case 'mount_entity': this.mountActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
+      case 'dismount_entity': this.mountActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
+      case 'toggle_entity_mount': this.mountActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
