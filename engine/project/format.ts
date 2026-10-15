@@ -20,6 +20,7 @@ export interface SceneObjectData {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
 }
 
 export interface TerrainData {
