@@ -789,12 +789,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             ? { type: 'javascript', code: scriptCode?.trim() || "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
-              : ruleAction.value === 'horse_mount'
-                ? { type: 'horse_mount' }
-                : ruleAction.value === 'horse_dismount'
-                  ? { type: 'horse_dismount' }
-                  : ruleAction.value === 'horse_toggle_mount'
-                    ? { type: 'horse_toggle_mount' }
+              : ruleAction.value === 'mount_entity'
+                ? { type: 'mount_entity' }
+                : ruleAction.value === 'dismount_entity'
+                  ? { type: 'dismount_entity' }
+                  : ruleAction.value === 'toggle_entity_mount'
+                    ? { type: 'toggle_entity_mount' }
                     : { type: 'set_variable', name: 'has_key', value: true }
     const rule: LogicRule = { ownerObjectId: target, id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
