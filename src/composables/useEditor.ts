@@ -41,6 +41,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const projectDir = ref<string | null>(null)
   const dirty = ref(false)
   const status = ref('')
+  const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
   const terrain = ref<TerrainInfo>({ visible: true, seed: 0, edits: 0 })
   const selectedId = ref<string | null>(null)
@@ -782,13 +783,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     try {
       const dir = await chooseFolder('Abrir projeto: escolha a pasta do projeto')
       if (!dir) return
-      const bundle = await loadProjectFrom(dir)
+      ioProgress.value = { active: true, kind: 'load', message: 'Preparando o carregamento…', percent: 0 }
+      const bundle = await loadProjectFrom(dir, (message, percent) => {
+        ioProgress.value = { active: true, kind: 'load', message, percent }
+        status.value = message
+      })
+      ioProgress.value = { active: true, kind: 'load', message: 'Construindo o mundo 3D…', percent: 97 }
       applyingProjectSettings = true
       try {
         await eng.loadProject(bundle)
-        // loadProject substitui a cena antes de carregar logic/events.json.
-        // O evento worldReset atualiza a interface cedo demais; sincronize novamente
-        // agora que regras, variáveis e scripts já foram carregados.
         refresh()
         brushStrength.value = bundle.project.settings.editor.brushStrength
         brushRadius.value = bundle.project.settings.editor.brushRadius
@@ -802,6 +805,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       say(`Projeto aberto: ${dir}`)
     } catch (e) {
       say(`Erro ao abrir: ${errMsg(e)}`)
+    } finally {
+      ioProgress.value = { ...ioProgress.value, active: false }
     }
   }
 
@@ -818,13 +823,19 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         }
         dir = picked
       }
+      ioProgress.value = { active: true, kind: 'save', message: 'Preparando os recursos para salvar…', percent: 0 }
       eng.setProjectName(projectName.value)
-      await saveProjectTo(dir, eng.exportProject())
+      await saveProjectTo(dir, eng.exportProject(), (message, percent) => {
+        ioProgress.value = { active: true, kind: 'save', message, percent }
+        status.value = message
+      })
       projectDir.value = dir
       dirty.value = false
       say(`Salvo em ${dir}`)
     } catch (e) {
       say(`Erro ao salvar: ${errMsg(e)}`)
+    } finally {
+      ioProgress.value = { ...ioProgress.value, active: false }
     }
   }
 
@@ -892,6 +903,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     projectName,
     dirty,
     status,
+    ioProgress,
     objects,
     terrain,
     selectedId,
