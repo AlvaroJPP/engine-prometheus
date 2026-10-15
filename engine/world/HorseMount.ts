@@ -201,18 +201,8 @@ export class HorseMount {
         (model) => {
           if (!this.mesh.parent) return
           model.name = 'CommittedHorseLPFBX'
-          model.updateMatrixWorld(true)
-          const initialBounds = new THREE.Box3().setFromObject(model)
-          const size = initialBounds.getSize(new THREE.Vector3())
-          if (size.y <= 0 || !Number.isFinite(size.y)) return
-
-          model.scale.multiplyScalar(2.55 / size.y)
-          model.updateMatrixWorld(true)
-          const bounds = new THREE.Box3().setFromObject(model)
-          const center = bounds.getCenter(new THREE.Vector3())
-          model.position.x -= center.x
-          model.position.z -= center.z
-          model.position.y -= bounds.min.y
+          // Preserva exatamente escala, orientação e origem do arquivo FBX.
+          // Não redimensiona nem recentraliza a malha, pois isso alterava sua aparência.
           model.updateMatrixWorld(true)
 
           for (const child of [...this.mesh.children]) {
@@ -293,26 +283,88 @@ export class HorseMount {
     }
   }
 
-  /** Bloqueia o deslocamento do cavalo ao tocar os colisores do cenário. */
+  /**
+   * Colisão poligonal do cavalo: usa os triângulos visíveis dos objetos,
+   * igual ao avatar, com vários pontos distribuídos pelo volume corporal.
+   */
   private collidesAt(x: number, z: number): boolean {
+    const groundY = this.world.terrain.heightAt(x, z)
     const yaw = this.mesh.rotation.y
-    const halfX = Math.abs(Math.cos(yaw)) * 0.5 + Math.abs(Math.sin(yaw)) * 1.05
-    const halfZ = Math.abs(Math.sin(yaw)) * 0.5 + Math.abs(Math.cos(yaw)) * 1.05
-    const minY = this.world.terrain.heightAt(x, z) + 0.08
-    const maxY = minY + 1.85
+    const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
+    const samples = [
+      { offset: forward.clone().multiplyScalar(0.78), y: 0.62, radius: 0.42 },
+      { offset: forward.clone().multiplyScalar(0.45), y: 1.12, radius: 0.46 },
+      { offset: new THREE.Vector3(), y: 1.48, radius: 0.42 },
+      { offset: forward.clone().multiplyScalar(-0.55), y: 1.12, radius: 0.46 },
+      { offset: forward.clone().multiplyScalar(-0.82), y: 0.62, radius: 0.40 },
+      { offset: right.clone().multiplyScalar(0.34), y: 0.95, radius: 0.42 },
+      { offset: right.clone().multiplyScalar(-0.34), y: 0.95, radius: 0.42 },
+    ]
+    const triangle = new THREE.Triangle()
+    const a = new THREE.Vector3()
+    const b = new THREE.Vector3()
+    const c = new THREE.Vector3()
+    const closest = new THREE.Vector3()
+    const normal = new THREE.Vector3()
+    const worldSamples = samples.map((sample) => ({
+      center: new THREE.Vector3(x + sample.offset.x, groundY + sample.y, z + sample.offset.z),
+      radiusSq: sample.radius * sample.radius,
+    }))
 
     for (const object of this.world.list()) {
-      const obstacle = object.mesh
-      if (!obstacle.visible || obstacle.userData.colliderType === 'none') continue
-      obstacle.updateWorldMatrix(true, false)
-      if (!obstacle.geometry.boundingBox) obstacle.geometry.computeBoundingBox()
-      const local = obstacle.geometry.boundingBox
-      if (!local) continue
-      const bounds = local.clone().applyMatrix4(obstacle.matrixWorld)
-      if (maxY <= bounds.min.y + 0.02 || minY >= bounds.max.y - 0.02) continue
-      if (x + halfX <= bounds.min.x || x - halfX >= bounds.max.x) continue
-      if (z + halfZ <= bounds.min.z || z - halfZ >= bounds.max.z) continue
-      return true
+      const root = object.mesh
+      if (!root.visible || root.userData.colliderType === 'none') continue
+      root.updateWorldMatrix(true, true)
+      const meshes: THREE.Mesh[] = []
+      root.traverse((child) => {
+        if (!(child instanceof THREE.Mesh) || !child.visible) return
+        if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+        if (root.userData.importedModel === true && child === root) return
+        meshes.push(child)
+      })
+
+      for (const mesh of meshes) {
+        const geometry = mesh.geometry
+        const position = geometry.getAttribute('position')
+        if (!position || position.count < 3) continue
+        if (!geometry.boundingBox) geometry.computeBoundingBox()
+        if (!geometry.boundingBox) continue
+        const bounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        let candidate = false
+        for (const sample of worldSamples) {
+          const r = Math.sqrt(sample.radiusSq)
+          if (
+            sample.center.x + r >= bounds.min.x && sample.center.x - r <= bounds.max.x &&
+            sample.center.y + r >= bounds.min.y && sample.center.y - r <= bounds.max.y &&
+            sample.center.z + r >= bounds.min.z && sample.center.z - r <= bounds.max.z
+          ) {
+            candidate = true
+            break
+          }
+        }
+        if (!candidate) continue
+
+        const index = geometry.getIndex()
+        const triangleCount = Math.floor((index ? index.count : position.count) / 3)
+        for (let i = 0; i < triangleCount; i++) {
+          const ia = index ? index.getX(i * 3) : i * 3
+          const ib = index ? index.getX(i * 3 + 1) : i * 3 + 1
+          const ic = index ? index.getX(i * 3 + 2) : i * 3 + 2
+          a.fromBufferAttribute(position, ia).applyMatrix4(mesh.matrixWorld)
+          b.fromBufferAttribute(position, ib).applyMatrix4(mesh.matrixWorld)
+          c.fromBufferAttribute(position, ic).applyMatrix4(mesh.matrixWorld)
+          triangle.set(a, b, c)
+          triangle.getNormal(normal).normalize()
+          // Faces de piso não bloqueiam a locomoção horizontal; faces laterais e
+          // inferiores continuam sólidas, como no colisor do personagem.
+          if (normal.y >= 0.45) continue
+          for (const sample of worldSamples) {
+            triangle.closestPointToPoint(sample.center, closest)
+            if (sample.center.distanceToSquared(closest) < sample.radiusSq) return true
+          }
+        }
+      }
     }
     return false
   }
