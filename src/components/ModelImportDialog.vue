@@ -384,26 +384,47 @@ async function importBlendZip() {
     const selected = await openNativeDialog({
       multiple: false,
       directory: false,
-      title: 'Selecionar ZIP com projeto Blender e texturas',
+      title: 'Selecionar ZIP com modelo glTF e texturas',
       filters: [{ name: 'Arquivo ZIP', extensions: ['zip'] }],
     })
     if (!selected || Array.isArray(selected)) return
-    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo Blender.zip'
-    const encoded = await invoke<string>('convert_blend_zip', { zipPath: selected })
-    const binary = atob(encoded)
-    const bytes = new Uint8Array(binary.length)
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-    const loaded = await parseGlbBytes(bytes.buffer)
-    await showLoadedModel(loaded, fileName.value.replace(/\.zip$/i, '.glb'))
+    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo glTF.zip'
+    const jsonText = await invoke<string>('load_gltf_zip', { zipPath: selected })
+    const loader = new GLTFLoader()
+    const loaded = await new Promise<THREE.Object3D>((resolve, reject) => {
+      loader.parse(jsonText, '', (gltf) => {
+        gltf.scene.userData.importAnimations = gltf.animations ?? []
+        gltf.scene.userData.importGltfMetadata = {
+          images: (gltf.parser.json.images ?? []).map((image, index) => ({
+            index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
+          })),
+          textures: (gltf.parser.json.textures ?? []).map((texture, index) => ({
+            index, name: texture.name ?? '', source: texture.source ?? null,
+          })),
+          materials: (gltf.parser.json.materials ?? []).map((material, index) => ({
+            index, name: material.name ?? '',
+            baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
+            normalTexture: material.normalTexture?.index ?? null,
+            occlusionTexture: material.occlusionTexture?.index ?? null,
+            emissiveTexture: material.emissiveTexture?.index ?? null,
+            baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
+          })),
+          animations: (gltf.parser.json.animations ?? []).map((clip, index) => ({
+            index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
+          })),
+        }
+        resolve(gltf.scene)
+      }, reject)
+    })
+    await showLoadedModel(loaded, fileName.value.replace(/\\.zip$/i, '.gltf'))
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e || 'Falha ao converter ZIP do Blender.')
+    error.value = e instanceof Error ? e.message : String(e || 'Falha ao carregar glTF do ZIP.')
     fileName.value = ''
     clearLoadedModel()
   } finally {
     loading.value = false
   }
 }
-
 async function chooseFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
@@ -485,8 +506,8 @@ onBeforeUnmount(disposePreview)
         </div>
         <aside class="model-import-settings">
           <div class="model-import-section-title">ARQUIVO</div>
-          <button class="model-file-picker model-blend-zip-picker" :disabled="loading" @click="importBlendZip"><span class="file-icon">▣</span><span><strong>Importar ZIP do Blender</strong><small>.blend + texturas PNG/JPG</small></span><b>＋</b></button>
-          <p class="model-import-note">O Blender precisa estar instalado. O ZIP será extraído temporariamente e convertido para GLB com materiais e animações suportados.</p>
+          <button class="model-file-picker model-blend-zip-picker" :disabled="loading" @click="importBlendZip"><span class="file-icon">▣</span><span><strong>Importar ZIP com glTF</strong><small>.gltf + .bin + texturas</small></span><b>＋</b></button>
+          <p class="model-import-note">Não precisa do Blender. O ZIP deve conter um arquivo .gltf e os arquivos .bin/texturas referenciados por ele.</p>
           <button class="model-file-picker" @click="fileInput?.click()"><span class="file-icon">▧</span><span><strong>{{ fileName || 'Selecionar arquivo' }}</strong><small>GLB · glTF · OBJ · STL · FBX</small></span><b>＋</b></button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.obj,.stl,.fbx" @change="chooseFile" />
           <p class="model-import-note">glTF com texturas externas pode exigir que os arquivos relacionados estejam acessíveis junto ao modelo.</p>
