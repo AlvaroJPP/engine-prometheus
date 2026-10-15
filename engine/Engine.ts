@@ -304,6 +304,27 @@ export class Engine {
     this.world.select(spawn.id)
   }
 
+  /** Clona e vincula ao objeto os nós embutidos no asset reutilizável. */
+  private applyComponentLogic(objectId: string, templates: unknown): void {
+    if (!Array.isArray(templates)) return
+    for (const raw of templates) {
+      if (!raw || typeof raw !== 'object') continue
+      const template = JSON.parse(JSON.stringify(raw)) as LogicRule
+      const remap = (value: string): string => value === '{ID_OBJECT}' ? objectId : value
+      template.id = `${template.id || 'component-event'}-${objectId}`
+      template.ownerObjectId = objectId
+      if (template.trigger.type === 'object_clicked') {
+        template.trigger.objectId = remap(template.trigger.objectId)
+      }
+      for (const action of template.actions) {
+        if ('objectId' in action && typeof action.objectId === 'string') {
+          action.objectId = remap(action.objectId)
+        }
+      }
+      this.logic.upsert(template)
+    }
+  }
+
   /** Garante que o componente de cavalo já venha com um fluxo visual de montaria. */
   private ensureHorseLogic(objectId: string): void {
     const existing = this.logic.list().some(rule =>
@@ -331,7 +352,7 @@ export class Engine {
   }
 
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
-  private placeNativeHorseComponent(x: number, baseY: number, z: number, name: string): void {
+  private placeNativeHorseComponent(x: number, baseY: number, z: number, name: string, componentLogic?: unknown): void {
     const height = 2.05
     const root = new THREE.Mesh(
       new THREE.BoxGeometry(1.55, height, 2.8),
@@ -358,6 +379,8 @@ export class Engine {
     const id = `horse_component_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
     root.userData.id = id
     this.world.add({ id, name: root.name, type: 'cube', mesh: root })
+    root.userData.componentLogic = Array.isArray(componentLogic) ? componentLogic : []
+    this.applyComponentLogic(id, componentLogic)
     this.ensureHorseLogic(id)
     this.horseMount.setEditorComponent(root)
     this.world.select(id)
@@ -379,7 +402,7 @@ export class Engine {
     if (!pending) return false
     try {
       if (pending.model.userData.nativeHorseComponent === true) {
-        this.placeNativeHorseComponent(x, baseY, z, pending.name)
+        this.placeNativeHorseComponent(x, baseY, z, pending.name, pending.model.userData.componentLogic)
       } else {
         const existingIds = new Set(this.world.list().map(object => object.id))
         const model = pending.model.clone(true)
@@ -390,6 +413,7 @@ export class Engine {
         created.mesh.position.set(x, baseY + pending.height / 2, z)
         created.mesh.updateMatrixWorld(true)
         this.world.notifyChanged(created.id)
+        this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
       }
       // A ferramenta Construir permanece ativa para colocar várias cópias.
       this.state.tool = 'build'
@@ -715,6 +739,7 @@ export class Engine {
     }
     root.userData.importedModel = true
     root.userData.componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : undefined
+    root.userData.componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
     root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
     root.userData.importedModelHeight = height
     if (restoreData) {
