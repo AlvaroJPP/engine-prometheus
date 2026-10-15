@@ -116,7 +116,7 @@ export class GrassLayer {
     const available = PAINTED_CAPACITY - this.painted.length
     if (available <= 0) return 0
     const area = Math.PI * radius * radius
-    const amount = Math.min(available, Math.max(1, Math.round(area * 1.4 * Math.max(0.1, density))))
+    const amount = Math.min(available, Math.max(1, Math.round(area * 0.22 * Math.max(0.1, density))))
     let added = 0
     for (let i = 0; i < amount; i += 1) {
       const angle = this.random() * Math.PI * 2
