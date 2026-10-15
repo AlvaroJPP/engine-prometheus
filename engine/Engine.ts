@@ -17,6 +17,7 @@ import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
+import { HorseMount } from './world/HorseMount'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -33,6 +34,7 @@ export class Engine {
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
+  private horseMount: HorseMount
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -43,6 +45,7 @@ export class Engine {
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
+    this.horseMount = new HorseMount(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -118,6 +121,7 @@ export class Engine {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
         mixer?.update(dt)
       }
+      this.horseMount.update(dt)
       this.avatar.update(dt)
       this.world.updateEnvironment(dt)
       this.logic.update()
@@ -221,6 +225,7 @@ export class Engine {
       }
       this.avatar.mesh.visible = true
       this.avatar.setEnabled(true)
+      this.horseMount.setRuntimeMode(true, this.avatar.mesh.position)
       this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
       this.orbit.distance = 10
       this.input.setRuntimeMode(true)
@@ -229,6 +234,7 @@ export class Engine {
       return
     }
 
+    this.horseMount.setRuntimeMode(false)
     this.input.setRuntimeMode(false)
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = false
