@@ -23,6 +23,11 @@ const CONTACT_TOLERANCE = 1e-7
 const MAX_RESOLUTION_PASSES = 12
 const AXIS_EPSILON_SQ = 1e-10
 const EDGE_KEY_SCALE = 100000
+const CCD_MIN_STEPS = 4
+const CCD_MAX_STEPS = 64
+const CCD_FRACTION = 0.35
+
+type ColliderType = 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
 
 /** Calcula colisão pela malha-raiz (proxy), sem percorrer todos os triângulos dos filhos GLB/FBX. */
 function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
@@ -43,6 +48,8 @@ function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
 export class CollisionSystem {
   private readonly world: World
   private activePairs = new Map<string, CollisionPair>()
+  private readonly previousPositions = new Map<string, THREE.Vector3>()
+  private readonly colliderGeometries = new Map<string, THREE.BufferGeometry>()
 
   constructor(world: World) {
     this.world = world
@@ -53,9 +60,14 @@ export class CollisionSystem {
     // Modelos importados têm uma caixa proxy para seleção e terreno. Não os inclua
     // no SAT de pares: modelos externos podem ser grandes e não são colisores convexos.
     this.keepObjectsAboveTerrain(objects)
-    const collidableObjects = objects.filter(object => object.mesh.userData.importedModel !== true)
+    const collidableObjects = objects.filter(object => this.colliderType(object) !== 'none')
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
+
+    // CCD (continuous collision detection): detecta movimentos que atravessariam
+    // um obstáculo entre dois frames. Faz varredura adaptativa e busca binária
+    // para deixar o objeto no último ponto seguro, antes da resolução SAT normal.
+    this.resolveContinuousCollisions(collidableObjects)
 
     for (let pass = 0; pass < MAX_RESOLUTION_PASSES; pass += 1) {
       let resolvedAny = false
@@ -129,6 +141,113 @@ export class CollisionSystem {
     }
     this.activePairs = currentPairs
     this.keepObjectsAboveTerrain(objects)
+    for (const object of collidableObjects) {
+      this.previousPositions.set(object.id, object.mesh.position.clone())
+    }
+    const activeIds = new Set(collidableObjects.map(object => object.id))
+    for (const id of this.previousPositions.keys()) {
+      if (!activeIds.has(id)) this.previousPositions.delete(id)
+    }
+  }
+
+  /**
+   * Define o colisor por objeto via mesh.userData.colliderType:
+   * 'auto' (padrão), 'box', 'sphere', 'capsule' ou 'none'.
+   * Para box/sphere/capsule, dimensões e escala vêm da geometria local original.
+   */
+  private colliderType(object: GameObject): ColliderType {
+    const value = object.mesh.userData.colliderType
+    if (value === 'box' || value === 'sphere' || value === 'capsule' || value === 'none') return value
+    return 'auto'
+  }
+
+  private getColliderGeometry(object: GameObject): THREE.BufferGeometry | null {
+    const type = this.colliderType(object)
+    if (type === 'none') return null
+    if (type === 'auto') return object.mesh.geometry
+    const key = `${object.id}:${type}`
+    const cached = this.colliderGeometries.get(key)
+    if (cached) return cached
+    let geometry: THREE.BufferGeometry
+    if (type === 'box') {
+      geometry = new THREE.BoxGeometry(1, 1, 1)
+    } else if (type === 'sphere') {
+      geometry = new THREE.IcosahedronGeometry(0.5, 2)
+    } else {
+      geometry = new THREE.CapsuleGeometry(0.35, 0.3, 4, 8)
+    }
+    this.colliderGeometries.set(key, geometry)
+    return geometry
+  }
+
+  private resolveContinuousCollisions(objects: GameObject[]): void {
+    for (const moving of objects) {
+      if (this.inverseMass(moving) <= 0) continue
+      const previous = this.previousPositions.get(moving.id)
+      if (!previous) continue
+      const target = moving.mesh.position.clone()
+      const distance = previous.distanceTo(target)
+      if (distance < 1e-5) continue
+
+      for (const obstacle of objects) {
+        if (obstacle.id === moving.id) continue
+        // O CCD trata cada par contra a pose atual do outro corpo; a resolução
+        // iterativa SAT posterior trata os contatos entre múltiplos corpos.
+        const obstacleShape = this.buildShape(obstacle)
+        if (!obstacleShape) continue
+        const obstacleBounds = new THREE.Box3().setFromPoints(obstacleShape.vertices)
+        const movingShape = this.buildShape(moving)
+        if (!movingShape) continue
+        const movingBounds = new THREE.Box3().setFromPoints(movingShape.vertices)
+        const expanded = obstacleBounds.clone().expandByVector(
+          movingBounds.getSize(new THREE.Vector3()).multiplyScalar(0.5),
+        )
+        if (!expanded.containsPoint(previous) && !expanded.containsPoint(target)) {
+          const swept = new THREE.Box3().setFromPoints([previous, target])
+          if (!swept.intersectsBox(expanded)) continue
+        }
+
+        const size = movingBounds.getSize(new THREE.Vector3())
+        const smallestExtent = Math.max(0.05, Math.min(size.x || Infinity, size.y || Infinity, size.z || Infinity))
+        const steps = THREE.MathUtils.clamp(Math.ceil(distance / (smallestExtent * CCD_FRACTION)), CCD_MIN_STEPS, CCD_MAX_STEPS)
+        let firstHit = -1
+        for (let step = 1; step <= steps; step += 1) {
+          const t = step / steps
+          moving.mesh.position.copy(previous).lerp(target, t)
+          moving.mesh.updateMatrixWorld(true)
+          const candidate = this.buildShape(moving)
+          if (!candidate) break
+          const candidateBounds = new THREE.Box3().setFromPoints(candidate.vertices)
+          if (candidateBounds.intersectsBox(obstacleBounds) && this.intersectConvex(candidate, obstacleShape)) {
+            firstHit = t
+            break
+          }
+        }
+
+        if (firstHit >= 0) {
+          let low = Math.max(0, firstHit - 1 / steps)
+          let high = firstHit
+          for (let iteration = 0; iteration < 10; iteration += 1) {
+            const mid = (low + high) * 0.5
+            moving.mesh.position.copy(previous).lerp(target, mid)
+            moving.mesh.updateMatrixWorld(true)
+            const candidate = this.buildShape(moving)
+            const hit = candidate && this.intersectConvex(candidate, obstacleShape)
+            if (hit) high = mid
+            else low = mid
+          }
+          // Recuar uma fração mínima do intervalo evita reintroduzir penetração
+          // por arredondamento; não é um afastamento físico entre os objetos.
+          const safeT = Math.max(0, low - 1e-5)
+          moving.mesh.position.copy(previous).lerp(target, safeT)
+          moving.mesh.updateMatrixWorld(true)
+          this.world.notifyChanged(moving.id)
+          break
+        }
+        moving.mesh.position.copy(target)
+        moving.mesh.updateMatrixWorld(true)
+      }
+    }
   }
 
   private inverseMass(object: GameObject): number {
@@ -140,7 +259,8 @@ export class CollisionSystem {
 
   private buildShape(object: GameObject): ConvexShape | null {
     const mesh = object.mesh
-    const geometry = mesh.geometry
+    const geometry = this.getColliderGeometry(object)
+    if (!geometry) return null
     const position = geometry.getAttribute('position')
     if (!position || position.count < 3) return null
 
@@ -265,6 +385,9 @@ export class CollisionSystem {
   clear(): void {
     for (const pair of this.activePairs.values()) this.world.events.emit('collisionEnded', pair)
     this.activePairs.clear()
+    this.previousPositions.clear()
+    for (const geometry of this.colliderGeometries.values()) geometry.dispose()
+    this.colliderGeometries.clear()
   }
 
   private pairKey(a: string, b: string): string {
