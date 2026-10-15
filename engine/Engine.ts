@@ -391,9 +391,17 @@ export class Engine {
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
-    // O grafo visual decide quais objetos reagem à tecla; o motor não fixa a tecla E.
-    // A ação de montaria valida a proximidade do seu próprio componente.
-    if (this.logic.triggerKeyPressed(event.code)) event.preventDefault()
+
+    // O Visual Script continua sendo executado primeiro, preservando regras
+    // personalizadas. A tecla E também possui uma interação nativa de montaria
+    // como fallback: projetos antigos/componentes sem regra KeyE não ficam
+    // impossibilitados de montar. executeNodeAction valida modo Run, alvo e alcance.
+    const executed = this.logic.triggerKeyPressed(event.code)
+    if (event.code === 'KeyE' && !this.horseMount.isMounted) {
+      this.horseMount.executeNodeAction('toggle')
+    }
+
+    if (executed || event.code === 'KeyE') event.preventDefault()
   }
 
   /** Coloca o cavalo nativo do motor como componente editável, sem importar uma cópia visual do GLB. */
