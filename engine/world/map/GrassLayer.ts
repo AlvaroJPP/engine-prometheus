@@ -24,6 +24,7 @@ export class GrassLayer {
     const geometry = new THREE.BufferGeometry()
     const positions: number[] = []
     const colors: number[] = []
+    const uvs: number[] = []
     const indices: number[] = []
     const levels = [0, 0.28, 0.58, 0.82, 1]
     const widths = [0.17, 0.135, 0.09, 0.045, 0.006]
@@ -54,6 +55,7 @@ export class GrassLayer {
           centerX - sideX * halfWidth, y, centerZ - sideZ * halfWidth,
           centerX + sideX * halfWidth, y, centerZ + sideZ * halfWidth,
         )
+        uvs.push(0, t, 1, t)
 
         const shade = baseColor.clone().lerp(tipColor, t * 0.78)
         for (let side = 0; side < 2; side += 1) {
@@ -71,12 +73,60 @@ export class GrassLayer {
 
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
     geometry.setIndex(indices)
     geometry.computeVertexNormals()
 
+    // Textura procedural leve: transparência irregular nas bordas e nervura central.
+    // É gerada localmente, sem baixar arquivos ou depender de conexão.
+    const canvas = document.createElement('canvas')
+    canvas.width = 32
+    canvas.height = 128
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const bladeGradient = ctx.createLinearGradient(0, 0, 32, 0)
+      bladeGradient.addColorStop(0, 'rgba(255,255,255,0.72)')
+      bladeGradient.addColorStop(0.48, 'rgba(255,255,255,1)')
+      bladeGradient.addColorStop(1, 'rgba(255,255,255,0.68)')
+      ctx.fillStyle = bladeGradient
+      ctx.beginPath()
+      ctx.moveTo(16, 0)
+      ctx.bezierCurveTo(5, 28, 1, 72, 16, 128)
+      ctx.bezierCurveTo(31, 72, 27, 28, 16, 0)
+      ctx.fill()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(16, 8)
+      ctx.quadraticCurveTo(14, 60, 16, 120)
+      ctx.stroke()
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.strokeStyle = 'rgba(255,255,255,0.32)'
+      ctx.lineWidth = 1
+      for (let vein = 0; vein < 5; vein += 1) {
+        const y = 24 + vein * 18
+        ctx.beginPath()
+        ctx.moveTo(15, y)
+        ctx.lineTo(7 + (vein % 2) * 3, y + 9)
+        ctx.moveTo(17, y + 3)
+        ctx.lineTo(24 - (vein % 2) * 3, y + 10)
+        ctx.stroke()
+      }
+    }
+    const bladeTexture = new THREE.CanvasTexture(canvas)
+    bladeTexture.colorSpace = THREE.SRGBColorSpace
+    bladeTexture.wrapS = THREE.ClampToEdgeWrapping
+    bladeTexture.wrapT = THREE.ClampToEdgeWrapping
+    bladeTexture.minFilter = THREE.LinearMipmapLinearFilter
+    bladeTexture.magFilter = THREE.LinearFilter
+
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
+      map: bladeTexture,
       vertexColors: true,
+      alphaTest: 0.12,
       side: THREE.DoubleSide,
       roughness: 1,
       metalness: 0,
@@ -259,7 +309,14 @@ uniform float uGrassWindStrength;`,
   dispose(): void {
     this.mesh.geometry.dispose()
     const material = this.mesh.material
-    if (Array.isArray(material)) material.forEach((item) => item.dispose())
-    else material.dispose()
+    if (Array.isArray(material)) {
+      material.forEach((item) => {
+        item.map?.dispose()
+        item.dispose()
+      })
+    } else {
+      material.map?.dispose()
+      material.dispose()
+    }
   }
 }
