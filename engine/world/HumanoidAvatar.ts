@@ -534,22 +534,78 @@ export class HumanoidAvatar {
     )
   }
 
+  /**
+   * Colisão por contato com os triângulos reais das malhas, em coordenadas de mundo.
+   * Faces superiores são piso/rampa; laterais e inferiores bloqueiam o jogador.
+   * O AABB é usado somente para descartar malhas distantes rapidamente.
+   */
   private collidesWithObjects(): boolean {
     const playerBox = this.playerBox()
-    return this.world.list().some((object) => {
-      if (!object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
+    const points = [
+      new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + PLAYER_RADIUS, this.mesh.position.z),
+      new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + PLAYER_HEIGHT * 0.5, this.mesh.position.z),
+      new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + PLAYER_HEIGHT - PLAYER_RADIUS, this.mesh.position.z),
+    ]
+    const triangle = new THREE.Triangle()
+    const a = new THREE.Vector3()
+    const b = new THREE.Vector3()
+    const c = new THREE.Vector3()
+    const closest = new THREE.Vector3()
+    const normal = new THREE.Vector3()
+    const normalMatrix = new THREE.Matrix3()
+    const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
 
-      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 ||
-        Math.abs(object.mesh.rotation.z) > 0.02
+    for (const object of this.world.list()) {
+      const root = object.mesh
+      if (!root.visible || root.userData.colliderType === 'none') continue
+      root.updateWorldMatrix(true, true)
+      const meshes: THREE.Mesh[] = []
+      root.traverse((child) => {
+        if (!(child instanceof THREE.Mesh) || !child.visible) return
+        if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+        // A raiz dos modelos importados é apenas um proxy; use os polígonos visíveis.
+        if (root.userData.importedModel === true && child === root) return
+        meshes.push(child)
+      })
 
-      // Não usar o AABB de uma rampa inclinada como parede: o jogador deve
-      // conseguir avançar horizontalmente; findObjectLanding ajusta a altura
-      // usando a face superior real da rampa.
-      if (rotatedRamp) return false
+      for (const mesh of meshes) {
+        const geometry = mesh.geometry
+        const position = geometry.getAttribute('position')
+        if (!position || position.count < 3) continue
+        if (!geometry.boundingBox) geometry.computeBoundingBox()
+        if (!geometry.boundingBox) continue
+        const bounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        bounds.min.x -= PLAYER_RADIUS
+        bounds.max.x += PLAYER_RADIUS
+        bounds.min.y -= PLAYER_HEIGHT
+        bounds.max.y += PLAYER_RADIUS
+        bounds.min.z -= PLAYER_RADIUS
+        bounds.max.z += PLAYER_RADIUS
+        if (!playerBox.intersectsBox(bounds)) continue
 
-      const objectBox = getColliderBounds(object.mesh)
-      return objectBox !== null && this.hasVolumeOverlap(playerBox, objectBox)
-    })
+        const index = geometry.getIndex()
+        const triangleCount = Math.floor((index ? index.count : position.count) / 3)
+        normalMatrix.getNormalMatrix(mesh.matrixWorld)
+        for (let i = 0; i < triangleCount; i++) {
+          const ia = index ? index.getX(i * 3) : i * 3
+          const ib = index ? index.getX(i * 3 + 1) : i * 3 + 1
+          const ic = index ? index.getX(i * 3 + 2) : i * 3 + 2
+          a.fromBufferAttribute(position, ia).applyMatrix4(mesh.matrixWorld)
+          b.fromBufferAttribute(position, ib).applyMatrix4(mesh.matrixWorld)
+          c.fromBufferAttribute(position, ic).applyMatrix4(mesh.matrixWorld)
+          triangle.set(a, b, c)
+          triangle.getNormal(normal).applyMatrix3(normalMatrix).normalize()
+
+          // Permite caminhar sobre rampas sem tratar sua face superior como parede.
+          if (normal.y >= 0.45) continue
+          for (const point of points) {
+            triangle.closestPointToPoint(point, closest)
+            if (point.distanceToSquared(closest) < radiusSq) return true
+          }
+        }
+      }
+    }
+    return false
   }
 
   private findObjectLanding(oldY: number, nextY: number): number | null {
