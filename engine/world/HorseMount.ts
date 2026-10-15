@@ -820,9 +820,13 @@ export class HorseMount {
   executeNodeAction(action: 'mount' | 'dismount' | 'toggle', objectId?: string): void {
     if (!this.enabled) return
     const target = objectId ? this.world.get(objectId)?.mesh : undefined
-    const isHorseTarget = !target || target.userData.nativeComponentType === 'horse'
-      || target.userData.nativeHorseComponent === true
-      || target.userData.componentId === 'builtin-horse-low-poly'
+    const isHorseTarget = objectId
+      ? !!target && (
+        target.userData.nativeComponentType === 'horse' ||
+        target.userData.nativeHorseComponent === true ||
+        target.userData.componentId === 'builtin-horse-low-poly'
+      )
+      : true
     if (!isHorseTarget) return
 
     // Uma tecla pode disparar regras de vários objetos. Apenas o cavalo atualmente
@@ -834,7 +838,7 @@ export class HorseMount {
     if (this.mounted) return
 
     const targetPosition = target?.position ?? this.mesh.position
-    if (!targetPosition || this.avatar.mesh.position.distanceTo(targetPosition) >= 3.4) return
+    if (this.avatar.mesh.position.distanceTo(targetPosition) >= 3.4) return
     if (target && target !== this.editorComponent) {
       this.editorComponent = target as THREE.Mesh
       this.parkedComponent = target as THREE.Mesh
