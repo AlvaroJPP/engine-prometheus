@@ -363,7 +363,7 @@ function endNodeDrag() {
   graphViewport.value?.classList.remove('is-panning')
 }
 function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
-  if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : 'Ao entrar na área'
+  if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : rule.trigger.type === 'key_pressed' ? `Ao pressionar ${rule.trigger.key}` : 'Ao entrar na área'
   if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
   const action = rule.actions[0]; if (!action) return 'Sem ação'
   return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : action.type === 'horse_mount' ? 'Montar no cavalo' : action.type === 'horse_dismount' ? 'Desmontar do cavalo' : action.type === 'horse_toggle_mount' ? 'Alternar montaria (E)' : 'Executar script'
