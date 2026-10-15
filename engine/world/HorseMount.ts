@@ -819,18 +819,31 @@ export class HorseMount {
 
   executeNodeAction(action: 'mount' | 'dismount' | 'toggle', objectId?: string): void {
     if (!this.enabled) return
+    const target = objectId ? this.world.get(objectId)?.mesh : undefined
+    const isHorseTarget = !target || target.userData.nativeComponentType === 'horse'
+      || target.userData.nativeHorseComponent === true
+      || target.userData.componentId === 'builtin-horse-low-poly'
+    if (!isHorseTarget) return
+
+    // Uma tecla pode disparar regras de vários objetos. Apenas o cavalo atualmente
+    // montado pode desmontar o jogador; eventos de outros cavalos não o alternam.
     if (action === 'dismount' || (action === 'toggle' && this.mounted)) {
-      this.dismount(true)
+      if (this.mounted && (!target || target === this.editorComponent)) this.dismount(true)
       return
     }
-    const target = objectId ? this.world.get(objectId)?.mesh : undefined
-    if (target && target.userData.nativeComponentType !== 'horse' && target.userData.nativeHorseComponent !== true && target.userData.componentId !== 'builtin-horse-low-poly') return
+    if (this.mounted) return
+
+    const targetPosition = target?.position ?? this.mesh.position
+    if (!targetPosition || this.avatar.mesh.position.distanceTo(targetPosition) >= 3.4) return
     if (target && target !== this.editorComponent) {
       this.editorComponent = target as THREE.Mesh
       this.parkedComponent = target as THREE.Mesh
+      this.parkedComponentHeight = Number(target.userData.importedModelHeight) > 0
+        ? Number(target.userData.importedModelHeight)
+        : HORSE_HEIGHT
       this.syncTransformFromComponent()
     }
-    if (!this.mounted && this.mesh.visible && this.avatar.mesh.position.distanceTo(this.mesh.position) < 3.4) this.mount()
+    if (this.mesh.visible) this.mount()
   }
 
   private mount(): void {
