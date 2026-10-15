@@ -261,8 +261,7 @@ export class HorseMount {
     }).catch((error) => console.error('[HorseMount] Falha ao inicializar o carregador FBX.', error))
   }
 
-  private updateProceduralAnimation(dt: number, moving: boolean): void {
-    const frequency = this.galloping ? 15 : 8
+  private updateProceduralAnimation(_dt: number, moving: boolean): void {
     const amplitude = moving ? (this.galloping ? 0.72 : 0.38) : 0.025
     const phase = this.animationTime
     const legPattern = /(front|fore|hind|back|leg|thigh|shin|hoof|foot|fetlock|knee)/i
