@@ -324,12 +324,6 @@ export class Engine {
           action.objectId = remap(action.objectId)
         }
       }
-      // Inicializa apenas a variável exigida pelo próprio script salvo do cavalo.
-      // A montaria continua dependendo do gatilho e das ações desse Visual Script.
-      if (template.conditions.some(condition => condition.name === 'horse_enabled') &&
-          this.logic.getVariable('horse_enabled') === undefined) {
-        this.logic.setVariable('horse_enabled', true)
-      }
       this.logic.upsert(template)
     }
   }
