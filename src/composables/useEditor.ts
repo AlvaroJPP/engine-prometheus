@@ -740,7 +740,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       const bundle = await loadProjectFrom(dir)
       applyingProjectSettings = true
       try {
-        eng.loadProject(bundle)
+        await eng.loadProject(bundle)
         // loadProject substitui a cena antes de carregar logic/events.json.
         // O evento worldReset atualiza a interface cedo demais; sincronize novamente
         // agora que regras, variáveis e scripts já foram carregados.
