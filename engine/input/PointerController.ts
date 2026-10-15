@@ -104,7 +104,10 @@ export class PointerController {
    * sobe pela hierarquia até encontrar o GameObject que possui o ID.
    */
   private objectHit(): THREE.Intersection | undefined {
-    const hits = this.raycaster.intersectObjects(this.world.pickables(), true)
+    // O objeto-raiz já possui uma malha proxy de seleção. Não percorra as
+    // malhas internas dos modelos GLB/FBX: alguns assets têm centenas de
+    // milhares de triângulos e travavam a construção por raycast recursivo.
+    const hits = this.raycaster.intersectObjects(this.world.pickables(), false)
     return hits.find((hit) => this.objectIdFromHit(hit.object) !== null)
   }
 
