@@ -399,8 +399,13 @@ export class HorseMount {
   }
 
   private syncMountedVisuals(): void {
-    // Nunca desenha o cavalo isolado por cima do modelo combinado (ou vice-versa).
-    for (const child of this.mesh.children) child.visible = this.mounted ? child === this.riderModel : child !== this.riderModel
+    // Usa o GLB combinado quando disponível. Enquanto ele carrega (ou se falhar),
+    // mantém o cavalo isolado visível e usa o avatar separado como cavaleiro.
+    for (const child of this.mesh.children) {
+      child.visible = this.mounted && this.riderModel
+        ? child === this.riderModel
+        : child !== this.riderModel
+    }
     if (this.riderModel && this.mounted) this.avatar.mesh.visible = false
     else if (this.mounted) this.avatar.mesh.visible = true
   }
