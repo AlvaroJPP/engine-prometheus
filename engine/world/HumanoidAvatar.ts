@@ -679,6 +679,43 @@ export class HumanoidAvatar {
       if (!root.visible || root.userData.colliderType === 'none') continue
       root.updateWorldMatrix(true, true)
 
+      // O cavalo usa um colisor simples independente da malha visual. Não teste
+      // os triângulos de corpo, rédeas, sela, estribos ou cascos: eles criavam
+      // pequenas paredes invisíveis ao redor do modelo.
+      const isHorseCollider = root === this.externalCollider ||
+        root.userData.nativeHorseComponent === true ||
+        root.userData.nativeComponentType === 'horse' ||
+        root.userData.componentId === 'builtin-horse-low-poly'
+      if (isHorseCollider) {
+        const configuredSize = root.userData.colliderSize
+        const size = Array.isArray(configuredSize) && configuredSize.length === 3
+          ? new THREE.Vector3(
+            Math.max(0.05, Number(configuredSize[0]) || 0.95),
+            Math.max(0.05, Number(configuredSize[1]) || 1.35),
+            Math.max(0.05, Number(configuredSize[2]) || 1.6),
+          )
+          : new THREE.Vector3(0.95, 1.35, 1.6)
+        const configuredOffset = root.userData.colliderOffset
+        const offset = Array.isArray(configuredOffset) && configuredOffset.length === 3
+          ? new THREE.Vector3(
+            Number(configuredOffset[0]) || 0,
+            Number(configuredOffset[1]) || 0,
+            Number(configuredOffset[2]) || 0,
+          )
+          : new THREE.Vector3(0, root === this.externalCollider ? 0.8 : 0.02, 0)
+        const localCollider = new THREE.Box3(
+          offset.clone().sub(size.clone().multiplyScalar(0.5)),
+          offset.clone().add(size.clone().multiplyScalar(0.5)),
+        )
+        const colliderBounds = localCollider.applyMatrix4(root.matrixWorld)
+        colliderBounds.min.x -= PLAYER_RADIUS
+        colliderBounds.max.x += PLAYER_RADIUS
+        colliderBounds.min.z -= PLAYER_RADIUS
+        colliderBounds.max.z += PLAYER_RADIUS
+        if (playerBox.intersectsBox(colliderBounds)) return true
+        continue
+      }
+
       const meshes: THREE.Mesh[] = []
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || !child.visible) return
