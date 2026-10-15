@@ -12,6 +12,7 @@ import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import horseComponentUrl from '../low_poly_horse.glb?url'
 import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
 import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 
@@ -22,6 +23,7 @@ const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
+const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 const {
@@ -496,6 +498,63 @@ async function refreshSavedComponents() {
   }
 }
 
+/** Registra o cavalo do projeto como componente reutilizável na biblioteca local. */
+async function ensureHorseComponent() {
+  const componentId = 'builtin-horse-low-poly'
+  if (savedComponents.value.some(component => component.id === componentId || component.name === 'Cavalo Low Poly')) return
+  try {
+    const response = await fetch(horseComponentUrl)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const bytes = await response.arrayBuffer()
+    const loader = new GLTFLoader()
+    const gltf = await new Promise<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }>((resolve, reject) => {
+      loader.parse(bytes.slice(0), '', resolve, reject)
+    })
+    const bounds = new THREE.Box3().setFromObject(gltf.scene)
+    const size = bounds.getSize(new THREE.Vector3())
+    if (bounds.isEmpty() || size.y <= 0) throw new Error('O modelo do cavalo não possui dimensões válidas.')
+    const targetHeight = 2.05
+    const scale = targetHeight / size.y
+    // Caixa envolvendo principalmente o tronco, evitando um colisor que alcance
+    // desnecessariamente a cabeça e a cauda. Pode ser ajustada no Inspetor.
+    const colliderSize: [number, number, number] = [
+      Math.max(0.6, size.x * scale * 1.08),
+      Math.max(0.65, Math.min(1.45, targetHeight * 0.68)),
+      Math.max(0.8, size.z * scale * 0.78),
+    ]
+    const component: SavedComponent = {
+      id: componentId,
+      name: 'Cavalo Low Poly',
+      height: targetHeight,
+      colliderType: 'box',
+      colliderSize,
+      colliderOffset: [0, 0, 0],
+      bytes,
+      createdAt: Date.now(),
+    }
+    await saveComponentAsset(component)
+    await refreshSavedComponents()
+  } catch (error) {
+    console.warn('[ComponentLibrary] Não foi possível registrar o cavalo padrão:', error)
+  }
+}
+
+async function previewSavedComponent(id: string) {
+  try {
+    const component = await getSavedComponent(id)
+    if (!component) throw new Error('Este componente não está mais na biblioteca.')
+    previewComponentAsset.value = { name: component.name, bytes: component.bytes.slice(0) }
+    modelImportOpen.value = true
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível abrir a prévia do componente.'
+  }
+}
+
+function closeModelImport() {
+  modelImportOpen.value = false
+  previewComponentAsset.value = null
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   const chunkSize = 0x8000
@@ -605,7 +664,12 @@ async function removeSavedComponent(id: string) {
   }
 }
 
-onMounted(() => { void refreshSavedComponents() })
+onMounted(() => {
+  void (async () => {
+    await refreshSavedComponents()
+    await ensureHorseComponent()
+  })()
+})
 
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
@@ -664,12 +728,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @toggle-wireframe="toggleObjectWireframe"
         @place-component="placeSavedComponent"
         @delete-component="removeSavedComponent"
+         @preview-component="previewSavedComponent"
       />
 
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
-        <button class="model-import-launch" @click="modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
+        <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
           <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
@@ -1205,7 +1270,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" @close="modelImportOpen = false" @import="handleModelImport" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" @close="closeModelImport" @import="handleModelImport" />
   </div>
 </template>
 
