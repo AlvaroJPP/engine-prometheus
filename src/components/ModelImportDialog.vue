@@ -680,7 +680,7 @@ onBeforeUnmount(disposePreview)
           <section class="model-panel-section">
             <div class="model-panel-heading"><span>01</span> ORIGEM DO ATIVO</div>
             <button class="model-file-dropzone" :disabled="loading" @click="fileInput?.click()">
-              <span class="model-dropzone-icon">↥</span><strong>Selecionar arquivo</strong><small>Arraste mentalmente não: escolha no seu computador</small>
+              <span class="model-dropzone-icon">↥</span><strong>Selecionar arquivo</strong><small>Escolha um arquivo no seu computador</small>
               <span class="model-dropzone-formats">3D · GLB · GLTF · FBX · OBJ · STL · PLY · DAE · 3DS</span>
               <span class="model-dropzone-formats">2D · PNG · JPG · WEBP · SVG</span>
             </button>
