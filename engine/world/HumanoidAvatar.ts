@@ -639,7 +639,12 @@ export class HumanoidAvatar {
         const surfaceY = hit.point.y
         const rise = surfaceY - oldY
         const canStepOntoSlope = this.grounded && rise >= -0.3 && rise <= 0.5
-        const crossedSurface = nextY <= surfaceY && oldY >= surfaceY - 0.12
+        // Ao correr e saltar em direção à rampa, a posição horizontal pode avançar
+        // vários centímetros por frame. A superfície pode subir entre duas amostras;
+        // uma tolerância fixa de 0,12 m faz o avatar atravessar a rampa e cair.
+        // Aceita o cruzamento recente da superfície até 0,75 m abaixo da posição
+        // anterior, mas somente durante a descida (o chamador já valida a velocidade).
+        const crossedSurface = nextY <= surfaceY && oldY >= surfaceY - 0.75
         if (!canStepOntoSlope && !crossedSurface) continue
         if (landing === null || surfaceY > landing) landing = surfaceY
         break
