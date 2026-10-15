@@ -8,6 +8,7 @@ import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
+import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -67,6 +68,7 @@ const {
   onColor,
   onTexture,
   onTextureRepeat,
+  onFaceTexture,
   colorHex,
   regenerateTerrain,
   clearTerrain,
@@ -884,6 +886,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <label class="field">Repetição da textura · {{ selected.textureRepeat }}×
                     <input type="range" min="1" max="8" step="1" :value="selected.textureRepeat" :disabled="selected.texturePreset === 'none'" @change="onTextureRepeat" />
                   </label>
+                  <FaceTextureEditor :model-value="selected.faceTextures ?? {}" @update-face-texture="onFaceTexture" />
                   <p class="component-note">Texturas procedurais aplicadas ao cubo ou à plataforma e salvas junto com o projeto.</p>
                   <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
                   <div class="component-readonly"><span>Shader</span><strong>Standard / PBR</strong></div>
