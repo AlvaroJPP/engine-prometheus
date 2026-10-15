@@ -107,6 +107,12 @@ export class Engine {
     this.viewport.start((dt) => {
       this.input.update(dt)
       this.collisions.update()
+      // Os mixers pertencem à raiz de cada objeto importado; assim uma árvore
+      // pode animar-se independentemente das outras e a remoção libera a raiz.
+      for (const object of this.world.list()) {
+        const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
+        mixer?.update(dt)
+      }
       this.avatar.update(dt)
       this.logic.update()
       this.orbit.update()
@@ -195,6 +201,50 @@ export class Engine {
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
+    // Se o GLB contiver grupos independentes (por exemplo, três árvores),
+    // transforme cada grupo em um objeto da hierarquia, sem separar folhas/troncos
+    // que estejam dentro do mesmo grupo.
+    if (model.userData.importPart !== true) {
+      model.updateMatrixWorld(true)
+      const hasMesh = (node: THREE.Object3D): boolean => {
+        let found = false
+        node.traverse((child) => { if (child instanceof THREE.Mesh && child.geometry.getAttribute('position')) found = true })
+        return found
+      }
+      const findPartContainer = (node: THREE.Object3D): THREE.Object3D | null => {
+        const candidates = node.children.filter(hasMesh)
+        if (candidates.length >= 2) return node
+        if (candidates.length === 1 && candidates[0]) return findPartContainer(candidates[0])
+        return null
+      }
+      const container = findPartContainer(model)
+      const parts = container?.children.filter(hasMesh) ?? []
+      if (parts.length >= 2) {
+        const animations = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+        console.info('[Engine] Modelo composto detectado:', {
+          name,
+          parts: parts.map((part) => part.name || 'Objeto sem nome'),
+          animationClips: animations.map((clip) => clip.name),
+        })
+        parts.forEach((part, index) => {
+          part.updateWorldMatrix(true, false)
+          const worldMatrix = part.matrixWorld.clone()
+          const partBounds = new THREE.Box3().setFromObject(part)
+          const center = partBounds.getCenter(new THREE.Vector3())
+          // Preserve a transformação global do GLB ao separar o nó do seu pai.
+          part.removeFromParent()
+          worldMatrix.decompose(part.position, part.quaternion, part.scale)
+          part.position.sub(center)
+          part.userData.importOffset = [center.x, center.z]
+          part.userData.importAnimations = animations
+          part.userData.importPart = true
+          const partName = part.name.trim() || `Árvore ${index + 1}`
+          this.addImportedModel(`${name} — ${partName}`, part, targetHeight)
+        })
+        return
+      }
+    }
+
     // O modelo vem do preview, cuja cena não deve continuar sendo dona dele.
     // Removê-lo antes de calcular os limites evita misturar transformações de pais externos.
     model.removeFromParent()
@@ -234,13 +284,18 @@ export class Engine {
         : position.count / 3
       const materials = Array.isArray(child.material) ? child.material : [child.material]
       for (const material of materials) {
-        // Alguns exportadores deixam flags de renderização incompatíveis com
-        // o viewport principal. Restauramos os estados essenciais sem remover
-        // mapas de textura, cores ou parâmetros PBR do material.
+        // Preserve os valores PBR do glTF e garanta que mapas de cor sejam lidos
+        // como sRGB, inclusive em arquivos exportados com metadados incompletos.
         material.visible = true
+        const texturedMaterial = material as THREE.Material & {
+          colorWrite?: boolean
+          map?: THREE.Texture | null
+          emissiveMap?: THREE.Texture | null
+        }
+        if (texturedMaterial.map) texturedMaterial.map.colorSpace = THREE.SRGBColorSpace
+        if (texturedMaterial.emissiveMap) texturedMaterial.emissiveMap.colorSpace = THREE.SRGBColorSpace
+        if ('colorWrite' in texturedMaterial) texturedMaterial.colorWrite = true
         material.needsUpdate = true
-        const renderMaterial = material as THREE.Material & { colorWrite?: boolean }
-        if ('colorWrite' in renderMaterial) renderMaterial.colorWrite = true
       }
     })
     if (meshCount === 0 || triangleCount === 0) {
@@ -275,6 +330,29 @@ export class Engine {
     const finalBounds = new THREE.Box3().setFromObject(model)
     const finalSize = finalBounds.getSize(new THREE.Vector3())
 
+    // Crie um mixer por árvore e mantenha somente as trilhas cujos nós existem
+    // nessa hierarquia. Isso evita que a animação de uma árvore controle outra.
+    const animationClips = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const nodeNames = new Set<string>()
+    model.traverse((node) => { if (node.name) nodeNames.add(node.name) })
+    const matchingClips = animationClips.map((clip) => {
+      const filtered = clip.clone()
+      filtered.tracks = filtered.tracks.filter((track) => {
+        const target = track.name.split('.')[0]?.split('/').pop()?.trim()
+        return !!target && nodeNames.has(target)
+      })
+      return filtered
+    }).filter((clip) => clip.tracks.length > 0)
+    let animationMixer: THREE.AnimationMixer | undefined
+    if (matchingClips.length) {
+      animationMixer = new THREE.AnimationMixer(model)
+      for (const clip of matchingClips) animationMixer.clipAction(clip).play()
+      console.info('[Engine] Animações vinculadas:', {
+        name,
+        clips: matchingClips.map((clip) => ({ name: clip.name, tracks: clip.tracks.length })),
+      })
+    }
+
     // O diálogo de importação já centraliza o modelo antes de transferi-lo.
     // Não aplique um segundo deslocamento: isso pode afastar a malha real da
     // caixa invisível usada para seleção e transformação.
@@ -295,7 +373,13 @@ export class Engine {
     root.name = name.trim() || 'Modelo importado'
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
-    root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
+    const importOffset = model.userData.importOffset as [number, number] | undefined
+    root.position.set(
+      x + (importOffset?.[0] ?? 0) * scaleFactor,
+      this.world.terrain.heightAt(x, z) + height / 2,
+      z + (importOffset?.[1] ?? 0) * scaleFactor,
+    )
+    if (animationMixer) root.userData.importAnimationMixer = animationMixer
     root.add(model)
     // Atualiza toda a hierarquia antes de entrar no loop de renderização.
     // Isso também garante bounds corretos para GLB com nós e transforms aninhados.
