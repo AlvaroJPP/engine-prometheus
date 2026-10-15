@@ -113,7 +113,29 @@ export class World {
     if (ok(patch.scaleX)) m.scale.x = clamp(patch.scaleX, 0.1, 20)
     if (ok(patch.scaleY)) m.scale.y = clamp(patch.scaleY, 0.1, 20)
     if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, 20)
-    if (ok(patch.color)) (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
+    if (ok(patch.color)) {
+      if (m.userData.importedModel === true) {
+        // A caixa proxy é invisível. A cor precisa ser aplicada às malhas reais
+        // sem apagar a cor/textura original: branco restaura a aparência do GLB.
+        m.userData.importedTint = patch.color
+        const tint = new THREE.Color(patch.color)
+        m.traverse((child) => {
+          if (!(child instanceof THREE.Mesh) || child === m) return
+          const materials = Array.isArray(child.material) ? child.material : [child.material]
+          for (const material of materials) {
+            const colorMaterial = material as THREE.Material & { color?: THREE.Color }
+            if (!colorMaterial.color) continue
+            const saved = material.userData.importOriginalColor as number | undefined
+            if (saved === undefined) material.userData.importOriginalColor = colorMaterial.color.getHex()
+            colorMaterial.color.setHex(material.userData.importOriginalColor as number)
+            colorMaterial.color.multiply(tint)
+            material.needsUpdate = true
+          }
+        })
+      } else {
+        (m.material as THREE.MeshStandardMaterial).color.setHex(patch.color)
+      }
+    }
     if (patch.visible !== undefined) m.visible = patch.visible
     if (patch.locked !== undefined) m.userData.locked = patch.locked
     if (patch.wireframeVisible !== undefined) {
@@ -190,7 +212,7 @@ export class World {
       wireframeVisible: o.mesh.userData.wireframeVisible !== false,
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
       mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
-      color: (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
+      color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex(),
     }))
   }
 
