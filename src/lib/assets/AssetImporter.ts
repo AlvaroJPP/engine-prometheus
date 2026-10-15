@@ -128,6 +128,7 @@ export async function loadAssetFile(file: File): Promise<THREE.Object3D> {
   }
   object.name ||= file.name.replace(/\.[^.]+$/, '') || 'Modelo importado'
   object.userData.importAssetKind ||= '3d-model'
-  object.userData.importAnimations ||= []
+  const nativeAnimations = (object as THREE.Object3D & { animations?: THREE.AnimationClip[] }).animations
+  object.userData.importAnimations ||= nativeAnimations ?? []
   return object
 }
