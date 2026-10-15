@@ -424,7 +424,7 @@ export class HorseMount {
           this.horseAnimationActions.clear()
           this.activeHorseAnimation = ''
           for (const clip of gltf.animations) {
-            const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+            const name = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
             const key = /turnleft|leftturn|pivotleft|rotateleft/.test(name) ? 'turn-left'
               : /turnright|rightturn|pivotright|rotateright/.test(name) ? 'turn-right'
                 : /gallop|canter|run|sprint/.test(name) ? 'run'
@@ -539,7 +539,7 @@ export class HorseMount {
         this.riderAnimationActions.clear()
         this.activeRiderAnimation = ''
         for (const clip of gltf.animations) {
-          const name = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+          const name = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
           const key = /gallop|canter|run|sprint/.test(name) ? 'run'
             : /walk|trot|locomotion|move/.test(name) ? 'walk'
               : /idle|stand|rest|breath|neutral/.test(name) ? 'idle' : null
