@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import type { HumanoidAvatar } from './HumanoidAvatar'
 import type { World } from './World'
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 import horseModelUrl from '../../Horse_LP.fbx?url'
 
 const WALK_SPEED = 3.8
@@ -22,11 +21,9 @@ export class HorseMount {
   private mounted = false
   private animationTime = 0
   private galloping = false
-  private modelMixer: THREE.AnimationMixer | null = null
-  private walkAction: THREE.AnimationAction | null = null
-  private gallopAction: THREE.AnimationAction | null = null
-  private idleAction: THREE.AnimationAction | null = null
-  private activeAction: THREE.AnimationAction | null = null
+  private readonly proceduralBones: Array<{ node: THREE.Bone; name: string; rotation: THREE.Euler }> = []
+  private readonly proceduralNodes: Array<{ node: THREE.Object3D; name: string; rotation: THREE.Euler; position: THREE.Vector3 }> = []
+  private importedModel: THREE.Object3D | null = null
 
   constructor(world: World, avatar: HumanoidAvatar, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -195,87 +192,130 @@ export class HorseMount {
   }
 
 
-  /** Carrega o cavalo FBX versionado no commit c8e49c2; o modelo procedural é fallback. */
+  /** Carrega o modelo visual; todas as animações são calculadas proceduralmente. */
   private loadCommittedHorseModel(): void {
-    new FBXLoader().load(
-      horseModelUrl,
-      (model) => {
-        if (!this.mesh.parent) return
+    // O modelo procedural integrado continua como fallback se o FBX falhar.
+    import('three/addons/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+      new FBXLoader().load(
+        horseModelUrl,
+        (model) => {
+          if (!this.mesh.parent) return
+          model.name = 'CommittedHorseLPFBX'
+          model.updateMatrixWorld(true)
+          const initialBounds = new THREE.Box3().setFromObject(model)
+          const size = initialBounds.getSize(new THREE.Vector3())
+          if (size.y <= 0 || !Number.isFinite(size.y)) return
 
-        model.name = 'CommittedHorseLPFBX'
-        model.updateMatrixWorld(true)
+          model.scale.multiplyScalar(2.55 / size.y)
+          model.updateMatrixWorld(true)
+          const bounds = new THREE.Box3().setFromObject(model)
+          const center = bounds.getCenter(new THREE.Vector3())
+          model.position.x -= center.x
+          model.position.z -= center.z
+          model.position.y -= bounds.min.y
+          model.updateMatrixWorld(true)
 
-        // Normaliza as unidades do FBX para a escala usada pelo mundo.
-        const initialBounds = new THREE.Box3().setFromObject(model)
-        const size = initialBounds.getSize(new THREE.Vector3())
-        if (size.y <= 0 || !Number.isFinite(size.y)) {
-          console.warn('[HorseMount] O FBX não possui dimensões válidas; mantendo o cavalo de fallback.')
-          return
-        }
+          for (const child of [...this.mesh.children]) {
+            if (child === model) continue
+            this.mesh.remove(child)
+            child.traverse((node) => {
+              if (!(node instanceof THREE.Mesh)) return
+              node.geometry.dispose()
+              const materials = Array.isArray(node.material) ? node.material : [node.material]
+              materials.forEach((material) => material.dispose())
+            })
+          }
+          this.legs.length = 0
+          this.tailRoot = null
+          this.mesh.add(model)
+          this.importedModel = model
+          this.proceduralBones.length = 0
+          this.proceduralNodes.length = 0
 
-        const targetHeight = 2.55
-        model.scale.multiplyScalar(targetHeight / size.y)
-        model.updateMatrixWorld(true)
-
-        // Centraliza o modelo e apoia os cascos no chão.
-        const bounds = new THREE.Box3().setFromObject(model)
-        const center = bounds.getCenter(new THREE.Vector3())
-        model.position.x -= center.x
-        model.position.z -= center.z
-        model.position.y -= bounds.min.y
-        model.updateMatrixWorld(true)
-
-        // Substitui o cavalo procedural pelo modelo do commit sem modificar
-        // ou filtrar os polígonos originais do arquivo FBX.
-        for (const child of [...this.mesh.children]) {
-          this.mesh.remove(child)
-          child.traverse((node) => {
-            if (!(node instanceof THREE.Mesh)) return
-            node.geometry.dispose()
-            const materials = Array.isArray(node.material) ? node.material : [node.material]
-            materials.forEach((material) => material.dispose())
+          model.traverse((node) => {
+            const name = node.name.toLowerCase()
+            if (node instanceof THREE.Bone) {
+              this.proceduralBones.push({ node, name, rotation: node.rotation.clone() })
+            }
+            if (/(tail|mane|neck|head|leg|thigh|shin|hoof|foot|fetlock|knee)/i.test(name)) {
+              this.proceduralNodes.push({
+                node,
+                name,
+                rotation: node.rotation.clone(),
+                position: node.position.clone(),
+              })
+            }
+            if (node instanceof THREE.Mesh) {
+              node.castShadow = true
+              node.receiveShadow = true
+            }
           })
-        }
-        this.legs.length = 0
-        this.tailRoot = null
-        this.mesh.add(model)
 
-        const normalizedBounds = new THREE.Box3().setFromObject(model)
-        this.rebuildBridle(model, normalizedBounds)
-
-        if (model.animations.length > 0) {
-          this.modelMixer = new THREE.AnimationMixer(model)
-          const findClip = (pattern: RegExp) => model.animations.find((clip) => pattern.test(clip.name))
-          const idleClip = findClip(/idle|stand|breath/i)
-          const walkClip = findClip(/walk|trot/i)
-          const gallopClip = findClip(/gallop|run|canter/i)
-          this.idleAction = idleClip ? this.modelMixer.clipAction(idleClip) : null
-          this.walkAction = walkClip ? this.modelMixer.clipAction(walkClip) : null
-          this.gallopAction = gallopClip ? this.modelMixer.clipAction(gallopClip) : null
-          this.activeAction = this.idleAction ?? this.walkAction ?? this.gallopAction
-          this.activeAction?.play()
-        }
-
-        console.info('[HorseMount] Modelo Horse_LP.fbx carregado com sucesso.')
-      },
-      undefined,
-      (error) => console.error('[HorseMount] Não foi possível carregar Horse_LP.fbx; mantendo o cavalo de fallback.', error),
-    )
+          // Se o arquivo não tiver esqueleto, mantém a malha estática em vez de
+          // aplicar rotações arbitrárias às peças e deformar o modelo.
+          console.info('[HorseMount] Modelo carregado; animação procedural ativada.')
+        },
+        undefined,
+        (error) => console.error('[HorseMount] Não foi possível carregar Horse_LP.fbx; usando o cavalo procedural integrado.', error),
+      )
+    }).catch((error) => console.error('[HorseMount] Falha ao inicializar o carregador FBX.', error))
   }
 
-  private updateModelAnimation(dt: number): void {
-    if (!this.modelMixer) return
-    const moving = this.mounted && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].some((key) => this.pressed.has(key))
-    const desired = moving
-      ? (this.galloping ? this.gallopAction ?? this.walkAction ?? this.idleAction : this.walkAction ?? this.gallopAction ?? this.idleAction)
-      : this.idleAction ?? this.walkAction ?? this.gallopAction
-    if (desired && desired !== this.activeAction) {
-      this.activeAction?.fadeOut(0.18)
-      desired.reset().fadeIn(0.18).play()
-      this.activeAction = desired
+  private updateProceduralAnimation(dt: number, moving: boolean): void {
+    const frequency = this.galloping ? 15 : 8
+    const amplitude = moving ? (this.galloping ? 0.72 : 0.38) : 0.025
+    const phase = this.animationTime
+    const legPattern = /(front|fore|hind|back|leg|thigh|shin|hoof|foot|fetlock|knee)/i
+    const leftPattern = /(left|_l\\b|\\.l\\b|\\bl_)/i
+    const rightPattern = /(right|_r\\b|\\.r\\b|\\br_)/i
+
+    for (let i = 0; i < this.proceduralBones.length; i += 1) {
+      const item = this.proceduralBones[i]!
+      const name = item.name
+      item.node.rotation.copy(item.rotation)
+      if (legPattern.test(name)) {
+        const sidePhase = leftPattern.test(name) ? 0 : rightPattern.test(name) ? Math.PI : (i % 2) * Math.PI
+        const hindPhase = /(hind|back)/i.test(name) ? Math.PI : 0
+        item.node.rotation.x = item.rotation.x + Math.sin(phase + sidePhase + hindPhase) * amplitude
+        if (/(shin|hoof|foot|fetlock)/i.test(name)) {
+          item.node.rotation.x += Math.max(0, Math.sin(phase + sidePhase + hindPhase)) * (this.galloping ? 0.42 : 0.18)
+        }
+      } else if (/tail/i.test(name)) {
+        item.node.rotation.z = item.rotation.z + Math.sin(phase * 0.45) * (moving ? 0.2 : 0.08)
+      } else if (/head|neck/i.test(name)) {
+        item.node.rotation.x = item.rotation.x + Math.sin(phase * 0.5) * (moving ? 0.035 : 0.06)
+      }
     }
-    if (this.activeAction) this.activeAction.timeScale = this.mounted && this.galloping ? 1.55 : 1
-    this.modelMixer.update(dt)
+
+    // Em modelos sem ossos animáveis, não giramos submalhas inteiras: isso evita
+    // que pernas sem pivô se desprendam do corpo. O balanço geral continua ativo.
+    if (!this.proceduralBones.length && this.tailRoot) {
+      this.tailRoot.rotation.x = Math.sin(phase * 0.7) * (moving ? 0.22 : 0.08)
+    }
+  }
+
+  /** Bloqueia o deslocamento do cavalo ao tocar os colisores do cenário. */
+  private collidesAt(x: number, z: number): boolean {
+    const yaw = this.mesh.rotation.y
+    const halfX = Math.abs(Math.cos(yaw)) * 0.5 + Math.abs(Math.sin(yaw)) * 1.05
+    const halfZ = Math.abs(Math.sin(yaw)) * 0.5 + Math.abs(Math.cos(yaw)) * 1.05
+    const minY = this.world.terrain.heightAt(x, z) + 0.08
+    const maxY = minY + 1.85
+
+    for (const object of this.world.list()) {
+      const obstacle = object.mesh
+      if (!obstacle.visible || obstacle.userData.colliderType === 'none') continue
+      obstacle.updateWorldMatrix(true, false)
+      if (!obstacle.geometry.boundingBox) obstacle.geometry.computeBoundingBox()
+      const local = obstacle.geometry.boundingBox
+      if (!local) continue
+      const bounds = local.clone().applyMatrix4(obstacle.matrixWorld)
+      if (maxY <= bounds.min.y + 0.02 || minY >= bounds.max.y - 0.02) continue
+      if (x + halfX <= bounds.min.x || x - halfX >= bounds.max.x) continue
+      if (z + halfZ <= bounds.min.z || z - halfZ >= bounds.max.z) continue
+      return true
+    }
+    return false
   }
 
   setRuntimeMode(enabled: boolean, playerPosition?: THREE.Vector3): void {
@@ -314,15 +354,21 @@ export class HorseMount {
         0,
         -side * Math.sin(yaw) - forward * Math.cos(yaw),
       ).normalize()
-      this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x + direction.x * speed * step, -48, 48)
-      this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z + direction.z * speed * step, -48, 48)
+      const oldX = this.mesh.position.x
+      const oldZ = this.mesh.position.z
+      const nextX = THREE.MathUtils.clamp(oldX + direction.x * speed * step, -48, 48)
+      const nextZ = THREE.MathUtils.clamp(oldZ + direction.z * speed * step, -48, 48)
       this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
+
+      // Resolve os eixos separadamente para permitir deslizar ao longo das paredes.
+      if (!this.collidesAt(nextX, oldZ)) this.mesh.position.x = nextX
+      if (!this.collidesAt(this.mesh.position.x, nextZ)) this.mesh.position.z = nextZ
     }
 
     const groundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
-    this.updateModelAnimation(step)
+    this.updateProceduralAnimation(step, moving)
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
       leg.rotation.x = Math.sin(this.animationTime + phase) * (moving ? (this.galloping ? 0.78 : 0.38) : 0.025)
