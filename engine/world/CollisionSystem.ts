@@ -180,7 +180,7 @@ export class CollisionSystem {
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
-    if (type === 'auto' && !manualSize && offset.every(value => Math.abs(value) < 1e-9)) {
+    if (type === 'auto' && (object.mesh.userData.importedModel === true || (!manualSize && offset.every(value => Math.abs(value) < 1e-9))) ) {
       // Modelos importados têm uma caixa invisível na raiz para seleção e transformação.
       // Usar sourceGeometry aqui transforma todo modelo num paralelepípedo e ignora sua malha real.
       // Como o resolvedor SAT exige formas convexas, geramos um casco convexo das malhas visuais
@@ -198,7 +198,7 @@ export class CollisionSystem {
           totalVertices += position.count
           signatureParts.push(`${child.uuid}:${child.geometry.uuid}:${child.matrix.elements.map(value => value.toFixed(4)).join(',')}`)
         })
-        const signature = `auto-hull:${signatureParts.join('|')}`
+        const signature = `auto-hull:${offset.join(',')}:${signatureParts.join('|')}`
         const cached = this.colliderGeometries.get(object.id)
         if (cached?.signature === signature) return cached.geometry
         if (cached) {
@@ -216,7 +216,7 @@ export class CollisionSystem {
           const toRoot = inverseRoot.clone().multiply(child.matrixWorld)
           for (let i = 0; i < position.count; i += 1, vertexIndex += 1) {
             if (vertexIndex % stride !== 0 && i !== 0 && i !== position.count - 1) continue
-            points.push(new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(toRoot))
+            points.push(new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(toRoot).add(new THREE.Vector3(offset[0], offset[1], offset[2])))
           }
         })
         if (points.length >= 4) {
