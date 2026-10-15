@@ -54,6 +54,18 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
 
   // Recursos binários ficam em resources/, enquanto as cenas guardam apenas referências.
   for (const [scenePath, scene] of Object.entries(scenes)) {
+    const environment = scene.environment
+    if (environment?.skyTextureDataUrl && !environment.skyTextureDataUrl.startsWith('asset://')) {
+      const parsedSky = parseDataUrl(environment.skyTextureDataUrl)
+      const skyRel = `resources/textures/sky-${safeAssetId(scenePath.replace(/[^a-zA-Z0-9_-]/g, '_'))}.${parsedSky.extension}`
+      await writeAsset(dir, skyRel, parsedSky.base64)
+      environment.skyTextureDataUrl = `asset://${skyRel}`
+      retainedAssets.add(skyRel)
+      completed++
+      report('Salvando textura do céu…')
+    } else if (environment?.skyTextureDataUrl?.startsWith('asset://')) {
+      retainedAssets.add(environment.skyTextureDataUrl.slice('asset://'.length))
+    }
     for (const object of scene.objects as SceneObjectData[]) {
       const faceTextures = object.faceTextures as FaceTextureMap | undefined
       if (faceTextures) {
@@ -113,6 +125,14 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
   } catch {
     // Deixa o validador emitir a mensagem de JSON inválido.
     return rawText
+  }
+  if (scene.environment?.skyTextureDataUrl?.startsWith('asset://')) {
+    const rel = scene.environment.skyTextureDataUrl.slice('asset://'.length)
+    onProgress?.(`Carregando textura do céu ${rel.split('/').pop()}…`, percent)
+    const base64 = await readAsset(dir, rel)
+    const extension = rel.split('.').pop()?.toLowerCase()
+    const mime = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/png'
+    scene.environment.skyTextureDataUrl = `data:${mime};base64,${base64}`
   }
   for (const object of scene.objects ?? []) {
     const faces = object.faceTextures as FaceTextureMap | undefined
