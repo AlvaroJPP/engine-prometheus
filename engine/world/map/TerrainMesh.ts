@@ -6,12 +6,14 @@ import {
   TERRAIN_VERTS_PER_SIDE,
 } from '../worldGeneration/Heightfield'
 import { colorForHeight } from '../worldGeneration/terrainColors'
+import { GrassLayer } from './GrassLayer'
 
 export const TERRAIN_ID = 'terrain'
 
 export class TerrainMesh {
   readonly field: Heightfield
   readonly mesh: THREE.Mesh
+  readonly grass: GrassLayer
   private geometry = new THREE.BufferGeometry()
   private positions = new Float32Array(TERRAIN_VERTS * 3)
   private colors = new Float32Array(TERRAIN_VERTS * 3)
@@ -43,6 +45,7 @@ export class TerrainMesh {
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
     )
     this.mesh.userData.id = TERRAIN_ID
+    this.grass = new GrassLayer(this.field)
     this.refresh()
   }
 
@@ -67,6 +70,7 @@ export class TerrainMesh {
     this.geometry.computeVertexNormals()
     this.geometry.computeBoundingSphere()
     this.geometry.computeBoundingBox()
+    this.grass.refresh()
   }
 
   load(seed: number, edits: ReadonlyArray<readonly [number, number]>): void {
@@ -85,5 +89,6 @@ export class TerrainMesh {
   dispose(): void {
     this.geometry.dispose()
     ;(this.mesh.material as THREE.Material).dispose()
+    this.grass.dispose()
   }
 }
