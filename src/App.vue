@@ -1206,7 +1206,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   </select>
                 </label>
               </template>
-              <template v-else>
+              <template v-if="selectedGraphRule.trigger.type === 'enter_area'">
                 <div class="component-caption">CENTRO DA ÁREA</div>
                 <div class="grid3">
                   <label class="field">X<input type="number" :value="selectedGraphRule.trigger.center[0]" @change="patchSelectedTrigger({ center: [Number(($event.target as HTMLInputElement).value), selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[1] : 1, selectedGraphRule.trigger.type === 'enter_area' ? selectedGraphRule.trigger.center[2] : 0] })" /></label>
