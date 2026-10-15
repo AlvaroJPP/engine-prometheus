@@ -710,15 +710,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <button class="ghost full collider-visibility-button" :class="{ active: colliderDebugVisible }" @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar colisores no mundo' : 'Visualizar colisores no mundo' }}</button>
                   <div class="component-caption">DIMENSÕES DO COLISOR</div>
                   <div class="grid3 collider-grid">
-                    <label class="field">Largura X<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[0].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" /></label>
-                    <label class="field">Altura Y<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[1].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" /></label>
-                    <label class="field">Prof. Z<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[2].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" /></label>
+                    <label class="field">Largura X<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" /></label>
+                    <label class="field">Altura Y<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" /></label>
+                    <label class="field">Prof. Z<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" /></label>
                   </div>
                   <div class="component-caption">DESLOCAMENTO DO COLISOR</div>
                   <div class="grid3 collider-grid">
-                    <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[0].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[1].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[2].toFixed(2)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" /></label>
+                    <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" /></label>
+                    <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" /></label>
+                    <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" /></label>
                   </div>
                   <p class="component-note">Ajustar dimensões ativa um colisor personalizado em caixa quando o tipo está em Automático. O deslocamento reposiciona a forma sem mover a malha visual.</p>
                   <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
