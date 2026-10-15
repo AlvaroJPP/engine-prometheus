@@ -834,6 +834,7 @@ export class Engine {
         // O nome visível fica no proxy; preservar o nome do nó glTF mantém os bindings de animação.
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
+        model.userData.componentId = data.componentId
         model.userData.importedModelData = data.importedModelData
         model.userData.importColliderType = data.colliderType ?? 'box'
         model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
