@@ -35,7 +35,7 @@ export function buildBundle(
       colliderOffset: Array.isArray(m.userData.colliderOffset) ? [...m.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       importedModelData: typeof m.userData.importedModelData === 'string' ? m.userData.importedModelData : undefined,
       importedModelHeight: typeof m.userData.importedModelHeight === 'number' ? m.userData.importedModelHeight : undefined,
-      color: (m.material as THREE.MeshStandardMaterial).color.getHex(),
+      color: typeof m.userData.baseColor === 'number' ? m.userData.baseColor : (m.material as THREE.MeshStandardMaterial).color.getHex(),
       texturePreset: m.userData.texturePreset === 'grass' || m.userData.texturePreset === 'stone' || m.userData.texturePreset === 'brick' || m.userData.texturePreset === 'wood' || m.userData.texturePreset === 'sand' || m.userData.texturePreset === 'metal' ? m.userData.texturePreset : 'none',
     }
   })
@@ -78,6 +78,7 @@ export function objectFromData(d: SceneObjectData): GameObject {
     name: d.name,
     color: d.color,
     texturePreset: d.texturePreset ?? 'none',
+    textureRepeat: d.textureRepeat ?? 2,
     position: d.position,
     rotation: d.rotation,
     scale: d.scale,
