@@ -364,6 +364,14 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.addPrimitive(type)
   }
 
+  function addSpawnPlatform() {
+    if (!engine) return
+    engine.addSpawnPlatform()
+    dirty.value = true
+    refresh()
+    say('Plataforma de Spawn criada. O jogador começará sobre ela ao pressionar Run.')
+  }
+
   function setBuildComponentPlacement(name: string, model: Object3D, height: number) {
     engine?.setBuildComponentPlacement(name, model, height)
     say(`Componente "${name}" selecionado. Clique em Construir e depois no mundo para posicioná-lo.`)
@@ -980,6 +988,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setTool,
     setTransform,
     addPrimitive,
+    addSpawnPlatform,
     addImportedModel,
     setBuildComponentPlacement,
     addClickableCubeExample,
