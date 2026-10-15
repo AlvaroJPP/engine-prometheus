@@ -14,6 +14,9 @@ type ScriptApi = {
   rotate: (objectId: string, degrees: number) => void
   setVisible: (objectId: string, visible: boolean) => void
   setColor: (objectId: string, color: string | number) => void
+  mount: () => void
+  dismount: () => void
+  toggleMount: () => void
 }
 
 export class RuleEngine {
@@ -258,6 +261,10 @@ export class RuleEngine {
         if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0xffffff) throw new Error('Cor inválida. Use hexadecimal como #0000FF ou um número entre 0 e 16777215.')
         this.world.update(objectId, { color: parsed })
       },
+      // Ações de montaria disponíveis também nos scripts do Visual Script.
+      mount: () => this.horseActionHandler?.('mount', eventObjectId ?? scopeId),
+      dismount: () => this.horseActionHandler?.('dismount', eventObjectId ?? scopeId),
+      toggleMount: () => this.horseActionHandler?.('toggle', eventObjectId ?? scopeId),
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
     const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (apiArg: ScriptApi, varsArg: Record<string, boolean | number | string>, worldArg: World, consoleArg: Console) => void
