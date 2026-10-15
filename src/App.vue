@@ -7,6 +7,7 @@ import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
+import ModelImportDialog from '@/components/ModelImportDialog.vue'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -14,6 +15,7 @@ const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes'>('transfo
 const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
+const modelImportOpen = ref(false)
 const {
   projectName,
   dirty,
@@ -34,6 +36,7 @@ const {
   setTool,
   setTransform,
   addPrimitive,
+  addImportedModel,
   addClickableCubeExample,
   cycleCamera,
   setFirstPersonMode,
@@ -467,6 +470,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
+        <button class="model-import-launch" @click="modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
           <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
@@ -933,6 +937,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </aside>
       </div>
     </div>
+    <ModelImportDialog :open="modelImportOpen" @close="modelImportOpen = false" @import="({ name, model, height }) => addImportedModel(name, model, height)" />
   </div>
 </template>
 
@@ -1791,4 +1796,10 @@ input[type='range'] { accent-color: #e98524; }
 .graph-object-empty small{font-size:10px;line-height:1.5;color:#858fa0}
 .graph-tip{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:10px;border:1px solid #353b47;border-radius:6px;background:#242831;color:#8f99aa;font-size:10px;line-height:1.5}
 .graph-tip strong{color:#c9d0dc;font-size:10px}
+</style>
+
+<style>
+.model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
+.model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
+.model-import-launch span{font-size:17px;line-height:10px}
 </style>
