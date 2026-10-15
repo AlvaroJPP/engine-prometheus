@@ -332,6 +332,42 @@ export class PointerController {
     }
   }
 
+  /** Encontra a superfície de apoio abaixo do ponto clicado. */
+  private buildSupportBelow(x: number, z: number, referenceY: number, excludeId: string | null): number {
+    const originY = Math.max(100, referenceY + 100)
+    const down = new THREE.Raycaster(
+      new THREE.Vector3(x, originY, z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      originY + 100,
+    )
+    const surfaces: number[] = []
+    for (const object of this.world.list()) {
+      if (!object.mesh.visible || object.mesh.userData.locked === true || object.id === excludeId) continue
+      if (object.mesh.userData.colliderType === 'none') continue
+      // A caixa raiz é o mesmo proxy usado pelo sistema de colisão e evita
+      // percorrer triângulos pesados de modelos GLB/FBX.
+      const hit = down.intersectObject(object.mesh, false).find((item) => {
+        if (!item.face) return false
+        const normalMatrix = new THREE.Matrix3().getNormalMatrix(object.mesh.matrixWorld)
+        const normal = item.face.normal.clone().applyMatrix3(normalMatrix).normalize()
+        return normal.y > 0.5 && item.point.y <= referenceY + 0.05
+      })
+      if (hit) surfaces.push(hit.point.y)
+    }
+    if (this.world.terrain.mesh.visible) {
+      const terrainHits = down.intersectObject(this.world.terrain.mesh, false)
+      const terrainHit = terrainHits.find((hit) => hit.point.y <= referenceY + 0.05)
+      if (terrainHit) surfaces.push(terrainHit.point.y)
+      else surfaces.push(this.world.terrain.heightAt(x, z))
+    } else if (surfaces.length === 0) {
+      return referenceY
+    }
+    // A superfície válida mais alta abaixo do clique é a primeira base sólida
+    // que sustenta o objeto sem fazê-lo atravessar outro colisor.
+    return surfaces.length ? Math.max(...surfaces) : referenceY
+  }
+
   /** Clique simples (sem arrastar) em área vazia. */
   private click(e: PointerEvent): void {
     if (e.button !== 0) return
@@ -348,7 +384,13 @@ export class PointerController {
     if (!hit) return
     const x = clamp(snap(hit.point.x, GRID), -50, 50)
     const z = clamp(snap(hit.point.z, GRID), -50, 50)
-    const baseY = useObject ? hit.point.y : this.world.terrain.heightAt(x, z)
+
+    // Ctrl+clique mantém exatamente o posicionamento antigo, na face atingida.
+    // Clique normal procura a base de colisão abaixo do ponto clicado.
+    const baseY = e.ctrlKey
+      ? (useObject ? hit.point.y : this.world.terrain.heightAt(x, z))
+      : this.buildSupportBelow(x, z, hit.point.y, useObject ? this.objectIdFromHit(hit.object) : null)
+
     if (this.onBuildAt?.(x, baseY, z)) return
     this.world.place(this.state.buildShape, x, baseY, z)
   }
