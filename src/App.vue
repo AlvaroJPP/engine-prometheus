@@ -969,7 +969,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <button class="ghost" :disabled="index === logicRules.length - 1" title="Descer na hierarquia (menor prioridade)" @click="moveLogicRule(rule.id, 1)">↓</button>
                   <span class="muted">{{ index + 1 }}</span>
                 </div>
-                <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : 'Entrada na área' }}</span></label>
+                <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : rule.trigger.type === 'key_pressed' ? `Tecla ${rule.trigger.key}` : 'Entrada na área' }}</span></label>
                 <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
