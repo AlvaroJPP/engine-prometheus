@@ -150,6 +150,24 @@ function parseTerrain(v: unknown, version: number, label: string): TerrainData {
   return { seed, visible: v.visible !== false, edits }
 }
 
+function parseFaceTextures(value: unknown, label: string, id: string): import('./format').FaceTextureMap {
+  if (!isRecord(value)) return {}
+  const faces: import('./format').TextureFace[] = ['right', 'left', 'top', 'bottom', 'front', 'back']
+  const result: import('./format').FaceTextureMap = {}
+  for (const face of faces) {
+    const entry = value[face]
+    if (entry === undefined || entry === null) continue
+    if (!isRecord(entry) || typeof entry.imageDataUrl !== 'string' || !entry.imageDataUrl.startsWith('data:image/')) {
+      fail(`${label}: textura da face ${face} inválida em "${id}".`)
+    }
+    if (entry.imageDataUrl.length > 12_000_000) fail(`${label}: imagem da face ${face} é grande demais em "${id}".`)
+    const pixelWidth = isNum(entry.pixelWidth) ? Math.min(2048, Math.max(8, Math.round(entry.pixelWidth))) : 128
+    const pixelHeight = isNum(entry.pixelHeight) ? Math.min(2048, Math.max(8, Math.round(entry.pixelHeight))) : 128
+    result[face] = { imageDataUrl: entry.imageDataUrl, pixelWidth, pixelHeight }
+  }
+  return result
+}
+
 export function parseScene(text: string, label = 'cena'): SceneFile {
   const obj = parseJson(text, label)
   const version = checkVersion(obj, label)
@@ -188,6 +206,7 @@ export function parseScene(text: string, label = 'cena'): SceneFile {
       color,
       texturePreset: item.texturePreset === 'grass' || item.texturePreset === 'stone' || item.texturePreset === 'brick' || item.texturePreset === 'wood' || item.texturePreset === 'sand' || item.texturePreset === 'metal' ? item.texturePreset : 'none',
       textureRepeat: isNum(item.textureRepeat) ? Math.min(8, Math.max(1, item.textureRepeat)) : 2,
+      faceTextures: parseFaceTextures(item.faceTextures, label, id),
       locked: item.locked === true,
       wireframeVisible: item.wireframeVisible !== false,
       groupId: typeof item.groupId === 'string' && item.groupId.trim() !== '' ? item.groupId : null,
