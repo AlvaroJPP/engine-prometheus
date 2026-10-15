@@ -201,73 +201,101 @@ export class Engine {
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
-    // Se o GLB contiver grupos independentes (por exemplo, três árvores),
-    // transforme cada grupo em um objeto da hierarquia, sem separar folhas/troncos
-    // que estejam dentro do mesmo grupo.
+    // Alguns GLBs representam cada árvore como um grupo; outros exportam tronco,
+    // copa e galhos como irmãos. Agrupamos irmãos pelo centro X/Z para separar
+    // árvores sem transformar cada malha (tronco/folhas) em um objeto isolado.
     if (model.userData.importPart !== true) {
+      model.removeFromParent()
       model.updateMatrixWorld(true)
+
+      type PartCluster = { center: THREE.Vector3; nodes: THREE.Object3D[]; span: number }
       const hasMesh = (node: THREE.Object3D): boolean => {
         let found = false
-        node.traverse((child) => { if (child instanceof THREE.Mesh && child.geometry.getAttribute('position')) found = true })
+        node.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.geometry.getAttribute('position')) found = true
+        })
         return found
       }
       const boundsOf = (node: THREE.Object3D): THREE.Box3 => new THREE.Box3().setFromObject(node)
-      const horizontallySeparated = (nodes: THREE.Object3D[]): boolean => {
-        if (nodes.length < 2) return false
-        const bounds = nodes.map(boundsOf)
-        const centers = bounds.map((box) => box.getCenter(new THREE.Vector3()))
-        const spans = bounds.map((box) => {
-          const size = box.getSize(new THREE.Vector3())
-          return Math.max(size.x, size.z, 0.001)
-        })
-        // Tronco e copa costumam ter centros X/Z coincidentes. Só considere
-        // objetos irmãos como árvores distintas quando seus centros horizontais
-        // estiverem afastados, evitando separar folhas e tronco do mesmo exemplar.
-        for (let i = 0; i < centers.length; i += 1) {
-          for (let j = i + 1; j < centers.length; j += 1) {
-            const a = centers[i]
-            const b = centers[j]
-            if (!a || !b) return false
-            const distance = Math.hypot(a.x - b.x, a.z - b.z)
-            const minimum = Math.max(0.35, Math.min(spans[i] ?? 0, spans[j] ?? 0) * 0.3)
-            if (distance < minimum) return false
+      const clustersOf = (node: THREE.Object3D): PartCluster[] => {
+        const candidates = node.children.filter(hasMesh)
+        if (candidates.length < 2) return []
+        const clusters: PartCluster[] = []
+        for (const candidate of candidates) {
+          const bounds = boundsOf(candidate)
+          if (bounds.isEmpty()) continue
+          const center = bounds.getCenter(new THREE.Vector3())
+          const size = bounds.getSize(new THREE.Vector3())
+          const span = Math.max(size.x, size.z, 0.001)
+          // Componentes da mesma árvore tendem a compartilhar o centro X/Z.
+          // A tolerância escala com o tamanho das próprias malhas.
+          const existing = clusters.find((cluster) => {
+            const distance = Math.hypot(center.x - cluster.center.x, center.z - cluster.center.z)
+            const tolerance = Math.max(0.2, Math.min(span, cluster.span) * 0.28)
+            return distance <= tolerance
+          })
+          if (existing) {
+            existing.nodes.push(candidate)
+            const count = existing.nodes.length
+            existing.center.lerp(center, 1 / count)
+            existing.span = Math.max(existing.span, span)
+          } else {
+            clusters.push({ center, nodes: [candidate], span })
           }
         }
-        return true
+        return clusters
       }
-      const findPartContainer = (node: THREE.Object3D): THREE.Object3D | null => {
-        const candidates = node.children.filter(hasMesh)
-        // Prefira grupos com três ou mais componentes espacialmente separados.
-        if (candidates.length >= 2 && horizontallySeparated(candidates)) return node
-        for (const child of node.children) {
-          const nested = findPartContainer(child)
-          if (nested) return nested
+
+      let bestContainer: THREE.Object3D | null = null
+      let bestClusters: PartCluster[] = []
+      const findPartContainer = (node: THREE.Object3D): void => {
+        const clusters = clustersOf(node)
+        // Preferir o nível com mais exemplares separados, normalmente as três árvores.
+        if (clusters.length >= 2 && clusters.length > bestClusters.length) {
+          bestContainer = node
+          bestClusters = clusters
         }
-        return null
+        for (const child of node.children) findPartContainer(child)
       }
-      const container = findPartContainer(model)
-      const parts = container?.children.filter(hasMesh) ?? []
-      if (parts.length >= 2) {
+      findPartContainer(model)
+
+      if (bestContainer && bestClusters.length >= 2) {
         const animations = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-        console.info('[Engine] Modelo composto detectado:', {
+        console.info('[Engine] Componentes espaciais do GLB:', {
           name,
-          parts: parts.map((part) => part.name || 'Objeto sem nome'),
+          clusters: bestClusters.map((cluster, index) => ({
+            name: cluster.nodes.map((part) => part.name).filter(Boolean).join(' + ') || `Árvore ${index + 1}`,
+            meshes: cluster.nodes.reduce((total, part) => {
+              let count = 0
+              part.traverse((child) => { if (child instanceof THREE.Mesh) count += 1 })
+              return total + count
+            }, 0),
+            center: cluster.center.toArray(),
+          })),
           animationClips: animations.map((clip) => clip.name),
         })
-        parts.forEach((part, index) => {
-          part.updateWorldMatrix(true, false)
-          const worldMatrix = part.matrixWorld.clone()
-          const partBounds = new THREE.Box3().setFromObject(part)
-          const center = partBounds.getCenter(new THREE.Vector3())
-          // Preserve a transformação global do GLB ao separar o nó do seu pai.
-          part.removeFromParent()
-          worldMatrix.decompose(part.position, part.quaternion, part.scale)
-          part.position.sub(center)
-          part.userData.importOffset = [center.x, center.z]
-          part.userData.importAnimations = animations
-          part.userData.importPart = true
-          const partName = part.name.trim() || `Árvore ${index + 1}`
-          this.addImportedModel(`${name} — ${partName}`, part, targetHeight)
+
+        bestClusters.forEach((cluster, index) => {
+          const group = new THREE.Group()
+          const label = cluster.nodes.map((part) => part.name.trim()).filter(Boolean)[0] || `Árvore ${index + 1}`
+          group.name = label
+          // Converta cada irmão para coordenadas do mundo antes de reagrupá-lo.
+          // Isso mantém as transformações do GLB e os nomes usados pelas animações.
+          for (const part of cluster.nodes) {
+            part.updateWorldMatrix(true, false)
+            const worldMatrix = part.matrixWorld.clone()
+            part.removeFromParent()
+            worldMatrix.decompose(part.position, part.quaternion, part.scale)
+            part.updateMatrix()
+            group.add(part)
+          }
+          const bounds = boundsOf(group)
+          const center = bounds.getCenter(new THREE.Vector3())
+          group.position.set(-center.x, -center.y, -center.z)
+          group.userData.importOffset = [center.x, center.z]
+          group.userData.importAnimations = animations
+          group.userData.importPart = true
+          this.addImportedModel(`${name} — ${label}`, group, targetHeight)
         })
         return
       }
