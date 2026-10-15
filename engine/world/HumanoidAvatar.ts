@@ -361,6 +361,7 @@ export class HumanoidAvatar {
 
         for (const child of [...this.visualRoot.children]) this.disposeObject(child)
         this.visualRoot.clear()
+        this.proceduralLimbs = null
         this.visualRoot.add(gltf.scene)
         // O modelo GLB é carregado de forma assíncrona; reaplica o modo atual
         // para esconder a cabeça também quando o avatar termina de carregar.
