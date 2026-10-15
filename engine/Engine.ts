@@ -154,18 +154,15 @@ export class Engine {
 
   // ---- ferramentas ----
   setTool(tool: ToolMode): void {
-    const previousTool = this.state.tool
     this.state.tool = tool
-    if (tool === 'grass') {
+    if (tool !== 'select') {
       this.transformControls.detach()
       this.transformControls.enabled = false
-    } else if (previousTool === 'grass') {
+    } else {
       this.transformControls.enabled = true
       const id = this.world.getSelectedId()
       const selected = id ? this.world.get(id) : undefined
-      if (tool === 'select' && selected && selected.mesh.userData.locked !== true) {
-        this.transformControls.attach(selected.mesh)
-      }
+      if (selected && selected.mesh.userData.locked !== true) this.transformControls.attach(selected.mesh)
     }
     this.emitTool()
   }
