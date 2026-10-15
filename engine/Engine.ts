@@ -228,7 +228,8 @@ export class Engine {
       return true
     } catch (error) {
       console.error('[Engine] Não foi possível construir o componente:', error)
-      return false
+      // O clique foi consumido pela ferramenta de componente; não crie um cubo de fallback.
+      return true
     }
   }
 
