@@ -193,6 +193,40 @@ export class Engine {
     this.world.place(type, x, this.world.terrain.heightAt(x, z), z)
   }
 
+  /** Adiciona um modelo externo como objeto transformável na cena. */
+  addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
+    model.updateMatrixWorld(true)
+    const bounds = new THREE.Box3().setFromObject(model)
+    if (bounds.isEmpty()) throw new Error('O modelo importado não possui geometria visível.')
+    const size = bounds.getSize(new THREE.Vector3())
+    const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : size.y
+    const center = bounds.getCenter(new THREE.Vector3())
+    model.position.sub(center)
+    model.updateMatrixWorld(true)
+
+    const proxyGeometry = new THREE.BoxGeometry(Math.max(size.x, 0.05), Math.max(height, 0.05), Math.max(size.z, 0.05))
+    const proxyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
+    const root = new THREE.Mesh(proxyGeometry, proxyMaterial)
+    root.name = name.trim() || 'Modelo importado'
+    const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
+    const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
+    root.position.set(x, this.world.terrain.heightAt(x, z) + height / 2, z)
+    root.add(model)
+    const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
+    root.userData.id = id
+    root.userData.locked = false
+    root.userData.groupId = null
+    root.userData.wireframeVisible = false
+    root.userData.mass = 1
+    root.userData.importedModel = true
+    this.world.add({ id, name: root.name, type: 'cube', mesh: root })
+    this.world.select(id)
+    this.state.tool = 'select'
+    this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform)
+    this.transformControls.attach(root)
+    this.emitTool()
+  }
+
   select(id: string | null): void {
     this.world.select(id)
   }
