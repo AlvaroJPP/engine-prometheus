@@ -48,6 +48,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushStrength = ref(1.5)
   const brushRadius = ref(4)
   const gridVisible = ref(true)
+  const colliderDebugVisible = ref(false)
   const logicRules = ref<LogicRule[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
@@ -308,6 +309,25 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh()
     const labels = { auto: 'automático', box: 'caixa', sphere: 'esfera', capsule: 'cápsula', none: 'desativado' }
     say(`Colisor alterado para ${labels[value]}.`)
+  }
+
+  function onColliderVectorChange(id: string, field: 'colliderSize' | 'colliderOffset', axis: 0 | 1 | 2, ev: Event) {
+    const object = objects.value.find(item => item.id === id)
+    if (!engine || !object) return
+    const value = Number((ev.target as HTMLInputElement).value.replace(',', '.'))
+    if (!Number.isFinite(value)) { refresh(); return }
+    const vector: [number, number, number] = [...object[field]]
+    vector[axis] = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
+    engine.updateObject(id, { [field]: vector })
+    dirty.value = true
+    refresh()
+  }
+
+  function toggleColliderDebug() {
+    if (!engine) return
+    colliderDebugVisible.value = !colliderDebugVisible.value
+    engine.setColliderDebugVisible(colliderDebugVisible.value)
+    say(colliderDebugVisible.value ? 'Visualização dos colisores ativada.' : 'Visualização dos colisores ocultada.')
   }
 
   function onColor(ev: Event) {
@@ -671,6 +691,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     onRename,
     onNumber,
     onColliderChange,
+    onColliderVectorChange,
+    colliderDebugVisible,
+    toggleColliderDebug,
     onColor,
     colorHex,
     regenerateTerrain,
