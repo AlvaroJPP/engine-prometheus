@@ -7,7 +7,7 @@ export type PaintedGrassTuft = [x: number, z: number, scale: number, color: numb
 const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
 
-/** Grama procedural instanciada: variedade visual sem criar milhares de objetos separados. */
+/** Grama instanciada com lâminas curvas, pontas finas e variação natural de cor. */
 export class GrassLayer {
   readonly mesh: THREE.InstancedMesh
   private readonly field: Heightfield
@@ -19,23 +19,58 @@ export class GrassLayer {
   constructor(field: Heightfield) {
     this.field = field
 
-    // Três planos de lâminas cruzados formam tufos visíveis de vários ângulos.
+    // Cada tufo possui cinco folhas curvas, segmentadas e afiladas em direção à ponta.
+    // A malha continua compartilhada por todas as instâncias para preservar o desempenho.
     const geometry = new THREE.BufferGeometry()
     const positions: number[] = []
+    const colors: number[] = []
     const indices: number[] = []
-    for (let blade = 0; blade < 3; blade += 1) {
-      const angle = (blade / 3) * Math.PI
-      const dx = Math.cos(angle) * 0.5
-      const dz = Math.sin(angle) * 0.5
+    const levels = [0, 0.28, 0.58, 0.82, 1]
+    const widths = [0.17, 0.135, 0.09, 0.045, 0.006]
+    const baseColor = new THREE.Color()
+    const tipColor = new THREE.Color()
+
+    for (let blade = 0; blade < 5; blade += 1) {
+      const angle = (blade / 5) * Math.PI * 2 + (blade % 2) * 0.18
+      const dirX = Math.cos(angle)
+      const dirZ = Math.sin(angle)
+      const sideX = -dirZ
+      const sideZ = dirX
+      const length = 0.68 + (blade % 3) * 0.12
+      const lean = 0.12 + (blade % 2) * 0.08
       const base = positions.length / 3
-      positions.push(
-        -dx, 0, -dz,
-        dx, 0, dz,
-        dx * 0.12, 1, dz * 0.12,
-      )
-      indices.push(base, base + 1, base + 2)
+
+      baseColor.setRGB(0.52, 0.72, 0.34)
+      tipColor.setRGB(0.9, 0.94, 0.58)
+
+      for (let level = 0; level < levels.length; level += 1) {
+        const t = levels[level]!
+        const y = t * length
+        const bend = lean * t * t
+        const centerX = dirX * bend
+        const centerZ = dirZ * bend
+        const halfWidth = widths[level]! * (0.82 + (blade % 3) * 0.09)
+        positions.push(
+          centerX - sideX * halfWidth, y, centerZ - sideZ * halfWidth,
+          centerX + sideX * halfWidth, y, centerZ + sideZ * halfWidth,
+        )
+
+        const shade = baseColor.clone().lerp(tipColor, t * 0.78)
+        for (let side = 0; side < 2; side += 1) {
+          const variation = side === 0 ? 0.92 : 1.04
+          colors.push(shade.r * variation, shade.g * variation, shade.b * variation)
+        }
+
+        if (level > 0) {
+          const current = base + level * 2
+          const previous = current - 2
+          indices.push(previous, previous + 1, current, previous + 1, current + 1, current)
+        }
+      }
     }
+
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
     geometry.setIndex(indices)
     geometry.computeVertexNormals()
 
@@ -51,12 +86,11 @@ export class GrassLayer {
     this.mesh.name = 'ProceduralGrass'
     this.mesh.castShadow = false
     this.mesh.receiveShadow = false
-    // O terreno é limitado e a malha cobre toda a área; evita recalcular bounds a cada quadro.
     this.mesh.frustumCulled = false
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
   }
 
-  /** Gera distribuição determinística, tufos variados e inclinação que acompanha o relevo. */
+  /** Distribui tufos em manchas, com altura, escala, tonalidade e inclinação variadas. */
   refresh(): void {
     let state = (this.field.seed >>> 0) || 0x6d2b79f5
     const random = () => {
@@ -68,39 +102,39 @@ export class GrassLayer {
     }
 
     const palettes = [
-      [0.16, 0.38, 0.07],
-      [0.22, 0.46, 0.08],
-      [0.27, 0.52, 0.11],
-      [0.12, 0.31, 0.055],
-      [0.34, 0.48, 0.12],
-      [0.19, 0.42, 0.09],
+      [0.16, 0.34, 0.065],
+      [0.21, 0.42, 0.075],
+      [0.29, 0.48, 0.105],
+      [0.11, 0.27, 0.045],
+      [0.35, 0.45, 0.12],
+      [0.18, 0.38, 0.075],
+      [0.26, 0.37, 0.08],
     ] as const
 
     for (let i = 0; i < GRASS_COUNT; i += 1) {
-      // Distribuição em manchas: áreas próximas tendem a ter densidade semelhante,
-      // evitando o aspecto de pontos uniformemente espalhados.
+      // Manchas suaves em vez de uma distribuição perfeitamente uniforme.
       const clusterX = (random() * 2 - 1) * WORLD_HALF
       const clusterZ = (random() * 2 - 1) * WORLD_HALF
-      const x = THREE.MathUtils.clamp(clusterX + (random() - 0.5) * 2.8, -WORLD_HALF, WORLD_HALF)
-      const z = THREE.MathUtils.clamp(clusterZ + (random() - 0.5) * 2.8, -WORLD_HALF, WORLD_HALF)
+      const x = THREE.MathUtils.clamp(clusterX + (random() - 0.5) * 3.6, -WORLD_HALF, WORLD_HALF)
+      const z = THREE.MathUtils.clamp(clusterZ + (random() - 0.5) * 3.6, -WORLD_HALF, WORLD_HALF)
       const height = this.field.sample(x, z)
       const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
       const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
-      const bladeHeight = 0.24 + random() * 0.48
-      const width = 0.055 + random() * 0.055
+      const bladeHeight = 0.48 + random() * 0.68
+      const width = 0.62 + random() * 0.56
 
-      this.dummy.position.set(x, height + 0.012, z)
+      this.dummy.position.set(x, height + 0.008, z)
       this.dummy.rotation.set(
-        THREE.MathUtils.clamp(-slopeZ * 0.18, -0.28, 0.28),
+        THREE.MathUtils.clamp(-slopeZ * 0.13, -0.24, 0.24),
         random() * Math.PI * 2,
-        THREE.MathUtils.clamp(slopeX * 0.18, -0.28, 0.28),
+        THREE.MathUtils.clamp(slopeX * 0.13, -0.24, 0.24),
       )
       this.dummy.scale.set(width, bladeHeight, width)
       this.dummy.updateMatrix()
       this.mesh.setMatrixAt(i, this.dummy.matrix)
 
       const palette = palettes[Math.floor(random() * palettes.length)] ?? palettes[0]
-      const variation = 0.88 + random() * 0.24
+      const variation = 0.82 + random() * 0.32
       this.color.setRGB(palette[0] * variation, palette[1] * variation, palette[2] * variation)
       this.mesh.setColorAt(i, this.color)
     }
@@ -117,20 +151,18 @@ export class GrassLayer {
     if (available <= 0) return 0
     const area = Math.PI * radius * radius
     const amount = Math.min(available, Math.max(1, Math.round(area * 0.22 * Math.max(0.1, density))))
-    let added = 0
+    const palette = [0x31591b, 0x3e7021, 0x4b7b27, 0x294c16, 0x608a30, 0x78983a]
     for (let i = 0; i < amount; i += 1) {
       const angle = this.random() * Math.PI * 2
       const distance = Math.sqrt(this.random()) * radius
       const px = THREE.MathUtils.clamp(x + Math.cos(angle) * distance, -WORLD_HALF, WORLD_HALF)
       const pz = THREE.MathUtils.clamp(z + Math.sin(angle) * distance, -WORLD_HALF, WORLD_HALF)
-      const scale = 0.65 + this.random() * 0.9
-      const palette = [0x386b1c, 0x477f22, 0x5c8e2b, 0x2f5c18, 0x70963a]
-      const color = palette[Math.floor(this.random() * palette.length)] ?? 0x477f22
+      const scale = 0.7 + this.random() * 0.85
+      const color = palette[Math.floor(this.random() * palette.length)] ?? 0x3e7021
       this.painted.push([px, pz, scale, color])
-      added += 1
     }
     this.rebuildPainted()
-    return added
+    return amount
   }
 
   /** Remove tufos pintados dentro do raio sem afetar a grama procedural. */
@@ -176,9 +208,9 @@ export class GrassLayer {
     this.mesh.count = GRASS_COUNT + this.painted.length
     for (let i = 0; i < this.painted.length; i += 1) {
       const [x, z, scale, color] = this.painted[i]!
-      this.dummy.position.set(x, this.field.sample(x, z) + 0.012, z)
+      this.dummy.position.set(x, this.field.sample(x, z) + 0.008, z)
       this.dummy.rotation.set(0, this.random() * Math.PI * 2, 0)
-      this.dummy.scale.set(0.08 * scale, (0.24 + this.random() * 0.48) * scale, 0.08 * scale)
+      this.dummy.scale.set(0.82 * scale, (0.48 + this.random() * 0.68) * scale, 0.82 * scale)
       this.dummy.updateMatrix()
       this.mesh.setMatrixAt(GRASS_COUNT + i, this.dummy.matrix)
       this.color.setHex(color)
