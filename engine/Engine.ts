@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
 import type { BrushSettings, EditorState, ToolMode, TransformMode } from './EditorState'
 import { randomSeed, resetIds, uuid } from './lib/id'
 import type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 import { MAIN_SCENE_PATH } from './project/format'
-import type { CameraPreset, ObjectType, ProjectBundle } from './project/format'
+import type { CameraPreset, ObjectType, ProjectBundle, SceneObjectData } from './project/format'
 import { buildBundle, objectFromData } from './project/serialize'
 import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
@@ -200,7 +201,7 @@ export class Engine {
   }
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
-  addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
+  addImportedModel(name: string, model: THREE.Object3D, targetHeight: number, restoreData?: SceneObjectData): void {
     // Evita congelamentos ao inserir assets acidentalmente gigantes no editor.
     // A contagem é feita antes da análise de agrupamento e antes de adicionar ao render loop.
     const MAX_IMPORTED_TRIANGLES = 1_500_000
@@ -459,10 +460,15 @@ export class Engine {
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     const importOffset = model.userData.importOffset as [number, number] | undefined
     root.position.set(
-      x + (importOffset?.[0] ?? 0) * scaleFactor,
-      this.world.terrain.heightAt(x, z) + height / 2,
-      z + (importOffset?.[1] ?? 0) * scaleFactor,
+      restoreData?.position[0] ?? x + (importOffset?.[0] ?? 0) * scaleFactor,
+      restoreData?.position[1] ?? this.world.terrain.heightAt(x, z) + height / 2,
+      restoreData?.position[2] ?? z + (importOffset?.[1] ?? 0) * scaleFactor,
     )
+    if (restoreData) {
+      root.rotation.set(...restoreData.rotation)
+      root.scale.set(...restoreData.scale)
+      root.visible = restoreData.visible
+    }
     if (animationMixer) root.userData.importAnimationMixer = animationMixer
     root.add(model)
     // Atualiza toda a hierarquia antes de entrar no loop de renderização.
@@ -508,7 +514,20 @@ export class Engine {
       root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
     }
     root.userData.importedModel = true
-    this.world.add({ id, name: root.name, type: 'cube', mesh: root })
+    root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
+    root.userData.importedModelHeight = height
+    if (restoreData) {
+      root.userData.locked = restoreData.locked ?? false
+      root.userData.groupId = restoreData.groupId ?? null
+      root.userData.wireframeVisible = restoreData.wireframeVisible ?? false
+      root.userData.mass = restoreData.mass ?? 1
+      if (restoreData.colliderType) root.userData.colliderType = restoreData.colliderType
+      if (restoreData.colliderSize) root.userData.colliderSize = [...restoreData.colliderSize]
+      if (restoreData.colliderOffset) root.userData.colliderOffset = [...restoreData.colliderOffset]
+    }
+    const finalId = restoreData?.id ?? id
+    root.userData.id = finalId
+    this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
     this.world.select(id)
     this.state.tool = 'select'
     this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform)
@@ -630,7 +649,7 @@ export class Engine {
     return bundle
   }
 
-  loadProject(bundle: ProjectBundle): void {
+  async loadProject(bundle: ProjectBundle): Promise<void> {
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
@@ -640,7 +659,29 @@ export class Engine {
     this.meta = { id: bundle.project.id, name: bundle.project.name }
     this.orbit.restore(scene.camera)
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
-    this.world.replaceAll(scene.objects.map(objectFromData), scene.terrain)
+    this.world.replaceAll(scene.objects.filter(object => !object.importedModelData).map(objectFromData), scene.terrain)
+    const loader = new GLTFLoader()
+    for (const data of scene.objects) {
+      if (!data.importedModelData) continue
+      try {
+        const binary = Uint8Array.from(atob(data.importedModelData), char => char.charCodeAt(0)).buffer
+        const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
+          loader.parse(binary, '', resolve, reject)
+        })
+        const model = gltf.scene
+        model.name = data.name
+        model.userData.importPart = true
+        model.userData.importAnimations = gltf.animations
+        model.userData.importModelData = data.importedModelData
+        model.userData.importColliderType = data.colliderType ?? 'box'
+        model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
+        model.userData.importColliderOffset = data.colliderOffset ?? [0, 0, 0]
+        this.addImportedModel(data.name, model, data.importedModelHeight ?? 1, { ...data, importedModelData: data.importedModelData })
+      } catch (error) {
+        console.error('[Engine] Não foi possível restaurar o modelo importado:', data.name, error)
+        throw new ProjectFormatError(`Não foi possível carregar o modelo "${data.name}" salvo no projeto.`)
+      }
+    }
     const editorSettings = bundle.project.settings.editor
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
