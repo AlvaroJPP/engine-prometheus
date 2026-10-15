@@ -169,12 +169,25 @@ export class CollisionSystem {
     const cached = this.colliderGeometries.get(key)
     if (cached) return cached
     let geometry: THREE.BufferGeometry
+    const sourceGeometry = object.mesh.geometry
+    if (!sourceGeometry.boundingBox) sourceGeometry.computeBoundingBox()
+    const bounds = sourceGeometry.boundingBox
+    const size = bounds
+      ? bounds.getSize(new THREE.Vector3())
+      : new THREE.Vector3(1, 1, 1)
+    const width = Math.max(size.x, 0.001)
+    const height = Math.max(size.y, 0.001)
+    const depth = Math.max(size.z, 0.001)
     if (type === 'box') {
-      geometry = new THREE.BoxGeometry(1, 1, 1)
+      geometry = new THREE.BoxGeometry(width, height, depth)
     } else if (type === 'sphere') {
-      geometry = new THREE.IcosahedronGeometry(0.5, 2)
+      const radius = Math.max(width, height, depth) * 0.5
+      geometry = new THREE.IcosahedronGeometry(radius, 2)
     } else {
-      geometry = new THREE.CapsuleGeometry(0.35, 0.3, 4, 8)
+      const radius = Math.max(0.001, Math.min(width, depth) * 0.25)
+      geometry = new THREE.CapsuleGeometry(radius, Math.max(0, height - radius * 2), 4, 8)
+      // CapsuleGeometry is Y-aligned; stretch its cross-section to fit non-uniform bounds.
+      geometry.scale(width / Math.max(radius * 2, 0.001), 1, depth / Math.max(radius * 2, 0.001))
     }
     this.colliderGeometries.set(key, geometry)
     return geometry
