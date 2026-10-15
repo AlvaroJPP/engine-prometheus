@@ -35,6 +35,7 @@ export class Engine {
   private avatar: HumanoidAvatar
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
+  private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
@@ -92,7 +93,7 @@ export class Engine {
         this.groupTransformSnapshot = mesh ? { position: [mesh.position.x, mesh.position.y, mesh.position.z], rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z], scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] } : null
       } else this.groupTransformSnapshot = null
     })
-    this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging)
+    this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging, (x, y, z) => this.placePendingBuildComponent(x, y, z))
     this.events.on('selectionChanged', ({ id }) => {
       const object = id ? this.world.get(id) : undefined
       if (object && object.mesh.userData.locked !== true) this.transformControls.attach(object.mesh)
@@ -198,6 +199,37 @@ export class Engine {
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     this.world.place(type, x, this.world.terrain.heightAt(x, z), z)
+  }
+
+  /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
+  setBuildComponentPlacement(name: string, model: THREE.Object3D, height: number): void {
+    model.userData.importPart = true
+    this.pendingBuildComponent = { name, model, height }
+  }
+
+  private placePendingBuildComponent(x: number, baseY: number, z: number): boolean {
+    const pending = this.pendingBuildComponent
+    if (!pending) return false
+    const existingIds = new Set(this.world.list().map(object => object.id))
+    try {
+      const model = pending.model.clone(true)
+      model.userData = { ...pending.model.userData, importPart: true }
+      this.addImportedModel(pending.name, model, pending.height)
+      const created = this.world.list().find(object => !existingIds.has(object.id))
+      if (!created) return false
+      created.mesh.position.set(x, baseY + pending.height / 2, z)
+      created.mesh.updateMatrixWorld(true)
+      this.world.notifyChanged(created.id)
+      // A ferramenta Construir permanece ativa para colocar várias cópias.
+      this.state.tool = 'build'
+      this.transformControls.detach()
+      this.transformControls.enabled = false
+      this.emitTool()
+      return true
+    } catch (error) {
+      console.error('[Engine] Não foi possível construir o componente:', error)
+      return false
+    }
   }
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
