@@ -50,6 +50,7 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   let completed = 0
   const report = (message: string) => onProgress?.(message, Math.min(99, Math.round((completed / total) * 100)))
   const scenes: Record<string, SceneFile> = JSON.parse(JSON.stringify(bundle.scenes)) as Record<string, SceneFile>
+  const retainedAssets = new Set<string>()
 
   // Recursos binários ficam em resources/, enquanto as cenas guardam apenas referências.
   for (const [scenePath, scene] of Object.entries(scenes)) {
@@ -57,20 +58,28 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
       const faceTextures = object.faceTextures as FaceTextureMap | undefined
       if (faceTextures) {
         for (const [face, texture] of Object.entries(faceTextures)) {
-          if (!texture?.imageDataUrl || texture.imageDataUrl.startsWith('asset://')) continue
+          if (!texture?.imageDataUrl) continue
+          if (texture.imageDataUrl.startsWith('asset://')) {
+            retainedAssets.add(texture.imageDataUrl.slice('asset://'.length))
+            continue
+          }
           const parsed = parseDataUrl(texture.imageDataUrl)
           const rel = `resources/textures/${safeAssetId(object.id)}-${face}.${parsed.extension}`
           await writeAsset(dir, rel, parsed.base64)
           texture.imageDataUrl = `asset://${rel}`
+          retainedAssets.add(rel)
           completed++
           report(`Salvando textura ${face}…`)
         }
       }
-      if (object.importedModelData && !object.importedModelData.startsWith('asset://')) {
+      if (object.importedModelData?.startsWith('asset://')) {
+        retainedAssets.add(object.importedModelData.slice('asset://'.length))
+      } else if (object.importedModelData) {
         const rel = `resources/models/${safeAssetId(object.id)}.glb`
         // importedModelData é o conteúdo binário GLB codificado em Base64.
         await writeAsset(dir, rel, object.importedModelData.replace(/^data:.*?;base64,/, ''))
         object.importedModelData = `asset://${rel}`
+        retainedAssets.add(rel)
         completed++
         report(`Salvando modelo 3D ${object.name}…`)
       }
@@ -92,6 +101,8 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   completed++
   report('Gravando eventos e regras…')
   await invoke('write_project_file', { dir, rel: 'project.json', contents: JSON.stringify(bundle.project, null, 2) })
+  onProgress?.('Limpando recursos que não são mais usados…', 98)
+  await invoke('prune_project_assets', { dir, keep: [...retainedAssets] })
   onProgress?.('Salvamento concluído.', 100)
 }
 
