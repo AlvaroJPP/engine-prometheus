@@ -67,6 +67,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   let statusTimer = 0
   const offs: Array<() => void> = []
   let clipboardObject: ObjectInfo | null = null
+  let clipboardImportedModel: Object3D | null = null
   let applyingHistory = false
   type ObjectHistoryEntry = { id: string; before: ObjectInfo; after: ObjectInfo; kind?: 'paste' | 'create' }
   const undoStack: ObjectHistoryEntry[] = []
@@ -173,9 +174,23 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function copySelectedObject() {
     const object = objects.value.find(item => item.id === selectedId.value)
     if (!object || object.id === TERRAIN_ID) { say('Selecione um objeto para copiar.'); return }
-    if (engine?.world.get(object.id)?.mesh.userData.importedModel === true) {
-      say('A cópia de modelos 3D importados ainda não está disponível; esta ação funciona com objetos básicos.')
-      return
+    const sourceObject = engine?.world.get(object.id)
+    if (sourceObject?.mesh.userData.importedModel === true) {
+      const visualModel = sourceObject.mesh.children.find(child => child.userData.importPart === true || child.type === 'Group' || child.type === 'Object3D')
+      if (!visualModel) {
+        say('Não foi possível localizar a malha visual deste modelo.')
+        return
+      }
+      clipboardImportedModel = visualModel.clone(true)
+      clipboardImportedModel.userData = {
+        ...visualModel.userData,
+        importPart: true,
+        importAnimations: sourceObject.mesh.userData.importAnimationMixer
+          ? (visualModel.userData.importAnimations ?? [])
+          : (visualModel.userData.importAnimations ?? []),
+      }
+    } else {
+      clipboardImportedModel = null
     }
     clipboardObject = JSON.parse(JSON.stringify(object)) as ObjectInfo
     say(`Objeto "${object.name}" copiado.`)
@@ -185,7 +200,20 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!engine || !clipboardObject) { say('Copie um objeto antes de colar.'); return }
     const source = clipboardObject
     const existingIds = new Set(engine.listObjects().map(object => object.id))
-    engine.addPrimitive(source.type)
+    const isImportedModel = clipboardImportedModel !== null
+    if (isImportedModel && clipboardImportedModel) {
+      const model = clipboardImportedModel.clone(true)
+      model.userData = { ...clipboardImportedModel.userData, importPart: true }
+      const height = Number(source.type === 'cube' ? engine.world.get(source.id)?.mesh.userData.importedModelHeight : undefined)
+      const fallbackHeight = Math.max(0.05, source.scaleY)
+      engine.addImportedModel(
+        source.name.endsWith(' - cópia') ? source.name : `${source.name} - cópia`,
+        model,
+        Number.isFinite(height) && height > 0 ? height : fallbackHeight,
+      )
+    } else {
+      engine.addPrimitive(source.type)
+    }
     const created = engine.listObjects().find(object => !existingIds.has(object.id))
     if (!created) { say('Não foi possível colar o objeto.'); return }
     const pastedState: ObjectInfo = {
