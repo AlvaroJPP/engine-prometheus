@@ -91,6 +91,7 @@ export class HumanoidAvatar {
   private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
+  private externalCollider: THREE.Object3D | null = null
   private verticalVelocity = 0
   private grounded = true
   private enabled = true
@@ -300,6 +301,16 @@ export class HumanoidAvatar {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled
     this.pressed.clear()
+    if (!enabled) {
+      // O mixer não pode manter uma pose idle/run congelada por cima da pose de montaria.
+      this.mixer?.stopAllAction()
+      this.activeAnimation = ''
+    }
+  }
+
+  /** Registra uma malha externa (como o cavalo) que também bloqueia o movimento a pé. */
+  setExternalCollider(object: THREE.Object3D | null): void {
+    this.externalCollider = object
   }
 
   /**
@@ -311,6 +322,12 @@ export class HumanoidAvatar {
   setMountedPose(amount: number, gait = 0, leftDrop = 0.3, rightDrop = 0.3): void {
     const blend = THREE.MathUtils.clamp(amount, 0, 1)
     const bounce = THREE.MathUtils.clamp(gait, -1, 1)
+    if (blend > 0 && this.mixer) {
+      // Animações importadas frequentemente deixam o esqueleto parado na última pose.
+      // A pose procedural passa a controlar os ossos enquanto o personagem está montado.
+      this.mixer.stopAllAction()
+      this.activeAnimation = ''
+    }
     // Ângulo de cada perna calculado com a diferença entre o topo da sela e o
     // polígono encontrado sob cada lado do cavalo.
     const leftAngle = THREE.MathUtils.clamp(-0.62 - leftDrop * 0.72, -1.3, -0.68)
@@ -318,14 +335,14 @@ export class HumanoidAvatar {
 
     if (this.proceduralLimbs) {
       const limbs = this.proceduralLimbs
-      limbs.leftLeg.rotation.x = leftAngle * blend + bounce * 0.035 * blend
-      limbs.rightLeg.rotation.x = rightAngle * blend - bounce * 0.035 * blend
+      limbs.leftLeg.rotation.x = leftAngle * blend + bounce * 0.18 * blend
+      limbs.rightLeg.rotation.x = rightAngle * blend - bounce * 0.18 * blend
       limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(0, -0.16, blend)
       limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(0, 0.16, blend)
-      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) + bounce * 0.025 * blend
-      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) - bounce * 0.025 * blend
-      limbs.torso.rotation.x = THREE.MathUtils.lerp(0, -0.06, blend)
-      limbs.torso.position.y = 1.02 - 0.035 * blend + Math.abs(bounce) * 0.012 * blend
+      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) + bounce * 0.09 * blend
+      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) - bounce * 0.09 * blend
+      limbs.torso.rotation.x = THREE.MathUtils.lerp(0, -0.06, blend) + bounce * 0.025 * blend
+      limbs.torso.position.y = 1.02 - 0.035 * blend + Math.abs(bounce) * 0.025 * blend
       limbs.leftShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + leftDrop * 0.15, blend)
       limbs.rightShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + rightDrop * 0.15, blend)
     }
@@ -335,12 +352,12 @@ export class HumanoidAvatar {
       const left = /left|_l\\b|\\.l\\b|\\bl_/.test(name)
       const right = /right|_r\\b|\\.r\\b|\\br_/.test(name)
       if (/pelvis|hips|hip/.test(name)) {
-        bone.node.position.y = bone.basePosition.y - 0.035 * blend + Math.abs(bounce) * 0.012 * blend
+        bone.node.position.y = bone.basePosition.y - 0.055 * blend + Math.abs(bounce) * 0.025 * blend
         bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.06, blend)
       } else if (/thigh|upper.?leg|upleg/.test(name) && left) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle, blend) + bounce * 0.025 * blend
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle, blend) + bounce * 0.16 * blend
       } else if (/thigh|upper.?leg|upleg/.test(name) && right) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle, blend) - bounce * 0.025 * blend
+        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle, blend) - bounce * 0.16 * blend
       } else if (/leg|calf|shin|knee/.test(name) && left) {
         bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle * 0.48, blend)
       } else if (/leg|calf|shin|knee/.test(name) && right) {
@@ -627,8 +644,11 @@ export class HumanoidAvatar {
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
 
-    for (const object of this.world.list()) {
-      const root = object.mesh
+    const collisionRoots = [
+      ...this.world.list().map((object) => object.mesh),
+      ...(this.externalCollider?.visible ? [this.externalCollider] : []),
+    ]
+    for (const root of collisionRoots) {
       if (!root.visible || root.userData.colliderType === 'none') continue
       root.updateWorldMatrix(true, true)
 
