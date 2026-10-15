@@ -246,6 +246,15 @@ export class HumanoidAvatar {
     this.pressed.clear()
   }
 
+  resetVerticalState(): void {
+    this.verticalVelocity = 0
+    this.grounded = true
+    this.pressed.clear()
+    this.activeCollisions.clear()
+    this.animationTime = 0
+    this.playAnimation('idle')
+  }
+
   reset(): void {
     this.mesh.position.set(0, this.world.terrain.heightAt(0, 0), 0)
     this.verticalVelocity = 0
