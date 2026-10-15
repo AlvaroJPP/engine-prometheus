@@ -669,24 +669,6 @@ async function placeSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
     if (!component) throw new Error('Este componente não está mais na biblioteca.')
-    // O cavalo padrão é um componente nativo do motor: reutiliza o HorseMount
-    // real (animações, colisões, montaria e desmontagem), não uma cópia GLB.
-    if (component.id === 'builtin-horse-low-poly') {
-      const nativeHorse = new THREE.Group()
-      nativeHorse.userData.nativeHorseComponent = true
-      nativeHorse.userData.componentId = component.id
-      nativeHorse.userData.componentLogic = component.logic ?? []
-      // Mantém os bytes originais do GLB no objeto de cena, mesmo usando o runtime
-      // nativo de montaria. Assim o projeto salva o asset junto com o grafo visual.
-      nativeHorse.userData.importedModelData = arrayBufferToBase64(component.bytes)
-      nativeHorse.userData.importedModelHeight = component.height
-      nativeHorse.userData.importColliderType = component.colliderType
-      nativeHorse.userData.importColliderSize = [...component.colliderSize]
-      nativeHorse.userData.importColliderOffset = [...component.colliderOffset]
-      setBuildComponentPlacement(component.name, nativeHorse, component.height)
-      status.value = 'Cavalo Low Poly nativo selecionado. Clique em Construir e depois no mundo para colocá-lo.'
-      return
-    }
     const loader = new GLTFLoader()
     const model = await new Promise<import('three').Object3D>((resolve, reject) => {
       loader.parse(component.bytes.slice(0), '', gltf => {
