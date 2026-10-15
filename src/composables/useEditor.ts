@@ -299,6 +299,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine.updateObject(id, patch)
   }
 
+  function onColliderChange(id: string, ev: Event) {
+    const value = (ev.target as HTMLSelectElement).value
+    if (!engine || !objects.value.some(object => object.id === id)) return
+    if (value !== 'auto' && value !== 'box' && value !== 'sphere' && value !== 'capsule' && value !== 'none') return
+    engine.updateObject(id, { colliderType: value })
+    dirty.value = true
+    refresh()
+    const labels = { auto: 'automático', box: 'caixa', sphere: 'esfera', capsule: 'cápsula', none: 'desativado' }
+    say(`Colisor alterado para ${labels[value]}.`)
+  }
+
   function onColor(ev: Event) {
     const id = selectedId.value
     if (!engine || !id || id === TERRAIN_ID) return
@@ -659,6 +670,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     removeSelected,
     onRename,
     onNumber,
+    onColliderChange,
     onColor,
     colorHex,
     regenerateTerrain,
