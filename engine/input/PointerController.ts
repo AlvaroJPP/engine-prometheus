@@ -30,7 +30,7 @@ export class PointerController {
   private world: World
   private state: EditorState
   private isGizmoDragging: () => boolean
-  private onBuildAt?: (x: number, y: number, z: number) => boolean
+  private onBuildAt: ((x: number, y: number, z: number) => boolean) | undefined
   private raycaster = new THREE.Raycaster()
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
