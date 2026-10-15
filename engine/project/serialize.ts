@@ -34,6 +34,7 @@ export function buildBundle(
       colliderSize: Array.isArray(m.userData.colliderSize) ? [...m.userData.colliderSize] as [number, number, number] : undefined,
       colliderOffset: Array.isArray(m.userData.colliderOffset) ? [...m.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       componentId: typeof m.userData.componentId === 'string' ? m.userData.componentId : undefined,
+      nativeComponentType: m.userData.nativeComponentType === 'horse' ? 'horse' : undefined,
       importedModelData: typeof m.userData.importedModelData === 'string' ? m.userData.importedModelData : undefined,
       importedModelHeight: typeof m.userData.importedModelHeight === 'number' ? m.userData.importedModelHeight : undefined,
       color: typeof m.userData.baseColor === 'number' ? m.userData.baseColor : ((Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial).color.getHex(),
