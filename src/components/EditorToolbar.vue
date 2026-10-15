@@ -20,6 +20,7 @@ const emit = defineEmits<{
   'set-transform': [transform: TransformMode]
   'toggle-graph': []
   'add-primitive': [type: 'cube' | 'platform']
+  'add-spawn-platform': []
   'add-clickable-example': []
   'toggle-grid': []
   'toggle-polygon-lines': []
@@ -53,6 +54,7 @@ const emit = defineEmits<{
     <button v-if="props.inspectorMode === 'environment'" class="tool add" @click="emit('add-primitive', 'cube')">+ Cubo</button>
     <button v-if="props.inspectorMode === 'environment'" class="tool add" @click="emit('add-clickable-example')" title="Cria um cubo azul clicável e configura a variável click">+ Exemplo clicável</button>
     <button v-if="props.inspectorMode === 'environment'" class="tool add" @click="emit('add-primitive', 'platform')">+ Plataforma</button>
+    <button v-if="props.inspectorMode === 'environment'" class="tool add spawn-tool" @click="emit('add-spawn-platform')" title="Define onde o jogador aparece ao pressionar Run">◎ Spawn do jogador</button>
     <span class="vsep" />
     <button class="tool grid-toggle" :class="{ active: props.gridVisible }" @click="emit('toggle-grid')" title="Mostrar ou ocultar a malha">▦ Malha</button>
     <button class="tool grid-toggle" :class="{ active: props.polygonLinesVisible }" @click="emit('toggle-polygon-lines')" :title="props.polygonLinesVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'">⬡ Linhas</button>
