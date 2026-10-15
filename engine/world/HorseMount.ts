@@ -1050,6 +1050,24 @@ export class HorseMount {
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
+
+    this.horseMixer?.stopAllAction()
+    this.riderMixer?.stopAllAction()
+    this.horseMixer = null
+    this.riderMixer = null
+    this.horseAnimationActions.clear()
+    this.riderAnimationActions.clear()
+
+    // O GLB em repouso vive na raiz editável, fora de this.mesh. Retire-o
+    // explicitamente para não deixar uma malha órfã na cena ao trocar de mundo.
+    this.componentModelPivot?.parent?.remove(this.componentModelPivot)
+    this.componentModelPivot = null
+    if (this.importedModel && this.importedModel.parent && this.importedModel.parent !== this.mesh) {
+      this.importedModel.parent.remove(this.importedModel)
+      this.disposeLoadedModel(this.importedModel)
+    }
+    this.importedModel = null
+
     this.world.scene.remove(this.mesh)
     this.mesh.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
