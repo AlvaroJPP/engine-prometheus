@@ -540,4 +540,5 @@ export class World {
     const material = obj.mesh.material
     if (Array.isArray(material)) material.forEach(disposeMaterial)
     else disposeMaterial(material)
-  }}
+  }
+}
