@@ -214,6 +214,7 @@ export class CollisionSystem {
   isDebugVisible(): boolean { return this.debugVisible }
 
   private syncDebugHelpers(objects: GameObject[]): void {
+    if (!this.debugVisible) return
     const active = new Set(objects.map(object => object.id))
     for (const object of objects) {
       const geometry = this.getColliderGeometry(object)
