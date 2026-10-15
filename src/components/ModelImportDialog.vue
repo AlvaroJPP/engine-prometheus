@@ -110,13 +110,16 @@ async function applyRecoveredColorTexture(materialIndex: number) {
     texture.flipY = false
     texture.needsUpdate = true
     let assigned = 0
+    const recoveredTextures = (root.userData.importRecoveredTextures as THREE.Texture[] | undefined) ?? []
     root.traverse(node => {
       if (!(node instanceof THREE.Mesh)) return
       const materials = Array.isArray(node.material) ? node.material : [node.material]
       for (const material of materials) {
         if (material.name !== materialInfo.name || !('map' in material)) continue
         const standard = material as THREE.MeshStandardMaterial
-        if (standard.map) continue
+        // Só substitua mapas ausentes ou aplicados por esta ferramenta; nunca
+        // sobrescreva uma textura original válida do arquivo.
+        if (standard.map && !recoveredTextures.includes(standard.map)) continue
         standard.map = texture
         standard.needsUpdate = true
         assigned += 1
@@ -129,7 +132,6 @@ async function applyRecoveredColorTexture(materialIndex: number) {
     const applied = (root.userData.importRecoveredColorTextures as Record<string, number> | undefined) ?? {}
     applied[String(materialIndex)] = imageIndex
     root.userData.importRecoveredColorTextures = applied
-    const recoveredTextures = (root.userData.importRecoveredTextures as THREE.Texture[] | undefined) ?? []
     recoveredTextures.push(texture)
     root.userData.importRecoveredTextures = recoveredTextures
     textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialInfo.name || materialIndex}. O mapa normal e os demais mapas foram preservados.`
