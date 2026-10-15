@@ -289,7 +289,7 @@ export class World {
       this.scene.add(o.mesh)
       this.objects.set(o.id, o)
     }
-    this.terrain.load(terrain.seed, terrain.edits)
+    this.terrain.load(terrain.seed, terrain.edits, terrain.paintedGrass ?? [])
     this.applyTerrainVisible(terrain.visible)
     this.events.emit('worldReset', { count: objs.length })
   }
@@ -372,6 +372,7 @@ export class World {
       seed: this.terrain.field.seed,
       visible: this.terrain.mesh.visible,
       edits: this.terrain.field.exportEdits(),
+      paintedGrass: this.terrain.grass.exportPainted(),
     }
   }
 
@@ -395,7 +396,7 @@ export class World {
   }
 
   clearTerrainEdits(): void {
-    this.terrain.load(this.terrain.field.seed, [])
+    this.terrain.load(this.terrain.field.seed, [], this.terrain.grass.exportPainted())
     this.notifyTerrain()
   }
 
