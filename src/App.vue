@@ -66,6 +66,7 @@ const {
   toggleColliderDebug,
   onColor,
   onTexture,
+  onTextureRepeat,
   colorHex,
   regenerateTerrain,
   clearTerrain,
@@ -879,6 +880,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                       <option value="sand">Areia</option>
                       <option value="metal">Metal</option>
                     </select>
+                  </label>
+                  <label class="field">Repetição da textura · {{ selected.textureRepeat }}×
+                    <input type="range" min="1" max="8" step="1" :value="selected.textureRepeat" :disabled="selected.texturePreset === 'none'" @change="onTextureRepeat" />
                   </label>
                   <p class="component-note">Texturas procedurais aplicadas ao cubo ou à plataforma e salvas junto com o projeto.</p>
                   <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
