@@ -1021,6 +1021,7 @@ export class Engine {
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
+    this.horseMount.dispose()
     this.avatar.dispose()
     this.collisions.clear()
     this.transformControls.dispose()
