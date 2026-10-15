@@ -42,10 +42,15 @@ export class World {
       material.depthTest = false
     }
     this.scene.add(this.grid)
-    this.scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x3b3a2e, 1.0))
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4)
+    // Iluminação um pouco mais próxima da prévia de importação, para manter
+    // materiais PBR e cores de árvores/texturas legíveis no viewport principal.
+    this.scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 1.5))
+    const sun = new THREE.DirectionalLight(0xffffff, 2.0)
     sun.position.set(30, 50, 20)
     this.scene.add(sun)
+    const fill = new THREE.DirectionalLight(0x9dbaff, 0.55)
+    fill.position.set(-30, 18, -24)
+    this.scene.add(fill)
   }
 
   // ---- objetos ----
