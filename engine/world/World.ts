@@ -248,7 +248,7 @@ export class World {
       colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [baseColliderSize.x, baseColliderSize.y, baseColliderSize.z],
       colliderOffset: Array.isArray(o.mesh.userData.colliderOffset) && o.mesh.userData.colliderOffset.length === 3 ? [...o.mesh.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       texturePreset: o.mesh.userData.texturePreset === 'grass' || o.mesh.userData.texturePreset === 'stone' || o.mesh.userData.texturePreset === 'brick' || o.mesh.userData.texturePreset === 'wood' || o.mesh.userData.texturePreset === 'sand' || o.mesh.userData.texturePreset === 'metal' ? o.mesh.userData.texturePreset : 'none',
-      color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (typeof o.mesh.userData.baseColor === 'number' ? o.mesh.userData.baseColor : (o.mesh.material as THREE.MeshStandardMaterial).color.getHex()),
+      color: o.mesh.userData.importedModel === true && typeof o.mesh.userData.importedTint === 'number' ? o.mesh.userData.importedTint : (typeof o.mesh.userData.baseColor === 'number' ? o.mesh.userData.baseColor : ((Array.isArray(o.mesh.material) ? o.mesh.material[0] : o.mesh.material) as THREE.MeshStandardMaterial).color.getHex()),
       textureRepeat: typeof o.mesh.userData.textureRepeat === 'number' ? o.mesh.userData.textureRepeat : 2,
       faceTextures: (o.mesh.userData.faceTextures ?? {}) as import('../project/format').FaceTextureMap,
     })})
