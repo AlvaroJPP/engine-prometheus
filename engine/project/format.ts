@@ -51,12 +51,20 @@ export interface CameraData {
   target: Vec3
 }
 
+export interface EnvironmentData {
+  skyTextureDataUrl?: string
+  timeOfDay: number
+  cycleEnabled: boolean
+  cycleSpeed: number
+}
+
 export interface SceneFile {
   formatVersion: number
   id: string
   name: string
   camera: CameraData
   terrain: TerrainData
+  environment?: EnvironmentData
   objects: SceneObjectData[]
 }
 
