@@ -132,7 +132,7 @@ export class RuleEngine {
     for (const rule of matchingRules) this.run(rule, objectId, true)
   }
 
-  triggerKeyPressed(key: string, objectId?: string): void {
+  triggerKeyPressed(key: string, objectId?: string): boolean {
     const matchingRules = this.rulesInHierarchyOrder().filter((rule) =>
       rule.enabled &&
       rule.trigger.type === 'key_pressed' &&
@@ -140,7 +140,9 @@ export class RuleEngine {
       (!objectId || rule.ownerObjectId === objectId) &&
       this.conditionsMatch(rule, rule.ownerObjectId ?? objectId)
     )
-    for (const rule of matchingRules) this.run(rule, rule.ownerObjectId ?? objectId, true)
+    let executed = false
+    for (const rule of matchingRules) executed = this.run(rule, rule.ownerObjectId ?? objectId, true) || executed
+    return executed
   }
 
   update(): void {
