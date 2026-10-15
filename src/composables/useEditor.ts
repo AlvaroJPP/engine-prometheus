@@ -102,9 +102,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     globalLogicVariables.value = engine.logicVariables()
   }, { flush: 'sync' })
 
+  let colliderInputActive = false
+
   function markDirty() {
     dirty.value = true
-    refresh()
+    if (!colliderInputActive) refresh()
   }
 
   let applyingProjectSettings = false
@@ -312,15 +314,24 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   function onColliderVectorChange(id: string, field: 'colliderSize' | 'colliderOffset', axis: 0 | 1 | 2, ev: Event) {
-    const object = objects.value.find(item => item.id === id)
-    if (!engine || !object) return
-    const value = Number((ev.target as HTMLInputElement).value.replace(',', '.'))
-    if (!Number.isFinite(value)) { refresh(); return }
-    const vector: [number, number, number] = [...object[field]]
-    vector[axis] = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
-    engine.updateObject(id, { [field]: vector })
-    dirty.value = true
-    refresh()
+    if (!engine) return
+    const input = ev.target as HTMLInputElement
+    colliderInputActive = true
+    const raw = input.value.trim().replace(',', '.')
+    const value = Number(raw)
+    if (raw !== '' && Number.isFinite(value)) {
+      const object = engine.listObjects().find(item => item.id === id)
+      if (object) {
+        const vector: [number, number, number] = [...object[field]]
+        vector[axis] = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
+        engine.updateObject(id, { [field]: vector })
+        dirty.value = true
+      }
+    }
+    if (ev.type === 'change') {
+      colliderInputActive = false
+      refresh()
+    }
   }
 
   function toggleColliderDebug() {
