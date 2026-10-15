@@ -186,6 +186,19 @@ export class Engine {
       this.cameraStateBeforeRun = this.orbit.getState()
       this.orbit.setFirstPersonMode(false)
       this.avatar.setFirstPersonMode(false)
+      // Se houver uma plataforma de spawn, posiciona os pés do jogador sobre ela.
+      // O nome é persistido no projeto, então o ponto continua funcionando após reabrir.
+      const spawn = this.world.list().find((object) =>
+        object.name === 'Plataforma de Spawn' || object.mesh.userData.playerSpawn === true,
+      )
+      if (spawn) {
+        spawn.mesh.updateMatrixWorld(true)
+        const bounds = new THREE.Box3().setFromObject(spawn.mesh)
+        this.avatar.mesh.position.set(spawn.mesh.position.x, bounds.max.y + 0.03, spawn.mesh.position.z)
+        this.avatar.resetVerticalState()
+      } else {
+        this.avatar.reset()
+      }
       this.avatar.mesh.visible = true
       this.avatar.setEnabled(true)
       this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
@@ -238,6 +251,30 @@ export class Engine {
     const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
     const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
     this.world.place(type, x, this.world.terrain.heightAt(x, z), z)
+  }
+
+  /** Cria uma pequena plataforma persistente que define o ponto inicial do jogador. */
+  addSpawnPlatform(): void {
+    const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
+    const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
+    const groundY = this.world.terrain.heightAt(x, z)
+
+    // Mantém apenas um ponto de spawn ativo por projeto.
+    for (const object of this.world.list()) {
+      if (object.name === 'Plataforma de Spawn' || object.mesh.userData.playerSpawn === true) {
+        this.world.rename(object.id, 'Plataforma')
+        object.mesh.userData.playerSpawn = false
+      }
+    }
+
+    const spawn = this.world.place('platform', x, groundY, z)
+    spawn.name = 'Plataforma de Spawn'
+    spawn.mesh.name = 'Plataforma de Spawn'
+    spawn.mesh.scale.set(0.5, 0.5, 0.5)
+    spawn.mesh.position.y = groundY + 0.1
+    spawn.mesh.userData.playerSpawn = true
+    this.world.notifyChanged(spawn.id)
+    this.world.select(spawn.id)
   }
 
   /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
