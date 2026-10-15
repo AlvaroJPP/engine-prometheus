@@ -521,17 +521,57 @@ export class HumanoidAvatar {
     const playerBox = this.playerBox()
     return this.world.list().some((object) => {
       if (!object.mesh.visible) return false
+
+      // A caixa AABB de um objeto inclinado inclui muito espaço vazio e vira
+      // uma parede invisível na base da rampa. Rampas são tratadas pela face
+      // superior inclinada em findObjectLanding(), não por essa caixa vertical.
+      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
+      if (rotatedRamp) return false
+
       const objectBox = getColliderBounds(object.mesh)
       return objectBox !== null && this.hasVolumeOverlap(playerBox, objectBox)
     })
   }
 
   private findObjectLanding(oldY: number, nextY: number): number | null {
-    if (nextY > oldY) return null
     const playerBox = this.playerBox()
     let landing: number | null = null
+
+    // Detecta a superfície real de objetos inclinados (rampas) com um raio
+    // vertical. Isso evita usar o AABB, cuja altura máxima não representa a rampa.
+    const raycaster = new THREE.Raycaster()
+    raycaster.ray.direction.set(0, -1, 0)
+    const slopeCandidates = this.world.list().filter((object) =>
+      object.mesh.visible &&
+      (Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02),
+    )
+    if (slopeCandidates.length > 0) {
+      raycaster.ray.origin.set(this.mesh.position.x, Math.max(oldY, nextY) + PLAYER_HEIGHT + 2, this.mesh.position.z)
+      const hits = raycaster.intersectObjects(slopeCandidates.map(object => object.mesh), true)
+      for (const hit of hits) {
+        if (!hit.face) continue
+        const object = slopeCandidates.find(candidate => candidate.mesh === hit.object || candidate.mesh.getObjectById(hit.object.id))
+        if (!object) continue
+        const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)
+        const normal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize()
+        if (normal.y < 0.45) continue
+
+        const surfaceY = hit.point.y
+        const rise = surfaceY - oldY
+        const canStepOntoSlope = this.grounded && rise >= -0.3 && rise <= 0.5
+        const crossedSurface = nextY <= surfaceY && oldY >= surfaceY - 0.12
+        if (!canStepOntoSlope && !crossedSurface) continue
+        if (landing === null || surfaceY > landing) landing = surfaceY
+        break
+      }
+    }
+
+    // Objetos não inclinados continuam usando o colisor configurado.
+    if (nextY > oldY) return landing
     for (const object of this.world.list()) {
       if (!object.mesh.visible) continue
+      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
+      if (rotatedRamp) continue
       const box = getColliderBounds(object.mesh)
       if (!box) continue
       const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
