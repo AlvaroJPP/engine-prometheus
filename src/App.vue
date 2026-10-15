@@ -48,6 +48,7 @@ const {
   addClickableCubeExample,
   cycleCamera,
   setFirstPersonMode,
+  setRuntimeMode,
   selectItem,
   groupSelectedObjects,
   ungroupSelectedObjects,
@@ -400,16 +401,19 @@ function cycleCameraView() {
 }
 function runWorld() {
   graphOpen.value = false
+  setRuntimeMode(true)
   executionMode.value = 'running'
-  status.value = 'Modo Run ativo · pré-visualização da cena'
+  status.value = 'Modo Run ativo · WASD move, Shift corre, Espaço pula e mouse controla a câmera.'
 }
 function stopWorld() {
+  setRuntimeMode(false)
   executionMode.value = 'stopped'
   status.value = 'Execução interrompida'
 }
 function returnToEdit() {
+  setRuntimeMode(false)
   executionMode.value = 'edit'
-  status.value = 'Modo de edição'
+  status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
 }
 const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
 function openObjectRule(rule: LogicRule) {
@@ -551,7 +555,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'is-running': executionMode === 'running' }">
     <EditorTopBar
       v-model:project-name="projectName"
       :dirty="dirty"
@@ -1959,6 +1963,12 @@ input[type='range'] { accent-color: #e98524; }
 </style>
 
 <style>
+/* Durante Run, somente o viewport e os controles Run/Stop/Edit recebem entrada. */
+.app.is-running * { pointer-events:none !important; }
+.app.is-running canvas.canvas,
+.app.is-running .execution-dock,
+.app.is-running .execution-dock * { pointer-events:auto !important; }
+.app.is-running .model-import-launch { display:none !important; }
 .model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
 .model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
 .model-import-launch span{font-size:17px;line-height:10px}
