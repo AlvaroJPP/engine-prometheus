@@ -40,6 +40,7 @@ const {
   brushRadius,
   gridVisible,
   polygonLinesVisible,
+  performanceMode,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
@@ -63,6 +64,7 @@ const {
   toggleObjectWireframe,
   toggleTerrain,
   toggleGrid,
+  togglePerformanceMode,
   removeSelected,
   onRename,
   onNumber,
@@ -610,6 +612,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :graph-open="graphOpen"
       :grid-visible="gridVisible"
       :polygon-lines-visible="polygonLinesVisible"
+      :performance-mode="performanceMode"
       @set-tool="setTool"
       @set-transform="setTransform"
       @toggle-graph="graphOpen = !graphOpen"
@@ -618,6 +621,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @add-clickable-example="addClickableCubeExample"
       @toggle-grid="toggleGrid"
       @toggle-polygon-lines="togglePolygonLines"
+      @toggle-performance-mode="togglePerformanceMode"
     />
 
     <div class="main">
