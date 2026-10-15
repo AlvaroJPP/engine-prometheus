@@ -44,6 +44,7 @@ const {
   setTransform,
   addPrimitive,
   addImportedModel,
+  setBuildComponentPlacement,
   addClickableCubeExample,
   cycleCamera,
   setFirstPersonMode,
@@ -523,8 +524,8 @@ async function placeSavedComponent(id: string) {
     model.userData.importColliderType = component.colliderType
     model.userData.importColliderSize = [...component.colliderSize]
     model.userData.importColliderOffset = [...component.colliderOffset]
-    addImportedModel(component.name, model, component.height)
-    status.value = 'Componente "' + component.name + '" inserido no mundo.'
+    setBuildComponentPlacement(component.name, model, component.height)
+    status.value = 'Componente "' + component.name + '" selecionado. Clique em Construir e depois no ponto do mundo onde deseja colocá-lo.'
   } catch (error) {
     status.value = 'Não foi possível inserir o componente: ' + (error instanceof Error ? error.message : String(error))
   } finally {
