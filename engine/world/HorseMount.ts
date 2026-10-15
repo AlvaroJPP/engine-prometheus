@@ -1,7 +1,9 @@
 import * as THREE from 'three'
 import type { HumanoidAvatar } from './HumanoidAvatar'
 import type { World } from './World'
-import horseModelUrl from '../../Horse_LP.fbx?url'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import horseModelUrl from '../../low_poly_horse.glb?url'
+import horseRiderModelUrl from '../../low_poly_horse_rider.glb?url'
 
 const WALK_SPEED = 3.8
 const GALLOP_SPEED = 8.5
@@ -26,6 +28,8 @@ export class HorseMount {
   private readonly proceduralBones: Array<{ node: THREE.Bone; name: string; rotation: THREE.Euler }> = []
   private readonly proceduralNodes: Array<{ node: THREE.Object3D; name: string; rotation: THREE.Euler; position: THREE.Vector3 }> = []
   private importedModel: THREE.Object3D | null = null
+  private riderModel: THREE.Object3D | null = null
+  private riderMixer: THREE.AnimationMixer | null = null
   private readonly mountRaycaster = new THREE.Raycaster()
   private readonly mountDown = new THREE.Vector3(0, -1, 0)
   private readonly mountSeatLocal = new THREE.Vector3(0, 0, -0.07)
@@ -40,6 +44,7 @@ export class HorseMount {
     this.getCameraYaw = getCameraYaw
     this.buildModel()
     this.loadCommittedHorseModel()
+    this.loadHorseRiderModel()
     this.mesh.name = 'LowPolyHorse'
     this.mesh.visible = false
     this.world.scene.add(this.mesh)
@@ -202,13 +207,13 @@ export class HorseMount {
 
   /** Carrega o modelo visual; todas as animações são calculadas proceduralmente. */
   private loadCommittedHorseModel(): void {
-    // O modelo procedural integrado continua como fallback se o FBX falhar.
-    import('three/addons/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(
-        horseModelUrl,
-        (model) => {
+    // Usa o novo cavalo GLB do projeto; o modelo procedural permanece como fallback.
+    new GLTFLoader().load(
+      horseModelUrl,
+      (gltf) => {
+          const model = gltf.scene;
           if (!this.mesh.parent) return
-          model.name = 'CommittedHorseLPFBX'
+          model.name = 'CommittedHorseGLB'
           // Normaliza o tamanho com escala uniforme: mantém as proporções do FBX
           // e limita a altura total do cavalo a aproximadamente 2,05 unidades do mundo.
           // Centraliza a base para que os cascos assentem no terreno e o colisor
@@ -228,7 +233,7 @@ export class HorseMount {
           }
 
           for (const child of [...this.mesh.children]) {
-            if (child === model) continue
+            if (child === model || child === this.riderModel) continue
             this.mesh.remove(child)
             child.traverse((node) => {
               if (!(node instanceof THREE.Mesh)) return
@@ -241,6 +246,7 @@ export class HorseMount {
           this.tailRoot = null
           this.mesh.add(model)
           this.importedModel = model
+          model.visible = !this.mounted
           this.proceduralBones.length = 0
           this.proceduralNodes.length = 0
 
@@ -265,12 +271,72 @@ export class HorseMount {
 
           // Se o arquivo não tiver esqueleto, mantém a malha estática em vez de
           // aplicar rotações arbitrárias às peças e deformar o modelo.
-          console.info('[HorseMount] Modelo carregado; animação procedural ativada.')
-        },
-        undefined,
-        (error) => console.error('[HorseMount] Não foi possível carregar Horse_LP.fbx; usando o cavalo procedural integrado.', error),
-      )
-    }).catch((error) => console.error('[HorseMount] Falha ao inicializar o carregador FBX.', error))
+          console.info('[HorseMount] Novo cavalo GLB carregado.')
+          this.syncMountedVisuals()
+      },
+      undefined,
+      (error) => console.error('[HorseMount] Não foi possível carregar low_poly_horse.glb; usando o cavalo procedural integrado.', error),
+    )
+  }
+
+  private loadHorseRiderModel(): void {
+    // O GLB combinado é a representação visual quando o jogador está montado.
+    new GLTFLoader().load(
+      horseRiderModelUrl,
+      (gltf) => {
+        if (!this.mesh.parent) {
+          this.disposeLoadedModel(gltf.scene)
+          return
+        }
+        const model = gltf.scene
+        model.name = 'HorseWithRiderGLB'
+        model.updateMatrixWorld(true)
+        const bounds = new THREE.Box3().setFromObject(model)
+        const size = bounds.getSize(new THREE.Vector3())
+        // Mantém o cavaleiro em escala humana aproximada e apoia o conjunto no chão.
+        // A altura total inclui o jogador, por isso é maior que a do cavalo isolado.
+        if (size.y > 0.0001) {
+          model.scale.multiplyScalar(2.95 / size.y)
+          model.updateMatrixWorld(true)
+          const normalized = new THREE.Box3().setFromObject(model)
+          const center = normalized.getCenter(new THREE.Vector3())
+          model.position.x -= center.x
+          model.position.y -= normalized.min.y
+          model.position.z -= center.z
+        }
+        model.traverse((node) => {
+          if (node instanceof THREE.Mesh) {
+            node.castShadow = true
+            node.receiveShadow = true
+          }
+        })
+        this.riderModel = model
+        this.mesh.add(model)
+        this.riderMixer = new THREE.AnimationMixer(model)
+        const animation = gltf.animations[0]
+        if (animation) this.riderMixer.clipAction(animation).setLoop(THREE.LoopRepeat, Infinity).play()
+        this.syncMountedVisuals()
+        console.info('[HorseMount] Modelo combinado de cavalo e cavaleiro carregado.')
+      },
+      undefined,
+      (error) => console.error('[HorseMount] Não foi possível carregar low_poly_horse_rider.glb; durante a montaria será usado o avatar separado.', error),
+    )
+  }
+
+  private syncMountedVisuals(): void {
+    // Nunca desenha o cavalo isolado por cima do modelo combinado (ou vice-versa).
+    for (const child of this.mesh.children) child.visible = this.mounted ? child === this.riderModel : child !== this.riderModel
+    if (this.riderModel && this.mounted) this.avatar.mesh.visible = false
+    else if (this.mounted) this.avatar.mesh.visible = true
+  }
+
+  private disposeLoadedModel(root: THREE.Object3D): void {
+    root.traverse((node) => {
+      if (!(node instanceof THREE.Mesh)) return
+      node.geometry.dispose()
+      const materials = Array.isArray(node.material) ? node.material : [node.material]
+      materials.forEach((material) => material.dispose())
+    })
   }
 
   private updateProceduralAnimation(_dt: number, moving: boolean): void {
@@ -442,6 +508,7 @@ export class HorseMount {
     this.mesh.position.y = groundY
     this.animationTime += step * (this.galloping ? 15 : 8)
     this.updateProceduralAnimation(step, moving)
+    this.riderMixer?.update(step)
     this.legs.forEach((leg, index) => {
       const phase = index === 0 || index === 3 ? 0 : Math.PI
       leg.rotation.x = Math.sin(this.animationTime + phase) * (moving ? (this.galloping ? 0.78 : 0.38) : 0.025)
@@ -542,6 +609,7 @@ export class HorseMount {
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = true
     this.avatar.setMountedPose(0)
+    this.syncMountedVisuals()
     this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + HORSE_HEIGHT + 0.25, this.mesh.position.z)
     this.pressed.clear()
   }
@@ -556,6 +624,7 @@ export class HorseMount {
     // depois de o avatar já ter sido reativado, deixando o jogador rígido.
     this.mountProgress = 0
     this.avatar.setMountedPose(0)
+    this.syncMountedVisuals()
 
     if (restorePlayer) {
       const side = new THREE.Vector3(1.25, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.mesh.rotation.y)
