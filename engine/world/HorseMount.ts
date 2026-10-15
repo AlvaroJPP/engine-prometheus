@@ -41,6 +41,7 @@ export class HorseMount {
   private readonly mountLeftLocal = new THREE.Vector3(-0.39, 0, -0.07)
   private readonly mountRightLocal = new THREE.Vector3(0.39, 0, -0.07)
   private parkedComponent: THREE.Mesh | null = null
+  private editorComponent: THREE.Mesh | null = null
   private parkedComponentHeight = HORSE_HEIGHT
   private parkedComponentWasVisible = true
   private readonly mountColliderSize = new THREE.Vector3(0.95, 1.35, 1.6)
@@ -61,6 +62,35 @@ export class HorseMount {
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
     window.addEventListener('blur', this.onBlur)
+  }
+
+  /** Vincula a representação do editor ao mesmo cavalo animado usado no runtime. */
+  setEditorComponent(component: THREE.Mesh | null): void {
+    this.editorComponent = component
+    this.parkedComponent = component
+    if (!component) {
+      if (!this.enabled) this.mesh.visible = false
+      return
+    }
+    component.userData.nativeComponentType = 'horse'
+    component.userData.nativeHorseComponent = true
+    component.userData.componentId = 'builtin-horse-low-poly'
+    component.userData.importedModelHeight = HORSE_HEIGHT
+    this.mesh.visible = true
+    this.syncTransformFromComponent()
+  }
+
+  private syncTransformFromComponent(): void {
+    const component = this.editorComponent
+    if (!component) return
+    this.mesh.position.set(
+      component.position.x,
+      component.position.y - this.parkedComponentHeight / 2,
+      component.position.z,
+    )
+    this.mesh.rotation.set(component.rotation.x, component.rotation.y, component.rotation.z)
+    this.mesh.scale.copy(component.scale)
+    this.mesh.updateMatrixWorld(true)
   }
 
   private buildModel(): void {
