@@ -39,6 +39,7 @@ const {
   brushStrength,
   brushRadius,
   gridVisible,
+  polygonLinesVisible,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
   toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
@@ -586,12 +587,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :inspector-mode="inspectorMode"
       :graph-open="graphOpen"
       :grid-visible="gridVisible"
+      :polygon-lines-visible="polygonLinesVisible"
       @set-tool="setTool"
       @set-transform="setTransform"
       @toggle-graph="graphOpen = !graphOpen"
       @add-primitive="addPrimitive"
       @add-clickable-example="addClickableCubeExample"
       @toggle-grid="toggleGrid"
+      @toggle-polygon-lines="togglePolygonLines"
     />
 
     <div class="main">
