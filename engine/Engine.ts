@@ -201,6 +201,26 @@ export class Engine {
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number): void {
+    // Evita congelamentos ao inserir assets acidentalmente gigantes no editor.
+    // A contagem é feita antes da análise de agrupamento e antes de adicionar ao render loop.
+    const MAX_IMPORTED_TRIANGLES = 1_500_000
+    let preflightTriangles = 0
+    let preflightMeshes = 0
+    model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      preflightMeshes += 1
+      const position = child.geometry.getAttribute('position')
+      preflightTriangles += child.geometry.index
+        ? child.geometry.index.count / 3
+        : (position?.count ?? 0) / 3
+    })
+    if (preflightMeshes === 0 || preflightTriangles === 0) {
+      throw new Error('O modelo não contém malhas trianguladas para inserir no mundo.')
+    }
+    if (preflightTriangles > MAX_IMPORTED_TRIANGLES) {
+      throw new Error(`Este modelo contém ${Math.round(preflightTriangles).toLocaleString('pt-BR')} triângulos, acima do limite seguro de ${MAX_IMPORTED_TRIANGLES.toLocaleString('pt-BR')}. Reduza ou otimize o modelo antes de importá-lo.`)
+    }
+
     // Alguns GLBs representam cada árvore como um grupo; outros exportam tronco,
     // copa e galhos como irmãos. Agrupamos irmãos pelo centro X/Z para separar
     // árvores sem transformar cada malha (tronco/folhas) em um objeto isolado.
