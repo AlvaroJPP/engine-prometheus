@@ -322,6 +322,8 @@ export class World {
       else material.dispose()
     })
     obj.mesh.geometry.dispose()
+    const generatedTexture = obj.mesh.userData.generatedTexture as THREE.Texture | undefined
+    generatedTexture?.dispose()
     const material = obj.mesh.material
     if (Array.isArray(material)) material.forEach((item) => item.dispose())
     else material.dispose()
