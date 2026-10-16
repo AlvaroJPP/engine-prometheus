@@ -1054,6 +1054,11 @@ export class Engine {
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
+    // Pré-processa BVHs em paralelo ao fluxo normal do editor para acelerar
+    // os raios da oclusão em modelos densos sem transferir a geometria visível.
+    void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0).catch((error) => {
+      console.warn('[Engine] Não foi possível preparar a oclusão do modelo:', root.name, error)
+    })
     // Simplifica apenas modelos estáticos grandes; o processamento não bloqueia
     // o carregamento do projeto e não altera a geometria original salva no GLB.
     void this.modelLod.prepare(finalId, root, importedAnimations.length > 0).catch((error) => {
@@ -1371,6 +1376,16 @@ export class Engine {
     this.world.setGridVisible(editorSettings.gridVisible)
     this.setBrush({ strength: editorSettings.brushStrength, radius: editorSettings.brushRadius })
     this.logic.load(bundle.logic)
+
+    // Pré-compila shaders após restaurar os modelos e texturas do projeto. Isso
+    // desloca parte do custo do primeiro quadro para a etapa de carregamento.
+    report('Preparando shaders e recursos gráficos…', 97)
+    for (const object of this.world.list()) {
+      if (object.mesh.userData.importedModel === true) {
+        this.modelOcclusion.restoreObjectVisibility(object.mesh)
+      }
+    }
+    await this.viewport.precompile(this.world.scene, this.orbit.camera)
     report('Mundo carregado.', 100)
   }
 
