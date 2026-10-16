@@ -67,8 +67,8 @@ const emit = defineEmits<{
       :title="props.performanceMode === 'quality'
         ? 'Modo qualidade: alvo de 60 FPS. Clique para equilibrado.'
         : props.performanceMode === 'balanced'
-          ? 'Modo equilibrado: alvo de 45 FPS. Clique para econômico.'
-          : 'Modo econômico: alvo de 30 FPS, com resolução reduzida. Clique para qualidade.'"
+          ? 'Modo equilibrado: alvo de 45 FPS e grama menos densa à distância. Clique para econômico.'
+          : 'Modo econômico: alvo de 30 FPS, resolução reduzida e grama distante bem menos densa. Clique para qualidade.'"
     >{{ props.performanceMode === 'quality' ? '⚡ Qualidade' : props.performanceMode === 'balanced' ? '⚡ Equilibrado' : '⚡ Econômico' }}</button>
   </nav>
 </template>
