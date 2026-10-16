@@ -566,7 +566,7 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
-    const shouldJump = this.mountedJumpRequested
+    const shouldJump = this.mountedJumpRequested && !this.mountedAirborne
     this.mountedJumpRequested = false
     let state: MountMovementState = 'idle'
 
