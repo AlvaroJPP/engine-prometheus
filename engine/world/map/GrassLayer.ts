@@ -1230,6 +1230,7 @@ export class GrassLayer {
       band.mesh.visible = false
       band.mesh.count = 0
       for (const mesh of band.modelMeshes) {
+        if (!mesh) continue
         mesh.visible = false
         mesh.count = 0
       }
