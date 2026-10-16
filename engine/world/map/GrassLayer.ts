@@ -20,8 +20,8 @@ export type GrassPerformancePreset = 'quality' | 'balanced' | 'economy'
 
 /**
  * Menos grama distante costuma reduzir muito mais triângulos do que reduzir a
- * resolução da tela. O alcance máximo configurado pelo usuário continua valendo;
- * cada modo altera a área em alta densidade e a amostragem dos anéis distantes.
+ * resolução da tela. Modos leves reduzem o alcance efetivo, a área em alta densidade
+ * e a amostragem dos anéis distantes sem alterar os dados de grama pintada.
  */
 const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
   nearDistance: number
