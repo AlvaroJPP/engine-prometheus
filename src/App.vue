@@ -31,6 +31,7 @@ const {
   dirty,
   status,
   fps,
+  renderStats,
   ioProgress,
   objects,
   selectedModelNodes,
@@ -1019,10 +1020,17 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
         <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
-        <div class="viewport-fps" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }" aria-label="Quadros por segundo">
-          <span class="fps-indicator" />
-          <span>FPS</span>
-          <strong>{{ fps || '—' }}</strong>
+        <div class="viewport-fps" aria-label="Diagnóstico de renderização">
+          <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
+            <span class="fps-indicator" />
+            <span>FPS</span>
+            <strong>{{ fps || '—' }}</strong>
+          </div>
+          <div class="viewport-render-stats">
+            <span><strong>{{ (renderStats.triangles / 1000).toFixed(1) }}k</strong> tris</span>
+            <span><strong>{{ renderStats.drawCalls }}</strong> draws</span>
+            <span><strong>{{ renderStats.cpuRenderMs.toFixed(1) }}</strong> ms CPU</span>
+          </div>
         </div>
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
@@ -2620,11 +2628,14 @@ input[type='range'] { accent-color: #e98524; }
 
 
 <style>
-.viewport-fps{position:absolute;z-index:8;top:15px;right:16px;display:flex;align-items:center;gap:7px;min-height:27px;padding:0 9px;border:1px solid #383f49;border-radius:4px;background:#1d2229e8;color:#aab3c0;font-size:10px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;backdrop-filter:blur(4px);pointer-events:none}
+.viewport-fps{position:absolute;z-index:8;top:15px;right:16px;display:flex;flex-direction:column;align-items:stretch;gap:4px;min-height:27px;padding:5px 9px 6px;border:1px solid #383f49;border-radius:4px;background:#1d2229e8;color:#aab3c0;font-size:10px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;backdrop-filter:blur(4px);pointer-events:none}
+.viewport-fps-head{display:flex;align-items:center;gap:7px;min-height:22px}
 .viewport-fps .fps-indicator{width:6px;height:6px;border-radius:50%;background:#8edb7e;box-shadow:0 0 0 3px #8edb7e18}
 .viewport-fps strong{min-width:17px;color:#d6f5c1;font-size:12px;text-align:right}
-.viewport-fps.fps-medium .fps-indicator{background:#e9c16f;box-shadow:0 0 0 3px #e9c16f18}
-.viewport-fps.fps-medium strong{color:#f1cb82}
-.viewport-fps.fps-low .fps-indicator{background:#f07870;box-shadow:0 0 0 3px #f0787018}
-.viewport-fps.fps-low strong{color:#ffaaa2}
+.viewport-fps-head.fps-medium .fps-indicator{background:#e9c16f;box-shadow:0 0 0 3px #e9c16f18}
+.viewport-fps-head.fps-medium strong{color:#f1cb82}
+.viewport-fps-head.fps-low .fps-indicator{background:#f07870;box-shadow:0 0 0 3px #f0787018}
+.viewport-fps-head.fps-low strong{color:#ffaaa2}
+.viewport-render-stats{display:flex;align-items:center;gap:9px;border-top:1px solid #343b46;padding-top:5px;color:#9da8b7;font-size:9px;letter-spacing:0;white-space:nowrap}
+.viewport-render-stats strong{min-width:0;color:#e3e9f1;font-size:10px;font-weight:800;text-align:left}
 </style>
