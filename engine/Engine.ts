@@ -404,6 +404,7 @@ export class Engine {
       this.input.setRuntimeMode(true)
       this.transformControls.detach()
       this.transformControls.enabled = false
+      this.viewport.invalidate()
       return
     }
 
