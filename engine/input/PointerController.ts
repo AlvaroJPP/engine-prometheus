@@ -220,43 +220,13 @@ export class PointerController {
       if (obj) {
         this.world.select(obj.id)
         this.world.events.emit('objectClicked', { id: obj.id })
-        this.beginTransform(obj.id, e)
+        // O TransformControls nativo é o único responsável por transformar objetos.
+        // Não inicie um segundo arrasto manual no mesmo pointerdown: isso disputa
+        // o pointer capture e impede o gizmo de mover modelos importados.
         return
       }
     }
     this.begin({ kind: 'orbitPending', x: e.clientX, y: e.clientY }, e)
-  }
-
-  private beginTransform(id: string, e: PointerEvent): void {
-    const obj = this.world.get(id)
-    if (!obj) return
-    const m = obj.mesh
-    switch (this.state.transform) {
-      case 'move': {
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -m.position.y)
-        const p = new THREE.Vector3()
-        const hasHit = this.raycaster.ray.intersectPlane(plane, p) !== null
-        this.begin(
-          {
-            kind: 'move',
-            id,
-            planeY: m.position.y,
-            offX: hasHit ? m.position.x - p.x : 0,
-            offZ: hasHit ? m.position.z - p.z : 0,
-            rest: m.position.y - this.world.terrain.heightAt(m.position.x, m.position.z),
-            changed: false,
-          },
-          e,
-        )
-        break
-      }
-      case 'rotate':
-        this.begin({ kind: 'rotate', id, lastX: e.clientX, changed: false }, e)
-        break
-      case 'scale':
-        this.begin({ kind: 'scale', id, startY: e.clientY, startScale: m.scale.x, changed: false }, e)
-        break
-    }
   }
 
   private begin(drag: Drag, e: PointerEvent): void {
