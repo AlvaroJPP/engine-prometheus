@@ -942,11 +942,22 @@ export class HumanoidAvatar {
       const configuredCollider = obstacle.userData.colliderType
       const obstacleBounds = getColliderBounds(obstacle)
       const nearRamp = obstacleBounds !== null && mountBounds.intersectsBox(obstacleBounds)
-      // Reconhece rampas rotacionadas e malhas com uma face superior inclinada.
-      const rampSurfaceUnderMount = nearRamp && this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
-      const rampUp = new THREE.Vector3(0, 1, 0)
-        .applyQuaternion(obstacle.getWorldQuaternion(new THREE.Quaternion()))
-        .normalize()
+      // Só objetos cuja raiz esteja inclinada são tratados como rampas aqui.
+      // Isso evita ignorar modelos comuns que por acaso tenham faces triangulares inclinadas.
+      const isInclinedObject =
+        Math.abs(obstacle.rotation.x) > 0.02 ||
+        Math.abs(obstacle.rotation.z) > 0.02
+      const rampSurfaceUnderMount = nearRamp && isInclinedObject &&
+        obstacle.userData.importedModel !== true &&
+        this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
+
+      // Se encontramos a face caminhável da própria rampa sob a montaria, não
+      // devemos testar a caixa inteira da rampa como obstáculo lateral. Em rampas
+      // espessas, a face inferior também cruza o AABB horizontal do cavalo e faz
+      // o algoritmo reverter cada passo durante a descida. O suporte vertical
+      // continua sendo calculado por raycast no followMountedSurfaceAtStep().
+      if (rampSurfaceUnderMount) continue
+
       if (
         obstacle.userData.importedModel === true &&
         configuredCollider !== undefined &&
@@ -995,9 +1006,8 @@ export class HumanoidAvatar {
           triangle.set(a, b, c)
           triangle.getNormal(normal).normalize()
 
-          // Com uma superfície caminhável sob o cavalo, ignora as faces superiores
-          // e laterais desse prisma, preservando a face inferior como obstáculo.
-          if (rampSurfaceUnderMount && normal.dot(rampUp) > -0.45) continue
+          // Rampas reconhecidas já foram removidas do teste de obstáculo acima.
+          // Nas outras primitivas, mantém a regra de ignorar apenas a face superior.
           if (obstacle.userData.importedModel !== true && normal.y >= 0.45) continue
           if (mountBounds.intersectsTriangle(triangle)) return true
         }
