@@ -301,13 +301,12 @@ export class HumanoidAvatar {
     this.enabled = enabled
     this.pressed.clear()
     if (!enabled) {
-      // O mixer não pode manter uma pose idle/run congelada por cima da pose de montaria.
       this.mixer?.stopAllAction()
       this.activeAnimation = ''
     }
   }
 
-  /** Verifica se o jogador pode ocupar uma posição sem ficar dentro de objetos ou do cavalo. */
+  /** Verifica se o jogador pode ocupar uma posição sem colidir com objetos. */
   canOccupyPosition(x: number, z: number): boolean {
     const previous = this.mesh.position.clone()
     this.mesh.position.set(
@@ -322,79 +321,7 @@ export class HumanoidAvatar {
     return !blocked
   }
 
-  /**
-   * Mistura uma pose de montaria sem depender de um clipe de animação externo.
-   * Funciona tanto no avatar procedural quanto no modelo humanoide importado.
-   * O valor 0 restaura a pose-base; 1 aplica a postura sentada com braços à frente
-   * e pernas dobradas para acompanhar a sela.
-   */
-  setMountedPose(amount: number, gait = 0, leftDrop = 0.3, rightDrop = 0.3): void {
-    const blend = THREE.MathUtils.clamp(amount, 0, 1)
-    const bounce = THREE.MathUtils.clamp(gait, -1, 1)
-    if (blend > 0 && this.mixer) {
-      // Não deixe um clipe de idle em T-pose competir com a pose procedural de montaria.
-      this.mixer.stopAllAction()
-      this.activeAnimation = ''
-    }
-    // Sempre restaura a pose-base primeiro. Isso também desfaz braços abertos e
-    // rotações acumuladas quando o jogador desmonta ou a pose é recalculada.
-    for (const bone of this.animatedBones) {
-      bone.node.rotation.set(bone.baseX, bone.baseY, bone.baseZ)
-      bone.node.position.copy(bone.basePosition)
-    }
-    // Ângulo de cada perna calculado com a diferença entre o topo da sela e o
-    // polígono encontrado sob cada lado do cavalo.
-    const leftAngle = THREE.MathUtils.clamp(-0.62 - leftDrop * 0.72, -1.3, -0.68)
-    const rightAngle = THREE.MathUtils.clamp(-0.62 - rightDrop * 0.72, -1.3, -0.68)
-
-    if (this.proceduralLimbs) {
-      const limbs = this.proceduralLimbs
-      limbs.leftLeg.rotation.x = leftAngle * blend + bounce * 0.18 * blend
-      limbs.rightLeg.rotation.x = rightAngle * blend - bounce * 0.18 * blend
-      limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(0, -0.16, blend)
-      limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(0, 0.16, blend)
-      limbs.leftArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) + bounce * 0.09 * blend
-      limbs.rightArm.rotation.x = THREE.MathUtils.lerp(0, -0.82, blend) - bounce * 0.09 * blend
-      limbs.torso.rotation.x = THREE.MathUtils.lerp(0, -0.06, blend) + bounce * 0.025 * blend
-      limbs.torso.position.y = 1.02 - 0.035 * blend + Math.abs(bounce) * 0.025 * blend
-      limbs.leftShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + leftDrop * 0.15, blend)
-      limbs.rightShoe.rotation.x = THREE.MathUtils.lerp(0, 0.28 + rightDrop * 0.15, blend)
-    }
-
-    for (const bone of this.animatedBones) {
-      const name = bone.name
-      const left = /left|_l\b|\.l\b|\bl_/.test(name)
-      const right = /right|_r\b|\.r\b|\br_/.test(name)
-      if (/pelvis|hips|hip/.test(name)) {
-        bone.node.position.y = bone.basePosition.y - 0.055 * blend + Math.abs(bounce) * 0.025 * blend
-        bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.06, blend)
-      } else if (/thigh|upper.?leg|upleg/.test(name) && left) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle, blend) + bounce * 0.16 * blend
-      } else if (/thigh|upper.?leg|upleg/.test(name) && right) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle, blend) - bounce * 0.16 * blend
-      } else if (/leg|calf|shin|knee/.test(name) && left) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + leftAngle * 0.48, blend)
-      } else if (/leg|calf|shin|knee/.test(name) && right) {
-        bone.node.rotation.x = THREE.MathUtils.lerp(bone.baseX, bone.baseX + rightAngle * 0.48, blend)
-      } else if (/arm|hand|forearm|shoulder/.test(name) && left) {
-        // Mixamo e rigs semelhantes usam braços abertos na pose-base: a rotação
-        // Z aproxima os braços do tronco, enquanto X leva as mãos até as rédeas.
-        bone.node.rotation.z = bone.baseZ + 1.05 * blend
-        bone.node.rotation.x = bone.baseX - 0.52 * blend + bounce * 0.055 * blend
-      } else if (/arm|hand|forearm|shoulder/.test(name) && right) {
-        bone.node.rotation.z = bone.baseZ - 1.05 * blend
-        bone.node.rotation.x = bone.baseX - 0.52 * blend - bounce * 0.055 * blend
-      } else if (/spine|torso|chest/.test(name)) {
-        bone.node.rotation.z = THREE.MathUtils.lerp(bone.baseZ, bone.baseZ + 0.04, blend)
-      }
-    }
-    this.visualRoot.position.y = THREE.MathUtils.lerp(0, -0.04, blend) + Math.abs(bounce) * 0.025 * blend
-    this.visualRoot.rotation.x = THREE.MathUtils.lerp(0, -0.08, blend) + bounce * 0.025 * blend
-    this.visualRoot.rotation.z = THREE.MathUtils.lerp(0, 0, blend)
-  }
-
   resetVerticalState(): void {
-    this.setMountedPose(0)
     this.verticalVelocity = 0
     this.grounded = true
     this.pressed.clear()
