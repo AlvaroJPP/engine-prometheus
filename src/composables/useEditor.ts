@@ -11,6 +11,8 @@ import type {
   ToolMode,
   TransformMode,
   LogicRule,
+  BehaviorPackageInstance,
+  BehaviorPackageDefinition,
   TextureFace,
   FaceTextureData,
 } from '@engine'
@@ -60,6 +62,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const dayNightCycleSpeed = ref(0.1)
   const colliderDebugVisible = ref(false)
   const logicRules = ref<LogicRule[]>([])
+  const behaviorPackages = ref<BehaviorPackageInstance[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed'>('object_clicked')
@@ -285,6 +288,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dayNightCycleEnabled.value = environment.cycleEnabled
     dayNightCycleSpeed.value = environment.cycleSpeed
     logicRules.value = engine.listRules()
+    behaviorPackages.value = engine.listBehaviorPackages()
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
   }
@@ -294,6 +298,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   watch(selectedId, (id) => {
     if (!engine) return
     logicRules.value = engine.listRules()
+    behaviorPackages.value = engine.listBehaviorPackages()
     logicVariables.value = engine.logicVariables(id)
     globalLogicVariables.value = engine.logicVariables()
   }, { flush: 'sync' })
@@ -816,6 +821,41 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh(); dirty.value = true
   }
 
+  function installBehaviorPackage(packageId: string): string | null {
+    if (!engine || !selectedId.value || selectedId.value === TERRAIN_ID) {
+      say('Selecione um objeto da cena antes de instalar um pacote.')
+      return null
+    }
+    try {
+      const instance = engine.installBehaviorPackage(selectedId.value, packageId)
+      refresh()
+      dirty.value = true
+      say(`Pacote "${packageId}" instalado em "${objects.value.find(object => object.id === selectedId.value)?.name ?? 'objeto'}".`)
+      return instance.id
+    } catch (error) {
+      say(error instanceof Error ? error.message : String(error))
+      return null
+    }
+  }
+
+  function updateBehaviorPackage(
+    id: string,
+    patch: Partial<Pick<BehaviorPackageInstance, 'enabled' | 'variables' | 'config'>>,
+  ) {
+    if (!engine) return
+    engine.updateBehaviorPackage(id, patch)
+    behaviorPackages.value = engine.listBehaviorPackages()
+    dirty.value = true
+  }
+
+  function removeBehaviorPackage(id: string) {
+    if (!engine) return
+    engine.removeBehaviorPackage(id)
+    refresh()
+    dirty.value = true
+    say('Pacote de comportamento removido.')
+  }
+
   /** Importa uma cópia independente de um evento público para o objeto selecionado. */
   function importLogicRule(sourceRule: LogicRule) {
     if (!engine || !selectedId.value || selectedId.value === TERRAIN_ID) {
@@ -1049,7 +1089,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     gridVisible,
     polygonLinesVisible,
     performanceMode,
-    logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+    logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+    installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
