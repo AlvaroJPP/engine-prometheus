@@ -165,9 +165,9 @@ function createGrassTexture(): THREE.CanvasTexture {
 }
 
 /**
- * Grama procedural e pintada em setores. Cada setor tem culling próprio e
- * alterna entre tufo detalhado e LOD simplificado conforme a distância da câmera.
- * A ferramenta Pintar grama e os dados salvos em projetos anteriores continuam compatíveis.
+ * A renderização é feita em três malhas globais por distância radial da câmera.
+ * Os chunks servem somente para organizar os dados; não determinam culling ou LOD.
+ * A ferramenta Pintar grama e os dados salvos continuam compatíveis.
  */
 export class GrassLayer {
   readonly mesh = new THREE.Group()
@@ -1041,7 +1041,10 @@ export class GrassLayer {
   paint(x: number, z: number, radius: number, density = 1): number {
     if (!Number.isFinite(radius) || radius <= 0) return 0
 
-    const area = Math.PI * radius * radius
+    // Para pincéis maiores que o próprio mapa, limita-se apenas o raio efetivo
+    // do cálculo (não a quantidade total de tufos permitida no mundo).
+    const brushRadius = Math.min(radius, WORLD_HALF * 2)
+    const area = Math.PI * brushRadius * brushRadius
     const safeDensity = Number.isFinite(density) ? Math.max(0.1, density) : 1
     // Sem limite global: cada chamada adiciona o que a área e o espaçamento permitirem.
     const requested = Math.max(1, Math.round(area * PAINTED_GRASS_PER_AREA * safeDensity))
@@ -1051,7 +1054,7 @@ export class GrassLayer {
 
     for (let attempt = 0; attempt < maxAttempts && added < requested; attempt += 1) {
       const angle = this.random() * Math.PI * 2
-      const distance = Math.sqrt(this.random()) * radius
+      const distance = Math.sqrt(this.random()) * brushRadius
       const px = THREE.MathUtils.clamp(x + Math.cos(angle) * distance, -WORLD_HALF, WORLD_HALF)
       const pz = THREE.MathUtils.clamp(z + Math.sin(angle) * distance, -WORLD_HALF, WORLD_HALF)
       if (!this.canPaintAt(px, pz)) continue
@@ -1079,7 +1082,7 @@ export class GrassLayer {
     if (removedCount === 0) return 0
 
     this.painted.length = 0
-    this.painted.push(...survivors)
+    for (const tuft of survivors) this.painted.push(tuft)
     for (const chunk of this.chunks) chunk.painted.length = 0
     for (const tuft of this.painted) this.chunkFor(tuft[0], tuft[1]).painted.push(tuft)
     this.rebuildPaintedBuckets()
@@ -1161,6 +1164,5 @@ export class GrassLayer {
     this.highMaterial.dispose()
     this.lowMaterial.dispose()
     this.mesh.clear()
-  }
   }
 }
