@@ -5,8 +5,8 @@ const MIN_TRIANGLES_TO_PARTITION = 8_000
 // Acima disso, a divisão em tempo de importação alocaria memória demais;
 // esses assets precisam de LOD/simplificação offline antes do import.
 const MAX_TRIANGLES_TO_PARTITION = 200_000
-const TARGET_TRIANGLES_PER_REGION = 1_500
-const MAX_SUBDIVISIONS_PER_AXIS = 4
+const TARGET_TRIANGLES_PER_REGION = 3_000
+const MAX_SUBDIVISIONS_PER_AXIS = 3
 
 type AttributeLike = THREE.BufferAttribute | THREE.InterleavedBufferAttribute
 
