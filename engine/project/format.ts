@@ -37,6 +37,8 @@ export interface SceneObjectData {
   /** GLB incorporado ao projeto para reconstruir modelos importados. */
   importedModelData?: string
   importedModelHeight?: number
+  /** Papel de gameplay selecionado para cada clipe de animação importado. */
+  importAnimationRoles?: Record<string, import('../script/packages').AnimationRole>
 }
 
 export interface TerrainData {
