@@ -105,6 +105,8 @@ export class HumanoidAvatar {
   private mountedVerticalVelocity = 0
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
+  private mountedVisualPivot: THREE.Object3D | null = null
+  private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
@@ -375,6 +377,10 @@ export class HumanoidAvatar {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
+    // A física mantém a raiz/colisor nivelados. Somente o pivô visual do GLB
+    // pode inclinar para acompanhar o plano da rampa sem girar a caixa física.
+    this.mountedVisualPivot = root.getObjectByName('ImportedVisualPivot') ?? null
+    this.mountedVisualBaseQuaternion = this.mountedVisualPivot?.quaternion.clone() ?? null
     // O controle montado passa a ser o dono exclusivo do movimento/colisão horizontal.
     root.userData.mountCollisionManaged = true
     this.mountedStartPosition = root.position.clone()
@@ -422,6 +428,12 @@ export class HumanoidAvatar {
       : false
     root.updateWorldMatrix(true, true)
     this.playMountAnimation(root, 'dismount', true)
+    if (this.mountedVisualPivot && this.mountedVisualBaseQuaternion) {
+      this.mountedVisualPivot.quaternion.copy(this.mountedVisualBaseQuaternion)
+      this.mountedVisualPivot.updateMatrixWorld(true)
+    }
+    this.mountedVisualPivot = null
+    this.mountedVisualBaseQuaternion = null
     root.userData.mountCollisionManaged = false
 
     const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
@@ -664,6 +676,86 @@ export class HumanoidAvatar {
     root.userData.importAnimationState = role
   }
 
+  /**
+   * Inclina apenas o GLB visual para acompanhar a normal da rampa.
+   * A raiz invisível permanece nivelada e continua sendo a fonte da colisão;
+   * assim a inclinação visual não gira a caixa física nem altera o movimento.
+   */
+  private updateMountedVisualSlope(root: THREE.Mesh, dt: number): void {
+    const pivot = this.mountedVisualPivot
+    const baseQuaternion = this.mountedVisualBaseQuaternion
+    if (!pivot || !baseQuaternion) return
+
+    let targetQuaternion = baseQuaternion.clone()
+
+    if (!this.mountedAirborne) {
+      const bounds = this.getMountedBounds(root)
+      const feetY = bounds.min.y
+      const size = bounds.getSize(new THREE.Vector3())
+      const originY = bounds.max.y + 0.25
+      const lowestY = feetY - Math.max(1.25, size.y * 0.45)
+      const candidates = this.world.list().filter(object =>
+        object.mesh !== root &&
+        object.mesh.visible &&
+        object.mesh.userData.colliderType !== 'none',
+      )
+
+      if (candidates.length > 0) {
+        const raycaster = new THREE.Raycaster(
+          new THREE.Vector3(root.position.x, originY, root.position.z),
+          new THREE.Vector3(0, -1, 0),
+          0,
+          Math.max(1, originY - lowestY),
+        )
+        const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+        const normalMatrix = new THREE.Matrix3()
+
+        for (const hit of hits) {
+          if (!hit.face) continue
+          const owner = candidates.find(object =>
+            object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+          )
+          if (!owner) continue
+          // A raiz invisível de outro GLB é somente um proxy, não uma superfície.
+          if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+
+          const worldNormal = hit.face.normal.clone()
+            .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+            .normalize()
+          if (worldNormal.y < 0.25) continue
+          if (hit.point.y > feetY + 0.35 || hit.point.y < lowestY) continue
+
+          // A normal em coordenadas locais remove o yaw da raiz. Uma rampa plana
+          // produz identidade; uma rampa inclinada gera pitch/roll sem virar o cavalo.
+          root.updateWorldMatrix(true, true)
+          const inverseRootRotation = root.getWorldQuaternion(new THREE.Quaternion()).invert()
+          const localNormal = worldNormal.applyQuaternion(inverseRootRotation).normalize()
+          const tilt = new THREE.Quaternion().setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            localNormal,
+          )
+
+          // Limita apenas a inclinação visual; a altura e as colisões continuam
+          // calculadas pelo movimento físico da raiz.
+          const maxTilt = THREE.MathUtils.degToRad(42)
+          const angle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(tilt.w), 0, 1))
+          if (angle > maxTilt && angle > 1e-5) {
+            const limitedTilt = new THREE.Quaternion().identity()
+              .slerp(tilt, maxTilt / angle)
+            targetQuaternion = limitedTilt.multiply(baseQuaternion)
+          } else {
+            targetQuaternion = tilt.multiply(baseQuaternion)
+          }
+          break
+        }
+      }
+    }
+
+    const blend = 1 - Math.exp(-10 * Math.max(0, dt))
+    pivot.quaternion.slerp(targetQuaternion, blend)
+    root.updateWorldMatrix(true, true)
+  }
+
   private updateMountedMovement(
     dt: number,
     forwardInput: number,
@@ -810,6 +902,7 @@ export class HumanoidAvatar {
       }
     }
 
+    this.updateMountedVisualSlope(root, dt)
     this.placeAvatarAtMountSeat()
     const previousState = this.mountedMovementState
     this.mountedMovementState = state
