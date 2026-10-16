@@ -513,17 +513,8 @@ async function refreshSavedComponents() {
 async function ensureHorseComponent() {
   const componentId = 'builtin-horse-low-poly'
   try {
-    const existing = await getSavedComponent(componentId)
-    if (existing) {
-      const hasLegacyGate = existing.logic?.some(rule => rule.conditions.some(condition => condition.name === 'horse_enabled')) ?? false
-      if (existing.kind !== 'entity' || hasLegacyGate) {
-        existing.kind = 'entity'
-        existing.logic = (existing.logic ?? []).map(rule => ({ ...rule, conditions: rule.conditions.filter(condition => condition.name !== 'horse_enabled') }))
-        await saveComponentAsset(existing)
-      }
-      await refreshSavedComponents()
-      return
-    }
+    // Sempre lê o GLB que acompanha a versão atual do editor. A biblioteca local
+    // é persistente entre atualizações e não pode manter indefinidamente bytes antigos.
     const response = await fetch(horseComponentUrl)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const bytes = await response.arrayBuffer()
@@ -531,59 +522,81 @@ async function ensureHorseComponent() {
     const gltf = await new Promise<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }>((resolve, reject) => {
       loader.parse(bytes.slice(0), '', resolve, reject)
     })
+    gltf.scene.updateMatrixWorld(true)
     const bounds = new THREE.Box3().setFromObject(gltf.scene)
     const size = bounds.getSize(new THREE.Vector3())
-    if (bounds.isEmpty() || size.x <= 0 || size.y <= 0 || size.z <= 0) throw new Error('O modelo do cavalo não possui dimensões válidas.')
+    if (bounds.isEmpty() || size.x <= 0 || size.y <= 0 || size.z <= 0) {
+      throw new Error('O modelo do cavalo não possui dimensões válidas.')
+    }
+
+    const existing = await getSavedComponent(componentId)
     const targetHeight = 2.05
     const scale = targetHeight / size.y
-    // Dimensões do colisor na mesma escala local que o modelo colocado no mundo.
-    // A caixa cobre o tronco, sem incluir a cabeça e a cauda por inteiro.
+    // Recalcula o colisor a partir do arquivo atual, para não preservar dimensões antigas.
     const colliderSize: [number, number, number] = [
       Math.max(0.75, size.x * scale * 0.96),
       Math.max(0.8, Math.min(1.5, targetHeight * 0.68)),
       Math.max(1.05, size.z * scale * 0.72),
     ]
+    const defaultLogic: LogicRule[] = [{
+      ownerObjectId: '{ID_OBJECT}',
+      id: 'horse-mount-template',
+      name: 'Montar no cavalo',
+      enabled: true,
+      trigger: { type: 'object_clicked', objectId: '{ID_OBJECT}' },
+      conditions: [],
+      actions: [{ type: 'javascript', code: 'api.mount()' }],
+      graphLayout: {
+        trigger: { x: 70, y: 70 },
+        condition: { x: 350, y: 70 },
+        action: { x: 630, y: 70 },
+      },
+    }, {
+      ownerObjectId: '{ID_OBJECT}',
+      id: 'horse-toggle-mount-template',
+      name: 'Montar ou desmontar (E)',
+      enabled: true,
+      trigger: { type: 'key_pressed', key: 'KeyE' },
+      conditions: [],
+      actions: [{ type: 'javascript', code: 'api.toggleMount()' }],
+      graphLayout: {
+        trigger: { x: 70, y: 210 },
+        condition: { x: 350, y: 210 },
+        action: { x: 630, y: 210 },
+      },
+    }]
+    const logic = existing
+      ? (existing.logic ?? []).map(rule => ({
+          ...rule,
+          conditions: rule.conditions.filter(condition => condition.name !== 'horse_enabled'),
+        }))
+      : defaultLogic
+
     const component: SavedComponent = {
       id: componentId,
       kind: 'entity',
-      name: 'Cavalo Low Poly',
+      name: existing?.name || 'Cavalo Low Poly',
       height: targetHeight,
       colliderType: 'box',
       colliderSize,
       colliderOffset: [0, 0.02, 0],
-      logic: [{
-        ownerObjectId: '{ID_OBJECT}',
-        id: 'horse-mount-template',
-        name: 'Montar no cavalo',
-        enabled: true,
-        trigger: { type: 'object_clicked', objectId: '{ID_OBJECT}' },
-        conditions: [],
-        actions: [{ type: 'javascript', code: 'api.mount()' }],
-        graphLayout: {
-          trigger: { x: 70, y: 70 },
-          condition: { x: 350, y: 70 },
-          action: { x: 630, y: 70 },
-        },
-      }, {
-        ownerObjectId: '{ID_OBJECT}',
-        id: 'horse-toggle-mount-template',
-        name: 'Montar ou desmontar (E)',
-        enabled: true,
-        trigger: { type: 'key_pressed', key: 'KeyE' },
-        conditions: [],
-        actions: [{ type: 'javascript', code: 'api.toggleMount()' }],
-        graphLayout: {
-          trigger: { x: 70, y: 210 },
-          condition: { x: 350, y: 210 },
-          action: { x: 630, y: 210 },
-        },
-      }],
+      logic,
       bytes,
-      createdAt: Date.now(),
+      createdAt: existing?.createdAt ?? Date.now(),
     }
-    // Atualiza também componentes antigos já existentes: evita manter metadados
-    // de colisão incorretos de versões anteriores da biblioteca.
-    await saveComponentAsset(component)
+
+    // Evita gravações desnecessárias, mas substitui o GLB antigo quando o asset mudou.
+    const sameBytes = existing !== null
+      && existing.bytes.byteLength === bytes.byteLength
+      && new Uint8Array(existing.bytes).every((value, index) => value === new Uint8Array(bytes)[index])
+    const metadataChanged = !existing
+      || existing.kind !== component.kind
+      || existing.height !== component.height
+      || existing.colliderType !== component.colliderType
+      || existing.colliderOffset.some((value, index) => value !== component.colliderOffset[index])
+      || existing.colliderSize.some((value, index) => value !== component.colliderSize[index])
+      || JSON.stringify(existing.logic ?? []) !== JSON.stringify(component.logic ?? [])
+    if (!sameBytes || metadataChanged) await saveComponentAsset(component)
     await refreshSavedComponents()
   } catch (error) {
     console.warn('[ComponentLibrary] Não foi possível registrar o cavalo padrão:', error)
