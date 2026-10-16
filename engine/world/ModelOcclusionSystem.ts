@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { CENTER, MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import { GenerateMeshBVHWorker } from 'three-mesh-bvh/worker'
 import type { GameObject } from '../model/object/GameObject'
 
 // A oclusão usa raycasts contra a geometria real; intervalos maiores evitam
@@ -10,6 +12,11 @@ const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
+const MIN_BVH_TRIANGLES = 700
+const MIN_TRIANGLES_FOR_PARTITION = 12_000
+const BVH_TARGET_LEAF_SIZE = 12
+
+type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
 
 const OCCLUSION_ANCHORS = [
   [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
@@ -55,7 +62,9 @@ export class ModelOcclusionSystem {
   private readonly frustum = new THREE.Frustum()
   private hasLastCamera = false
   private hasLastProjection = false
-  private readonly raycaster = new THREE.Raycaster()
+  // three-mesh-bvh usa firstHitOnly para terminar cada raio assim que encontra
+  // a interseção mais próxima, em vez de coletar todos os triângulos atingidos.
+  private readonly raycaster = Object.assign(new THREE.Raycaster(), { firstHitOnly: true })
   private readonly cameraPosition = new THREE.Vector3()
   private readonly rayDirection = new THREE.Vector3()
   private readonly targetPoint = new THREE.Vector3()
@@ -63,10 +72,436 @@ export class ModelOcclusionSystem {
   private readonly localSamples = new WeakMap<THREE.BufferGeometry, THREE.Vector3[]>()
   /** Meshas removidas visualmente pelo sistema e seu estado antes da oclusão. */
   private readonly culledMeshes = new Map<THREE.Mesh, boolean>()
+  private readonly rootsBeingPrepared = new WeakSet<THREE.Object3D>()
+  private readonly rootsPrepared = new WeakSet<THREE.Object3D>()
+  private readonly geometryBuilds = new WeakMap<THREE.BufferGeometry, Promise<boolean>>()
+  private preparationQueue: Promise<void> = Promise.resolve()
+  private bvhWorker: GenerateMeshBVHWorker | null = null
+  private disposed = false
 
   invalidate(): void {
     this.dirty = true
     this.rootsDirty = true
+  }
+
+  /**
+   * Pré-processa as malhas opacas e estáticas de um modelo importado.
+   *
+   * A árvore BVH acelera o teste de raios por triângulo em modelos densos. A
+   * geometria é clonada antes de ser enviada ao Web Worker para que o modelo
+   * continue renderizável durante o cálculo. A preparação é serializada para
+   * não abrir um worker por malha ou competir com outros modelos carregados.
+   */
+  prepareRoot(root: THREE.Object3D, animated: boolean, sceneForResourceCleanup?: THREE.Object3D): Promise<void> {
+    if (this.disposed || animated || this.rootsPrepared.has(root)) return Promise.resolve()
+    if (this.rootsBeingPrepared.has(root)) return this.preparationQueue
+
+    this.rootsBeingPrepared.add(root)
+    const task = this.preparationQueue.then(async () => {
+      try {
+        if (this.disposed || root.parent === null) return
+        root.updateWorldMatrix(true, true)
+
+        // Uma malha única com dezenas de milhares de triângulos não pode ter
+        // partes ocluídas separadamente. Divida apenas modelos grandes e estáticos
+        // em até oito regiões espaciais, mantendo as superfícies pequenas intactas.
+        await this.partitionLargeMeshes(root, sceneForResourceCleanup)
+        if (this.disposed || root.parent === null) return
+        root.updateWorldMatrix(true, true)
+
+        const blockerMeshes = new Set<THREE.Mesh>()
+        const geometries = new Set<THREE.BufferGeometry>()
+        root.traverse((node) => {
+          if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh) return
+          if (this.isEditorOverlay(node) || node.name === 'collider-debug-wireframe') return
+          if (!this.isEffectivelyVisible(node, root) || !this.isOpaqueBlocker(node.material)) return
+          if (node.geometry.morphAttributes.position?.length) return
+
+          const geometry = node.geometry
+          const position = geometry.getAttribute('position')
+          if (!position || position.isInterleavedBufferAttribute) return
+          if (geometry.index?.isInterleavedBufferAttribute) return
+          if (geometry.drawRange.count !== Infinity) return
+          const triangleCount = Math.floor((geometry.index?.count ?? position.count) / 3)
+          if (triangleCount < MIN_BVH_TRIANGLES) return
+
+          blockerMeshes.add(node)
+          geometries.add(geometry)
+        })
+
+        for (const geometry of geometries) {
+          if (this.disposed || root.parent === null) break
+          await this.buildBoundsTreeIfNeeded(geometry)
+          // Ceder entre malhas mantém a interface responsiva enquanto um GLB
+          // com vários objetos densos é preparado.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+        }
+
+        for (const mesh of blockerMeshes) {
+          if ((mesh.geometry as GeometryWithBoundsTree).boundsTree) {
+            // A função acelerada mantém o mesmo contrato da interseção Three.js;
+            // malhas sem BVH continuam usando o raycast tradicional.
+            mesh.raycast = acceleratedRaycast
+          }
+        }
+
+        if (!this.disposed && root.parent !== null) this.rootsPrepared.add(root)
+        this.invalidate()
+      } finally {
+        this.rootsBeingPrepared.delete(root)
+      }
+    })
+
+    this.preparationQueue = task.catch((error: unknown) => {
+      console.warn('[ModelOcclusion] Falha ao preparar o modelo para oclusão.', error)
+    })
+    return this.preparationQueue
+  }
+
+  private async partitionLargeMeshes(root: THREE.Object3D, sceneForResourceCleanup?: THREE.Object3D): Promise<void> {
+    const candidates: THREE.Mesh[] = []
+    const replacedGeometries = new Set<THREE.BufferGeometry>()
+    root.traverse((node) => {
+      if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh || node instanceof THREE.InstancedMesh) return
+      if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
+      const geometry = node.geometry
+      if (geometry.getAttribute('skinIndex') || geometry.getAttribute('skinWeight')) return
+      if (Object.values(geometry.morphAttributes).some((attributes) => attributes.length > 0)) return
+      // A partição precisa cobrir exatamente a faixa desenhada, sem omitir nem
+      // duplicar grupos/materiais de geometrias glTF especiais.
+      if (geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity) return
+      const position = geometry.getAttribute('position')
+      if (!position || position.isInterleavedBufferAttribute) return
+      if (Object.values(geometry.attributes).some((attribute) => {
+        const candidate = attribute as THREE.BufferAttribute & {
+          isInterleavedBufferAttribute?: boolean
+          isInstancedBufferAttribute?: boolean
+        }
+        return candidate.isInterleavedBufferAttribute === true
+          || candidate.isInstancedBufferAttribute === true
+          || (candidate as THREE.BufferAttribute & { isFloat16BufferAttribute?: boolean }).isFloat16BufferAttribute === true
+      })) return
+
+      const elementCount = geometry.index?.count ?? position.count
+      const triangleCount = Math.floor(elementCount / 3)
+      if (triangleCount < MIN_TRIANGLES_FOR_PARTITION) return
+      if (elementCount % 3 !== 0) return
+      if (geometry.groups.some(group => group.start % 3 !== 0 || group.count % 3 !== 0)) return
+      if (Array.isArray(node.material)) {
+        if (geometry.groups.length === 0) return
+        const orderedGroups = [...geometry.groups].sort((a, b) => a.start - b.start)
+        let coveredUntil = 0
+        for (const group of orderedGroups) {
+          if (
+            group.start !== coveredUntil
+            || group.count <= 0
+            || group.start + group.count > elementCount
+            || group.materialIndex < 0
+            || group.materialIndex >= node.material.length
+          ) return
+          coveredUntil = group.start + group.count
+        }
+        if (coveredUntil !== elementCount) return
+      }
+      candidates.push(node)
+    })
+
+    for (const mesh of candidates) {
+      if (this.disposed || root.parent === null) return
+      try {
+        const replacement = await this.createOcclusionPartitions(mesh)
+        if (replacement) {
+          replacedGeometries.add(mesh.geometry)
+          this.replaceMeshWithPartitions(mesh, replacement)
+        }
+      } catch (error) {
+        // Particionar é uma otimização, nunca um requisito para abrir o modelo.
+        console.warn('[ModelOcclusion] Não foi possível dividir uma malha densa; mantendo a original.', error)
+      }
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+    }
+
+    // Liberar o buffer da malha substituída evita reter VRAM após particionar.
+    // Só descarte geometrias que não estejam mais referenciadas na cena inteira:
+    // modelos duplicados podem compartilhar a mesma geometria glTF.
+    if (sceneForResourceCleanup && replacedGeometries.size > 0) {
+      const stillUsed = new Set<THREE.BufferGeometry>()
+      sceneForResourceCleanup.traverse((node) => {
+        if (node instanceof THREE.Mesh) stillUsed.add(node.geometry)
+      })
+      for (const geometry of replacedGeometries) {
+        if (!stillUsed.has(geometry)) geometry.dispose()
+      }
+    }
+  }
+
+  private async createOcclusionPartitions(mesh: THREE.Mesh): Promise<THREE.Group | null> {
+    const geometry = mesh.geometry
+    const position = geometry.getAttribute('position')
+    if (!position || position.count === 0) return null
+    const elementCount = geometry.index?.count ?? position.count
+    const totalTriangles = Math.floor(elementCount / 3)
+    const bounds = geometry.boundingBox ?? (geometry.computeBoundingBox(), geometry.boundingBox)
+    if (!bounds || bounds.isEmpty()) return null
+
+    // O limite de oito regiões evita multiplicar excessivamente os draw calls.
+    const desiredParts = Math.min(8, Math.max(2, Math.ceil(totalTriangles / 6000)))
+    const targetParts = 2 ** Math.floor(Math.log2(desiredParts))
+    const size = bounds.getSize(new THREE.Vector3())
+    const divisions = [1, 1, 1]
+    let partCount = 1
+    while (partCount < targetParts) {
+      let axis = 0
+      let largestCellExtent = size.x / divisions[0]!
+      for (let candidateAxis = 1; candidateAxis < 3; candidateAxis += 1) {
+        const extent = (candidateAxis === 1 ? size.y : size.z) / divisions[candidateAxis]!
+        if (extent > largestCellExtent) {
+          largestCellExtent = extent
+          axis = candidateAxis
+        }
+      }
+      divisions[axis] = divisions[axis]! * 2
+      partCount *= 2
+    }
+
+    const materialGroups = Array.isArray(mesh.material)
+      ? geometry.groups.map(group => ({ start: group.start, count: group.count, materialIndex: group.materialIndex }))
+      : [{ start: 0, count: elementCount, materialIndex: 0 }]
+    if (materialGroups.length === 0) return null
+
+    // Cada célula mantém triângulos agrupados por material. A partição só muda
+    // a organização espacial; não descarta polígonos nem modifica UVs/normais.
+    const buckets = new Map<number, Map<number, number[]>>()
+    const getVertexIndex = (element: number): number => geometry.index ? geometry.index.getX(element) : element
+    const cellCoordinate = (value: number, min: number, extent: number, count: number): number => {
+      if (count <= 1 || extent <= 1e-8) return 0
+      return THREE.MathUtils.clamp(Math.floor(((value - min) / extent) * count), 0, count - 1)
+    }
+
+    let processedTriangles = 0
+    const first = new THREE.Vector3()
+    const second = new THREE.Vector3()
+    const third = new THREE.Vector3()
+    for (const group of materialGroups) {
+      const end = Math.min(elementCount, group.start + group.count)
+      for (let offset = group.start; offset + 2 < end; offset += 3) {
+        const sourceA = getVertexIndex(offset)
+        const sourceB = getVertexIndex(offset + 1)
+        const sourceC = getVertexIndex(offset + 2)
+        first.fromBufferAttribute(position, sourceA)
+        second.fromBufferAttribute(position, sourceB)
+        third.fromBufferAttribute(position, sourceC)
+        const centerX = (first.x + second.x + third.x) / 3
+        const centerY = (first.y + second.y + third.y) / 3
+        const centerZ = (first.z + second.z + third.z) / 3
+        const column = cellCoordinate(centerX, bounds.min.x, size.x, divisions[0]!)
+        const row = cellCoordinate(centerY, bounds.min.y, size.y, divisions[1]!)
+        const depth = cellCoordinate(centerZ, bounds.min.z, size.z, divisions[2]!)
+        const key = (depth * divisions[1]! + row) * divisions[0]! + column
+        let materials = buckets.get(key)
+        if (!materials) {
+          materials = new Map<number, number[]>()
+          buckets.set(key, materials)
+        }
+        let indices = materials.get(group.materialIndex)
+        if (!indices) {
+          indices = []
+          materials.set(group.materialIndex, indices)
+        }
+        indices.push(sourceA, sourceB, sourceC)
+
+        processedTriangles += 1
+        // Cede a interface durante a varredura de modelos com muitos triângulos.
+        if (processedTriangles % 6000 === 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+          if (this.disposed || mesh.parent === null) return null
+        }
+      }
+    }
+
+    if (buckets.size < 2) return null
+    const partitionGroup = new THREE.Group()
+    partitionGroup.name = mesh.name
+    partitionGroup.position.copy(mesh.position)
+    partitionGroup.quaternion.copy(mesh.quaternion)
+    partitionGroup.scale.copy(mesh.scale)
+    partitionGroup.matrix.copy(mesh.matrix)
+    partitionGroup.matrixAutoUpdate = mesh.matrixAutoUpdate
+    partitionGroup.matrixWorldAutoUpdate = mesh.matrixWorldAutoUpdate
+    partitionGroup.visible = mesh.visible
+    partitionGroup.renderOrder = mesh.renderOrder
+    partitionGroup.frustumCulled = mesh.frustumCulled
+    partitionGroup.layers.mask = mesh.layers.mask
+    partitionGroup.userData = { ...mesh.userData, occlusionPartitioned: true }
+
+    const sortedCells = [...buckets.keys()].sort((a, b) => a - b)
+    let chunkIndex = 0
+    for (const cellKey of sortedCells) {
+      const byMaterial = buckets.get(cellKey)!
+      const materialIndices = [...byMaterial.keys()].sort((a, b) => a - b)
+      const vertexRemap = new Map<number, number>()
+      const usedVertexIndices: number[] = []
+      const newIndices: number[] = []
+      const groupRanges: Array<{ start: number; count: number; materialIndex: number }> = []
+
+      for (const materialIndex of materialIndices) {
+        const sourceIndices = byMaterial.get(materialIndex)!
+        const groupStart = newIndices.length
+        for (const sourceVertex of sourceIndices) {
+          let localVertex = vertexRemap.get(sourceVertex)
+          if (localVertex === undefined) {
+            localVertex = usedVertexIndices.length
+            usedVertexIndices.push(sourceVertex)
+            vertexRemap.set(sourceVertex, localVertex)
+          }
+          newIndices.push(localVertex)
+        }
+        const groupCount = newIndices.length - groupStart
+        if (groupCount > 0) groupRanges.push({ start: groupStart, count: groupCount, materialIndex })
+      }
+      if (newIndices.length === 0) continue
+
+      const chunkGeometry = new THREE.BufferGeometry()
+      chunkGeometry.name = geometry.name ? `${geometry.name}_occlusion_${chunkIndex}` : `${mesh.name}_occlusion_${chunkIndex}`
+      chunkGeometry.userData = { ...geometry.userData }
+
+      for (const [attributeName, rawAttribute] of Object.entries(geometry.attributes)) {
+        const sourceAttribute = rawAttribute as THREE.BufferAttribute
+        const ArrayConstructor = sourceAttribute.array.constructor as {
+          new(length: number): typeof sourceAttribute.array
+        }
+        const compactArray = new ArrayConstructor(usedVertexIndices.length * sourceAttribute.itemSize)
+        for (let localVertex = 0; localVertex < usedVertexIndices.length; localVertex += 1) {
+          const sourceVertex = usedVertexIndices[localVertex]!
+          const sourceOffset = sourceVertex * sourceAttribute.itemSize
+          const targetOffset = localVertex * sourceAttribute.itemSize
+          for (let component = 0; component < sourceAttribute.itemSize; component += 1) {
+            compactArray[targetOffset + component] = sourceAttribute.array[sourceOffset + component]!
+          }
+        }
+        const AttributeConstructor = sourceAttribute.constructor as new (
+          array: typeof sourceAttribute.array,
+          itemSize: number,
+          normalized?: boolean,
+        ) => THREE.BufferAttribute
+        const chunkAttribute = new AttributeConstructor(compactArray, sourceAttribute.itemSize, sourceAttribute.normalized)
+        chunkAttribute.name = sourceAttribute.name
+        chunkAttribute.setUsage(sourceAttribute.usage)
+        chunkAttribute.gpuType = sourceAttribute.gpuType
+        chunkGeometry.setAttribute(attributeName, chunkAttribute)
+      }
+
+      chunkGeometry.setIndex(newIndices)
+      if (Array.isArray(mesh.material)) {
+        for (const group of groupRanges) {
+          chunkGeometry.addGroup(group.start, group.count, group.materialIndex)
+        }
+      }
+      chunkGeometry.computeBoundingBox()
+      chunkGeometry.computeBoundingSphere()
+
+      const chunkMesh = new THREE.Mesh(chunkGeometry, mesh.material)
+      chunkMesh.name = `__occlusion_chunk_${chunkIndex}`
+      chunkMesh.userData.occlusionGeneratedChunk = true
+      // Compatível com os filtros existentes da hierarquia e de regras visuais.
+      // A camada pai conserva o nome/path original para preservar regras salvas.
+      chunkMesh.userData.generatedOcclusionCluster = true
+      chunkMesh.castShadow = mesh.castShadow
+      chunkMesh.receiveShadow = mesh.receiveShadow
+      chunkMesh.renderOrder = mesh.renderOrder
+      chunkMesh.frustumCulled = mesh.frustumCulled
+      chunkMesh.layers.mask = mesh.layers.mask
+      partitionGroup.add(chunkMesh)
+      chunkIndex += 1
+    }
+
+    if (partitionGroup.children.length < 2) {
+      for (const child of partitionGroup.children) {
+        const chunkMesh = child as THREE.Mesh
+        chunkMesh.geometry.dispose()
+      }
+      return null
+    }
+
+    partitionGroup.updateMatrix()
+    return partitionGroup
+  }
+
+  private replaceMeshWithPartitions(mesh: THREE.Mesh, replacement: THREE.Group): void {
+    const parent = mesh.parent
+    if (!parent) return
+    const originalIndex = parent.children.indexOf(mesh)
+    parent.add(replacement)
+    parent.remove(mesh)
+
+    // Preserve a ordem dos irmãos no glTF, importante para transparências e
+    // callbacks de renderização do projeto (as malhas particionadas são opacas).
+    const replacementIndex = parent.children.indexOf(replacement)
+    if (replacementIndex >= 0 && replacementIndex !== originalIndex) {
+      parent.children.splice(replacementIndex, 1)
+      parent.children.splice(Math.min(originalIndex, parent.children.length), 0, replacement)
+    }
+  }
+
+  /** Aguarda o lote atual de pré-processamento espacial terminar. */
+  async waitForPreparation(): Promise<void> {
+    await this.preparationQueue
+  }
+
+  private buildBoundsTreeIfNeeded(geometry: THREE.BufferGeometry): Promise<boolean> {
+    const typedGeometry = geometry as GeometryWithBoundsTree
+    if (typedGeometry.boundsTree) return Promise.resolve(true)
+
+    const currentBuild = this.geometryBuilds.get(geometry)
+    if (currentBuild) return currentBuild
+
+    const build = this.buildBoundsTree(geometry)
+    this.geometryBuilds.set(geometry, build)
+    return build
+  }
+
+  private async buildBoundsTree(geometry: THREE.BufferGeometry): Promise<boolean> {
+    const typedGeometry = geometry as GeometryWithBoundsTree
+    const workerGeometry = geometry.clone()
+
+    try {
+      this.bvhWorker ??= new GenerateMeshBVHWorker()
+      const workerTree = await this.bvhWorker.generate(workerGeometry, {
+        strategy: CENTER,
+        targetLeafSize: BVH_TARGET_LEAF_SIZE,
+        indirect: true,
+      })
+
+      if (this.disposed) return false
+
+      // A árvore devolvida pelo worker aponta para o clone enviado. Serializar e
+      // desserializar contra a geometria original permite manter os buffers de
+      // renderização intactos e deixa apenas a estrutura espacial em cache.
+      const serialized = MeshBVH.serialize(workerTree, { cloneBuffers: true })
+      typedGeometry.boundsTree = MeshBVH.deserialize(serialized, geometry, { setIndex: false })
+      return true
+    } catch (error) {
+      if (this.disposed) return false
+      console.warn('[ModelOcclusion] BVH em worker indisponível; avaliando fallback local.', error)
+      const position = geometry.getAttribute('position')
+      const triangleCount = Math.floor((geometry.index?.count ?? position?.count ?? 0) / 3)
+      // Em uma malha muito grande, construir a árvore na thread principal pode
+      // congelar o editor. É melhor manter o raycast normal do que travar a UI.
+      if (triangleCount > 16_000) return false
+      try {
+        typedGeometry.boundsTree = new MeshBVH(geometry, {
+          strategy: CENTER,
+          targetLeafSize: BVH_TARGET_LEAF_SIZE,
+          indirect: true,
+        })
+        return true
+      } catch (fallbackError) {
+        console.warn('[ModelOcclusion] Não foi possível criar BVH; usando raycast padrão.', fallbackError)
+        return false
+      }
+    } finally {
+      workerGeometry.dispose()
+    }
   }
 
   /**
@@ -130,6 +565,7 @@ export class ModelOcclusionSystem {
     const modelRoots = preparedRoots.filter(root =>
       root.importedModel
       && !root.animated
+      && !this.rootsBeingPrepared.has(root.root)
       && root.root.userData.wireframeVisible !== true
       && !root.bounds.isEmpty()
     )
@@ -138,6 +574,7 @@ export class ModelOcclusionSystem {
     // conjunto de caixas e geometrias consultadas por cada raio.
     const occluderRoots = preparedRoots.filter(root =>
       !root.animated
+      && !this.rootsBeingPrepared.has(root.root)
       && !root.bounds.isEmpty()
       && this.frustum.intersectsBox(root.bounds)
       && root.meshes.some(mesh => mesh.opaque)
@@ -457,11 +894,18 @@ export class ModelOcclusionSystem {
   }
 
   dispose(): void {
+    this.disposed = true
     this.restoreCulledMeshes()
     this.cachedPreparedRoots = null
     this.rootsDirty = true
     this.dirty = false
     this.hasLastCamera = false
     this.hasLastProjection = false
+    // Se uma árvore estiver sendo calculada, deixe o job terminar antes de
+    // encerrar o worker; isso evita uma Promise pendurada durante o teardown.
+    void this.preparationQueue.finally(() => {
+      this.bvhWorker?.dispose()
+      this.bvhWorker = null
+    })
   }
 }
