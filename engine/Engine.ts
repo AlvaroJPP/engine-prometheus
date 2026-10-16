@@ -1114,6 +1114,7 @@ export class Engine {
   ): void {
     const root = this.world.get(instance.ownerObjectId)?.mesh
     if (!root) return
+    this.modelOcclusion.restoreObjectVisibility(root)
     const rules = enabled ? getMountPackageSettings(instance).modelStates : []
     const evaluated = rules.map(rule => {
       const actual = Object.prototype.hasOwnProperty.call(instance.variables, rule.variable)
