@@ -94,7 +94,12 @@ export class ModelOcclusionSystem {
     this.lastCameraPosition.copy(this.cameraPosition)
 
     const preparedRoots = this.prepareRoots(objects)
-    const modelRoots = preparedRoots.filter(root => root.importedModel && !root.animated && !root.bounds.isEmpty())
+    const modelRoots = preparedRoots.filter(root =>
+      root.importedModel
+      && !root.animated
+      && root.root.userData.wireframeVisible !== true
+      && !root.bounds.isEmpty()
+    )
     const occluderRoots = preparedRoots.filter(root => !root.animated && !root.bounds.isEmpty())
 
     for (const targetRoot of modelRoots) {
