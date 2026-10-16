@@ -1029,7 +1029,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <div class="viewport-render-stats">
             <span><strong>{{ (renderStats.triangles / 1000).toFixed(1) }}k</strong> tris</span>
             <span><strong>{{ renderStats.drawCalls }}</strong> draws</span>
-            <span><strong>{{ renderStats.cpuRenderMs.toFixed(1) }}</strong> ms CPU</span>
+            <span title="Tempo de submissão dos comandos WebGL"><strong>{{ renderStats.cpuRenderMs.toFixed(1) }}</strong> ms render</span>
+            <span title="Tempo gasto atualizando controles, colisões e sistemas do motor"><strong>{{ renderStats.cpuUpdateMs.toFixed(1) }}</strong> ms loop</span>
           </div>
         </div>
         <div class="chips">
@@ -2636,6 +2637,6 @@ input[type='range'] { accent-color: #e98524; }
 .viewport-fps-head.fps-medium strong{color:#f1cb82}
 .viewport-fps-head.fps-low .fps-indicator{background:#f07870;box-shadow:0 0 0 3px #f0787018}
 .viewport-fps-head.fps-low strong{color:#ffaaa2}
-.viewport-render-stats{display:flex;align-items:center;gap:9px;border-top:1px solid #343b46;padding-top:5px;color:#9da8b7;font-size:9px;letter-spacing:0;white-space:nowrap}
+.viewport-render-stats{display:flex;align-items:center;gap:7px;border-top:1px solid #343b46;padding-top:5px;color:#9da8b7;font-size:9px;letter-spacing:0;white-space:nowrap}
 .viewport-render-stats strong{min-width:0;color:#e3e9f1;font-size:10px;font-weight:800;text-align:left}
 </style>
