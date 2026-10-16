@@ -655,8 +655,12 @@ async function removeSavedComponent(id: string) {
 
 onMounted(() => {
   void (async () => {
-    // Remove da biblioteca local o componente de cavalo criado por versões anteriores.
-    await deleteSavedComponent('builtin-horse-low-poly')
+    // Remove da biblioteca local o componente legado criado por versões anteriores.
+    try {
+      await deleteSavedComponent('builtin-horse-low-poly')
+    } catch (error) {
+      console.warn('[ComponentLibrary] Não foi possível remover um componente legado.', error)
+    }
     await refreshSavedComponents()
   })()
 })
