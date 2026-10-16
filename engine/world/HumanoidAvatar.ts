@@ -638,12 +638,6 @@ export class HumanoidAvatar {
       // invisível e um colisor simplificado configurável. Usar os triângulos visuais
       // aqui deixa espaços entre pernas/partes do modelo e permite atravessá-lo.
       // Para esses modelos, a colisão do jogador usa o volume físico da raiz.
-      if (root.userData.importedModel === true) {
-        const colliderBounds = getColliderBounds(root)
-        if (colliderBounds && playerBox.intersectsBox(colliderBounds)) return true
-        continue
-      }
-
       const meshes: THREE.Mesh[] = []
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || !child.visible) return
@@ -687,8 +681,15 @@ export class HumanoidAvatar {
           } else if (normal.y >= 0.45) {
             continue
           }
-          triangle.closestPointToPoint(center, closest)
-          if (center.distanceToSquared(closest) < radiusSq) return true
+          // Nos modelos importados, testa o volume inteiro do jogador contra
+          // cada triângulo visual. O teste baseado apenas no centro deixa o corpo
+          // atravessar faces laterais quando o centro ainda está distante do polígono.
+          if (root.userData.importedModel === true) {
+            if (playerBox.intersectsTriangle(triangle)) return true
+          } else {
+            triangle.closestPointToPoint(center, closest)
+            if (center.distanceToSquared(closest) < radiusSq) return true
+          }
         }
       }
     }
