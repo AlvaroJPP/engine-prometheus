@@ -1056,7 +1056,7 @@ export class Engine {
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
     // Particiona modelos densos e prepara BVH antes de gerar LOD. Assim o
     // simplificador trabalha nas regiões renderizáveis, não na malha já removida.
-    void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0)
+    void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0, this.world.scene)
       .then(() => this.modelLod.prepare(finalId, root, importedAnimations.length > 0))
       .then(() => this.viewport.invalidate())
       .catch((error) => {
