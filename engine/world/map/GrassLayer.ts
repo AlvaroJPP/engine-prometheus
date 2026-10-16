@@ -456,12 +456,12 @@ export class GrassLayer {
   }
 
   private paintedModelInstance(tuft: PaintedGrassTuft): GrassInstance {
-    const [x, z, scale, sourceColor] = tuft
+    const [x, z, scale] = tuft
     const random = this.randomForPainted(tuft)
     const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
     const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
-    // O modelo mantém as texturas originais; a cor salva só dá uma leve variação verde.
-    this.color.setHex(sourceColor).lerp(this.white, 0.72)
+    // As cores salvas continuam disponíveis para projetos antigos, mas não se
+    // aplicam ao modelo importado: materiais, mapas e tons do GLB são originais.
     return {
       x,
       y: this.field.sample(x, z) + 0.004,
@@ -497,8 +497,8 @@ export class GrassLayer {
       for (let i = 0; i < records.length; i += 1) {
         const record = records[i]!
         if (record.variant !== part.variantIndex) continue
-        this.writeInstance(near, nearIndex++, record.instance)
-        if (i % LOD_STRIDE === 0) this.writeInstance(far, farIndex++, record.instance)
+        this.writeModelInstance(near, nearIndex++, record.instance)
+        if (i % LOD_STRIDE === 0) this.writeModelInstance(far, farIndex++, record.instance)
       }
 
       near.count = nearIndex
@@ -619,6 +619,16 @@ export class GrassLayer {
     mesh.setMatrixAt(index, this.dummy.matrix)
     this.color.setHex(instance.color)
     mesh.setColorAt(index, this.color)
+  }
+
+  /** Não tinge os materiais do GLB: branco mantém as cores/texturas originais. */
+  private writeModelInstance(mesh: THREE.InstancedMesh, index: number, instance: GrassInstance): void {
+    this.dummy.position.set(instance.x, instance.y, instance.z)
+    this.dummy.rotation.set(instance.rotationX, instance.rotationY, instance.rotationZ)
+    this.dummy.scale.set(instance.width, instance.height, instance.width)
+    this.dummy.updateMatrix()
+    mesh.setMatrixAt(index, this.dummy.matrix)
+    mesh.setColorAt(index, this.white)
   }
 
   private paintedInstance(tuft: PaintedGrassTuft): GrassInstance {
