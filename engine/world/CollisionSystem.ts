@@ -95,6 +95,11 @@ export class CollisionSystem {
           if (!contact) continue
           currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
 
+          // Duas plataformas são peças do cenário, não corpos dinâmicos que devam
+          // se empurrar mutuamente. Mantém o contato registrado, mas não corrige
+          // a penetração entre elas: isso preserva a junção de rampas e pisos.
+          if (this.isPlatformPair(a, b)) continue
+
           // O objeto montado continua participando da detecção de contato, mas não
           // pode ser empurrado pelo solver SAT. O HumanoidAvatar controla sua pose.
           if (a.mesh.userData.mountCollisionManaged === true || b.mesh.userData.mountCollisionManaged === true) continue
@@ -364,6 +369,15 @@ export class CollisionSystem {
     return geometry
   }
 
+  /**
+   * Duas plataformas são segmentos do cenário. Elas podem tocar ou se sobrepor
+   * ligeiramente para fechar a emenda entre superfícies; não devem ser afastadas
+   * pelo solver nem bloquear o reposicionamento uma da outra via CCD.
+   */
+  private isPlatformPair(a: GameObject, b: GameObject): boolean {
+    return a.type === 'platform' && b.type === 'platform'
+  }
+
   /** Liga/desliga a representação wireframe dos colisores no viewport. */
   setDebugVisible(visible: boolean): void {
     this.debugVisible = visible
@@ -430,6 +444,9 @@ export class CollisionSystem {
 
       for (const obstacle of objects) {
         if (obstacle.id === moving.id) continue
+        // Plataformas formam o cenário. Deixá-las colidir com CCD entre si
+        // impede sobreposição controlada e pode criar uma fresta na junção.
+        if (this.isPlatformPair(moving, obstacle)) continue
         // O CCD trata cada par contra a pose atual do outro corpo; a resolução
         // iterativa SAT posterior trata os contatos entre múltiplos corpos.
         const obstacleShape = this.buildShape(obstacle)
