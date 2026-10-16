@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.glb?url'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
 const GRASS_COUNT = 7200
@@ -14,7 +15,7 @@ const LOD_STRIDE = 3
 const PAINTED_GRASS_SPACING = 0.17
 const PAINTED_GRASS_PER_AREA = 12
 const PAINTED_GRASS_MODEL_HEIGHT = 0.55
-const GRASS_MODEL_URL = new URL('../../../grass_pack_lowpoly_game-ready.glb', import.meta.url).href
+const GRASS_MODEL_URL = grassModelUrl
 
 export type PaintedGrassTuft = [x: number, z: number, scale: number, color: number]
 
@@ -369,6 +370,7 @@ export class GrassLayer {
    */
   private loadGrassModel(): void {
     const loader = new GLTFLoader()
+    console.info('[GrassLayer] Carregando pacote de grama:', GRASS_MODEL_URL)
     loader.load(
       GRASS_MODEL_URL,
       (gltf) => {
@@ -378,18 +380,22 @@ export class GrassLayer {
           if (parts.length === 0) throw new Error('O GLB não contém malhas de grama utilizáveis.')
           this.modelParts.push(...parts)
           for (const chunk of this.chunks) this.rebuildChunk(chunk)
-          const variants = new Set(parts.map((part) => part.variantIndex)).size
-          console.info('[GrassLayer] Modelos de grama carregados:', {
-            variants,
+          const variantIndices = [...new Set(parts.map((part) => part.variantIndex))]
+          console.info('[GrassLayer] Pacote de grama pronto para pintura:', {
+            variants: variantIndices.length,
             meshParts: parts.length,
+            variantMeshCounts: variantIndices.map((variant) => ({
+              variant,
+              meshes: parts.filter((part) => part.variantIndex === variant).length,
+            })),
           })
         } catch (error) {
-          console.warn('[GrassLayer] Não foi possível preparar o modelo GLB; usando o tufo procedural como alternativa.', error)
+          console.error('[GrassLayer] O GLB foi baixado, mas não pôde ser convertido em tufos de grama.', error)
         }
       },
       undefined,
       (error) => {
-        console.warn('[GrassLayer] Falha ao carregar o GLB de grama; usando o tufo procedural como alternativa.', error)
+        console.error('[GrassLayer] Não foi possível carregar o GLB da pintura de grama:', GRASS_MODEL_URL, error)
       },
     )
   }
@@ -402,17 +408,111 @@ export class GrassLayer {
     return found
   }
 
-  /** Separa variantes exportadas no mesmo GLB, sem tratar cada folha como um tufo. */
-  private grassModelCandidates(scene: THREE.Object3D): THREE.Object3D[] {
-    const roots = scene.children.filter((child) => this.subtreeHasMesh(child))
-    if (roots.length === 0) return this.subtreeHasMesh(scene) ? [scene] : []
-    if (roots.length > 1) return roots
+  private meshesUnder(root: THREE.Object3D): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = []
+    root.traverse((node) => {
+      if (node instanceof THREE.Mesh && node.geometry.getAttribute('position')) meshes.push(node)
+    })
+    return meshes
+  }
 
-    const only = roots[0]!
-    const nested = only.children.filter((child) => this.subtreeHasMesh(child))
-    const containerName = /(root|scene|pack|collection|grass)/i.test(only.name)
-    if (nested.length > 1 && containerName) return nested
-    return [only]
+  private boundsForMeshes(meshes: THREE.Mesh[]): THREE.Box3 {
+    const bounds = new THREE.Box3()
+    for (const mesh of meshes) bounds.union(new THREE.Box3().setFromObject(mesh))
+    return bounds
+  }
+
+  /**
+   * O arquivo de pacote pode representar cada tufo como um grupo, ou cada folha
+   * como um objeto separado. Detecta ambos os formatos e junta objetos próximos
+   * espacialmente para que a ferramenta instancie tufos inteiros, não lâminas soltas.
+   */
+  private grassModelCandidates(scene: THREE.Object3D): THREE.Mesh[][] {
+    const roots = scene.children.filter((child) => this.subtreeHasMesh(child))
+    let units = roots.length > 0 ? roots : this.subtreeHasMesh(scene) ? [scene] : []
+    if (units.length === 1) {
+      const only = units[0]!
+      const nested = only.children.filter((child) => this.subtreeHasMesh(child))
+      const containerName = /(root|scene|pack|collection|grass|plant|foliage|sketchfab|asset|model)/i.test(only.name)
+      // GLB exporters often wrap an entire pack under a single Scene/Root node.
+      // Dive into that wrapper instead of turning the whole pack into one tiny tuft.
+      if (nested.length > 1 && (containerName || nested.length >= 5)) units = nested
+    }
+
+    const unitMeshes = units.map((unit) => ({ unit, meshes: this.meshesUnder(unit) }))
+      .filter((entry) => entry.meshes.length > 0)
+    if (unitMeshes.length === 0) return []
+
+    // Small packs can already have one node per complete tuft. For large flat
+    // hierarchies, cluster nodes by X/Z position: nearby leaves form one tuft,
+    // while separate demo models remain separate variants.
+    if (unitMeshes.length < 8) return unitMeshes.map((entry) => entry.meshes)
+
+    const entries = unitMeshes.map((entry) => {
+      const bounds = this.boundsForMeshes(entry.meshes)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      return { ...entry, bounds, size, x: center.x, z: center.z }
+    }).filter((entry) => entry.size.y > 0.025 && Number.isFinite(entry.size.y))
+    if (entries.length < 8) return unitMeshes.map((entry) => entry.meshes)
+
+    const heights = entries.map((entry) => entry.size.y).sort((a, b) => a - b)
+    const medianHeight = heights[Math.floor(heights.length / 2)] ?? 1
+    const linkDistance = THREE.MathUtils.clamp(medianHeight * 0.68, 0.08, 1.2)
+    const cellKey = (x: number, z: number): string => `${Math.floor(x / linkDistance)},${Math.floor(z / linkDistance)}`
+    const parent = entries.map((_, index) => index)
+    const find = (index: number): number => {
+      let current = index
+      while (parent[current] !== current) {
+        parent[current] = parent[parent[current]!]!
+        current = parent[current]!
+      }
+      return current
+    }
+    const union = (a: number, b: number): void => {
+      const rootA = find(a)
+      const rootB = find(b)
+      if (rootA !== rootB) parent[rootB] = rootA
+    }
+    const buckets = new Map<string, number[]>()
+    const linkDistanceSquared = linkDistance * linkDistance
+
+    entries.forEach((entry, index) => {
+      const cellX = Math.floor(entry.x / linkDistance)
+      const cellZ = Math.floor(entry.z / linkDistance)
+      for (let dz = -1; dz <= 1; dz += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nearby = buckets.get(`${cellX + dx},${cellZ + dz}`)
+          if (!nearby) continue
+          for (const otherIndex of nearby) {
+            const other = entries[otherIndex]!
+            if ((other.x - entry.x) ** 2 + (other.z - entry.z) ** 2 <= linkDistanceSquared) {
+              union(index, otherIndex)
+            }
+          }
+        }
+      }
+      const key = cellKey(entry.x, entry.z)
+      const bucket = buckets.get(key)
+      if (bucket) bucket.push(index)
+      else buckets.set(key, [index])
+    })
+
+    const grouped = new Map<number, THREE.Mesh[]>()
+    entries.forEach((entry, index) => {
+      const root = find(index)
+      const group = grouped.get(root)
+      if (group) group.push(...entry.meshes)
+      else grouped.set(root, [...entry.meshes])
+    })
+    const result = [...grouped.values()]
+    console.info('[GrassLayer] Estrutura do pacote de grama detectada:', {
+      sourceNodes: unitMeshes.length,
+      tuftGroups: result.length,
+      linkDistance,
+      meshesPerTuft: result.map((group) => group.length),
+    })
+    return result
   }
 
   private cloneGrassMaterial(source: THREE.Material): THREE.Material {
@@ -431,8 +531,8 @@ export class GrassLayer {
     const parts: GrassModelPart[] = []
     let variantIndex = 0
 
-    for (const candidate of this.grassModelCandidates(scene)) {
-      const bounds = new THREE.Box3().setFromObject(candidate)
+    for (const candidateMeshes of this.grassModelCandidates(scene)) {
+      const bounds = this.boundsForMeshes(candidateMeshes)
       if (bounds.isEmpty()) continue
       const size = bounds.getSize(new THREE.Vector3())
       // Ignora planos de chão/preview que não são tufos de grama.
@@ -445,8 +545,7 @@ export class GrassLayer {
       normalize.setPosition(-centerX * factor, -bounds.min.y * factor, -centerZ * factor)
       let addedVariant = false
 
-      candidate.traverse((node) => {
-        if (!(node instanceof THREE.Mesh) || !node.geometry.getAttribute('position')) return
+      for (const node of candidateMeshes) {
         const geometry = node.geometry.clone()
         // Congela a hierarquia GLB na geometria para que instâncias mantenham a pose correta.
         geometry.applyMatrix4(node.matrixWorld)
@@ -476,7 +575,7 @@ export class GrassLayer {
         const material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0]!
         parts.push({ variantIndex, geometry, material })
         addedVariant = true
-      })
+      }
 
       if (addedVariant) variantIndex += 1
     }
