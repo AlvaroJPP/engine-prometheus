@@ -498,7 +498,10 @@ export class CollisionSystem {
       if (!initialMovingShape) continue
       const movingBoundsAtStart = this.getShapeBounds(moving, initialMovingShape)
       const movingHalfSize = movingBoundsAtStart.getSize(new THREE.Vector3()).multiplyScalar(0.5)
-      const sweptBounds = new THREE.Box3().setFromPoints([previous, target]).expandByVector(movingHalfSize)
+      const movingCenterOffset = movingBoundsAtStart.getCenter(new THREE.Vector3()).sub(target)
+      const previousCenter = previous.clone().add(movingCenterOffset)
+      const targetCenter = target.clone().add(movingCenterOffset)
+      const sweptBounds = new THREE.Box3().setFromPoints([previousCenter, targetCenter]).expandByVector(movingHalfSize)
 
       for (const obstacle of objects) {
         if (obstacle.id === moving.id) continue
@@ -615,23 +618,28 @@ export class CollisionSystem {
   private getBroadphaseWorldBounds(object: GameObject): THREE.Box3 {
     const bounds = getRootBounds(object.mesh)
     const sizeData = object.mesh.userData.colliderSize
+    const hasCustomSize = Array.isArray(sizeData)
+      && sizeData.length === 3
+      && sizeData.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
     const offsetData = object.mesh.userData.colliderOffset
-    if (
-      !Array.isArray(sizeData)
-      || sizeData.length !== 3
-      || !sizeData.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
-    ) {
-      return bounds
-    }
-
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0)
       : [0, 0, 0]
-    const localSize = new THREE.Vector3(
-      Math.max(0.05, sizeData[0]),
-      Math.max(0.05, sizeData[1]),
-      Math.max(0.05, sizeData[2]),
-    )
+    const hasOffset = offset.some(value => Math.abs(value) > 1e-8)
+    if (!hasCustomSize && !hasOffset) return bounds
+
+    let localSize: THREE.Vector3
+    if (hasCustomSize) {
+      localSize = new THREE.Vector3(
+        Math.max(0.05, sizeData[0]),
+        Math.max(0.05, sizeData[1]),
+        Math.max(0.05, sizeData[2]),
+      )
+    } else {
+      const localBounds = object.mesh.geometry.boundingBox ?? (object.mesh.geometry.computeBoundingBox(), object.mesh.geometry.boundingBox)
+      localSize = localBounds?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(1, 1, 1)
+    }
+
     const localCenter = new THREE.Vector3(offset[0], offset[1], offset[2])
     const customColliderBounds = new THREE.Box3().setFromCenterAndSize(localCenter, localSize)
     customColliderBounds.applyMatrix4(object.mesh.matrixWorld)
@@ -646,15 +654,40 @@ export class CollisionSystem {
       entries.push({ object, bounds: this.getShapeBounds(object, shape) })
     }
 
-    // Sweep-and-prune: em cenas espalhadas, evita testar cada objeto contra todos
-    // os outros. Os contatos novos após correções são incluídos na próxima passada.
-    entries.sort((left, right) => left.bounds.min.x - right.bounds.min.x)
+    // Escolhe o eixo com maior dispersão relativa ao tamanho médio dos
+    // colisores. Isso evita O(n²) quando, por exemplo, centenas de objetos estão
+    // empilhados numa coluna de X constante e separados verticalmente.
+    let sweepAxis: 0 | 1 | 2 = 0
+    let bestSpreadScore = Number.NEGATIVE_INFINITY
+    for (const axis of [0, 1, 2] as const) {
+      let minCenter = Number.POSITIVE_INFINITY
+      let maxCenter = Number.NEGATIVE_INFINITY
+      let totalExtent = 0
+      for (const entry of entries) {
+        const min = entry.bounds.min.getComponent(axis)
+        const max = entry.bounds.max.getComponent(axis)
+        const center = (min + max) * 0.5
+        minCenter = Math.min(minCenter, center)
+        maxCenter = Math.max(maxCenter, center)
+        totalExtent += Math.max(0, max - min)
+      }
+      const averageExtent = totalExtent / Math.max(1, entries.length)
+      const spreadScore = (maxCenter - minCenter) / Math.max(0.001, averageExtent)
+      if (spreadScore > bestSpreadScore) {
+        bestSpreadScore = spreadScore
+        sweepAxis = axis
+      }
+    }
+
+    // Sweep-and-prune: pares só chegam ao SAT se as AABBs se sobrepõem em 3D.
+    entries.sort((left, right) => left.bounds.min.getComponent(sweepAxis) - right.bounds.min.getComponent(sweepAxis))
     const pairs: Array<[GameObject, GameObject]> = []
     for (let i = 0; i < entries.length; i += 1) {
       const left = entries[i]!
+      const leftMax = left.bounds.max.getComponent(sweepAxis)
       for (let j = i + 1; j < entries.length; j += 1) {
         const right = entries[j]!
-        if (right.bounds.min.x > left.bounds.max.x + CONTACT_TOLERANCE) break
+        if (right.bounds.min.getComponent(sweepAxis) > leftMax + CONTACT_TOLERANCE) break
         if (left.bounds.intersectsBox(right.bounds)) pairs.push([left.object, right.object])
       }
     }
