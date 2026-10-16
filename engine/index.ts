@@ -1,5 +1,5 @@
 export { Engine } from './Engine'
-export { parseProject, parseScene, ProjectFormatError } from './project/validate'
+export { parseProject, parseScene, parseSceneObject, ProjectFormatError } from './project/validate'
 export { ENGINE_VERSION, MAIN_SCENE_PATH } from './project/format'
 export { TERRAIN_ID } from './world/map/TerrainMesh'
 export type { ProjectBundle, ProjectFile, SceneFile, SceneObjectData, ObjectType, CameraPreset, TextureFace, FaceTextureData, FaceTextureMap } from './project/format'

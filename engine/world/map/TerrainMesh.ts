@@ -80,6 +80,18 @@ export class TerrainMesh {
     this.grass.loadPainted(paintedGrass)
   }
 
+  /** Abre projetos densos por lotes para que a UI continue atualizando o progresso. */
+  async loadAsync(
+    seed: number,
+    edits: ReadonlyArray<readonly [number, number]>,
+    paintedGrass: ReadonlyArray<PaintedGrassTuft> = [],
+    onGrassProgress?: (loaded: number, total: number) => void,
+  ): Promise<void> {
+    this.field.reset(seed, edits)
+    this.refresh()
+    await this.grass.loadPaintedAsync(paintedGrass, onGrassProgress)
+  }
+
   brush(x: number, z: number, radius: number, amount: number): void {
     if (this.field.brush(x, z, radius, amount)) this.refresh()
   }

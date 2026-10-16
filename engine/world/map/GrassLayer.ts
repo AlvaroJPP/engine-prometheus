@@ -17,6 +17,8 @@ const GRASS_MIDDLE_STRIDE = 2
 const GRASS_FAR_STRIDE = 4
 const GRASS_RING_REBUILD_DISTANCE = 0.4
 const PAINTED_GRASS_SPACING = 0.17
+// Buckets maiores evitam criar um Map e um array para quase cada tufo em mapas densos.
+const PAINTED_GRASS_BUCKET_SIZE = 1
 const PAINTED_GRASS_PER_AREA = 12
 const PAINTED_GRASS_MODEL_HEIGHT = 0.55
 const GRASS_MODEL_URL = grassModelUrl
@@ -194,6 +196,10 @@ export class GrassLayer {
   private paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
   private lastRingCenter: THREE.Vector3 | null = null
   private renderDirty = true
+  private loadingPainted = false
+  private renderRebuildInProgress = false
+  private pendingRingCenter: THREE.Vector3 | null = null
+  private renderRebuildRevision = 0
   private readonly windUniforms = {
     uGrassTime: { value: 0 },
     uGrassWindStrength: { value: 0.11 },
@@ -785,7 +791,7 @@ export class GrassLayer {
   }
 
   private paintCellKey(x: number, z: number): string {
-    return `${Math.floor(x / PAINTED_GRASS_SPACING)},${Math.floor(z / PAINTED_GRASS_SPACING)}`
+    return `${Math.floor(x / PAINTED_GRASS_BUCKET_SIZE)},${Math.floor(z / PAINTED_GRASS_BUCKET_SIZE)}`
   }
 
   private registerPaintedBucket(tuft: PaintedGrassTuft): void {
@@ -801,8 +807,8 @@ export class GrassLayer {
   }
 
   private canPaintAt(x: number, z: number): boolean {
-    const cellX = Math.floor(x / PAINTED_GRASS_SPACING)
-    const cellZ = Math.floor(z / PAINTED_GRASS_SPACING)
+    const cellX = Math.floor(x / PAINTED_GRASS_BUCKET_SIZE)
+    const cellZ = Math.floor(z / PAINTED_GRASS_BUCKET_SIZE)
     const spacingSquared = PAINTED_GRASS_SPACING * PAINTED_GRASS_SPACING
     for (let dz = -1; dz <= 1; dz += 1) {
       for (let dx = -1; dx <= 1; dx += 1) {
@@ -860,55 +866,119 @@ export class GrassLayer {
     ) >>> 0
   }
 
-  private rebuildDistanceRings(center: THREE.Vector3): void {
+  private shouldCancelRenderRebuild(revision: number): boolean {
+    return this.disposed || this.loadingPainted || revision !== this.renderRebuildRevision
+  }
+
+  private async yieldToUi(): Promise<void> {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+  }
+
+  private queueDistanceRingRebuild(center: THREE.Vector3): void {
+    if (this.disposed || this.loadingPainted) return
+    this.renderDirty = false
+    this.pendingRingCenter = center.clone()
+    if (this.renderRebuildInProgress) return
+
+    this.renderRebuildInProgress = true
+    void this.processQueuedDistanceRingRebuilds()
+  }
+
+  private async processQueuedDistanceRingRebuilds(): Promise<void> {
+    try {
+      while (this.pendingRingCenter && !this.disposed && !this.loadingPainted) {
+        const center = this.pendingRingCenter
+        this.pendingRingCenter = null
+        await this.rebuildDistanceRings(center, this.renderRebuildRevision)
+      }
+    } catch (error) {
+      this.renderDirty = true
+      console.error('[GrassLayer] Não foi possível reconstruir os anéis de renderização da grama.', error)
+    } finally {
+      this.renderRebuildInProgress = false
+      if (this.pendingRingCenter && !this.disposed && !this.loadingPainted) {
+        this.renderRebuildInProgress = true
+        void this.processQueuedDistanceRingRebuilds()
+      }
+    }
+  }
+
+  private async rebuildDistanceRings(center: THREE.Vector3, revision: number): Promise<void> {
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
     const modelBuckets = this.renderBands.map(() =>
       this.modelParts.map(() => [] as GrassInstance[]),
     )
+    let processed = 0
 
     for (const chunk of this.chunks) {
       for (const instance of chunk.procedural) {
         const bandIndex = this.distanceBandIndex(instance.x, instance.z, center)
-        if (bandIndex < 0) continue
-        const band = this.renderBands[bandIndex]!
-        if (this.spatialHash(instance.x, instance.z) % band.stride !== 0) continue
-        proceduralBuckets[bandIndex]!.push(instance)
+        if (bandIndex >= 0) {
+          const band = this.renderBands[bandIndex]!
+          if (this.spatialHash(instance.x, instance.z) % band.stride === 0) {
+            proceduralBuckets[bandIndex]!.push(instance)
+          }
+        }
+        processed += 1
+        if (processed % 1600 === 0) {
+          await this.yieldToUi()
+          if (this.shouldCancelRenderRebuild(revision)) return
+        }
       }
 
       for (const tuft of chunk.painted) {
         const bandIndex = this.distanceBandIndex(tuft[0], tuft[1], center)
-        if (bandIndex < 0) continue
-        const band = this.renderBands[bandIndex]!
-        if (this.paintedHash(tuft) % band.stride !== 0) continue
-
-        if (this.modelParts.length > 0 && bandIndex < 2) {
-          const variant = this.paintedVariant(tuft)
-          const instance = this.paintedModelInstance(tuft)
-          for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
-            if (this.modelParts[partIndex]!.variantIndex === variant) {
-              modelBuckets[bandIndex]![partIndex]!.push(instance)
+        if (bandIndex >= 0) {
+          const band = this.renderBands[bandIndex]!
+          if (this.paintedHash(tuft) % band.stride === 0) {
+            if (this.modelParts.length > 0 && bandIndex < 2) {
+              const variant = this.paintedVariant(tuft)
+              const instance = this.paintedModelInstance(tuft)
+              for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
+                if (this.modelParts[partIndex]!.variantIndex === variant) {
+                  modelBuckets[bandIndex]![partIndex]!.push(instance)
+                }
+              }
+            } else {
+              // O anel distante usa a malha procedural de baixo custo em vez do GLB completo.
+              proceduralBuckets[bandIndex]!.push(this.paintedInstance(tuft))
             }
           }
-        } else {
-          // O anel distante usa a malha procedural de baixo custo em vez do GLB
-          // completo, reduzindo polígonos além de diminuir a densidade.
-          proceduralBuckets[bandIndex]!.push(this.paintedInstance(tuft))
+        }
+        processed += 1
+        if (processed % 1600 === 0) {
+          await this.yieldToUi()
+          if (this.shouldCancelRenderRebuild(revision)) return
         }
       }
     }
 
+    if (this.shouldCancelRenderRebuild(revision)) return
+    // Esconde as malhas durante a atualização para evitar mostrar matrices parcialmente escritas.
+    for (const band of this.renderBands) {
+      band.mesh.visible = false
+      for (const modelMesh of band.modelMeshes) modelMesh.visible = false
+    }
+
+    let written = 0
     for (let bandIndex = 0; bandIndex < this.renderBands.length; bandIndex += 1) {
       const band = this.renderBands[bandIndex]!
       const procedural = proceduralBuckets[bandIndex]!
       this.ensureRenderBandCapacity(band, procedural.length)
       for (let index = 0; index < procedural.length; index += 1) {
         this.writeInstance(band.mesh, index, procedural[index]!)
+        written += 1
+        if (written % 6000 === 0) {
+          await this.yieldToUi()
+          if (this.shouldCancelRenderRebuild(revision)) return
+        }
       }
       band.mesh.count = procedural.length
       band.mesh.instanceMatrix.needsUpdate = true
       if (band.mesh.instanceColor) band.mesh.instanceColor.needsUpdate = true
       band.mesh.visible = procedural.length > 0
 
+      // O pacote GLB é usado nos anéis próximos; longe dele, usamos geometria simples.
       if (bandIndex >= 2 || this.modelParts.length === 0) continue
       const byPart = modelBuckets[bandIndex]!
       for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
@@ -918,6 +988,11 @@ export class GrassLayer {
         if (!mesh) continue
         for (let index = 0; index < records.length; index += 1) {
           this.writeModelInstance(mesh, index, records[index]!)
+          written += 1
+          if (written % 6000 === 0) {
+            await this.yieldToUi()
+            if (this.shouldCancelRenderRebuild(revision)) return
+          }
         }
         mesh.count = records.length
         mesh.instanceMatrix.needsUpdate = true
@@ -925,6 +1000,7 @@ export class GrassLayer {
         mesh.visible = records.length > 0
       }
     }
+    this.renderDirty = false
   }
 
   private writeInstance(mesh: THREE.InstancedMesh, index: number, instance: GrassInstance): void {
@@ -983,9 +1059,9 @@ export class GrassLayer {
 
   private requestRenderRebuild(): void {
     this.renderDirty = true
-    if (!this.lastRingCenter || this.disposed) return
-    this.rebuildDistanceRings(this.lastRingCenter)
-    this.renderDirty = false
+    if (this.loadingPainted || !this.lastRingCenter || this.disposed) return
+    // Se já houver uma reconstrução em andamento, ela manterá apenas o centro mais recente pendente.
+    this.queueDistanceRingRebuild(this.lastRingCenter)
   }
 
   /** Regenera as manchas de grama procedural respeitando a nova altura do terreno. */
@@ -1109,25 +1185,77 @@ export class GrassLayer {
     return this.painted.map(tuft => [...tuft] as PaintedGrassTuft)
   }
 
-  loadPainted(tufts: ReadonlyArray<PaintedGrassTuft> = []): void {
+  private beginPaintedLoad(): void {
+    this.loadingPainted = true
+    this.renderRebuildRevision += 1
+    this.pendingRingCenter = null
+    this.renderDirty = true
     this.painted.length = 0
     this.paintedBuckets.clear()
+    this.paintedModelCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
+    this.paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
     for (const chunk of this.chunks) chunk.painted.length = 0
-
-    // Projetos salvos não são truncados por um teto artificial de quantidade.
-    for (const tuft of tufts) {
-      if (tuft.length !== 4 || !tuft.every(Number.isFinite)) continue
-      const sanitized: PaintedGrassTuft = [
-        THREE.MathUtils.clamp(tuft[0], -WORLD_HALF, WORLD_HALF),
-        THREE.MathUtils.clamp(tuft[1], -WORLD_HALF, WORLD_HALF),
-        THREE.MathUtils.clamp(tuft[2], 0.2, 1.5),
-        Math.max(0, Math.min(0xffffff, Math.floor(tuft[3]))),
-      ]
-      this.painted.push(sanitized)
-      this.registerPaintedBucket(sanitized)
-      this.chunkFor(sanitized[0], sanitized[1]).painted.push(sanitized)
+    for (const band of this.renderBands) {
+      band.mesh.visible = false
+      band.mesh.count = 0
+      for (const mesh of band.modelMeshes) {
+        mesh.visible = false
+        mesh.count = 0
+      }
     }
-    this.requestRenderRebuild()
+  }
+
+  private normalizePaintedTuft(tuft: PaintedGrassTuft): PaintedGrassTuft | null {
+    if (tuft.length !== 4 || !tuft.every(Number.isFinite)) return null
+    const x = THREE.MathUtils.clamp(tuft[0], -WORLD_HALF, WORLD_HALF)
+    const z = THREE.MathUtils.clamp(tuft[1], -WORLD_HALF, WORLD_HALF)
+    const scale = THREE.MathUtils.clamp(tuft[2], 0.2, 1.5)
+    const color = Math.max(0, Math.min(0xffffff, Math.floor(tuft[3])))
+    if (x === tuft[0] && z === tuft[1] && scale === tuft[2] && color === tuft[3]) return tuft
+    return [x, z, scale, color]
+  }
+
+  private appendPaintedTuft(tuft: PaintedGrassTuft): void {
+    this.painted.push(tuft)
+    this.registerPaintedBucket(tuft)
+    this.chunkFor(tuft[0], tuft[1]).painted.push(tuft)
+  }
+
+  loadPainted(tufts: ReadonlyArray<PaintedGrassTuft> = []): void {
+    this.beginPaintedLoad()
+    try {
+      for (const source of tufts) {
+        const tuft = this.normalizePaintedTuft(source)
+        if (tuft) this.appendPaintedTuft(tuft)
+      }
+    } finally {
+      this.loadingPainted = false
+      this.requestRenderRebuild()
+    }
+  }
+
+  /** Carrega projetos grandes por lotes para manter a interface responsiva. */
+  async loadPaintedAsync(
+    tufts: ReadonlyArray<PaintedGrassTuft> = [],
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<void> {
+    this.beginPaintedLoad()
+    const batchSize = 1600
+    try {
+      for (let offset = 0; offset < tufts.length; offset += batchSize) {
+        const end = Math.min(offset + batchSize, tufts.length)
+        for (let index = offset; index < end; index += 1) {
+          const source = tufts[index]!
+          const tuft = this.normalizePaintedTuft(source)
+          if (tuft) this.appendPaintedTuft(tuft)
+        }
+        onProgress?.(end, tufts.length)
+        if (end < tufts.length) await this.yieldToUi()
+      }
+    } finally {
+      this.loadingPainted = false
+      this.requestRenderRebuild()
+    }
   }
 
   /**
@@ -1159,6 +1287,8 @@ export class GrassLayer {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
     else this.windUniforms.uGrassPlayerPosition.value.set(100000, 0, 100000)
 
+    if (this.loadingPainted) return
+
     const renderCenter = playerPosition ?? cameraPosition
     const centerMoved = !this.lastRingCenter ||
       Math.hypot(
@@ -1168,8 +1298,7 @@ export class GrassLayer {
 
     if (centerMoved) this.lastRingCenter = renderCenter.clone()
     if (centerMoved || this.renderDirty) {
-      this.rebuildDistanceRings(this.lastRingCenter ?? renderCenter)
-      this.renderDirty = false
+      this.queueDistanceRingRebuild(this.lastRingCenter ?? renderCenter)
     }
   }
 
@@ -1183,6 +1312,8 @@ export class GrassLayer {
 
   dispose(): void {
     this.disposed = true
+    this.renderRebuildRevision += 1
+    this.pendingRingCenter = null
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
       for (const mesh of band.modelMeshes) mesh.removeFromParent()

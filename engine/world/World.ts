@@ -412,6 +412,25 @@ export class World {
     this.events.emit('worldReset', { count: objs.length })
   }
 
+  /** Versão assíncrona para projetos com muitos tufos de grama pintada. */
+  async replaceAllAsync(
+    objs: GameObject[],
+    terrain: TerrainData,
+    onGrassProgress?: (loaded: number, total: number) => void,
+  ): Promise<void> {
+    this.select(null)
+    for (const o of this.objects.values()) this.dispose(o)
+    this.objects.clear()
+    for (const o of objs) {
+      reserveId(o.id)
+      this.scene.add(o.mesh)
+      this.objects.set(o.id, o)
+    }
+    await this.terrain.loadAsync(terrain.seed, terrain.edits, terrain.paintedGrass ?? [], onGrassProgress)
+    this.applyTerrainVisible(terrain.visible)
+    this.events.emit('worldReset', { count: objs.length })
+  }
+
   // ---- seleção ----
   select(id: string | null): void {
     const valid = id === TERRAIN_ID || (id !== null && this.objects.has(id))

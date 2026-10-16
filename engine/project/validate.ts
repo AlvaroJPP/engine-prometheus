@@ -148,8 +148,10 @@ function parseTerrain(v: unknown, version: number, label: string): TerrainData {
     edits.push([i, d])
   }
   const rawGrass = v.paintedGrass ?? []
-  if (!Array.isArray(rawGrass) || rawGrass.length > 16000) fail(`${label}: dados de grama pintada inválidos.`)
-  const paintedGrass: Array<[number, number, number, number]> = []
+  if (!Array.isArray(rawGrass)) fail(`${label}: dados de grama pintada inválidos.`)
+  // A validação ocorre abaixo. Como o JSON já foi parseado, aproveitamos o
+  // próprio array e evitamos outra lista com uma referência para cada tufo.
+  const paintedGrass = rawGrass as Array<[number, number, number, number]>
   for (const tuft of rawGrass) {
     if (!Array.isArray(tuft) || tuft.length !== 4 || !tuft.every(isNum)) {
       fail(`${label}: tufo de grama inválido.`)
@@ -158,7 +160,7 @@ function parseTerrain(v: unknown, version: number, label: string): TerrainData {
     if (x < -50 || x > 50 || z < -50 || z > 50 || scale < 0.2 || scale > 2 || !Number.isInteger(color) || color < 0 || color > 0xffffff) {
       fail(`${label}: tufo de grama fora dos limites.`)
     }
-    paintedGrass.push([x, z, scale, color])
+    // Cada tupla já fica no array original; não fazemos cópias por tufo.
   }
   return { seed, visible: v.visible !== false, edits, paintedGrass }
 }
@@ -182,7 +184,13 @@ function parseFaceTextures(value: unknown, label: string, id: string): import('.
 }
 
 export function parseScene(text: string, label = 'cena'): SceneFile {
-  const obj = parseJson(text, label)
+  return parseSceneObject(parseJson(text, label), label)
+}
+
+/** Valida uma cena já parseada sem serializar e parsear novamente JSON grande. */
+export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
+  if (!isRecord(value)) fail(`${label} deve conter um objeto JSON.`)
+  const obj = value
   const version = checkVersion(obj, label)
   if (!Array.isArray(obj.objects)) fail(`${label}: "objects" deve ser uma lista.`)
 

@@ -1192,7 +1192,15 @@ export class Engine {
       report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
-    this.world.replaceAll(restoredObjects, scene.terrain)
+    await this.world.replaceAllAsync(restoredObjects, scene.terrain, (loaded, total) => {
+      const percent = total > 0 ? 25 + Math.round((loaded / total) * 3) : 28
+      report(
+        total > 0
+          ? `Restaurando grama pintada… ${loaded.toLocaleString('pt-BR')}/${total.toLocaleString('pt-BR')}`
+          : 'Terreno e grama prontos.',
+        percent,
+      )
+    })
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     report('Terreno pronto. Restaurando modelos 3D…', 28)
 
