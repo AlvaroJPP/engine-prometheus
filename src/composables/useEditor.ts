@@ -25,6 +25,14 @@ import {
 } from '@/project/projectService'
 
 type PerformancePreset = 'quality' | 'balanced' | 'economy'
+type RenderStats = {
+  fps: number
+  drawCalls: number
+  triangles: number
+  geometries: number
+  textures: number
+  cpuRenderMs: number
+}
 
 export const CAMERA_LABELS: Record<CameraPreset, string> = {
   free: 'Câmera livre',
@@ -45,6 +53,14 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const dirty = ref(false)
   const status = ref('')
   const fps = ref(0)
+  const renderStats = ref<RenderStats>({
+    fps: 0,
+    drawCalls: 0,
+    triangles: 0,
+    geometries: 0,
+    textures: 0,
+    cpuRenderMs: 0,
+  })
   const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
   const selectedModelNodes = ref<Array<{ path: string; name: string; meshCount: number }>>([])
@@ -411,7 +427,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const e = new Engine(canvas.value)
     engine = e
     e.setPerformancePreset(performanceMode.value)
-    e.setFpsListener((value) => { fps.value = value })
+    e.setRenderStatsListener((value) => {
+      fps.value = value.fps
+      renderStats.value = value
+    })
     loadGrassRenderSettings()
     e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
     offs.push(
@@ -449,6 +468,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     window.removeEventListener('keydown', onKey)
     window.clearTimeout(statusTimer)
     engine?.setFpsListener(null)
+    engine?.setRenderStatsListener(null)
     engine?.dispose()
     engine = null
     fps.value = 0
@@ -1192,6 +1212,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty,
     status,
     fps,
+    renderStats,
     ioProgress,
     objects,
     selectedModelNodes,
