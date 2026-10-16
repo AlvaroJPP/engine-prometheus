@@ -53,7 +53,7 @@ export class CollisionSystem {
   private readonly colliderGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
   private debugVisible = false
   private readonly debugHelpers = new Map<string, THREE.LineSegments>()
-  private readonly debugColliderGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
+  private readonly importedTriangleGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
 
   constructor(world: World) {
     this.world = world
@@ -260,11 +260,11 @@ export class CollisionSystem {
   }
 
   /**
-   * Geometria usada somente para visualizar o colisor automático dos modelos
-   * importados. O solver SAT abaixo continua usando o casco convexo simplificado,
-   * mas o wireframe representa os triângulos reais, incluindo a pose do esqueleto.
+   * Constrói a malha triangular real do modelo importado em coordenadas locais
+   * da raiz. É usada tanto pela colisão malha-convexo quanto pelo wireframe.
+   * Aplica morph targets e ossos para manter a malha alinhada à pose renderizada.
    */
-  private getDebugColliderGeometry(object: GameObject): THREE.BufferGeometry | null {
+  private getImportedTriangleGeometry(object: GameObject): THREE.BufferGeometry | null {
     if (this.colliderType(object) !== 'auto' || object.mesh.userData.importedModel !== true) {
       return this.getColliderGeometry(object)
     }
@@ -305,11 +305,11 @@ export class CollisionSystem {
     })
 
     const signature = `triangle-mesh:${poseVersion}:${offset.join(',')}:${signatureParts.join('|')}`
-    const cached = this.debugColliderGeometries.get(object.id)
+    const cached = this.importedTriangleGeometries.get(object.id)
     if (cached?.signature === signature) return cached.geometry
     if (cached) {
       cached.geometry.dispose()
-      this.debugColliderGeometries.delete(object.id)
+      this.importedTriangleGeometries.delete(object.id)
     }
 
     let vertexCount = 0
@@ -355,7 +355,7 @@ export class CollisionSystem {
     geometry.setIndex(new THREE.BufferAttribute(indices, 1))
     geometry.computeBoundingBox()
     geometry.computeBoundingSphere()
-    this.debugColliderGeometries.set(object.id, { geometry, signature })
+    this.importedTriangleGeometries.set(object.id, { geometry, signature })
     return geometry
   }
 
@@ -372,7 +372,7 @@ export class CollisionSystem {
     if (!this.debugVisible) return
     const active = new Set(objects.map(object => object.id))
     for (const object of objects) {
-      const geometry = this.getDebugColliderGeometry(object)
+      const geometry = this.getImportedTriangleGeometry(object)
       let helper = this.debugHelpers.get(object.id)
       if (!geometry) {
         if (helper) helper.visible = false
@@ -405,9 +405,9 @@ export class CollisionSystem {
       helper.geometry.dispose()
       ;(helper.material as THREE.Material).dispose()
       this.debugHelpers.delete(id)
-      const cachedGeometry = this.debugColliderGeometries.get(id)
+      const cachedGeometry = this.importedTriangleGeometries.get(id)
       cachedGeometry?.geometry.dispose()
-      this.debugColliderGeometries.delete(id)
+      this.importedTriangleGeometries.delete(id)
       const cachedCollider = this.colliderGeometries.get(id)
       cachedCollider?.geometry.dispose()
       this.colliderGeometries.delete(id)
@@ -576,21 +576,21 @@ export class CollisionSystem {
 
     if (aIsMesh && !bIsMesh) {
       return this.intersectTriangleMeshWithConvex(aObject, b)
-        ?? (this.getDebugColliderGeometry(aObject) ? null : this.intersectConvex(a, b))
+        ?? (this.getImportedTriangleGeometry(aObject) ? null : this.intersectConvex(a, b))
     }
     if (bIsMesh && !aIsMesh) {
       const contact = this.intersectTriangleMeshWithConvex(bObject, a)
       if (contact) contact.normal.negate()
-      return contact ?? (this.getDebugColliderGeometry(bObject) ? null : this.intersectConvex(a, b))
+      return contact ?? (this.getImportedTriangleGeometry(bObject) ? null : this.intersectConvex(a, b))
     }
 
     // Quando dois modelos côncavos se encontram, preserva o SAT dos cascos
-    // como fallback até que exista uma consulta malha-contra-malha dedicada.
+    // como fallback; a consulta exata cobre o caso comum malha-convexo.
     return this.intersectConvex(a, b)
   }
 
   private intersectTriangleMeshWithConvex(object: GameObject, shape: ConvexShape): Contact | null {
-    const geometry = this.getDebugColliderGeometry(object)
+    const geometry = this.getImportedTriangleGeometry(object)
     if (!geometry) return null
     const position = geometry.getAttribute('position')
     if (!position || position.count < 3) return null
@@ -760,8 +760,8 @@ export class CollisionSystem {
       ;(helper.material as THREE.Material).dispose()
     }
     this.debugHelpers.clear()
-    for (const entry of this.debugColliderGeometries.values()) entry.geometry.dispose()
-    this.debugColliderGeometries.clear()
+    for (const entry of this.importedTriangleGeometries.values()) entry.geometry.dispose()
+    this.importedTriangleGeometries.clear()
     this.colliderGeometries.clear()
   }
 
