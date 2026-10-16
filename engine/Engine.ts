@@ -170,6 +170,7 @@ export class Engine {
       if (this.world.getSelectedId() === id) this.transformControls.getHelper().updateMatrixWorld()
     })
     this.viewport.start((dt) => {
+      const frameStartedAt = performance.now()
       this.input.update(dt)
       // Atualize animações antes dos testes físicos para usar a pose exibida
       // no quadro atual. A versão invalida o wireframe automático do modelo
@@ -257,6 +258,7 @@ export class Engine {
       )
       const environment = this.world.getEnvironment()
       const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation
+      this.viewport.recordUpdateDuration(performance.now() - frameStartedAt)
       this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
   }
