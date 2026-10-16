@@ -317,11 +317,11 @@ uniform float uGrassWindStrength;`,
     const material = this.mesh.material
     if (Array.isArray(material)) {
       material.forEach((item) => {
-        item.map?.dispose()
+        if ('map' in item && item.map instanceof THREE.Texture) item.map.dispose()
         item.dispose()
       })
     } else {
-      material.map?.dispose()
+      if ('map' in material && material.map instanceof THREE.Texture) material.map.dispose()
       material.dispose()
     }
   }
