@@ -44,6 +44,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const status = ref('')
   const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
+  const selectedModelNodes = ref<Array<{ path: string; name: string; meshCount: number }>>([])
   const terrain = ref<TerrainInfo>({ visible: true, seed: 0, edits: 0 })
   const selectedId = ref<string | null>(null)
   const groupSelection = ref<string[]>([])
@@ -283,6 +284,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function refresh() {
     if (!engine) return
     objects.value = engine.listObjects()
+    selectedModelNodes.value = selectedId.value ? engine.listImportedModelNodes(selectedId.value) : []
     terrain.value = engine.terrainInfo()
     gridVisible.value = engine.isGridVisible()
     const environment = engine.world.getEnvironment()
@@ -300,6 +302,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   // explicitamente o inspetor lateral com o objeto atualmente selecionado.
   watch(selectedId, (id) => {
     if (!engine) return
+    selectedModelNodes.value = id ? engine.listImportedModelNodes(id) : []
     logicRules.value = engine.listRules()
     behaviorPackages.value = engine.listBehaviorPackages()
     logicVariables.value = engine.logicVariables(id)
@@ -1108,6 +1111,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     status,
     ioProgress,
     objects,
+    selectedModelNodes,
     terrain,
     selectedId,
     groupSelection,
