@@ -53,6 +53,7 @@ export class CollisionSystem {
   private readonly colliderGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
   private debugVisible = false
   private readonly debugHelpers = new Map<string, THREE.LineSegments>()
+  private readonly debugColliderGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
 
   constructor(world: World) {
     this.world = world
@@ -258,6 +259,106 @@ export class CollisionSystem {
     return geometry
   }
 
+  /**
+   * Geometria usada somente para visualizar o colisor automático dos modelos
+   * importados. O solver SAT abaixo continua usando o casco convexo simplificado,
+   * mas o wireframe representa os triângulos reais, incluindo a pose do esqueleto.
+   */
+  private getDebugColliderGeometry(object: GameObject): THREE.BufferGeometry | null {
+    if (this.colliderType(object) !== 'auto' || object.mesh.userData.importedModel !== true) {
+      return this.getColliderGeometry(object)
+    }
+
+    const root = object.mesh
+    root.updateWorldMatrix(true, true)
+    const inverseRoot = root.matrixWorld.clone().invert()
+    const offsetData = root.userData.colliderOffset
+    const offset = Array.isArray(offsetData) && offsetData.length === 3
+      ? offsetData.map((value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0) as [number, number, number]
+      : [0, 0, 0] as [number, number, number]
+    const poseVersion = typeof root.userData.colliderPoseVersion === 'number'
+      ? root.userData.colliderPoseVersion
+      : 0
+    const entries: Array<{
+      mesh: THREE.Mesh
+      position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute
+      index: THREE.BufferAttribute | null
+      toRoot: THREE.Matrix4
+    }> = []
+    const signatureParts: string[] = []
+
+    root.traverse((child) => {
+      if (
+        child === root ||
+        !(child instanceof THREE.Mesh) ||
+        !child.visible ||
+        child.userData.editorOverlay === true ||
+        child.name === 'collider-debug-wireframe'
+      ) return
+      const position = child.geometry.getAttribute('position')
+      if (!position || position.count < 3) return
+      child.updateWorldMatrix(true, false)
+      const toRoot = inverseRoot.clone().multiply(child.matrixWorld)
+      const roundedMatrix = toRoot.elements.map(value => value.toFixed(4)).join(',')
+      signatureParts.push(`${child.uuid}:${child.geometry.uuid}:${roundedMatrix}`)
+      entries.push({ mesh: child, position, index: child.geometry.getIndex(), toRoot })
+    })
+
+    const signature = `triangle-mesh:${poseVersion}:${offset.join(',')}:${signatureParts.join('|')}`
+    const cached = this.debugColliderGeometries.get(object.id)
+    if (cached?.signature === signature) return cached.geometry
+    if (cached) {
+      cached.geometry.dispose()
+      this.debugColliderGeometries.delete(object.id)
+    }
+
+    let vertexCount = 0
+    let indexCount = 0
+    for (const entry of entries) {
+      vertexCount += entry.position.count
+      indexCount += entry.index ? entry.index.count : entry.position.count
+    }
+    if (vertexCount === 0 || indexCount < 3) return null
+
+    const positions = new Float32Array(vertexCount * 3)
+    const indices = new Uint32Array(indexCount)
+    const offsetVector = new THREE.Vector3(offset[0], offset[1], offset[2])
+    const vertex = new THREE.Vector3()
+    let vertexOffset = 0
+    let indexOffset = 0
+
+    for (const entry of entries) {
+      if (entry.mesh instanceof THREE.SkinnedMesh) entry.mesh.skeleton.update()
+      for (let i = 0; i < entry.position.count; i += 1) {
+        entry.mesh.getVertexPosition(i, vertex)
+        vertex.applyMatrix4(entry.toRoot).add(offsetVector)
+        const destination = (vertexOffset + i) * 3
+        positions[destination] = vertex.x
+        positions[destination + 1] = vertex.y
+        positions[destination + 2] = vertex.z
+      }
+
+      if (entry.index) {
+        for (let i = 0; i < entry.index.count; i += 1) {
+          indices[indexOffset++] = vertexOffset + entry.index.getX(i)
+        }
+      } else {
+        for (let i = 0; i < entry.position.count; i += 1) {
+          indices[indexOffset++] = vertexOffset + i
+        }
+      }
+      vertexOffset += entry.position.count
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setIndex(new THREE.BufferAttribute(indices, 1))
+    geometry.computeBoundingBox()
+    geometry.computeBoundingSphere()
+    this.debugColliderGeometries.set(object.id, { geometry, signature })
+    return geometry
+  }
+
   /** Liga/desliga a representação wireframe dos colisores no viewport. */
   setDebugVisible(visible: boolean): void {
     this.debugVisible = visible
@@ -271,7 +372,7 @@ export class CollisionSystem {
     if (!this.debugVisible) return
     const active = new Set(objects.map(object => object.id))
     for (const object of objects) {
-      const geometry = this.getColliderGeometry(object)
+      const geometry = this.getDebugColliderGeometry(object)
       let helper = this.debugHelpers.get(object.id)
       if (!geometry) {
         if (helper) helper.visible = false
@@ -286,7 +387,7 @@ export class CollisionSystem {
           helper.geometry.dispose()
           ;(helper.material as THREE.Material).dispose()
         }
-        const edges = new THREE.EdgesGeometry(geometry)
+        const edges = new THREE.WireframeGeometry(geometry)
         helper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x45e6a4, transparent: true, opacity: 0.95, depthTest: false }))
         helper.name = 'collider-debug-wireframe'
         helper.userData.editorOverlay = true
@@ -304,6 +405,12 @@ export class CollisionSystem {
       helper.geometry.dispose()
       ;(helper.material as THREE.Material).dispose()
       this.debugHelpers.delete(id)
+      const cachedGeometry = this.debugColliderGeometries.get(id)
+      cachedGeometry?.geometry.dispose()
+      this.debugColliderGeometries.delete(id)
+      const cachedCollider = this.colliderGeometries.get(id)
+      cachedCollider?.geometry.dispose()
+      this.colliderGeometries.delete(id)
     }
   }
 
@@ -520,6 +627,8 @@ export class CollisionSystem {
       ;(helper.material as THREE.Material).dispose()
     }
     this.debugHelpers.clear()
+    for (const entry of this.debugColliderGeometries.values()) entry.geometry.dispose()
+    this.debugColliderGeometries.clear()
     this.colliderGeometries.clear()
   }
 
