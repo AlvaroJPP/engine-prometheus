@@ -507,6 +507,15 @@ watch(rulePackageId, (packageId) => {
   }
 }, { immediate: true })
 
+watch([ruleTrigger, rulePackageId, selectedRulePackageVariables, logicVariables], () => {
+  const available = ruleTrigger.value === 'package_event'
+    ? selectedRulePackageVariables.value
+    : logicVariables.value
+  if (!Object.prototype.hasOwnProperty.call(available, conditionVariable.value)) {
+    conditionVariable.value = Object.keys(available)[0] ?? 'has_key'
+  }
+})
+
 function onRulePackageChange(packageId: string) {
   rulePackageId.value = packageId
 }
