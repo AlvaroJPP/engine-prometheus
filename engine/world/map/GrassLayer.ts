@@ -262,8 +262,31 @@ export class GrassLayer {
     geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   }
 
+  private hasMeaningfulVertexColors(geometry: THREE.BufferGeometry): boolean {
+    const attribute = geometry.getAttribute('color')
+    if (!attribute || attribute.count === 0) return false
+    const stride = Math.max(1, Math.floor(attribute.count / 96))
+    let minLuma = Number.POSITIVE_INFINITY
+    let maxLuma = Number.NEGATIVE_INFINITY
+    let hasNaturalColor = false
+    for (let i = 0; i < attribute.count; i += stride) {
+      const r = attribute.getX(i)
+      const g = attribute.getY(i)
+      const b = attribute.getZ(i)
+      const maximum = Math.max(r, g, b)
+      const minimum = Math.min(r, g, b)
+      const saturation = maximum <= 0.0001 ? 0 : (maximum - minimum) / maximum
+      const luma = r * 0.2126 + g * 0.7152 + b * 0.0722
+      minLuma = Math.min(minLuma, luma)
+      maxLuma = Math.max(maxLuma, luma)
+      if (saturation > 0.15 && g >= r * 0.85 && g >= b * 0.72) hasNaturalColor = true
+    }
+    // Uniform white vertex colors are effectively "no color" for grass.
+    return hasNaturalColor || (maxLuma < 0.82 && maxLuma - minLuma > 0.12)
+  }
+
   private ensureGrassVertexColors(geometry: THREE.BufferGeometry): void {
-    if (geometry.getAttribute('color')) return
+    if (this.hasMeaningfulVertexColors(geometry)) return
     const position = geometry.getAttribute('position')
     if (!position) return
     geometry.computeBoundingBox()
@@ -287,9 +310,12 @@ export class GrassLayer {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   }
 
-  private materialNeedsGrassFallback(material: THREE.Material): material is THREE.MeshStandardMaterial {
+  private materialNeedsGrassFallback(
+    material: THREE.Material,
+    geometry: THREE.BufferGeometry,
+  ): material is THREE.MeshStandardMaterial {
     if (!(material instanceof THREE.MeshStandardMaterial)) return false
-    if (material.map || material.vertexColors) return false
+    if (material.map || this.hasMeaningfulVertexColors(geometry)) return false
     const color = material.color
     const max = Math.max(color.r, color.g, color.b)
     const min = Math.min(color.r, color.g, color.b)
@@ -446,7 +472,7 @@ export class GrassLayer {
     // Small packs can already have one node per complete tuft. For large flat
     // hierarchies, cluster nodes by X/Z position: nearby leaves form one tuft,
     // while separate demo models remain separate variants.
-    if (unitMeshes.length < 8) return unitMeshes.map((entry) => entry.meshes)
+    if (unitMeshes.length < 4) return unitMeshes.map((entry) => entry.meshes)
 
     const entries = unitMeshes.map((entry) => {
       const bounds = this.boundsForMeshes(entry.meshes)
@@ -454,7 +480,7 @@ export class GrassLayer {
       const center = bounds.getCenter(new THREE.Vector3())
       return { ...entry, bounds, size, x: center.x, z: center.z }
     }).filter((entry) => entry.size.y > 0.025 && Number.isFinite(entry.size.y))
-    if (entries.length < 8) return unitMeshes.map((entry) => entry.meshes)
+    if (entries.length < 4) return unitMeshes.map((entry) => entry.meshes)
 
     const heights = entries.map((entry) => entry.size.y).sort((a, b) => a - b)
     const medianHeight = heights[Math.floor(heights.length / 2)] ?? 1
@@ -556,7 +582,14 @@ export class GrassLayer {
 
         const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material]
         const clonedMaterials = sourceMaterials.map((item) => this.cloneGrassMaterial(item))
-        const hasFallbackMaterial = clonedMaterials.some((item) => this.materialNeedsGrassFallback(item))
+        const hasFallbackMaterial = clonedMaterials.some((item) => this.materialNeedsGrassFallback(item, geometry))
+        const meaningfulVertexColors = this.hasMeaningfulVertexColors(geometry)
+        if (!meaningfulVertexColors) {
+          // White/empty vertex-color channels should not wash out a textured material.
+          for (const material of clonedMaterials) {
+            if (material instanceof THREE.MeshStandardMaterial && material.map) material.vertexColors = false
+          }
+        }
         if (hasFallbackMaterial) {
           // Some low-poly packs ship neutral white materials without maps. Only those
           // get a generated leaf texture and vertical green variation; mapped assets
@@ -564,7 +597,7 @@ export class GrassLayer {
           this.ensureGrassUv(geometry)
           this.ensureGrassVertexColors(geometry)
           for (const material of clonedMaterials) {
-            if (!this.materialNeedsGrassFallback(material)) continue
+            if (!this.materialNeedsGrassFallback(material, geometry)) continue
             material.map = this.modelFallbackTexture
             material.color.setHex(0xffffff)
             material.vertexColors = true
