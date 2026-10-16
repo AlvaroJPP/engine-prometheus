@@ -148,9 +148,9 @@ export function createBehaviorPackageInstance(packageId: string, ownerObjectId: 
 
 export function getMountPackageSettings(instance: BehaviorPackageInstance): MountPackageSettings {
   const seatOffset = instance.config.seatOffset
-  const validSeatOffset = Array.isArray(seatOffset) && seatOffset.length === 3 &&
+  const validSeatOffset: [number, number, number] = Array.isArray(seatOffset) && seatOffset.length === 3 &&
     seatOffset.every(value => typeof value === 'number' && Number.isFinite(value))
-      ? seatOffset as [number, number, number]
+      ? [seatOffset[0] as number, seatOffset[1] as number, seatOffset[2] as number]
       : [0, 0.55, 0]
   const getNumber = (name: string, fallback: number, min: number, max: number): number => {
     const value = instance.variables[name]
@@ -161,7 +161,7 @@ export function getMountPackageSettings(instance: BehaviorPackageInstance): Moun
   const interactionKey = instance.config.interactionKey
   return {
     interactionKey: typeof interactionKey === 'string' && interactionKey.trim() ? interactionKey : 'KeyE',
-    seatOffset: [...validSeatOffset],
+    seatOffset: validSeatOffset,
     speed: getNumber('speed', 4.2, 0.2, 20),
     runMultiplier: getNumber('runMultiplier', 1.7, 1, 3),
     interactionRadius: getNumber('interactionRadius', 2.5, 0.5, 10),
