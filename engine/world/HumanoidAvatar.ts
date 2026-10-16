@@ -193,8 +193,9 @@ export class HumanoidAvatar {
 
     // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
     if (this.mountedRoot && this.mountSettings) {
+      // O avatar está oculto e vinculado à montaria: os contatos físicos são
+      // gerenciados pela montaria, não por uma cápsula de jogador sobreposta a ela.
       this.updateMountedMovement(step, forwardInput, sideInput, running)
-      this.updateCollisionEvents()
       return
     }
 
@@ -369,6 +370,7 @@ export class HumanoidAvatar {
     }
     this.verticalVelocity = 0
     this.grounded = true
+    this.activeCollisions.clear()
     this.pressed.clear()
     return true
   }
