@@ -13,6 +13,7 @@ const STAY_OCCLUSION_MARGIN = 0.12
 const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
 const MIN_BVH_TRIANGLES = 700
+const MIN_TRIANGLES_FOR_PARTITION = 12_000
 const BVH_TARGET_LEAF_SIZE = 12
 
 type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
