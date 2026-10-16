@@ -24,8 +24,8 @@ type RootLodState = {
   entries: MeshLodEntry[]
 }
 
-const MIN_TRIANGLES_FOR_LOD = 4_000
-const MIN_SIMPLIFIER_VERTICES = 1_500
+const MIN_TRIANGLES_FOR_LOD = 1_500
+const MIN_SIMPLIFIER_VERTICES = 750
 
 const PRESET_DISTANCES: Record<ModelLodPreset, { medium: number; low: number; radiusScale: number }> = {
   quality: { medium: 24, low: 48, radiusScale: 4 },
