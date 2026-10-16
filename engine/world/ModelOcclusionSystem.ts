@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import type { GameObject } from '../model/object/GameObject'
 
-const MIN_RECHECK_INTERVAL_MS = 90
-const CAMERA_MOVE_THRESHOLD_SQ = 0.05 * 0.05
-const CAMERA_ROTATION_DOT_THRESHOLD = 0.00001
+// A oclusão usa raycasts contra a geometria real; intervalos maiores evitam
+// que uma órbita rápida monopolize a CPU com dezenas de avaliações por segundo.
+const MIN_RECHECK_INTERVAL_MS = 220
+const CAMERA_MOVE_THRESHOLD_SQ = 0.12 * 0.12
+const CAMERA_ROTATION_DOT_THRESHOLD = 0.00008
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const SELF_OCCLUSION_MARGIN = 0.12
@@ -131,36 +133,47 @@ export class ModelOcclusionSystem {
       && root.root.userData.wireframeVisible !== true
       && !root.bounds.isEmpty()
     )
+    // Um bloqueador completamente fora do frustum não pode cruzar o segmento
+    // entre a câmera e um alvo que está dentro dele. Filtrá-lo aqui reduz o
+    // conjunto de caixas e geometrias consultadas por cada raio.
     const occluderRoots = preparedRoots.filter(root =>
       !root.animated
       && !root.bounds.isEmpty()
+      && this.frustum.intersectsBox(root.bounds)
       && root.meshes.some(mesh => mesh.opaque)
     )
-    const hasEligibleTarget = modelRoots.some(targetRoot =>
-      targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
-    )
-    // Um modelo pode ocluir partes de si mesmo: isso cobre tanto regiões
-    // particionadas quanto GLBs que já possuem várias submalhas independentes.
-    // Apenas malhas opacas distintas podem bloquear um alvo dentro da mesma raiz.
-    const hasPotentialOccluder = modelRoots.some((targetRoot) => {
-      const eligibleTargets = targetRoot.meshes.filter((target) => this.isEligibleTarget(target, targetRoot.root))
-      if (eligibleTargets.length === 0) return false
 
-      return occluderRoots.some((sourceRoot) => {
+    // Calcule uma vez por avaliação quais alvos podem ser ocluídos. Antes, o
+    // mesmo nó era percorrido repetidamente durante a detecção de candidatos e
+    // de novo durante os raycasts, custo alto em modelos particionados.
+    const eligibleTargetsByRoot = new Map<PreparedRoot, PreparedMesh[]>()
+    for (const targetRoot of modelRoots) {
+      const eligibleTargets = targetRoot.meshes.filter(target => this.isEligibleTarget(target, targetRoot.root))
+      if (eligibleTargets.length > 0) eligibleTargetsByRoot.set(targetRoot, eligibleTargets)
+    }
+    if (eligibleTargetsByRoot.size === 0) return previousCulled.size > 0
+
+    let hasPotentialOccluder = false
+    for (const [targetRoot, eligibleTargets] of eligibleTargetsByRoot) {
+      for (const sourceRoot of occluderRoots) {
         if (sourceRoot.root !== targetRoot.root) {
-          return sourceRoot.meshes.some((candidate) => candidate.opaque)
+          hasPotentialOccluder = true
+          break
         }
-        return eligibleTargets.some((target) =>
-          sourceRoot.meshes.some((candidate) => candidate.opaque && candidate.mesh !== target.mesh),
-        )
-      })
-    })
-    if (!hasPotentialOccluder || !hasEligibleTarget) return previousCulled.size > 0
+        if (eligibleTargets.some(target =>
+          sourceRoot.meshes.some(candidate => candidate.opaque && candidate.mesh !== target.mesh),
+        )) {
+          hasPotentialOccluder = true
+          break
+        }
+      }
+      if (hasPotentialOccluder) break
+    }
+    if (!hasPotentialOccluder) return previousCulled.size > 0
 
     const pendingCulled = new Map<THREE.Mesh, boolean>()
-    for (const targetRoot of modelRoots) {
-      for (const target of targetRoot.meshes) {
-        if (!this.isEligibleTarget(target, targetRoot.root)) continue
+    for (const [targetRoot, eligibleTargets] of eligibleTargetsByRoot) {
+      for (const target of eligibleTargets) {
         // Nunca oculte o próprio volume que contém a câmera. Usar o AABB do
         // modelo inteiro era demasiado conservador em castelos/edifícios ocos:
         // a câmera ficava dentro do AABB global e desativava toda a oclusão.
