@@ -57,7 +57,6 @@ export class Engine {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
-      this.modelOcclusion.invalidate()
     })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
@@ -1069,6 +1068,9 @@ export class Engine {
 
   removeObject(id: string): void {
     if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) this.dismountActiveMount()
+    // Restaura geometrias originais antes de World.dispose inspecionar a hierarquia,
+    // para liberar as geometrias originais e também os buffers temporários do LOD.
+    this.modelLod.remove(id)
     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
@@ -1251,6 +1253,7 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
+    this.modelLod.clear()
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
@@ -1305,6 +1308,8 @@ export class Engine {
       report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
+    // Remove LOD temporário antes de descartar as geometrias do mundo anterior.
+    this.modelLod.clear()
     await this.world.replaceAllAsync(restoredObjects, scene.terrain, (loaded, total) => {
       const percent = total > 0 ? 25 + Math.round((loaded / total) * 3) : 28
       report(
