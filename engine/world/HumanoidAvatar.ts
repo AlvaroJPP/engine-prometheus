@@ -655,14 +655,13 @@ export class HumanoidAvatar {
     // vertical. Isso evita usar o AABB, cuja altura máxima não representa a rampa.
     const raycaster = new THREE.Raycaster()
     raycaster.ray.direction.set(0, -1, 0)
+    // Procura superfícies de apoio em todos os objetos sólidos, não apenas
+    // nos objetos cuja raiz está rotacionada. Rampas também podem ser construídas
+    // com várias plataformas individuais, e suas faces superiores precisam sustentar
+    // o jogador mesmo quando cada plataforma tem rotação zero.
     const slopeCandidates = this.world.list().filter((object) =>
       object.mesh.visible &&
-      object.mesh.userData.colliderType !== 'none' &&
-      (
-        Math.abs(object.mesh.rotation.x) > 0.02 ||
-        Math.abs(object.mesh.rotation.z) > 0.02 ||
-        (object.mesh.userData.colliderType === 'auto' && object.mesh.userData.importedModel === true)
-      ),
+      object.mesh.userData.colliderType !== 'none',
     )
     if (slopeCandidates.length > 0) {
       raycaster.ray.origin.set(this.mesh.position.x, Math.max(oldY, nextY) + PLAYER_HEIGHT + 2, this.mesh.position.z)
