@@ -89,7 +89,7 @@ export class CollisionSystem {
           const boundsB = new THREE.Box3().setFromPoints(shapeB.vertices)
           if (!boundsA.intersectsBox(boundsB)) continue
 
-          const contact = this.intersectConvex(shapeA, shapeB)
+          const contact = this.intersectObjects(a, b, shapeA, shapeB)
           if (!contact) continue
           currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
 
@@ -131,7 +131,7 @@ export class CollisionSystem {
         const shapeB = this.buildShape(b)
         if (!shapeB) continue
         if (!boundsA.intersectsBox(new THREE.Box3().setFromPoints(shapeB.vertices))) continue
-        if (this.intersectConvex(shapeA, shapeB)) {
+        if (this.intersectObjects(a, b, shapeA, shapeB)) {
           currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
         }
       }
@@ -452,7 +452,7 @@ export class CollisionSystem {
           const candidate = this.buildShape(moving)
           if (!candidate) break
           const candidateBounds = new THREE.Box3().setFromPoints(candidate.vertices)
-          if (candidateBounds.intersectsBox(obstacleBounds) && this.intersectConvex(candidate, obstacleShape)) {
+          if (candidateBounds.intersectsBox(obstacleBounds) && this.intersectObjects(moving, obstacle, candidate, obstacleShape)) {
             firstHit = t
             break
           }
@@ -466,7 +466,7 @@ export class CollisionSystem {
             moving.mesh.position.copy(previous).lerp(target, mid)
             moving.mesh.updateMatrixWorld(true)
             const candidate = this.buildShape(moving)
-            const hit = candidate && this.intersectConvex(candidate, obstacleShape)
+            const hit = candidate && this.intersectObjects(moving, obstacle, candidate, obstacleShape)
             if (hit) high = mid
             else low = mid
           }
@@ -554,6 +554,139 @@ export class CollisionSystem {
 
     const center = new THREE.Box3().setFromPoints(vertices).getCenter(new THREE.Vector3())
     return { vertices, faceNormals, edges, center }
+  }
+
+  private isAutomaticImportedMesh(object: GameObject): boolean {
+    return object.mesh.userData.importedModel === true && this.colliderType(object) === 'auto'
+  }
+
+  /**
+   * Modelos automáticos são malhas côncavas; o SAT de um casco único preencheria
+   * espaços vazios (por exemplo, entre as pernas). Para pares malha-convexo,
+   * testa os triângulos reais e calcula a menor correção pela face em contato.
+   */
+  private intersectObjects(
+    aObject: GameObject,
+    bObject: GameObject,
+    a: ConvexShape,
+    b: ConvexShape,
+  ): Contact | null {
+    const aIsMesh = this.isAutomaticImportedMesh(aObject)
+    const bIsMesh = this.isAutomaticImportedMesh(bObject)
+
+    if (aIsMesh && !bIsMesh) {
+      return this.intersectTriangleMeshWithConvex(aObject, b)
+        ?? (this.getDebugColliderGeometry(aObject) ? null : this.intersectConvex(a, b))
+    }
+    if (bIsMesh && !aIsMesh) {
+      const contact = this.intersectTriangleMeshWithConvex(bObject, a)
+      if (contact) contact.normal.negate()
+      return contact ?? (this.getDebugColliderGeometry(bObject) ? null : this.intersectConvex(a, b))
+    }
+
+    // Quando dois modelos côncavos se encontram, preserva o SAT dos cascos
+    // como fallback até que exista uma consulta malha-contra-malha dedicada.
+    return this.intersectConvex(a, b)
+  }
+
+  private intersectTriangleMeshWithConvex(object: GameObject, shape: ConvexShape): Contact | null {
+    const geometry = this.getDebugColliderGeometry(object)
+    if (!geometry) return null
+    const position = geometry.getAttribute('position')
+    if (!position || position.count < 3) return null
+
+    const root = object.mesh
+    root.updateWorldMatrix(true, false)
+    const index = geometry.getIndex()
+    const triangleCount = Math.floor((index ? index.count : position.count) / 3)
+    const shapeBounds = new THREE.Box3().setFromPoints(shape.vertices)
+    const pointA = new THREE.Vector3()
+    const pointB = new THREE.Vector3()
+    const pointC = new THREE.Vector3()
+    const triangleNormal = new THREE.Vector3()
+    const edgeAB = new THREE.Vector3()
+    const edgeBC = new THREE.Vector3()
+    const edgeCA = new THREE.Vector3()
+    const axis = new THREE.Vector3()
+    const triangleCenter = new THREE.Vector3()
+    const triangleBounds = new THREE.Box3()
+    const trianglePoints: THREE.Vector3[] = [pointA, pointB, pointC]
+    let bestContact: Contact | null = null
+
+    const projectTriangle = (direction: THREE.Vector3): { min: number; max: number } => {
+      const first = pointA.dot(direction)
+      const second = pointB.dot(direction)
+      const third = pointC.dot(direction)
+      return {
+        min: Math.min(first, second, third),
+        max: Math.max(first, second, third),
+      }
+    }
+
+    const overlapsOnAxis = (direction: THREE.Vector3): boolean => {
+      if (direction.lengthSq() <= AXIS_EPSILON_SQ) return true
+      direction.normalize()
+      const triangleProjection = projectTriangle(direction)
+      const shapeProjection = this.project(shape.vertices, direction)
+      const overlap = Math.min(triangleProjection.max, shapeProjection.max) -
+        Math.max(triangleProjection.min, shapeProjection.min)
+      return overlap > CONTACT_TOLERANCE
+    }
+
+    for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+      const ia = index ? index.getX(triangleIndex * 3) : triangleIndex * 3
+      const ib = index ? index.getX(triangleIndex * 3 + 1) : triangleIndex * 3 + 1
+      const ic = index ? index.getX(triangleIndex * 3 + 2) : triangleIndex * 3 + 2
+      pointA.fromBufferAttribute(position, ia).applyMatrix4(root.matrixWorld)
+      pointB.fromBufferAttribute(position, ib).applyMatrix4(root.matrixWorld)
+      pointC.fromBufferAttribute(position, ic).applyMatrix4(root.matrixWorld)
+
+      triangleBounds.setFromPoints(trianglePoints)
+      if (!triangleBounds.intersectsBox(shapeBounds)) continue
+
+      triangleNormal.copy(pointB).sub(pointA).cross(edgeCA.copy(pointC).sub(pointA))
+      if (triangleNormal.lengthSq() <= AXIS_EPSILON_SQ) continue
+      triangleNormal.normalize()
+
+      // O plano do triângulo precisa atravessar o volume convexo; apenas tocar
+      // sua fronteira não deve empurrar os objetos para longe.
+      const plane = pointA.dot(triangleNormal)
+      const shapePlane = this.project(shape.vertices, triangleNormal)
+      if (plane <= shapePlane.min + CONTACT_TOLERANCE ||
+          plane >= shapePlane.max - CONTACT_TOLERANCE) continue
+      const depth = Math.min(plane - shapePlane.min, shapePlane.max - plane)
+      if (bestContact && depth >= bestContact.depth) continue
+
+      edgeAB.copy(pointB).sub(pointA)
+      edgeBC.copy(pointC).sub(pointB)
+      edgeCA.copy(pointA).sub(pointC)
+      let separated = false
+
+      // Eixos das faces do corpo convexo.
+      for (const faceNormal of shape.faceNormals) {
+        axis.copy(faceNormal)
+        if (!overlapsOnAxis(axis)) { separated = true; break }
+      }
+      if (separated) continue
+
+      // Eixos formados pelo produto vetorial das arestas dos dois corpos.
+      const triangleEdges = [edgeAB, edgeBC, edgeCA]
+      for (const triangleEdge of triangleEdges) {
+        for (const shapeEdge of shape.edges) {
+          axis.copy(triangleEdge).cross(shapeEdge)
+          if (!overlapsOnAxis(axis)) { separated = true; break }
+        }
+        if (separated) break
+      }
+      if (separated) continue
+
+      triangleCenter.copy(pointA).add(pointB).add(pointC).multiplyScalar(1 / 3)
+      const normal = triangleNormal.clone()
+      if (shape.center.clone().sub(triangleCenter).dot(normal) < 0) normal.negate()
+      bestContact = { normal, depth }
+    }
+
+    return bestContact
   }
 
   private intersectConvex(a: ConvexShape, b: ConvexShape): Contact | null {
