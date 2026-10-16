@@ -1057,8 +1057,10 @@ export class GrassLayer {
   }
 
   private requestRenderRebuild(): void {
-    // Reconstruções são agendadas pelo loop de renderização e nunca bloqueiam a ação atual.
     this.renderDirty = true
+    if (this.loadingPainted || !this.lastRingCenter || this.disposed) return
+    // Se já houver uma reconstrução em andamento, ela manterá apenas o centro mais recente pendente.
+    this.queueDistanceRingRebuild(this.lastRingCenter)
   }
 
   /** Regenera as manchas de grama procedural respeitando a nova altura do terreno. */
