@@ -306,15 +306,16 @@ export class World {
     }
     if (patch.visible !== undefined) m.visible = patch.visible
     if (patch.locked !== undefined) m.userData.locked = patch.locked
-    if (patch.wireframeVisible !== undefined) {
-      m.userData.wireframeVisible = patch.wireframeVisible
+    const wireframeVisible = patch.wireframeVisible
+    if (wireframeVisible !== undefined) {
+      m.userData.wireframeVisible = wireframeVisible
       // Não gere WireframeGeometry ao desativar linhas, especialmente durante
       // a abertura do projeto. Criar e descartar linhas para cada GLB custa CPU
       // e memória mesmo quando o usuário não quer visualizar o wireframe.
       m.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || child.userData.editorOverlay === true) return
         let overlay = child.getObjectByName('polygon-wireframe') as THREE.LineSegments | undefined
-        if (!overlay && patch.wireframeVisible) {
+        if (!overlay && wireframeVisible) {
           const edges = new THREE.WireframeGeometry(child.geometry)
           const material = new THREE.LineBasicMaterial({
             color: 0x252832,
@@ -328,7 +329,7 @@ export class World {
           overlay.renderOrder = 2
           child.add(overlay)
         }
-        if (overlay) overlay.visible = patch.wireframeVisible
+        if (overlay) overlay.visible = wireframeVisible
       })
     }
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
