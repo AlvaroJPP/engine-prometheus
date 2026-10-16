@@ -1429,9 +1429,9 @@ export class HumanoidAvatar {
       Math.min(0.45, Math.max(size.x, size.z) * 0.25),
     )
     const feetY = mountBounds.min.y
-    const originY = mountBounds.max.y + 0.25
     const lowestAllowedY = feetY - transitionTolerance
     const highestAllowedY = feetY + transitionTolerance
+    const originY = Math.max(mountBounds.max.y + 0.25, highestAllowedY + 0.25)
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(centerX, originY, centerZ),
       new THREE.Vector3(0, -1, 0),
