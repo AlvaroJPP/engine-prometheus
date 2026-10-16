@@ -199,6 +199,11 @@ export class Engine {
   ): void {
     this.logic.updatePackage(id, patch)
     const instance = this.logic.listPackages().find(item => item.id === id)
+    if (patch.enabled === false && this.activeMountPackageId === id) {
+      this.avatar.dismount()
+      this.logic.setPackageVariable(id, 'mounted', false)
+      this.activeMountPackageId = null
+    }
     if (instance) this.world.notifyChanged(instance.ownerObjectId)
   }
   removeBehaviorPackage(id: string): void {
@@ -410,6 +415,7 @@ export class Engine {
         this.avatar.dismount()
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
+          this.world.notifyChanged(packageInstance.ownerObjectId)
           this.logic.triggerKeyPressed(event.code, packageInstance.ownerObjectId)
         }
         this.activeMountPackageId = null
@@ -440,6 +446,7 @@ export class Engine {
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
+        this.world.notifyChanged(candidate.instance.ownerObjectId)
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
         this.logic.triggerKeyPressed(event.code, candidate.instance.ownerObjectId)
@@ -878,6 +885,11 @@ export class Engine {
   }
 
   removeObject(id: string): void {
+    if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) {
+      if (this.activeMountPackageId) this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
+      this.avatar.dismount()
+      this.activeMountPackageId = null
+    }
     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
@@ -965,6 +977,8 @@ export class Engine {
     this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
+    if (this.avatar.isMounted()) this.avatar.dismount()
+    this.activeMountPackageId = null
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
@@ -995,6 +1009,8 @@ export class Engine {
 
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
+    if (this.avatar.isMounted()) this.avatar.dismount()
+    this.activeMountPackageId = null
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     const scene = bundle.scenes[firstPath]
     if (!scene) throw new ProjectFormatError('O projeto não tem nenhuma cena para carregar.')
