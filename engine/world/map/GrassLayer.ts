@@ -224,6 +224,7 @@ export class GrassLayer {
   private pendingRingCenter: THREE.Vector3 | null = null
   private renderRebuildRevision = 0
   private lastOcclusionCameraPosition: THREE.Vector3 | null = null
+  private lastOcclusionRebuildCameraPosition: THREE.Vector3 | null = null
   private lastOcclusionRoots: readonly THREE.Object3D[] = []
   private cachedOcclusionRoots: readonly THREE.Object3D[] | null = null
   private cachedOcclusionData: GrassOcclusionData | null = null
@@ -1547,6 +1548,9 @@ export class GrassLayer {
 
     if (this.loadingPainted) return
 
+    const cameraMoved = !this.lastOcclusionRebuildCameraPosition
+      || this.lastOcclusionRebuildCameraPosition.distanceToSquared(cameraPosition)
+        >= GRASS_RING_REBUILD_DISTANCE * GRASS_RING_REBUILD_DISTANCE
     this.lastOcclusionCameraPosition = cameraPosition.clone()
     if (this.lastOcclusionRoots !== occluderRoots) {
       this.lastOcclusionRoots = occluderRoots
@@ -1562,7 +1566,8 @@ export class GrassLayer {
       ) >= GRASS_RING_REBUILD_DISTANCE
 
     if (centerMoved) this.lastRingCenter = renderCenter.clone()
-    if (centerMoved || this.renderDirty) {
+    if (centerMoved || cameraMoved || this.renderDirty) {
+      this.lastOcclusionRebuildCameraPosition = cameraPosition.clone()
       this.queueDistanceRingRebuild(this.lastRingCenter ?? renderCenter)
     }
   }
@@ -1583,6 +1588,8 @@ export class GrassLayer {
     this.cachedOcclusionRoots = null
     this.cachedOcclusionData = null
     this.lastOcclusionRoots = []
+    this.lastOcclusionCameraPosition = null
+    this.lastOcclusionRebuildCameraPosition = null
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
       for (const mesh of band.modelMeshes) mesh?.removeFromParent()
