@@ -661,7 +661,7 @@ async function placeSavedComponent(id: string) {
     const model = await new Promise<import('three').Object3D>((resolve, reject) => {
       loader.parse(component.bytes.slice(0), '', gltf => {
         gltf.scene.userData.importAnimations = gltf.animations ?? []
-        gltf.scene.userData.importAnimationRoles = component.animationRoles ?? {}
+        gltf.scene.userData.importAnimationRoles = component.animationRoles
         resolve(gltf.scene)
       }, reject)
     })
