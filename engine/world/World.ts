@@ -564,7 +564,7 @@ export class World {
     if (distance !== null && !Number.isFinite(distance)) return
     this.grassRenderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
     this.terrain.grass.setRenderDistance(distance)
-    this.updateGrassFogDistance(72)
+    this.updateGrassFogDistance(this.grassRenderDistance ?? 72)
   }
 
   /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
