@@ -142,7 +142,7 @@ export class Engine {
         if (!mixer) continue
         mixer.update(dt)
         const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
-        if (mountedTransition && ['mount', 'dismount', 'run_stop'].includes(mountedTransition)) {
+        if (mountedTransition && ['mount', 'dismount', 'run_stop', 'jump'].includes(mountedTransition)) {
           const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
           const transitionAction = actions?.[mountedTransition]
           if (!transitionAction?.isRunning()) {
