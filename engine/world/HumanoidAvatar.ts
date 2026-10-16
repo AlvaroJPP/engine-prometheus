@@ -717,7 +717,10 @@ export class HumanoidAvatar {
         object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
       )
       if (!root) continue
-      if (root.mesh.userData.importedModel === true && hit.object === root.mesh) continue
+      // Modelos importados não são degraus: permitir step-up pela malha visual
+      // faz o jogador subir pela lateral do animal e dá a impressão de que a caixa
+      // colide apenas por cima. A colisão lateral é tratada pelo colisor da raiz.
+      if (root.mesh.userData.importedModel === true) continue
       const normal = hit.face.normal.clone()
         .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
         .normalize()
