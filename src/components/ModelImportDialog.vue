@@ -55,6 +55,24 @@ const filteredPreviewParts = computed(() => {
   if (!query) return previewParts.value
   return previewParts.value.filter(part => part.name.toLocaleLowerCase('pt-BR').includes(query))
 })
+const previewComponentDimensions = computed(() => {
+  if (!model.value) return { x: 0, y: 0, z: 0 }
+  const selectedPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  if (selectedPart) {
+    const bounds = new THREE.Box3().setFromObject(selectedPart.object)
+    if (!bounds.isEmpty()) {
+      const size = bounds.getSize(new THREE.Vector3())
+      const scale = modelHeight.value / Math.max(size.y, 0.05)
+      return { x: size.x * scale, y: modelHeight.value, z: size.z * scale }
+    }
+  }
+  const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
+  return {
+    x: dimensions.value[0] * scale,
+    y: modelHeight.value,
+    z: dimensions.value[2] * scale,
+  }
+})
 
 function guessedAnimationRole(name: string): AnimationRole {
   const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
@@ -235,23 +253,32 @@ function findPreviewPart(id: string) {
   return previewParts.value.find(part => part.id === id)
 }
 
+function setColliderFromPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  const bounds = new THREE.Box3().setFromObject(part.object)
+  if (bounds.isEmpty()) return
+  const size = bounds.getSize(new THREE.Vector3())
+  // O componente será normalizado para a altura escolhida ao colocá-lo no
+  // mundo, por isso o colisor também precisa usar essa escala final.
+  const scale = modelHeight.value / Math.max(size.y, 0.05)
+  const scaledSize: [number, number, number] = [
+    Math.max(0.05, size.x * scale),
+    Math.max(0.05, size.y * scale),
+    Math.max(0.05, size.z * scale),
+  ]
+  if (colliderType.value === 'sphere') {
+    const diameter = Math.max(0.05, Math.min(...scaledSize))
+    colliderSize.value = [diameter, diameter, diameter]
+  } else {
+    colliderSize.value = scaledSize
+  }
+  colliderOffset.value = [0, 0, 0]
+}
+
 function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (soloPartId.value) restorePreviewVisibility()
   selectedPartId.value = part.id
   componentName.value = part.name
-
-  // Ajuste o colisor ao item selecionado em vez de manter as dimensões
-  // da cidade inteira quando o usuário importa somente uma casa ou torre.
-  const bounds = new THREE.Box3().setFromObject(part.object)
-  if (!bounds.isEmpty()) {
-    const size = bounds.getSize(new THREE.Vector3())
-    colliderSize.value = [
-      Math.max(0.05, size.x),
-      Math.max(0.05, size.y),
-      Math.max(0.05, size.z),
-    ]
-    colliderOffset.value = [0, 0, 0]
-  }
+  setColliderFromPreviewPart(part)
   fitCamera(part.object)
   updateColliderPreview()
 }
@@ -278,12 +305,7 @@ function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Obj
     soloPartId.value = part.id
     selectedPartId.value = part.id
     componentName.value = part.name
-    const bounds = new THREE.Box3().setFromObject(part.object)
-    if (!bounds.isEmpty()) {
-      const size = bounds.getSize(new THREE.Vector3())
-      colliderSize.value = [Math.max(0.05, size.x), Math.max(0.05, size.y), Math.max(0.05, size.z)]
-      colliderOffset.value = [0, 0, 0]
-    }
+    setColliderFromPreviewPart(part)
     fitCamera(part.object)
     updateColliderPreview()
   }
@@ -999,9 +1021,9 @@ onBeforeUnmount(disposePreview)
             <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" />
             <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }}u</button></div>
             <div class="model-import-dimensions">
-              <div><small>LARGURA X</small><strong>{{ dimensions[0] ? (dimensions[0] * modelHeight / 2).toFixed(2) : '—' }}</strong></div>
-              <div><small>ALTURA Y</small><strong>{{ model ? modelHeight.toFixed(2) : '—' }}</strong></div>
-              <div><small>PROF. Z</small><strong>{{ dimensions[2] ? (dimensions[2] * modelHeight / 2).toFixed(2) : '—' }}</strong></div>
+              <div><small>LARGURA X</small><strong>{{ previewComponentDimensions.x ? previewComponentDimensions.x.toFixed(2) : '—' }}</strong></div>
+              <div><small>ALTURA Y</small><strong>{{ model ? previewComponentDimensions.y.toFixed(2) : '—' }}</strong></div>
+              <div><small>PROF. Z</small><strong>{{ previewComponentDimensions.z ? previewComponentDimensions.z.toFixed(2) : '—' }}</strong></div>
             </div>
           </section>
           <div class="model-panel-separator"></div>
