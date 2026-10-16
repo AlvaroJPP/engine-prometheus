@@ -8,7 +8,7 @@ const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
 // Os chunks mantêm apenas os dados espaciais. A renderização usa malhas globais
 // agrupadas por anéis concêntricos de distância da câmera.
-const CHUNK_SIZE = 20
+const CHUNK_SIZE = 10
 const CHUNKS_PER_AXIS = (WORLD_HALF * 2) / CHUNK_SIZE
 const GRASS_NEAR_DISTANCE = 18
 const GRASS_MIDDLE_DISTANCE = 42
@@ -26,7 +26,7 @@ const PAINTED_GRASS_MODEL_HEIGHT = 0.55
 const GRASS_OCCLUSION_ENTER_MARGIN = 1.25
 const GRASS_OCCLUSION_STAY_MARGIN = 0.35
 const GRASS_OCCLUSION_RELEASE_MISSES = 2
-const GRASS_OCCLUSION_SAMPLE_OFFSETS = [0.1, 0.3, 0.5, 0.7, 0.9] as const
+const GRASS_OCCLUSION_SAMPLE_OFFSETS = [0.15, 0.5, 0.85] as const
 const GRASS_OCCLUSION_SAMPLE_HEIGHTS = [0.08, 0.62] as const
 const GRASS_MODEL_URL = grassModelUrl
 
@@ -972,7 +972,7 @@ export class GrassLayer {
   }
 
   /**
-   * Um chunk só entra em oclusão se 50 amostras (grade 5x5, base e ponta)
+   * Um chunk de 10x10 só entra em oclusão se 18 amostras (grade 3x3, base e ponta)
    * estiverem atrás do mesmo objeto sólido. O estado anterior tem uma pequena
    * tolerância para evitar piscar quando a câmera passa pela borda do bloqueador.
    */
