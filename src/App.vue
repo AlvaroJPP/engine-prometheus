@@ -364,7 +364,12 @@ function endNodeDrag() {
   graphViewport.value?.classList.remove('is-panning')
 }
 function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
-  if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : rule.trigger.type === 'key_pressed' ? `Ao pressionar ${rule.trigger.key}` : 'Ao entrar na área'
+  if (part === 'trigger') {
+    if (rule.trigger.type === 'object_clicked') return 'Quando clicar no objeto'
+    if (rule.trigger.type === 'key_pressed') return `Ao pressionar ${rule.trigger.key}`
+    if (rule.trigger.type === 'package_event') return `Pacote: ${rule.trigger.eventId}`
+    return 'Ao entrar na área'
+  }
   if (part === 'condition') {
     if (!rule.conditions.length) return 'Sem condição'
     return rule.conditions.map(c => {
