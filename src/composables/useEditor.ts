@@ -785,10 +785,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
     const id = createUniqueRuleId()
-    if (ruleTrigger.value === 'package_event') {
+    if (ruleTrigger.value === 'package_event' || ruleAction.value === 'set_package_variable') {
       const installed = engine.listBehaviorPackages(target).some(instance => instance.packageId === rulePackageId.value && instance.enabled)
       if (!installed) {
-        say('Instale e habilite o pacote escolhido neste objeto antes de criar uma regra para seus gatilhos.')
+        say('Instale e habilite o pacote escolhido neste objeto antes de usar seus gatilhos ou variáveis.')
         return
       }
     }
