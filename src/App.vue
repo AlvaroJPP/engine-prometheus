@@ -30,6 +30,7 @@ const {
   projectName,
   dirty,
   status,
+  fps,
   ioProgress,
   objects,
   selectedModelNodes,
@@ -1018,6 +1019,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
         <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
+        <div class="viewport-fps" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }" aria-label="Quadros por segundo">
+          <span class="fps-indicator" />
+          <span>FPS</span>
+          <strong>{{ fps || '—' }}</strong>
+        </div>
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
           <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
@@ -2610,4 +2616,15 @@ input[type='range'] { accent-color: #e98524; }
 .project-io-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:#8993a3;font-size:10px}
 .project-io-meta strong{color:#f0c18f;font-size:11px;font-variant-numeric:tabular-nums}
 .environment-editor{display:flex;flex-direction:column;gap:9px;margin-top:18px;padding-top:14px;border-top:1px solid #353b47}.environment-editor h4{margin:8px 0 0}.environment-button{width:100%;min-height:34px}.environment-file{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#aeb6c4;font-size:10px;overflow-wrap:anywhere}.environment-file button{flex:none}.environment-range{width:100%;accent-color:#d89a55}.environment-editor .checkline{margin:4px 0}
+</style>
+
+
+<style>
+.viewport-fps{position:absolute;z-index:8;top:15px;right:16px;display:flex;align-items:center;gap:7px;min-height:27px;padding:0 9px;border:1px solid #383f49;border-radius:4px;background:#1d2229e8;color:#aab3c0;font-size:10px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;backdrop-filter:blur(4px);pointer-events:none}
+.viewport-fps .fps-indicator{width:6px;height:6px;border-radius:50%;background:#8edb7e;box-shadow:0 0 0 3px #8edb7e18}
+.viewport-fps strong{min-width:17px;color:#d6f5c1;font-size:12px;text-align:right}
+.viewport-fps.fps-medium .fps-indicator{background:#e9c16f;box-shadow:0 0 0 3px #e9c16f18}
+.viewport-fps.fps-medium strong{color:#f1cb82}
+.viewport-fps.fps-low .fps-indicator{background:#f07870;box-shadow:0 0 0 3px #f0787018}
+.viewport-fps.fps-low strong{color:#ffaaa2}
 </style>
