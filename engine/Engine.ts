@@ -14,10 +14,12 @@ import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
 import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
+import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
+import { ModelLodSystem } from './world/ModelLodSystem'
 import { partitionLargeStaticMeshes } from './world/model/StaticModelPartitioner'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
@@ -34,6 +36,7 @@ export class Engine {
   readonly world = new World()
   readonly collisions = new CollisionSystem(this.world)
   private readonly modelOcclusion = new ModelOcclusionSystem()
+  private modelLod!: ModelLodSystem
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
@@ -45,6 +48,7 @@ export class Engine {
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
+  private runtimeModeActive = false
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
@@ -52,6 +56,9 @@ export class Engine {
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
+    this.modelLod = new ModelLodSystem(() => {
+      this.viewport.invalidate()
+    })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
@@ -64,7 +71,13 @@ export class Engine {
       this.events.on('objectAdded', () => this.modelOcclusion.invalidate()),
       this.events.on('objectRemoved', () => this.modelOcclusion.invalidate()),
       this.events.on('objectChanged', () => this.modelOcclusion.invalidate()),
-      this.events.on('worldReset', () => this.modelOcclusion.invalidate()),
+      this.events.on('worldReset', () => {
+        this.modelOcclusion.invalidate()
+        this.modelLod.clear()
+        this.viewport.invalidate()
+      }),
+      this.events.on('objectRemoved', ({ id }) => this.modelLod.remove(id)),
+      this.events.on('objectChanged', () => this.modelLod.invalidate()),
       this.events.on('behaviorPackageChanged', () => this.viewport.invalidate()),
       this.events.on('objectClicked', () => this.viewport.invalidate()),
       this.events.on('collisionStarted', () => this.viewport.invalidate()),
@@ -157,6 +170,7 @@ export class Engine {
       if (this.world.getSelectedId() === id) this.transformControls.getHelper().updateMatrixWorld()
     })
     this.viewport.start((dt) => {
+      const frameStartedAt = performance.now()
       this.input.update(dt)
       // Atualize animações antes dos testes físicos para usar a pose exibida
       // no quadro atual. A versão invalida o wireframe automático do modelo
@@ -205,7 +219,7 @@ export class Engine {
         object.mesh.userData.colliderPoseVersion =
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
       }
-      this.collisions.update()
+      this.collisions.update(this.runtimeModeActive)
       if (this.activeMountPackageId) {
         const currentMount = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
         if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
@@ -233,6 +247,7 @@ export class Engine {
       }
       this.orbit.update()
       this.world.updateFogForCamera(this.orbit.camera.position)
+      this.modelLod.update(this.orbit.camera.position)
       if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
         this.viewport.invalidate()
       }
@@ -243,6 +258,7 @@ export class Engine {
       )
       const environment = this.world.getEnvironment()
       const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation
+      this.viewport.recordUpdateDuration(performance.now() - frameStartedAt)
       this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
   }
@@ -256,14 +272,21 @@ export class Engine {
     this.viewport.setFpsListener(listener)
   }
 
-  /** Configura o limite de renderização e a resolução interna do viewport. */
+  /** Expõe estatísticas de triângulos/draw calls e custo CPU do renderizador. */
+  setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void {
+    this.viewport.setRenderStatsListener(listener)
+  }
+
+  /** Configura o limite de renderização, resolução e distâncias de LOD. */
   setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
     this.viewport.setPerformancePreset(preset)
+    this.modelLod.setPreset(preset)
   }
 
   /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
     this.viewport.setPerformanceMode(enabled)
+    this.modelLod.setPreset(enabled ? 'economy' : 'quality')
   }
 
   /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
@@ -394,6 +417,7 @@ export class Engine {
   setRuntimeMode(enabled: boolean): void {
     if (enabled) {
       if (this.cameraStateBeforeRun) return
+      this.runtimeModeActive = true
       this.cameraStateBeforeRun = this.orbit.getState()
       this.orbit.setFirstPersonMode(false)
       this.avatar.setFirstPersonMode(false)
@@ -421,6 +445,7 @@ export class Engine {
       return
     }
 
+    this.runtimeModeActive = false
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
@@ -958,7 +983,10 @@ export class Engine {
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.visible = true
-        child.frustumCulled = child.userData.generatedOcclusionCluster === true
+        // Ativa o culling nativo para toda malha estática, não apenas para
+        // regiões geradas pelo particionador. Malhas esqueléticas ficam fora
+        // desse descarte para evitar popping causado pela deformação dos ossos.
+        child.frustumCulled = !(child instanceof THREE.SkinnedMesh)
       }
     })
     root.frustumCulled = false
@@ -1021,6 +1049,11 @@ export class Engine {
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
+    // Simplifica apenas modelos estáticos grandes; o processamento não bloqueia
+    // o carregamento do projeto e não altera a geometria original salva no GLB.
+    void this.modelLod.prepare(finalId, root, importedAnimations.length > 0).catch((error) => {
+      console.warn('[Engine] Não foi possível preparar LOD para o modelo:', root.name, error)
+    })
     // Ao restaurar um projeto, o ID persistido é diferente do ID temporário.
     // Selecionar o temporário deixa a raiz sem seleção válida para o gizmo.
     this.world.select(finalId)
@@ -1040,6 +1073,9 @@ export class Engine {
 
   removeObject(id: string): void {
     if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) this.dismountActiveMount()
+    // Restaura geometrias originais antes de World.dispose inspecionar a hierarquia,
+    // para liberar as geometrias originais e também os buffers temporários do LOD.
+    this.modelLod.remove(id)
     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
@@ -1049,6 +1085,7 @@ export class Engine {
   }
 
   updateObject(id: string, patch: ObjectPatch): void {
+    if (patch.wireframeVisible === true) this.modelLod.forceOriginal(id)
     this.world.update(id, patch)
     const object = this.world.get(id)
     if (id === this.world.getSelectedId() && object?.mesh.userData.locked === true) this.transformControls.detach()
@@ -1079,7 +1116,9 @@ export class Engine {
   toggleObjectWireframe(id: string): void {
     const object = this.world.get(id)
     if (!object) return
-    this.world.update(id, { wireframeVisible: object.mesh.userData.wireframeVisible === false })
+    const wireframeVisible = object.mesh.userData.wireframeVisible === false
+    if (wireframeVisible) this.modelLod.forceOriginal(id)
+    this.world.update(id, { wireframeVisible })
   }
 
   listObjects(): ObjectInfo[] {
@@ -1167,6 +1206,7 @@ export class Engine {
       }
     })
     root.updateMatrixWorld(true)
+    this.collisions.invalidateObject(instance.ownerObjectId)
   }
 
 
@@ -1212,6 +1252,7 @@ export class Engine {
 
   // ---- projeto ----
   newProject(name = 'Novo Mundo'): void {
+    this.runtimeModeActive = false
     resetIds()
     this.meta = { id: uuid(), name }
     this.orbit.setFirstPersonMode(false)
@@ -1219,6 +1260,7 @@ export class Engine {
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
+    this.modelLod.clear()
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
@@ -1244,6 +1286,7 @@ export class Engine {
     bundle: ProjectBundle,
     onProgress?: (message: string, percent: number) => void,
   ): Promise<void> {
+    this.runtimeModeActive = false
     const report = (message: string, percent: number) => onProgress?.(message, Math.max(0, Math.min(100, percent)))
     const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
 
@@ -1273,6 +1316,8 @@ export class Engine {
       report(`Preparando objetos básicos… ${Math.min(i + batch.length, regularObjects.length)}/${regularObjects.length}`, percent)
       if (i + 50 < regularObjects.length) await yieldToUi()
     }
+    // Remove LOD temporário antes de descartar as geometrias do mundo anterior.
+    this.modelLod.clear()
     await this.world.replaceAllAsync(restoredObjects, scene.terrain, (loaded, total) => {
       const percent = total > 0 ? 25 + Math.round((loaded / total) * 3) : 28
       report(
@@ -1328,7 +1373,8 @@ export class Engine {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
     this.avatar.dispose()
-    this.collisions.clear()
+    this.collisions.dispose()
+    this.modelLod.dispose()
     this.modelOcclusion.dispose()
     this.transformControls.dispose()
     for (const off of this.viewportInvalidationOffs) off()

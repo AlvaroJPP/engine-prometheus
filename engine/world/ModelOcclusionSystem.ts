@@ -40,6 +40,8 @@ interface PreparedRoot {
  */
 export class ModelOcclusionSystem {
   private dirty = true
+  private rootsDirty = true
+  private cachedPreparedRoots: PreparedRoot[] | null = null
   private lastEvaluationAt = 0
   private readonly lastCameraPosition = new THREE.Vector3()
   private readonly lastCameraQuaternion = new THREE.Quaternion()
@@ -60,6 +62,7 @@ export class ModelOcclusionSystem {
 
   invalidate(): void {
     this.dirty = true
+    this.rootsDirty = true
   }
 
   /**
@@ -75,7 +78,7 @@ export class ModelOcclusionSystem {
         this.culledMeshes.delete(mesh)
       }
     }
-    this.dirty = true
+    this.invalidate()
   }
 
   /**
@@ -96,13 +99,11 @@ export class ModelOcclusionSystem {
 
     if (!this.dirty && !cameraMoved && !cameraRotated && !projectionChanged) return false
     if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) {
-      // Não mantenha partes ocultas com base na posição antiga da câmera ou
-      // numa geometria que acabou de mudar. Mostre temporariamente tudo e
-      // reavalie quando o intervalo mínimo permitir.
-      const hadCulledMeshes = this.culledMeshes.size > 0
-      if (hadCulledMeshes) this.restoreCulledMeshes()
+      // Limita o custo dos raycasts sem desativar a oclusão entre avaliações.
+      // A versão anterior reexibia todas as malhas a cada movimento da câmera,
+      // fazendo a oclusão durar apenas um quadro e quase nunca reduzindo triângulos.
       this.dirty = true
-      return hadCulledMeshes
+      return false
     }
 
     const previousCulled = new Set(this.culledMeshes.keys())
@@ -117,7 +118,11 @@ export class ModelOcclusionSystem {
     this.viewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     this.frustum.setFromProjectionMatrix(this.viewProjectionMatrix)
 
-    const preparedRoots = this.prepareRoots(objects)
+    if (this.rootsDirty || !this.cachedPreparedRoots) {
+      this.cachedPreparedRoots = this.prepareRoots(objects)
+      this.rootsDirty = false
+    }
+    const preparedRoots = this.cachedPreparedRoots
     const modelRoots = preparedRoots.filter(root =>
       root.importedModel
       && !root.animated
@@ -129,15 +134,19 @@ export class ModelOcclusionSystem {
       && !root.bounds.isEmpty()
       && root.meshes.some(mesh => mesh.opaque)
     )
-    const hasPotentialOccluder = modelRoots.some(targetRoot =>
-      targetRoot.meshes.some(target =>
-        occluderRoots.some(sourceRoot =>
-          sourceRoot.meshes.some(candidate => candidate.opaque && candidate.mesh !== target.mesh)
-        )
-      )
+    const hasEligibleTarget = modelRoots.some(targetRoot =>
+      targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
     )
-    if (!hasPotentialOccluder) return previousCulled.size > 0
+    // As subdivisões de um único modelo não podem ocluir umas às outras neste
+    // passe. Exija um bloqueador de outra raiz antes de gastar tempo com raycasts.
+    const hasPotentialOccluder = modelRoots.some(targetRoot =>
+      occluderRoots.some(sourceRoot =>
+        sourceRoot.root !== targetRoot.root && sourceRoot.meshes.some(candidate => candidate.opaque),
+      ),
+    )
+    if (!hasPotentialOccluder || !hasEligibleTarget) return previousCulled.size > 0
 
+    const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const targetRoot of modelRoots) {
       // Não culle uma instância por submalha quando a câmera está dentro do volume
       // aproximado do próprio modelo; interiores devem continuar visíveis.
@@ -158,17 +167,22 @@ export class ModelOcclusionSystem {
 
         for (const sample of samples) {
           this.targetPoint.copy(sample).applyMatrix4(target.mesh.matrixWorld)
-          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, target.mesh, occluderRoots, margin)) {
+          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, target.mesh, targetRoot.root, occluderRoots, margin)) {
             fullyOccluded = false
             break
           }
         }
 
-        if (fullyOccluded) {
-          this.culledMeshes.set(target.mesh, true)
-          target.mesh.visible = false
-        }
+        if (fullyOccluded) pendingCulled.set(target.mesh, target.mesh.visible)
       }
+    }
+
+    // Aplique visibilidade somente depois de testar todos os alvos. Durante os
+    // raycasts nenhuma malha que possa ser um bloqueador desaparece no meio do passe.
+    for (const [mesh, visibleBeforeCull] of pendingCulled) {
+      if (!mesh.visible) continue
+      this.culledMeshes.set(mesh, visibleBeforeCull)
+      mesh.visible = false
     }
 
     if (previousCulled.size !== this.culledMeshes.size) return true
@@ -346,6 +360,7 @@ export class ModelOcclusionSystem {
     origin: THREE.Vector3,
     target: THREE.Vector3,
     targetMesh: THREE.Mesh,
+    targetRoot: THREE.Object3D,
     roots: readonly PreparedRoot[],
     margin: number,
   ): boolean {
@@ -361,7 +376,7 @@ export class ModelOcclusionSystem {
 
     const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
     for (const source of roots) {
-      if (source.animated || source.meshes.length === 0) continue
+      if (source.root === targetRoot || source.animated || source.meshes.length === 0) continue
       // Não considerar como obstáculo a geometria que contém a câmera; em interiores
       // isso evita que a face traseira de uma parede esconda o mundo inteiro.
       if (source.bounds.containsPoint(origin)) continue
@@ -395,6 +410,8 @@ export class ModelOcclusionSystem {
 
   dispose(): void {
     this.restoreCulledMeshes()
+    this.cachedPreparedRoots = null
+    this.rootsDirty = true
     this.dirty = false
     this.hasLastCamera = false
     this.hasLastProjection = false

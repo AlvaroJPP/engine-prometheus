@@ -5,7 +5,7 @@ const MIN_TRIANGLES_TO_PARTITION = 8_000
 // Acima disso, a divisão em tempo de importação alocaria memória demais;
 // esses assets precisam de LOD/simplificação offline antes do import.
 const MAX_TRIANGLES_TO_PARTITION = 200_000
-const TARGET_TRIANGLES_PER_REGION = 3_000
+const TARGET_TRIANGLES_PER_REGION = 14_000
 const MAX_SUBDIVISIONS_PER_AXIS = 4
 
 type AttributeLike = THREE.BufferAttribute | THREE.InterleavedBufferAttribute
@@ -53,7 +53,7 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     if (!bounds || bounds.isEmpty()) continue
 
     const subdivisions = Math.max(
-      2,
+      1,
       Math.min(
         MAX_SUBDIVISIONS_PER_AXIS,
         Math.ceil(Math.cbrt(triangleCount / TARGET_TRIANGLES_PER_REGION)),
@@ -107,17 +107,19 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
 
     const clusterMeshes: THREE.Mesh[] = []
     let clusterIndex = 0
+    let spatialRegionIndex = 0
     for (const bucket of buckets.values()) {
-      // Remapeia os índices por região. A versão anterior copiava três vértices
-      // por triângulo, mesmo quando eles eram compartilhados; manter o índice
-      // reduz memória e tamanho dos buffers, especialmente em GLBs densos.
-      const sourceVertexIndices: number[] = []
-      const regionIndexBySourceVertex = new Map<number, number>()
-      const orderedIndices: number[] = []
-      const groupData: Array<{ start: number; count: number; materialIndex: number }> = []
       const materialGroups = [...bucket.byMaterial.entries()].sort((left, right) => left[0] - right[0])
       for (const [materialIndex, triangleVertexIndices] of materialGroups) {
-        const start = orderedIndices.length
+        const material = materials[materialIndex]
+        if (!material || triangleVertexIndices.length === 0) continue
+
+        // Cada submalha é de um único material. Isso mantém o mesmo número
+        // aproximado de draw calls dos geometry groups, mas deixa o frustum culling
+        // e o LOD operar por material/região sem misturar materiais na simplificação.
+        const sourceVertexIndices: number[] = []
+        const regionIndexBySourceVertex = new Map<number, number>()
+        const orderedIndices: number[] = []
         for (const sourceVertex of triangleVertexIndices) {
           let localIndex = regionIndexBySourceVertex.get(sourceVertex)
           if (localIndex === undefined) {
@@ -127,53 +129,49 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
           }
           orderedIndices.push(localIndex)
         }
-        groupData.push({ start, count: triangleVertexIndices.length, materialIndex })
-      }
-      if (orderedIndices.length === 0 || sourceVertexIndices.length === 0) continue
+        if (orderedIndices.length === 0 || sourceVertexIndices.length === 0) continue
 
-      const regionGeometry = new THREE.BufferGeometry()
-      for (const [attributeName, attributeValue] of Object.entries(geometry.attributes)) {
-        const attribute = attributeValue as AttributeLike
-        const itemSize = attribute.itemSize
-        const data = new Float32Array(sourceVertexIndices.length * itemSize)
-        for (let vertexOffset = 0; vertexOffset < sourceVertexIndices.length; vertexOffset += 1) {
-          const sourceVertex = sourceVertexIndices[vertexOffset]!
-          for (let component = 0; component < itemSize; component += 1) {
-            data[vertexOffset * itemSize + component] = readAttributeComponent(attribute, sourceVertex, component)
+        const regionGeometry = new THREE.BufferGeometry()
+        for (const [attributeName, attributeValue] of Object.entries(geometry.attributes)) {
+          const attribute = attributeValue as AttributeLike
+          const itemSize = attribute.itemSize
+          const data = new Float32Array(sourceVertexIndices.length * itemSize)
+          for (let vertexOffset = 0; vertexOffset < sourceVertexIndices.length; vertexOffset += 1) {
+            const sourceVertex = sourceVertexIndices[vertexOffset]!
+            for (let component = 0; component < itemSize; component += 1) {
+              data[vertexOffset * itemSize + component] = readAttributeComponent(attribute, sourceVertex, component)
+            }
           }
+          // Valores normalizados em atributos inteiros foram convertidos para floats
+          // no intervalo original antes de remover a normalização.
+          regionGeometry.setAttribute(attributeName, new THREE.Float32BufferAttribute(data, itemSize))
         }
-        // Valores normalizados em atributos inteiros são convertidos para floats
-        // no intervalo original [0,1] ou [-1,1] antes de remover a normalização.
-        regionGeometry.setAttribute(attributeName, new THREE.Float32BufferAttribute(data, itemSize))
-      }
-      regionGeometry.setIndex(orderedIndices)
-      for (const group of groupData) {
-        regionGeometry.addGroup(group.start, group.count, group.materialIndex)
-      }
-      regionGeometry.computeBoundingBox()
-      regionGeometry.computeBoundingSphere()
+        regionGeometry.setIndex(orderedIndices)
+        regionGeometry.computeBoundingBox()
+        regionGeometry.computeBoundingSphere()
 
-      const regionMesh = new THREE.Mesh(regionGeometry, mesh.material)
-      regionMesh.name = `${mesh.name || 'Malha'}::occlusion-${clusterIndex + 1}`
-      regionMesh.userData = {
-        ...mesh.userData,
-        generatedOcclusionCluster: true,
-        modelOcclusionCandidate: true,
-        modelOcclusionBaseVisible: mesh.visible,
-        occlusionSourceMeshName: mesh.name,
-        occlusionClusterIndex: clusterIndex,
+        const regionMesh = new THREE.Mesh(regionGeometry, material)
+        regionMesh.name = `${mesh.name || 'Malha'}::occlusion-${clusterIndex + 1}`
+        regionMesh.userData = {
+          ...mesh.userData,
+          generatedOcclusionCluster: true,
+          modelOcclusionCandidate: true,
+          modelOcclusionBaseVisible: mesh.visible,
+          occlusionSourceMeshName: mesh.name,
+          occlusionClusterIndex: clusterIndex,
+          occlusionRegionIndex: spatialRegionIndex,
+          occlusionMaterialIndex: materialIndex,
+        }
+        regionMesh.castShadow = mesh.castShadow
+        regionMesh.receiveShadow = mesh.receiveShadow
+        regionMesh.renderOrder = mesh.renderOrder
+        regionMesh.layers.mask = mesh.layers.mask
+        regionMesh.frustumCulled = true
+        clusterMeshes.push(regionMesh)
+        clusterIndex++
       }
-      regionMesh.castShadow = mesh.castShadow
-      regionMesh.receiveShadow = mesh.receiveShadow
-      regionMesh.renderOrder = mesh.renderOrder
-      regionMesh.layers.mask = mesh.layers.mask
-      // Ao contrário da geometria original de certos GLBs, o AABB deste bloco
-      // acabou de ser calculado sobre os vértices efetivamente desenhados.
-      regionMesh.frustumCulled = true
-      clusterMeshes.push(regionMesh)
-      clusterIndex += 1
+      spatialRegionIndex++
     }
-
     if (clusterMeshes.length < 2) {
       for (const cluster of clusterMeshes) cluster.geometry.dispose()
       continue
@@ -230,32 +228,18 @@ function isSafeToPartitionMaterial(material: THREE.Material): boolean {
 }
 
 function readAttributeComponent(attribute: AttributeLike, index: number, component: number): number {
-  const dynamicAttribute = attribute as AttributeLike & {
+  // BufferAttribute e InterleavedBufferAttribute já denormalizam em getComponent/getX.
+  // Converter novamente pelo tipo do TypedArray dividia cores/UVs duas vezes,
+  // clareando ou escurecendo incorretamente os GLBs com atributos compactados.
+  const readable = attribute as AttributeLike & {
     getComponent?: (index: number, component: number) => number
-    data?: { array: unknown }
-    array?: unknown
   }
-  let value = 0
-  if (typeof dynamicAttribute.getComponent === 'function') {
-    value = dynamicAttribute.getComponent(index, component)
-  } else {
-    switch (component) {
-      case 0: value = attribute.getX(index); break
-      case 1: value = attribute.getY(index); break
-      case 2: value = attribute.getZ(index); break
-      case 3: value = attribute.getW(index); break
-    }
+  if (typeof readable.getComponent === 'function') return readable.getComponent(index, component)
+  switch (component) {
+    case 0: return attribute.getX(index)
+    case 1: return attribute.getY(index)
+    case 2: return attribute.getZ(index)
+    case 3: return attribute.getW(index)
+    default: return 0
   }
-
-  if (!attribute.normalized) return value
-  const sourceArray = attribute instanceof THREE.InterleavedBufferAttribute
-    ? dynamicAttribute.data?.array
-    : dynamicAttribute.array
-  if (sourceArray instanceof Uint8Array || sourceArray instanceof Uint8ClampedArray) return value / 255
-  if (sourceArray instanceof Int8Array) return Math.max(value / 127, -1)
-  if (sourceArray instanceof Uint16Array) return value / 65535
-  if (sourceArray instanceof Int16Array) return Math.max(value / 32767, -1)
-  if (sourceArray instanceof Uint32Array) return value / 4294967295
-  if (sourceArray instanceof Int32Array) return Math.max(value / 2147483647, -1)
-  return value
 }
