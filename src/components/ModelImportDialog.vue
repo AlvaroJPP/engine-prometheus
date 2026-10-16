@@ -53,12 +53,18 @@ function guessedAnimationRole(name: string): AnimationRole {
   const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
   if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
   if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
-  if (/gallop|canter|sprint|running|run/.test(normalized)) return 'run'
+  if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
+  const isRun = /gallop|canter|sprint|running|run/.test(normalized)
+  const diagonal = /diagonal|diag/.test(normalized)
+  const left = /left|esquerda|izquierda/.test(normalized)
+  const right = /right|direita|derecha/.test(normalized)
+  if (diagonal && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
+  if (diagonal && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
+  if (isRun) return 'run'
   if (/walk|trot|locomotion|move/.test(normalized)) return 'walk'
   if (/idle|stand|rest|breath|neutral/.test(normalized)) return 'idle'
   return 'ignore'
 }
-
 function setSelectedAnimationRole(role: AnimationRole) {
   const clip = previewAnimations.value[previewAnimationIndex.value]
   if (!clip) return
@@ -870,11 +876,16 @@ onBeforeUnmount(disposePreview)
               <label>FUNÇÃO DO CLIPE
                 <select :value="selectedAnimationRole" @change="setSelectedAnimationRole(($event.target as HTMLSelectElement).value as AnimationRole)">
                   <option value="ignore">Não usar</option>
-                  <option value="idle">Parado</option>
-                  <option value="walk">Andar</option>
-                  <option value="run">Correr</option>
-                  <option value="mount">Montar</option>
-                  <option value="dismount">Desmontar</option>
+                  <option value="idle">Parado / repouso</option>
+                  <option value="walk">Andar em frente</option>
+                  <option value="walk_diagonal_left">Andar na diagonal esquerda</option>
+                  <option value="walk_diagonal_right">Andar na diagonal direita</option>
+                  <option value="run">Correr em frente</option>
+                  <option value="run_diagonal_left">Correr na diagonal esquerda</option>
+                  <option value="run_diagonal_right">Correr na diagonal direita</option>
+                  <option value="run_stop">Parar após correr</option>
+                  <option value="mount">Montar / subir</option>
+                  <option value="dismount">Desmontar / descer</option>
                 </select>
               </label>
               <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
