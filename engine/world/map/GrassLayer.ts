@@ -164,6 +164,7 @@ export class GrassLayer {
   private readonly geometry = createGrassGeometry(false)
   private readonly lowDetailGeometry = createGrassGeometry(true)
   private readonly texture = createGrassTexture()
+  private readonly modelFallbackTexture = this.createModelFallbackTexture()
   private readonly highMaterial: THREE.MeshStandardMaterial
   private readonly lowMaterial: THREE.MeshStandardMaterial
   private readonly chunks: GrassChunk[] = []
@@ -202,6 +203,98 @@ export class GrassLayer {
     }
     this.refresh()
     this.loadGrassModel()
+  }
+
+  private createModelFallbackTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 128
+    const context = canvas.getContext('2d')
+    if (context) {
+      const gradient = context.createLinearGradient(0, 128, 0, 0)
+      gradient.addColorStop(0, '#456d27')
+      gradient.addColorStop(0.42, '#6f963b')
+      gradient.addColorStop(0.78, '#91b553')
+      gradient.addColorStop(1, '#b6ca76')
+      context.fillStyle = gradient
+      context.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Fine blade veins create a subtle leaf texture when the GLB has no image map.
+      for (let i = 0; i < 18; i += 1) {
+        const x = 3 + (i * 17) % 58
+        context.strokeStyle = i % 3 === 0 ? 'rgba(42,75,25,0.32)' : 'rgba(220,235,155,0.22)'
+        context.lineWidth = i % 4 === 0 ? 1.25 : 0.65
+        context.beginPath()
+        context.moveTo(x, 128)
+        context.quadraticCurveTo(x + (i % 2 === 0 ? 5 : -5), 64, x + (i % 3 - 1) * 2, 0)
+        context.stroke()
+      }
+    }
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.ClampToEdgeWrapping
+    texture.minFilter = THREE.LinearMipmapLinearFilter
+    texture.magFilter = THREE.LinearFilter
+    return texture
+  }
+
+  private ensureGrassUv(geometry: THREE.BufferGeometry): void {
+    if (geometry.getAttribute('uv')) return
+    const position = geometry.getAttribute('position')
+    if (!position) return
+    geometry.computeBoundingBox()
+    const bounds = geometry.boundingBox
+    if (!bounds) return
+    const size = bounds.getSize(new THREE.Vector3())
+    const horizontalByX = size.x >= size.z
+    const horizontalMin = horizontalByX ? bounds.min.x : bounds.min.z
+    const horizontalSize = Math.max(horizontalByX ? size.x : size.z, 0.0001)
+    const verticalMin = bounds.min.y
+    const verticalSize = Math.max(size.y, 0.0001)
+    const uv = new Float32Array(position.count * 2)
+    for (let i = 0; i < position.count; i += 1) {
+      const horizontal = horizontalByX ? position.getX(i) : position.getZ(i)
+      uv[i * 2] = (horizontal - horizontalMin) / horizontalSize
+      uv[i * 2 + 1] = (position.getY(i) - verticalMin) / verticalSize
+    }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+  }
+
+  private ensureGrassVertexColors(geometry: THREE.BufferGeometry): void {
+    if (geometry.getAttribute('color')) return
+    const position = geometry.getAttribute('position')
+    if (!position) return
+    geometry.computeBoundingBox()
+    const bounds = geometry.boundingBox
+    if (!bounds) return
+    const height = Math.max(bounds.max.y - bounds.min.y, 0.0001)
+    const base = new THREE.Color(0x446d25)
+    const middle = new THREE.Color(0x78a342)
+    const tip = new THREE.Color(0xb2c971)
+    const colors = new Float32Array(position.count * 3)
+    const shade = new THREE.Color()
+    for (let i = 0; i < position.count; i += 1) {
+      const t = THREE.MathUtils.clamp((position.getY(i) - bounds.min.y) / height, 0, 1)
+      if (t < 0.72) shade.copy(base).lerp(middle, t / 0.72)
+      else shade.copy(middle).lerp(tip, (t - 0.72) / 0.28)
+      const subtleVariation = 0.94 + ((i * 17) % 11) * 0.012
+      colors[i * 3] = shade.r * subtleVariation
+      colors[i * 3 + 1] = shade.g * subtleVariation
+      colors[i * 3 + 2] = shade.b * subtleVariation
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  }
+
+  private materialNeedsGrassFallback(material: THREE.Material): material is THREE.MeshStandardMaterial {
+    if (!(material instanceof THREE.MeshStandardMaterial)) return false
+    if (material.map || material.vertexColors) return false
+    const color = material.color
+    const max = Math.max(color.r, color.g, color.b)
+    const min = Math.min(color.r, color.g, color.b)
+    const saturation = max <= 0 ? 0 : (max - min) / max
+    // Only replace neutral/near-white untextured materials, not intentional colored materials.
+    return saturation < 0.18
   }
 
   private createMaterial(): THREE.MeshStandardMaterial {
@@ -362,9 +455,25 @@ export class GrassLayer {
         geometry.computeBoundingBox()
         geometry.computeBoundingSphere()
 
-        const material = Array.isArray(node.material)
-          ? node.material.map((item) => this.cloneGrassMaterial(item))
-          : this.cloneGrassMaterial(node.material)
+        const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material]
+        const clonedMaterials = sourceMaterials.map((item) => this.cloneGrassMaterial(item))
+        const hasFallbackMaterial = clonedMaterials.some((item) => this.materialNeedsGrassFallback(item))
+        if (hasFallbackMaterial) {
+          // Some low-poly packs ship neutral white materials without maps. Only those
+          // get a generated leaf texture and vertical green variation; mapped assets
+          // keep their original GLB materials and texture images untouched.
+          this.ensureGrassUv(geometry)
+          this.ensureGrassVertexColors(geometry)
+          for (const material of clonedMaterials) {
+            if (!this.materialNeedsGrassFallback(material)) continue
+            material.map = this.modelFallbackTexture
+            material.color.setHex(0xffffff)
+            material.vertexColors = true
+            this.modelTextures.add(this.modelFallbackTexture)
+            material.needsUpdate = true
+          }
+        }
+        const material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0]!
         parts.push({ variantIndex, geometry, material })
         addedVariant = true
       })
@@ -456,12 +565,12 @@ export class GrassLayer {
   }
 
   private paintedModelInstance(tuft: PaintedGrassTuft): GrassInstance {
-    const [x, z, scale, sourceColor] = tuft
+    const [x, z, scale] = tuft
     const random = this.randomForPainted(tuft)
     const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
     const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
-    // O modelo mantém as texturas originais; a cor salva só dá uma leve variação verde.
-    this.color.setHex(sourceColor).lerp(this.white, 0.72)
+    // As cores salvas continuam disponíveis para projetos antigos, mas não se
+    // aplicam ao modelo importado: materiais, mapas e tons do GLB são originais.
     return {
       x,
       y: this.field.sample(x, z) + 0.004,
@@ -497,8 +606,8 @@ export class GrassLayer {
       for (let i = 0; i < records.length; i += 1) {
         const record = records[i]!
         if (record.variant !== part.variantIndex) continue
-        this.writeInstance(near, nearIndex++, record.instance)
-        if (i % LOD_STRIDE === 0) this.writeInstance(far, farIndex++, record.instance)
+        this.writeModelInstance(near, nearIndex++, record.instance)
+        if (i % LOD_STRIDE === 0) this.writeModelInstance(far, farIndex++, record.instance)
       }
 
       near.count = nearIndex
@@ -619,6 +728,16 @@ export class GrassLayer {
     mesh.setMatrixAt(index, this.dummy.matrix)
     this.color.setHex(instance.color)
     mesh.setColorAt(index, this.color)
+  }
+
+  /** Não tinge os materiais do GLB: branco mantém as cores/texturas originais. */
+  private writeModelInstance(mesh: THREE.InstancedMesh, index: number, instance: GrassInstance): void {
+    this.dummy.position.set(instance.x, instance.y, instance.z)
+    this.dummy.rotation.set(instance.rotationX, instance.rotationY, instance.rotationZ)
+    this.dummy.scale.set(instance.width, instance.height, instance.width)
+    this.dummy.updateMatrix()
+    mesh.setMatrixAt(index, this.dummy.matrix)
+    mesh.setColorAt(index, this.white)
   }
 
   private paintedInstance(tuft: PaintedGrassTuft): GrassInstance {
@@ -882,6 +1001,7 @@ export class GrassLayer {
     this.geometry.dispose()
     this.lowDetailGeometry.dispose()
     this.texture.dispose()
+    if (!this.modelTextures.has(this.modelFallbackTexture)) this.modelFallbackTexture.dispose()
     this.highMaterial.dispose()
     this.lowMaterial.dispose()
     this.mesh.clear()
