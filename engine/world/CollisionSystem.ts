@@ -560,7 +560,18 @@ export class CollisionSystem {
       // O casco aproximado pode não conter uma ponta/orelha que ficou fora da
       // amostragem. Use a caixa proxy do modelo como broad phase conservadora;
       // a decisão final continua sendo feita pelos triângulos reais.
-      return getRootBounds(object.mesh).expandByScalar(0.35)
+      const bounds = getRootBounds(object.mesh)
+      const offsetData = object.mesh.userData.colliderOffset
+      if (Array.isArray(offsetData) && offsetData.length === 3) {
+        const origin = new THREE.Vector3().applyMatrix4(object.mesh.matrixWorld)
+        const displaced = new THREE.Vector3(
+          typeof offsetData[0] === 'number' ? offsetData[0] : 0,
+          typeof offsetData[1] === 'number' ? offsetData[1] : 0,
+          typeof offsetData[2] === 'number' ? offsetData[2] : 0,
+        ).applyMatrix4(object.mesh.matrixWorld).sub(origin)
+        bounds.translate(displaced)
+      }
+      return bounds.expandByScalar(0.35)
     }
     return new THREE.Box3().setFromPoints(shape.vertices)
   }
