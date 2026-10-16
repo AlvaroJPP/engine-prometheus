@@ -1137,16 +1137,25 @@ export class HumanoidAvatar {
           .normalize()
         if (normal.y < 0.12) continue
 
-        const surfaceY = hit.point.y
+        const isInclinedSurface = normal.y < 0.9995
+        // Para uma rampa, não use a altura da amostra mais baixa como altura
+        // do cavalo inteiro. Projeta cada ponto da face para o centro da pegada;
+        // isso calcula a altura do plano no ponto de apoio da raiz e evita que
+        // o corpo seja empurrado para dentro da rampa ao escolher o mínimo.
+        const surfaceY = isInclinedSurface && normal.y > 1e-4
+          ? hit.point.y - (
+            normal.x * (centerX - hit.point.x) +
+            normal.z * (centerZ - hit.point.z)
+          ) / normal.y
+          : hit.point.y
         const rise = surfaceY - feetY
         if (rise > maxRise) continue
-
-        const isInclinedSurface = normal.y < 0.9995
         if (rise < -maxFlatDrop && !(isInclinedSurface && rise >= -maxSlopeDrop)) continue
 
         if (isInclinedSurface) inclined.push(surfaceY)
         else flat.push(surfaceY)
-        // A primeira superfície caminhável é a mais alta neste ponto.
+        // Hits vêm ordenados por distância; a primeira superfície caminhável
+        // neste ponto é a face de apoio relevante.
         break
       }
     }
@@ -1168,9 +1177,12 @@ export class HumanoidAvatar {
       return followGroundedMovement ? Math.min(...nearFlat) : Math.max(...nearFlat)
     }
 
-    // Em rampas, alinha-se ao lado mais baixo da pegada. Isso evita que as
-    // patas no lado descendente fiquem suspensas por causa do lado mais alto.
-    if (surfaces.inclined.length > 0) return Math.min(...surfaces.inclined)
+    // Os pontos inclinados já foram projetados para o centro. Usa a mediana
+    // para ignorar amostras discrepantes em emendas entre segmentos da rampa.
+    if (surfaces.inclined.length > 0) {
+      const centerHeights = [...surfaces.inclined].sort((a, b) => a - b)
+      return centerHeights[Math.floor((centerHeights.length - 1) / 2)] ?? null
+    }
     if (surfaces.flat.length > 0) return Math.max(...surfaces.flat)
 
     if (surfaces.terrain.length > 0) {
