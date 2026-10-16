@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
 import type { BrushSettings, EditorState, ToolMode, TransformMode } from './EditorState'
@@ -361,7 +362,7 @@ export class Engine {
     if (!pending) return false
     try {
       const existingIds = new Set(this.world.list().map(object => object.id))
-      const model = pending.model.clone(true)
+      const model = cloneSkinnedModel(pending.model)
       model.userData = { ...pending.model.userData, importPart: true }
       // Mantém o GLB como uma única instância editável na Hierarquia.
       this.addImportedModel(pending.name, model, pending.height)
