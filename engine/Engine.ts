@@ -1010,8 +1010,7 @@ export class Engine {
     this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
-    if (this.avatar.isMounted()) this.avatar.dismount()
-    this.activeMountPackageId = null
+    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
@@ -1042,8 +1041,7 @@ export class Engine {
 
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
-    if (this.avatar.isMounted()) this.avatar.dismount()
-    this.activeMountPackageId = null
+    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     const scene = bundle.scenes[firstPath]
     if (!scene) throw new ProjectFormatError('O projeto não tem nenhuma cena para carregar.')
