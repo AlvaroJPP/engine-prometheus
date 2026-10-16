@@ -23,7 +23,7 @@ const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
-const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer } | null>(null)
+const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole> } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 const {
@@ -513,7 +513,7 @@ async function previewSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
     if (!component) throw new Error('Este componente não está mais na biblioteca.')
-    previewComponentAsset.value = { name: component.name, bytes: component.bytes.slice(0) }
+    previewComponentAsset.value = { name: component.name, bytes: component.bytes.slice(0), animationRoles: component.animationRoles }
     modelImportOpen.value = true
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível abrir a prévia do componente.'
@@ -582,6 +582,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
+      animationRoles: payload.model.userData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
       bytes: result,
       createdAt: Date.now(),
     }
@@ -613,6 +614,7 @@ async function placeSavedComponent(id: string) {
     const model = await new Promise<import('three').Object3D>((resolve, reject) => {
       loader.parse(component.bytes.slice(0), '', gltf => {
         gltf.scene.userData.importAnimations = gltf.animations ?? []
+        gltf.scene.userData.importAnimationRoles = component.animationRoles ?? {}
         resolve(gltf.scene)
       }, reject)
     })
