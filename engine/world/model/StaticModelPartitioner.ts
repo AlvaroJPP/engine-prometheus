@@ -2,6 +2,9 @@ import * as THREE from 'three'
 
 /** Modelos pequenos ficam intactos; geometria grande é dividida apenas em assets estáticos. */
 const MIN_TRIANGLES_TO_PARTITION = 8_000
+// Acima disso, a divisão em tempo de importação alocaria memória demais;
+// esses assets precisam de LOD/simplificação offline antes do import.
+const MAX_TRIANGLES_TO_PARTITION = 200_000
 const TARGET_TRIANGLES_PER_REGION = 1_500
 const MAX_SUBDIVISIONS_PER_AXIS = 4
 
@@ -44,7 +47,7 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     if (elementCount % 3 !== 0) continue
 
     const triangleCount = elementCount / 3
-    if (triangleCount < MIN_TRIANGLES_TO_PARTITION) continue
+    if (triangleCount < MIN_TRIANGLES_TO_PARTITION || triangleCount > MAX_TRIANGLES_TO_PARTITION) continue
     if (Object.values(geometry.attributes).some((attribute) => attribute.itemSize > 4)) continue
 
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
@@ -116,7 +119,8 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
       const materialGroups = [...bucket.byMaterial.entries()].sort((left, right) => left[0] - right[0])
       for (const [materialIndex, vertexIndices] of materialGroups) {
         const start = orderedVertexIndices.length
-        orderedVertexIndices.push(...vertexIndices)
+        // Evita spread de arrays grandes (limite de argumentos do JavaScript).
+        for (const vertexIndex of vertexIndices) orderedVertexIndices.push(vertexIndex)
         groupData.push({ start, count: vertexIndices.length, materialIndex })
       }
       if (orderedVertexIndices.length === 0) continue
