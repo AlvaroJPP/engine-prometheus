@@ -1393,7 +1393,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <article v-else class="graph-node trigger-list" :style="{ left: '30px', top: '50px' }">
               <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ graphVisibleRules.length }}</span></div>
               <button v-for="rule in graphVisibleRules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
-                <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
+                <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ nodeTitle(rule, 'trigger') }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
               </button>
               <div v-if="!graphVisibleRules.length" class="event-list-empty">Nenhum evento criado</div>
             </article>
