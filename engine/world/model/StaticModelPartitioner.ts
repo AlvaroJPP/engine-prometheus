@@ -6,7 +6,7 @@ const MIN_TRIANGLES_TO_PARTITION = 8_000
 // esses assets precisam de LOD/simplificação offline antes do import.
 const MAX_TRIANGLES_TO_PARTITION = 200_000
 const TARGET_TRIANGLES_PER_REGION = 3_000
-const MAX_SUBDIVISIONS_PER_AXIS = 3
+const MAX_SUBDIVISIONS_PER_AXIS = 4
 
 type AttributeLike = THREE.BufferAttribute | THREE.InterleavedBufferAttribute
 
@@ -46,7 +46,7 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     if (Object.values(geometry.attributes).some((attribute) => attribute.itemSize > 4)) continue
 
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-    if (materials.length === 0 || materials.some((material) => !isOpaqueStaticMaterial(material))) continue
+    if (materials.length === 0 || materials.some((material) => !isSafeToPartitionMaterial(material))) continue
 
     if (!geometry.boundingBox) geometry.computeBoundingBox()
     const bounds = geometry.boundingBox
@@ -108,30 +108,45 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     const clusterMeshes: THREE.Mesh[] = []
     let clusterIndex = 0
     for (const bucket of buckets.values()) {
-      const orderedVertexIndices: number[] = []
+      // Remapeia os índices por região. A versão anterior copiava três vértices
+      // por triângulo, mesmo quando eles eram compartilhados; manter o índice
+      // reduz memória e tamanho dos buffers, especialmente em GLBs densos.
+      const sourceVertexIndices: number[] = []
+      const regionIndexBySourceVertex = new Map<number, number>()
+      const orderedIndices: number[] = []
       const groupData: Array<{ start: number; count: number; materialIndex: number }> = []
       const materialGroups = [...bucket.byMaterial.entries()].sort((left, right) => left[0] - right[0])
-      for (const [materialIndex, vertexIndices] of materialGroups) {
-        const start = orderedVertexIndices.length
-        // Evita spread de arrays grandes (limite de argumentos do JavaScript).
-        for (const vertexIndex of vertexIndices) orderedVertexIndices.push(vertexIndex)
-        groupData.push({ start, count: vertexIndices.length, materialIndex })
+      for (const [materialIndex, triangleVertexIndices] of materialGroups) {
+        const start = orderedIndices.length
+        for (const sourceVertex of triangleVertexIndices) {
+          let localIndex = regionIndexBySourceVertex.get(sourceVertex)
+          if (localIndex === undefined) {
+            localIndex = sourceVertexIndices.length
+            regionIndexBySourceVertex.set(sourceVertex, localIndex)
+            sourceVertexIndices.push(sourceVertex)
+          }
+          orderedIndices.push(localIndex)
+        }
+        groupData.push({ start, count: triangleVertexIndices.length, materialIndex })
       }
-      if (orderedVertexIndices.length === 0) continue
+      if (orderedIndices.length === 0 || sourceVertexIndices.length === 0) continue
 
       const regionGeometry = new THREE.BufferGeometry()
       for (const [attributeName, attributeValue] of Object.entries(geometry.attributes)) {
         const attribute = attributeValue as AttributeLike
         const itemSize = attribute.itemSize
-        const data = new Float32Array(orderedVertexIndices.length * itemSize)
-        for (let vertexOffset = 0; vertexOffset < orderedVertexIndices.length; vertexOffset += 1) {
-          const sourceVertex = orderedVertexIndices[vertexOffset]!
+        const data = new Float32Array(sourceVertexIndices.length * itemSize)
+        for (let vertexOffset = 0; vertexOffset < sourceVertexIndices.length; vertexOffset += 1) {
+          const sourceVertex = sourceVertexIndices[vertexOffset]!
           for (let component = 0; component < itemSize; component += 1) {
             data[vertexOffset * itemSize + component] = readAttributeComponent(attribute, sourceVertex, component)
           }
         }
+        // Valores normalizados em atributos inteiros são convertidos para floats
+        // no intervalo original [0,1] ou [-1,1] antes de remover a normalização.
         regionGeometry.setAttribute(attributeName, new THREE.Float32BufferAttribute(data, itemSize))
       }
+      regionGeometry.setIndex(orderedIndices)
       for (const group of groupData) {
         regionGeometry.addGroup(group.start, group.count, group.materialIndex)
       }
@@ -179,17 +194,37 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
   return createdRegions
 }
 
+/** Só materiais opacos com escrita no depth buffer podem ocultar outros modelos. */
 export function isOpaqueStaticMaterial(material: THREE.Material): boolean {
   const extended = material as THREE.Material & {
     alphaTest?: number
     colorWrite?: boolean
+    depthTest?: boolean
+    wireframe?: boolean
+  }
+  return isSafeToPartitionMaterial(material)
+    && (extended.alphaTest ?? 0) <= 0
+    && !('alphaMap' in material && material.alphaMap)
+}
+
+/**
+ * AlphaTest/alphaMap são seguros para dividir como alvo: a textura e os UVs
+ * continuam iguais, mas essas superfícies nunca serão tratadas como bloqueadores
+ * opacos. Materiais transparentes misturados são mantidos intactos por ordenação.
+ */
+function isSafeToPartitionMaterial(material: THREE.Material): boolean {
+  const extended = material as THREE.Material & {
+    colorWrite?: boolean
+    depthTest?: boolean
+    wireframe?: boolean
   }
   return material.visible
     && !material.transparent
     && material.opacity >= 0.98
     && material.depthWrite
-    && (extended.alphaTest ?? 0) <= 0
+    && extended.depthTest !== false
     && extended.colorWrite !== false
+    && extended.wireframe !== true
     && !(material instanceof THREE.ShaderMaterial)
     && !(material instanceof THREE.RawShaderMaterial)
 }
@@ -197,15 +232,30 @@ export function isOpaqueStaticMaterial(material: THREE.Material): boolean {
 function readAttributeComponent(attribute: AttributeLike, index: number, component: number): number {
   const dynamicAttribute = attribute as AttributeLike & {
     getComponent?: (index: number, component: number) => number
+    data?: { array: unknown }
+    array?: unknown
   }
+  let value = 0
   if (typeof dynamicAttribute.getComponent === 'function') {
-    return dynamicAttribute.getComponent(index, component)
+    value = dynamicAttribute.getComponent(index, component)
+  } else {
+    switch (component) {
+      case 0: value = attribute.getX(index); break
+      case 1: value = attribute.getY(index); break
+      case 2: value = attribute.getZ(index); break
+      case 3: value = attribute.getW(index); break
+    }
   }
-  switch (component) {
-    case 0: return attribute.getX(index)
-    case 1: return attribute.getY(index)
-    case 2: return attribute.getZ(index)
-    case 3: return attribute.getW(index)
-    default: return 0
-  }
+
+  if (!attribute.normalized) return value
+  const sourceArray = attribute instanceof THREE.InterleavedBufferAttribute
+    ? dynamicAttribute.data?.array
+    : dynamicAttribute.array
+  if (sourceArray instanceof Uint8Array || sourceArray instanceof Uint8ClampedArray) return value / 255
+  if (sourceArray instanceof Int8Array) return Math.max(value / 127, -1)
+  if (sourceArray instanceof Uint16Array) return value / 65535
+  if (sourceArray instanceof Int16Array) return Math.max(value / 32767, -1)
+  if (sourceArray instanceof Uint32Array) return value / 4294967295
+  if (sourceArray instanceof Int32Array) return Math.max(value / 2147483647, -1)
+  return value
 }
