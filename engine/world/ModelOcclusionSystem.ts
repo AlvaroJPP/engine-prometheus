@@ -145,6 +145,7 @@ export class ModelOcclusionSystem {
     // quadrática/cúbica anterior repetia uma varredura completa antes dos raios.
     if (opaqueMeshCount < 2 || !hasEligibleTarget) return previousCulled.size > 0
 
+    const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const targetRoot of modelRoots) {
       // Não culle uma instância por submalha quando a câmera está dentro do volume
       // aproximado do próprio modelo; interiores devem continuar visíveis.
@@ -165,17 +166,22 @@ export class ModelOcclusionSystem {
 
         for (const sample of samples) {
           this.targetPoint.copy(sample).applyMatrix4(target.mesh.matrixWorld)
-          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, target.mesh, occluderRoots, margin)) {
+          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, target.mesh, targetRoot.root, occluderRoots, margin)) {
             fullyOccluded = false
             break
           }
         }
 
-        if (fullyOccluded) {
-          this.culledMeshes.set(target.mesh, true)
-          target.mesh.visible = false
-        }
+        if (fullyOccluded) pendingCulled.set(target.mesh, target.mesh.visible)
       }
+    }
+
+    // Aplique visibilidade somente depois de testar todos os alvos. Durante os
+    // raycasts nenhuma malha que possa ser um bloqueador desaparece no meio do passe.
+    for (const [mesh, visibleBeforeCull] of pendingCulled) {
+      if (!mesh.visible) continue
+      this.culledMeshes.set(mesh, visibleBeforeCull)
+      mesh.visible = false
     }
 
     if (previousCulled.size !== this.culledMeshes.size) return true
@@ -353,6 +359,7 @@ export class ModelOcclusionSystem {
     origin: THREE.Vector3,
     target: THREE.Vector3,
     targetMesh: THREE.Mesh,
+    targetRoot: THREE.Object3D,
     roots: readonly PreparedRoot[],
     margin: number,
   ): boolean {
@@ -368,7 +375,7 @@ export class ModelOcclusionSystem {
 
     const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
     for (const source of roots) {
-      if (source.animated || source.meshes.length === 0) continue
+      if (source.root === targetRoot || source.animated || source.meshes.length === 0) continue
       // Não considerar como obstáculo a geometria que contém a câmera; em interiores
       // isso evita que a face traseira de uma parede esconda o mundo inteiro.
       if (source.bounds.containsPoint(origin)) continue
