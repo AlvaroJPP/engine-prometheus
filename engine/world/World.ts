@@ -321,20 +321,65 @@ export class World {
           || child.userData.editorOverlay === true
           || (child === m && m.userData.importedModel === true)
         ) return
-        let overlay = child.getObjectByName('polygon-wireframe') as THREE.LineSegments | undefined
+        // WireframeGeometry congela os vértices na pose de bind. Em SkinnedMesh,
+        // os vértices visuais são deformados pelos ossos na GPU, mas uma LineSegments
+        // comum não recebe skinIndex/skinWeight; por isso as linhas ficam fora do cavalo.
+        // A malha de linhas de um modelo rigado precisa usar a mesma geometria e skeleton.
+        const overlayName = `polygon-wireframe-${child.uuid}`
+        let overlay = child.getObjectByName('polygon-wireframe')
+          ?? child.parent?.getObjectByName(overlayName)
         if (!overlay && wireframeVisible) {
-          const edges = new THREE.WireframeGeometry(child.geometry)
-          const material = new THREE.LineBasicMaterial({
-            color: 0x252832,
-            transparent: true,
-            opacity: 0.85,
-            depthWrite: false,
-          })
-          overlay = new THREE.LineSegments(edges, material)
-          overlay.name = 'polygon-wireframe'
-          overlay.userData.editorOverlay = true
-          overlay.renderOrder = 2
-          child.add(overlay)
+          if (child instanceof THREE.SkinnedMesh && child.parent) {
+            const makeWireframeMaterial = (source: THREE.Material): THREE.MeshBasicMaterial => {
+              const material = new THREE.MeshBasicMaterial({
+                color: 0x252832,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.85,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -1,
+              })
+              material.side = source.side
+              return material
+            }
+            const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material]
+            const wireframeMaterials = sourceMaterials.map(makeWireframeMaterial)
+            const wireframe = new THREE.SkinnedMesh(
+              child.geometry,
+              Array.isArray(child.material) ? wireframeMaterials : wireframeMaterials[0]!,
+            )
+            wireframe.name = overlayName
+            wireframe.position.copy(child.position)
+            wireframe.quaternion.copy(child.quaternion)
+            wireframe.scale.copy(child.scale)
+            wireframe.bindMode = child.bindMode
+            wireframe.bind(child.skeleton, child.bindMatrix)
+            // Compartilha os pesos morph: qualquer animação facial/shape key
+            // continua sincronizada com a malha original.
+            wireframe.morphTargetDictionary = child.morphTargetDictionary
+            wireframe.morphTargetInfluences = child.morphTargetInfluences
+            wireframe.userData.editorOverlay = true
+            wireframe.renderOrder = 2
+            wireframe.frustumCulled = false
+            child.parent.add(wireframe)
+            overlay = wireframe
+          } else {
+            const edges = new THREE.WireframeGeometry(child.geometry)
+            const material = new THREE.LineBasicMaterial({
+              color: 0x252832,
+              transparent: true,
+              opacity: 0.85,
+              depthWrite: false,
+            })
+            const lines = new THREE.LineSegments(edges, material)
+            lines.name = 'polygon-wireframe'
+            lines.userData.editorOverlay = true
+            lines.renderOrder = 2
+            child.add(lines)
+            overlay = lines
+          }
         }
         if (overlay) overlay.visible = wireframeVisible
       })
