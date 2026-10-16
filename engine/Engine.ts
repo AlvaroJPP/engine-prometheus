@@ -199,6 +199,7 @@ export class Engine {
         if (instance.packageId === 'mount') this.applyMountModelStates(instance)
       }
       this.orbit.update()
+      this.world.updateFogForCamera(this.orbit.camera.position)
       this.world.terrain.grass.updateVisibility(
         this.orbit.camera.position,
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
@@ -1108,7 +1109,7 @@ export class Engine {
 
   /** Configura alcance radial da grama; null renderiza todo o mapa. */
   setGrassRenderDistance(distance: number | null): void {
-    this.world.terrain.grass.setRenderDistance(distance)
+    this.world.setGrassRenderDistance(distance)
   }
 
   setGridVisible(visible: boolean): void {

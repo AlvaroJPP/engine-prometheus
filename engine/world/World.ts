@@ -20,6 +20,12 @@ export interface TerrainInfo {
 }
 
 const BACKGROUND = 0x12151c
+const TERRAIN_FOG_CORNERS = [
+  { x: -50, z: -50 },
+  { x: -50, z: 50 },
+  { x: 50, z: -50 },
+  { x: 50, z: 50 },
+] as const
 
 export class World {
   readonly scene = new THREE.Scene()
@@ -27,6 +33,13 @@ export class World {
   readonly terrain = new TerrainMesh(DEFAULT_SEED)
   private grid = new THREE.GridHelper(100, 100, 0x4a5060, 0x2a2f3a)
   private objects = new Map<string, GameObject>()
+  private readonly worldFog = new THREE.Fog(BACKGROUND, 42, 68)
+  private readonly fogNightColor = new THREE.Color(0x080d22)
+  private readonly fogDawnColor = new THREE.Color(0xe58b67)
+  private readonly fogDayColor = new THREE.Color(0x87b9e8)
+  private readonly horizonColor = new THREE.Color()
+  private readonly fogCorner = new THREE.Vector3()
+  private grassRenderDistance: number | null = 72
   private grassOcclusionRootsCache: THREE.Object3D[] | null = null
   private selectedId: string | null = null
   private gridVisible = true
@@ -45,7 +58,8 @@ export class World {
 
   constructor() {
     this.scene.background = new THREE.Color(BACKGROUND)
-    this.scene.fog = new THREE.Fog(BACKGROUND, 70, 170)
+    this.scene.fog = this.worldFog
+    this.updateGrassFogDistance(72)
     this.scene.add(this.terrain.mesh)
     this.scene.add(this.terrain.grass.mesh)
     this.grid.visible = true
@@ -189,12 +203,16 @@ export class World {
     this.stars.visible = !this.skyTextureDataUrl && daylight < 0.28
     this.moonVisual.visible = !this.skyTextureDataUrl && daylight < 0.32
     this.sunVisual.visible = !this.skyTextureDataUrl && daylight > 0.02
-    if (!this.skyTextureDataUrl) {
-      const night = new THREE.Color(0x080d22)
-      const dawn = new THREE.Color(0xe58b67)
-      const day = new THREE.Color(0x87b9e8)
-      this.scene.background = daylight < 0.18 ? night.lerp(dawn, daylight / 0.18) : dawn.lerp(day, Math.min(1, (daylight - 0.18) / 0.82))
+    // Reaproveita as mesmas cores em cada frame do ciclo dia/noite.
+    if (daylight < 0.18) {
+      this.horizonColor.copy(this.fogNightColor).lerp(this.fogDawnColor, daylight / 0.18)
+    } else {
+      this.horizonColor.copy(this.fogDawnColor).lerp(this.fogDayColor, Math.min(1, (daylight - 0.18) / 0.82))
     }
+    // A neblina usa a mesma cor do horizonte para disfarçar o limite da grama.
+    // Com céu em imagem, usamos a paleta de horário como cor de mistura de materiais.
+    this.worldFog.color.copy(this.horizonColor)
+    if (!this.skyTextureDataUrl) this.scene.background = this.horizonColor
   }
 
   // ---- objetos ----
@@ -541,6 +559,34 @@ export class World {
   }
 
   // ---- terreno ----
+  /** Alinha o limite de neblina ao alcance da grama para esconder seu corte distante. */
+  setGrassRenderDistance(distance: number | null): void {
+    if (distance !== null && !Number.isFinite(distance)) return
+    this.grassRenderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
+    this.terrain.grass.setRenderDistance(distance)
+    this.updateGrassFogDistance(this.grassRenderDistance ?? 72)
+  }
+
+  /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
+  updateFogForCamera(cameraPosition: THREE.Vector3): void {
+    let farthestCorner = 0
+    for (const corner of TERRAIN_FOG_CORNERS) {
+      this.fogCorner.set(corner.x, this.terrain.heightAt(corner.x, corner.z), corner.z)
+      farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
+    }
+
+    const effectiveDistance = this.grassRenderDistance === null
+      ? farthestCorner
+      : Math.min(this.grassRenderDistance, farthestCorner)
+    this.updateGrassFogDistance(Math.max(10, effectiveDistance))
+  }
+
+  private updateGrassFogDistance(distance: number): void {
+    // A neblina começa antes do fim do alcance e termina pouco antes do corte.
+    this.worldFog.near = distance * 0.70
+    this.worldFog.far = Math.max(this.worldFog.near + 1, distance * 0.98)
+  }
+
   terrainInfo(): TerrainInfo {
     return {
       visible: this.terrain.mesh.visible,
