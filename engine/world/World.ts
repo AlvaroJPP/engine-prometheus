@@ -27,6 +27,7 @@ export class World {
   readonly terrain = new TerrainMesh(DEFAULT_SEED)
   private grid = new THREE.GridHelper(100, 100, 0x4a5060, 0x2a2f3a)
   private objects = new Map<string, GameObject>()
+  private grassOcclusionRootsCache: THREE.Object3D[] | null = null
   private selectedId: string | null = null
   private gridVisible = true
   private skyBackgroundTexture: THREE.Texture | null = null
@@ -197,10 +198,24 @@ export class World {
   }
 
   // ---- objetos ----
+  /** Lista estável de raízes candidatas à oclusão da grama; cacheada entre frames. */
+  grassOcclusionRoots(): readonly THREE.Object3D[] {
+    if (!this.grassOcclusionRootsCache) {
+      this.grassOcclusionRootsCache = [...this.objects.values()].map((object) => object.mesh)
+    }
+    return this.grassOcclusionRootsCache
+  }
+
+  private invalidateGrassOcclusionRoots(): void {
+    this.grassOcclusionRootsCache = null
+    this.terrain.grass.invalidateOcclusion()
+  }
+
   add(obj: GameObject): GameObject {
     reserveId(obj.id)
     this.scene.add(obj.mesh)
     this.objects.set(obj.id, obj)
+    this.invalidateGrassOcclusionRoots()
     this.events.emit('objectAdded', { id: obj.id })
     return obj
   }
@@ -219,6 +234,7 @@ export class World {
     if (this.selectedId === id) this.select(null)
     this.dispose(obj)
     this.objects.delete(id)
+    this.invalidateGrassOcclusionRoots()
     this.events.emit('objectRemoved', { id })
   }
 
@@ -389,11 +405,18 @@ export class World {
     if (patch.colliderType !== undefined && ['auto', 'box', 'sphere', 'capsule', 'none'].includes(patch.colliderType)) m.userData.colliderType = patch.colliderType
     if (patch.colliderSize !== undefined && patch.colliderSize.length === 3 && patch.colliderSize.every(Number.isFinite)) m.userData.colliderSize = patch.colliderSize.map(value => clamp(value, 0.05, 100))
     if (patch.colliderOffset !== undefined && patch.colliderOffset.length === 3 && patch.colliderOffset.every(Number.isFinite)) m.userData.colliderOffset = patch.colliderOffset.map(value => clamp(value, -100, 100))
+    const affectsOcclusion = transformFields
+      || patch.visible !== undefined
+      || patch.texturePreset !== undefined
+      || patch.faceTextures !== undefined
+      || patch.faceTexture !== undefined
+    if (affectsOcclusion) this.terrain.grass.invalidateOcclusion()
     this.events.emit('objectChanged', { id })
   }
 
   /** Avisa a interface que um objeto foi alterado por arrasto no viewport. */
   notifyChanged(id: string): void {
+    this.terrain.grass.invalidateOcclusion()
     this.events.emit('objectChanged', { id })
   }
 
@@ -407,6 +430,7 @@ export class World {
       this.scene.add(o.mesh)
       this.objects.set(o.id, o)
     }
+    this.invalidateGrassOcclusionRoots()
     this.terrain.load(terrain.seed, terrain.edits, terrain.paintedGrass ?? [])
     this.applyTerrainVisible(terrain.visible)
     this.events.emit('worldReset', { count: objs.length })
@@ -426,6 +450,7 @@ export class World {
       this.scene.add(o.mesh)
       this.objects.set(o.id, o)
     }
+    this.invalidateGrassOcclusionRoots()
     await this.terrain.loadAsync(terrain.seed, terrain.edits, terrain.paintedGrass ?? [], onGrassProgress)
     this.applyTerrainVisible(terrain.visible)
     this.events.emit('worldReset', { count: objs.length })
