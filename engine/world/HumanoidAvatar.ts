@@ -1158,10 +1158,15 @@ export class HumanoidAvatar {
     surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
     feetY: number,
     maxRise: number,
+    followGroundedMovement = false,
   ): number | null {
-    // Um piso plano próximo sustenta a montaria até ela realmente sair da borda.
+    // Durante a caminhada, se dois níveis baixos estão sob a pegada, acompanha
+    // o mais baixo para descer degraus; ao aterrissar após um salto, prioriza
+    // o mais alto para não atravessar uma plataforma.
     const nearFlat = surfaces.flat.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
-    if (nearFlat.length > 0) return Math.max(...nearFlat)
+    if (nearFlat.length > 0) {
+      return followGroundedMovement ? Math.min(...nearFlat) : Math.max(...nearFlat)
+    }
 
     // Em rampas, alinha-se ao lado mais baixo da pegada. Isso evita que as
     // patas no lado descendente fiquem suspensas por causa do lado mais alto.
@@ -1269,7 +1274,7 @@ export class HumanoidAvatar {
     const surfaces = this.sampleMountedSupportSurfaces(
       root, bounds, maxFlatDrop, maxSlopeDrop, maxRise, originY,
     )
-    const supportY = this.chooseMountedSupportSurface(surfaces, feetY, maxRise)
+    const supportY = this.chooseMountedSupportSurface(surfaces, feetY, maxRise, true)
     if (supportY === null) return false
 
     const riseFromFeet = supportY - feetY
