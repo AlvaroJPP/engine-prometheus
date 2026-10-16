@@ -1114,7 +1114,6 @@ export class Engine {
   ): void {
     const root = this.world.get(instance.ownerObjectId)?.mesh
     if (!root) return
-    this.modelOcclusion.restoreObjectVisibility(root)
     const rules = enabled ? getMountPackageSettings(instance).modelStates : []
     const evaluated = rules.map(rule => {
       const actual = Object.prototype.hasOwnProperty.call(instance.variables, rule.variable)
@@ -1125,6 +1124,7 @@ export class Engine {
     })
     const signature = JSON.stringify(evaluated.map(({ rule, matched, actual }) => ({ rule, matched, actual })))
     if (!force && this.mountModelStateSignatures.get(instance.id) === signature) return
+    this.modelOcclusion.restoreObjectVisibility(root)
     this.mountModelStateSignatures.set(instance.id, signature)
     root.traverse(node => {
       if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
