@@ -190,20 +190,32 @@ function refreshPreviewParts() {
     soloPartId.value = ''
     return
   }
+
+  // Conte os nós de baixo para cima: a quantidade de malhas de cada grupo é
+  // calculada uma só vez, em vez de percorrer seus descendentes repetidamente.
+  const nodes: Array<{ node: THREE.Object3D; depth: number }> = []
+  const collect = (node: THREE.Object3D, depth: number) => {
+    nodes.push({ node, depth })
+    for (const child of node.children) collect(child, depth + 1)
+  }
+  collect(root, -1)
+
+  const meshCounts = new Map<THREE.Object3D, number>()
+  for (const entry of nodes) meshCounts.set(entry.node, entry.node instanceof THREE.Mesh ? 1 : 0)
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const entry = nodes[index]!
+    const parent = entry.node.parent
+    if (parent) {
+      meshCounts.set(parent, (meshCounts.get(parent) ?? 0) + (meshCounts.get(entry.node) ?? 0))
+    }
+  }
+
   const parts: Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }> = []
   let unnamedIndex = 0
-  const countMeshes = (object: THREE.Object3D) => {
-    let count = 0
-    object.traverse(child => { if (child instanceof THREE.Mesh) count += 1 })
-    return count
-  }
-  const visit = (node: THREE.Object3D, depth: number) => {
-    if (node === root) {
-      node.children.forEach(child => visit(child, 0))
-      return
-    }
-    const meshCount = countMeshes(node)
-    if (!meshCount) return
+  for (const { node, depth } of nodes) {
+    if (node === root) continue
+    const meshCount = meshCounts.get(node) ?? 0
+    if (!meshCount) continue
     unnamedIndex += 1
     parts.push({
       id: node.uuid,
@@ -212,9 +224,8 @@ function refreshPreviewParts() {
       depth,
       meshCount,
     })
-    node.children.forEach(child => visit(child, depth + 1))
   }
-  visit(root, 0)
+
   previewParts.value = parts
   if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = ''
   if (!parts.some(part => part.id === soloPartId.value)) soloPartId.value = ''
@@ -246,8 +257,8 @@ function selectPreviewPart(part: { id: string; name: string; object: THREE.Objec
 }
 
 function togglePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  if (soloPartId.value) restorePreviewVisibility()
   part.object.visible = !part.object.visible
-  if (soloPartId.value) soloPartId.value = ''
 }
 
 function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
@@ -283,7 +294,7 @@ function selectWholeModel() {
   if (!root) return
   restorePreviewVisibility()
   selectedPartId.value = ''
-  componentName.value = root.name.trim() || fileName.value.replace(/\\.[^.]+$/, '') || 'Modelo 3D'
+  componentName.value = root.name.trim() || fileName.value.replace(/\.[^.]+$/, '') || 'Modelo 3D'
   const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
   colliderSize.value = [
     Math.max(0.05, dimensions.value[0] * scale),
@@ -977,7 +988,7 @@ onBeforeUnmount(disposePreview)
           <section class="model-panel-section">
             <div class="model-panel-heading"><span>03</span> NOME DO COMPONENTE</div>
             <label class="model-component-name-field">Nome na biblioteca
-              <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model" />
+              <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model || !!props.initialAsset" />
             </label>
             <p class="model-panel-hint">Esse nome será usado na biblioteca e nas novas cópias colocadas no mundo.</p>
           </section>
