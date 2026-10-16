@@ -695,7 +695,7 @@ export class HumanoidAvatar {
             // ou inclinada é piso/teto; faces laterais bloqueiam dos dois lados).
             if (blockCeilings) {
               if (Math.abs(normal.y) < 0.45 || normal.y > 0.45) continue
-            } else if (Math.abs(normal.y) >= 0.7) {
+            } else if (Math.abs(normal.y) >= 0.95) {
               continue
             }
             if (playerBox.intersectsTriangle(triangle)) return true
