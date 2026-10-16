@@ -1130,6 +1130,30 @@ export class GrassLayer {
     this.requestRenderRebuild()
   }
 
+  /**
+   * Configura o raio máximo de renderização. null significa renderizar todo o mapa.
+   * Os limites entre anéis são proporcionais ao alcance, mantendo o detalhe perto
+   * e reduzindo a densidade/complexidade progressivamente mais longe.
+   */
+  setRenderDistance(distance: number | null): void {
+    if (distance !== null && !Number.isFinite(distance)) return
+
+    if (distance === null) {
+      this.renderBands[0]!.maxDistance = GRASS_NEAR_DISTANCE
+      this.renderBands[1]!.maxDistance = GRASS_MIDDLE_DISTANCE
+      this.renderBands[2]!.maxDistance = Number.POSITIVE_INFINITY
+    } else {
+      const safeDistance = THREE.MathUtils.clamp(distance, 10, 5000)
+      this.renderBands[0]!.maxDistance = safeDistance * (GRASS_NEAR_DISTANCE / GRASS_VIEW_DISTANCE)
+      this.renderBands[1]!.maxDistance = safeDistance * (GRASS_MIDDLE_DISTANCE / GRASS_VIEW_DISTANCE)
+      this.renderBands[2]!.maxDistance = safeDistance
+    }
+
+    // A atualização é aplicada no próximo frame, evitando reconstruções repetidas
+    // enquanto o controle deslizante está sendo arrastado.
+    this.renderDirty = true
+  }
+
   /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */
   updateVisibility(cameraPosition: THREE.Vector3, playerPosition: THREE.Vector3 | null = null): void {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
