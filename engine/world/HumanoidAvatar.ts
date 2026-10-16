@@ -99,6 +99,8 @@ export class HumanoidAvatar {
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
+  private mountedStartPosition: THREE.Vector3 | null = null
+  private mountedStartRotation: THREE.Euler | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
@@ -348,6 +350,8 @@ export class HumanoidAvatar {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
+    this.mountedStartPosition = root.position.clone()
+    this.mountedStartRotation = root.rotation.clone()
     this.mountSettings = {
       interactionKey: settings.interactionKey,
       seatOffset: [...settings.seatOffset],
@@ -375,6 +379,14 @@ export class HumanoidAvatar {
     if (!root) return null
 
     const rootId = typeof root.userData.id === 'string' ? root.userData.id : null
+    const positionChanged = this.mountedStartPosition
+      ? root.position.distanceToSquared(this.mountedStartPosition) > 1e-6
+      : false
+    const rotationChanged = this.mountedStartRotation
+      ? Math.abs(root.rotation.x - this.mountedStartRotation.x) > 1e-4 ||
+        Math.abs(root.rotation.y - this.mountedStartRotation.y) > 1e-4 ||
+        Math.abs(root.rotation.z - this.mountedStartRotation.z) > 1e-4
+      : false
     root.updateWorldMatrix(true, true)
     this.playMountAnimation(root, 'dismount', true)
 
@@ -391,6 +403,8 @@ export class HumanoidAvatar {
 
     this.mountedRoot = null
     this.mountSettings = null
+    this.mountedStartPosition = null
+    this.mountedStartRotation = null
     this.visualRoot.visible = true
     this.pressed.clear()
     let placed = false
@@ -416,6 +430,9 @@ export class HumanoidAvatar {
     this.activeCollisions.clear()
     this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + 1, this.mesh.position.z)
     this.playAnimation('idle')
+    // A cena só é notificada uma vez, ao sair da montaria e apenas se a
+    // entidade realmente mudou de posição/rotação durante a execução.
+    if (rootId && (positionChanged || rotationChanged)) this.world.notifyChanged(rootId)
     return rootId
   }
 
