@@ -20,6 +20,14 @@ interface Contact {
   depth: number
 }
 
+interface CachedCollisionShape {
+  rootGeometry: THREE.BufferGeometry
+  matrixWorld: number[]
+  configSignature: string
+  shape: ConvexShape | null
+  bounds: THREE.Box3
+}
+
 const CONTACT_TOLERANCE = 1e-7
 const MAX_RESOLUTION_PASSES = 12
 const AXIS_EPSILON_SQ = 1e-10
@@ -54,13 +62,56 @@ export class CollisionSystem {
   private debugVisible = false
   private readonly debugHelpers = new Map<string, THREE.LineSegments>()
   private readonly importedTriangleGeometries = new Map<string, { geometry: THREE.BufferGeometry; signature: string }>()
+  private readonly shapeCache = new Map<string, CachedCollisionShape>()
+  private readonly eventOffs: Array<() => void> = []
 
   constructor(world: World) {
     this.world = world
+    this.eventOffs.push(
+      world.events.on('objectChanged', ({ id }) => this.invalidateObject(id)),
+      world.events.on('objectRemoved', ({ id }) => this.releaseObject(id)),
+      world.events.on('worldReset', () => this.clear()),
+    )
   }
 
-  update(): void {
+  /** Invalida a forma mundial quando o objeto muda de transform ou colisor. */
+  invalidateObject(id: string): void {
+    this.shapeCache.delete(id)
+  }
+
+  private releaseObject(id: string): void {
+    this.invalidateObject(id)
+    const collider = this.colliderGeometries.get(id)
+    collider?.geometry.dispose()
+    this.colliderGeometries.delete(id)
+    const triangles = this.importedTriangleGeometries.get(id)
+    triangles?.geometry.dispose()
+    this.importedTriangleGeometries.delete(id)
+    // World.dispose já liberou a geometria/material do helper ligado à raiz.
+    this.debugHelpers.delete(id)
+  }
+
+  /** Libera os listeners e os caches quando o motor é encerrado de verdade. */
+  dispose(): void {
+    this.clear()
+    for (const off of this.eventOffs) off()
+    this.eventOffs.length = 0
+  }
+
+  update(simulateContacts = true): void {
     const objects = this.world.list().filter(object => object.mesh.visible)
+    if (!simulateContacts) {
+      // O editor precisa manter os objetos apoiados no terreno, mas não precisa
+      // executar CCD/SAT O(n²) em todos os objetos estáticos a cada frame.
+      for (const [key, pair] of this.activePairs) {
+        this.world.events.emit('collisionEnded', pair)
+        this.activePairs.delete(key)
+      }
+      this.previousPositions.clear()
+      this.keepObjectsAboveTerrain(objects.filter(object => object.mesh.userData.mountCollisionManaged !== true))
+      this.syncDebugHelpers(this.world.list())
+      return
+    }
     // Modelos importados usam a caixa proxy por padrão; quando necessário, o usuário
     // pode escolher um colisor simplificado no inspetor para maior estabilidade.
     // A montaria já resolve seu piso e movimento no HumanoidAvatar; não a reposicione
@@ -70,81 +121,58 @@ export class CollisionSystem {
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
 
-    // CCD (continuous collision detection): detecta movimentos que atravessariam
-    // um obstáculo entre dois frames. Faz varredura adaptativa e busca binária
-    // para deixar o objeto no último ponto seguro, antes da resolução SAT normal.
+    // CCD (continuous collision detection): só faz teste detalhado nos obstáculos
+    // que passam pela broad phase espacial; formas e AABBs são cacheados entre pares.
     this.resolveContinuousCollisions(collidableObjects)
 
     for (let pass = 0; pass < MAX_RESOLUTION_PASSES; pass += 1) {
       let resolvedAny = false
-      for (let i = 0; i < collidableObjects.length; i += 1) {
-        const a = collidableObjects[i]
-        if (!a) continue
-        for (let j = i + 1; j < collidableObjects.length; j += 1) {
-          const shapeA = this.buildShape(a)
-          if (!shapeA) break
-          const boundsA = this.getShapeBounds(a, shapeA)
-          const b = collidableObjects[j]
-          if (!b) continue
-          const shapeB = this.buildShape(b)
-          if (!shapeB) continue
-          const boundsB = this.getShapeBounds(b, shapeB)
-          if (!boundsA.intersectsBox(boundsB)) continue
+      const candidatePairs = this.buildBroadphasePairs(collidableObjects)
+      for (const [a, b] of candidatePairs) {
+        const shapeA = this.buildShape(a)
+        const shapeB = this.buildShape(b)
+        if (!shapeA || !shapeB) continue
+        const boundsA = this.getShapeBounds(a, shapeA)
+        const boundsB = this.getShapeBounds(b, shapeB)
+        if (!boundsA.intersectsBox(boundsB)) continue
 
-          const contact = this.intersectObjects(a, b, shapeA, shapeB)
-          if (!contact) continue
-          currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
+        const contact = this.intersectObjects(a, b, shapeA, shapeB)
+        if (!contact) continue
 
-          // Duas plataformas são peças do cenário, não corpos dinâmicos que devam
-          // se empurrar mutuamente. Mantém o contato registrado, mas não corrige
-          // a penetração entre elas: isso preserva a junção de rampas e pisos.
-          if (this.isPlatformPair(a, b)) continue
+        // Plataformas formam o cenário; os contatos são reconhecidos, mas as
+        // peças não se empurram mutuamente e não abrem frestas nas emendas.
+        if (this.isPlatformPair(a, b)) continue
+        if (a.mesh.userData.mountCollisionManaged === true || b.mesh.userData.mountCollisionManaged === true) continue
 
-          // O objeto montado continua participando da detecção de contato, mas não
-          // pode ser empurrado pelo solver SAT. O HumanoidAvatar controla sua pose.
-          if (a.mesh.userData.mountCollisionManaged === true || b.mesh.userData.mountCollisionManaged === true) continue
+        const inverseA = this.inverseMass(a)
+        const inverseB = this.inverseMass(b)
+        const totalInverseMass = inverseA + inverseB
+        if (totalInverseMass <= 0) continue
 
-          const inverseA = this.inverseMass(a)
-          const inverseB = this.inverseMass(b)
-          const totalInverseMass = inverseA + inverseB
-          if (totalInverseMass <= 0) continue
-
-          // Corrige somente a penetração real: adicionar um epsilon à profundidade
-          // empurrava os corpos para longe e criava frestas visíveis entre superfícies.
-          const correction = contact.normal.clone().multiplyScalar(contact.depth)
-          if (inverseA > 0) {
-            a.mesh.position.addScaledVector(correction, -inverseA / totalInverseMass)
-            a.mesh.updateMatrixWorld(true)
-            this.world.notifyChanged(a.id)
-          }
-          if (inverseB > 0) {
-            b.mesh.position.addScaledVector(correction, inverseB / totalInverseMass)
-            b.mesh.updateMatrixWorld(true)
-            this.world.notifyChanged(b.id)
-          }
-          resolvedAny = true
+        const correction = contact.normal.clone().multiplyScalar(contact.depth)
+        if (inverseA > 0) {
+          a.mesh.position.addScaledVector(correction, -inverseA / totalInverseMass)
+          a.mesh.updateMatrixWorld(true)
+          this.world.notifyChanged(a.id)
         }
+        if (inverseB > 0) {
+          b.mesh.position.addScaledVector(correction, inverseB / totalInverseMass)
+          b.mesh.updateMatrixWorld(true)
+          this.world.notifyChanged(b.id)
+        }
+        resolvedAny = true
       }
       if (!resolvedAny) break
     }
 
-    // Calcula os pares ativos com as posições já corrigidas.
-    currentPairs.clear()
-    for (let i = 0; i < collidableObjects.length; i += 1) {
-      const a = collidableObjects[i]
-      if (!a) continue
+    // A broad phase encontra os pares ainda em contato na pose já corrigida.
+    for (const [a, b] of this.buildBroadphasePairs(collidableObjects)) {
       const shapeA = this.buildShape(a)
-      if (!shapeA) continue
-      const boundsA = this.getShapeBounds(a, shapeA)
-      for (let j = i + 1; j < collidableObjects.length; j += 1) {
-        const b = collidableObjects[j]
-        if (!b) continue
-        const shapeB = this.buildShape(b)
-        if (!shapeB) continue
-        if (!boundsA.intersectsBox(this.getShapeBounds(b, shapeB))) continue
-        if (this.intersectObjects(a, b, shapeA, shapeB)) {
-          currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
-        }
+      const shapeB = this.buildShape(b)
+      if (!shapeA || !shapeB) continue
+      if (!this.getShapeBounds(a, shapeA).intersectsBox(this.getShapeBounds(b, shapeB))) continue
+      if (this.intersectObjects(a, b, shapeA, shapeB)) {
+        currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
       }
     }
 
@@ -537,9 +565,73 @@ export class CollisionSystem {
     return mass <= 0 ? 0 : 1 / Math.max(0.0001, mass)
   }
 
+  private colliderConfigSignature(object: GameObject): string {
+    const mesh = object.mesh
+    return [
+      this.colliderType(object),
+      JSON.stringify(mesh.userData.colliderSize ?? null),
+      JSON.stringify(mesh.userData.colliderOffset ?? [0, 0, 0]),
+    ].join('|')
+  }
+
+  private matrixMatches(cached: readonly number[], current: readonly number[]): boolean {
+    if (cached.length !== current.length) return false
+    for (let i = 0; i < current.length; i += 1) {
+      if (Math.abs(cached[i]! - current[i]!) > 1e-8) return false
+    }
+    return true
+  }
+
   private buildShape(object: GameObject): ConvexShape | null {
     const mesh = object.mesh
+    mesh.updateWorldMatrix(true, false)
+    const configSignature = this.colliderConfigSignature(object)
+    const cached = this.shapeCache.get(object.id)
+    if (
+      cached
+      && cached.rootGeometry === mesh.geometry
+      && cached.configSignature === configSignature
+      && this.matrixMatches(cached.matrixWorld, mesh.matrixWorld.elements)
+    ) {
+      return cached.shape
+    }
+
     const geometry = this.getColliderGeometry(object)
+    const shape = this.buildShapeFromGeometry(object, geometry)
+    const bounds = shape ? this.getShapeBoundsUncached(object, shape) : new THREE.Box3()
+    this.shapeCache.set(object.id, {
+      rootGeometry: mesh.geometry,
+      matrixWorld: [...mesh.matrixWorld.elements],
+      configSignature,
+      shape,
+      bounds,
+    })
+    return shape
+  }
+
+  private buildBroadphasePairs(objects: readonly GameObject[]): Array<[GameObject, GameObject]> {
+    const entries: Array<{ object: GameObject; bounds: THREE.Box3 }> = []
+    for (const object of objects) {
+      const shape = this.buildShape(object)
+      if (!shape) continue
+      entries.push({ object, bounds: this.getShapeBounds(object, shape) })
+    }
+
+    // Sweep-and-prune: em cenas espalhadas, evita testar cada objeto contra todos
+    // os outros. Os contatos novos após correções são incluídos na próxima passada.
+    entries.sort((left, right) => left.bounds.min.x - right.bounds.min.x)
+    const pairs: Array<[GameObject, GameObject]> = []
+    for (let i = 0; i < entries.length; i += 1) {
+      const left = entries[i]!
+      for (let j = i + 1; j < entries.length; j += 1) {
+        const right = entries[j]!
+        if (right.bounds.min.x > left.bounds.max.x + CONTACT_TOLERANCE) break
+        if (left.bounds.intersectsBox(right.bounds)) pairs.push([left.object, right.object])
+      }
+    }
+    return pairs
+  }  private buildShapeFromGeometry(object: GameObject, geometry: THREE.BufferGeometry | null): ConvexShape | null {
+    const mesh = object.mesh
     if (!geometry) return null
     const position = geometry.getAttribute('position')
     if (!position || position.count < 3) return null
@@ -603,6 +695,12 @@ export class CollisionSystem {
   }
 
   private getShapeBounds(object: GameObject, shape: ConvexShape): THREE.Box3 {
+    const cached = this.shapeCache.get(object.id)
+    if (cached?.shape === shape) return cached.bounds
+    return this.getShapeBoundsUncached(object, shape)
+  }
+
+  private getShapeBoundsUncached(object: GameObject, shape: ConvexShape): THREE.Box3 {
     if (this.isAutomaticImportedMesh(object)) {
       // O casco aproximado pode não conter uma ponta/orelha que ficou fora da
       // amostragem. Use a caixa proxy do modelo como broad phase conservadora;
@@ -824,6 +922,7 @@ export class CollisionSystem {
     for (const pair of this.activePairs.values()) this.world.events.emit('collisionEnded', pair)
     this.activePairs.clear()
     this.previousPositions.clear()
+    this.shapeCache.clear()
     for (const entry of this.colliderGeometries.values()) entry.geometry.dispose()
     for (const helper of this.debugHelpers.values()) {
       helper.removeFromParent()
