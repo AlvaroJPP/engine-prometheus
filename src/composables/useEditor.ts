@@ -24,6 +24,8 @@ import {
   saveProjectTo,
 } from '@/project/projectService'
 
+type PerformancePreset = 'quality' | 'balanced' | 'economy'
+
 export const CAMERA_LABELS: Record<CameraPreset, string> = {
   free: 'Câmera livre',
   isometric: 'Isométrica',
@@ -56,7 +58,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const brushRadius = ref(4)
   const gridVisible = ref(true)
   const polygonLinesVisible = ref(false)
-  const performanceMode = ref(false)
+  const performanceMode = ref<PerformancePreset>('quality')
   const grassRenderDistance = ref(72)
   const grassRenderAll = ref(false)
   const skyTextureDataUrl = ref('')
@@ -270,6 +272,27 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }, 7000)
   }
 
+  const PERFORMANCE_SETTINGS_KEY = 'engine-prometheus.performance-preset'
+
+  function loadPerformanceSettings() {
+    try {
+      const saved = window.localStorage.getItem(PERFORMANCE_SETTINGS_KEY)
+      if (saved === 'quality' || saved === 'balanced' || saved === 'economy') {
+        performanceMode.value = saved
+      }
+    } catch (error) {
+      console.warn('[EditorSettings] Não foi possível carregar o modo de desempenho.', error)
+    }
+  }
+
+  function persistPerformanceSettings() {
+    try {
+      window.localStorage.setItem(PERFORMANCE_SETTINGS_KEY, performanceMode.value)
+    } catch (error) {
+      console.warn('[EditorSettings] Não foi possível salvar o modo de desempenho.', error)
+    }
+  }
+
   const GRASS_RENDER_SETTINGS_KEY = 'engine-prometheus.grass-render-settings'
 
   function persistGrassRenderSettings() {
@@ -384,8 +407,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   onMounted(() => {
     if (!canvas.value) return
+    loadPerformanceSettings()
     const e = new Engine(canvas.value)
     engine = e
+    e.setPerformancePreset(performanceMode.value)
     e.setFpsListener((value) => { fps.value = value })
     loadGrassRenderSettings()
     e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
@@ -597,11 +622,18 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function togglePerformanceMode() {
     if (!engine) return
-    performanceMode.value = !performanceMode.value
-    engine.setPerformanceMode(performanceMode.value)
-    say(performanceMode.value
-      ? 'Modo desempenho ativado: resolução do viewport reduzida para aliviar a GPU.'
-      : 'Modo qualidade ativado: resolução do viewport restaurada.')
+    const presets: PerformancePreset[] = ['quality', 'balanced', 'economy']
+    const currentIndex = presets.indexOf(performanceMode.value)
+    performanceMode.value = presets[(currentIndex + 1) % presets.length] ?? 'quality'
+    engine.setPerformancePreset(performanceMode.value)
+    persistPerformanceSettings()
+
+    const messages: Record<PerformancePreset, string> = {
+      quality: 'Modo qualidade: alvo de 60 FPS e resolução padrão.',
+      balanced: 'Modo equilibrado: alvo de 45 FPS e resolução interna reduzida.',
+      economy: 'Modo econômico: alvo de 30 FPS e resolução interna em 75%.',
+    }
+    say(messages[performanceMode.value])
   }
 
   function toggleGrid() {

@@ -202,6 +202,8 @@ function createGrassTexture(): THREE.CanvasTexture {
  */
 export class GrassLayer {
   readonly mesh = new THREE.Group()
+  /** Notifica o mundo quando uma reconstrução assíncrona troca os buffers visíveis. */
+  onRenderChanged: (() => void) | null = null
   private readonly field: Heightfield
   private readonly geometry = createGrassGeometry(false)
   private readonly lowDetailGeometry = createGrassGeometry(true)
@@ -1370,6 +1372,7 @@ export class GrassLayer {
       }
     }
     this.renderDirty = false
+    this.onRenderChanged?.()
   }
 
   private writeInstance(mesh: THREE.InstancedMesh, index: number, instance: GrassInstance): void {
