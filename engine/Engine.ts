@@ -17,6 +17,7 @@ import { Viewport } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
+import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
@@ -31,6 +32,7 @@ const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
 export class Engine {
   readonly world = new World()
   readonly collisions = new CollisionSystem(this.world)
+  private readonly modelOcclusion = new ModelOcclusionSystem()
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
@@ -58,6 +60,10 @@ export class Engine {
       this.events.on('objectRemoved', () => this.viewport.invalidate()),
       this.events.on('objectRenamed', () => this.viewport.invalidate()),
       this.events.on('objectChanged', () => this.viewport.invalidate()),
+      this.events.on('objectAdded', () => this.modelOcclusion.invalidate()),
+      this.events.on('objectRemoved', () => this.modelOcclusion.invalidate()),
+      this.events.on('objectChanged', () => this.modelOcclusion.invalidate()),
+      this.events.on('worldReset', () => this.modelOcclusion.invalidate()),
       this.events.on('behaviorPackageChanged', () => this.viewport.invalidate()),
       this.events.on('objectClicked', () => this.viewport.invalidate()),
       this.events.on('collisionStarted', () => this.viewport.invalidate()),
@@ -226,6 +232,9 @@ export class Engine {
       }
       this.orbit.update()
       this.world.updateFogForCamera(this.orbit.camera.position)
+      if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
+        this.viewport.invalidate()
+      }
       this.world.terrain.grass.updateVisibility(
         this.orbit.camera.position,
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
@@ -1115,6 +1124,7 @@ export class Engine {
     })
     const signature = JSON.stringify(evaluated.map(({ rule, matched, actual }) => ({ rule, matched, actual })))
     if (!force && this.mountModelStateSignatures.get(instance.id) === signature) return
+    this.modelOcclusion.restoreObjectVisibility(root)
     this.mountModelStateSignatures.set(instance.id, signature)
     root.traverse(node => {
       if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
@@ -1291,6 +1301,7 @@ export class Engine {
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.clear()
+    this.modelOcclusion.dispose()
     this.transformControls.dispose()
     for (const off of this.viewportInvalidationOffs) off()
     this.viewportInvalidationOffs.length = 0
