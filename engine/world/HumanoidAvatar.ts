@@ -440,18 +440,28 @@ export class HumanoidAvatar {
     const next = actions[role]
       ?? (role === 'run' ? actions.walk : undefined)
       ?? (role === 'walk' || role === 'run' ? actions.idle : undefined)
+      ?? (role === 'idle' ? actions.walk ?? actions.run : undefined)
     if (!next) {
       if (oneShot && role === 'dismount') {
         root.userData.importAnimationTransition = undefined
-        const idle = actions.idle
+        const idle = actions.idle ?? actions.walk ?? actions.run
         if (idle) {
           idle.setLoop(THREE.LoopRepeat, Infinity)
           idle.clampWhenFinished = false
           idle.reset().fadeIn(0.15).play()
+          const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+          if (fallbackAction && fallbackAction !== idle && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
           for (const action of Object.values(actions)) {
             if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
           }
-          root.userData.importAnimationState = 'idle'
+          root.userData.importAnimationState = idle === actions.idle ? 'idle' : idle === actions.walk ? 'walk' : 'run'
+        } else {
+          const currentRole = root.userData.importAnimationState as AnimationRole | undefined
+          const current = currentRole ? actions[currentRole] : undefined
+          current?.stop()
+          const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+          fallbackAction?.stop()
+          root.userData.importAnimationState = ''
         }
       }
       return
