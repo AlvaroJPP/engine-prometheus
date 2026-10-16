@@ -206,6 +206,29 @@ export class Engine {
     this.events.emit('behaviorPackageChanged', { ownerObjectId })
   }
 
+  /** Finaliza a montaria uma vez, sincronizando variáveis e o gatilho Desmontou. */
+  private dismountActiveMount(): void {
+    const packageId = this.activeMountPackageId
+    const packageInstance = packageId
+      ? this.logic.listPackages().find(instance => instance.id === packageId)
+      : undefined
+    const mountedObjectId = this.avatar.dismount()
+
+    if (packageId) {
+      this.logic.setPackageVariable(packageId, 'mounted', false)
+      this.logic.setPackageVariable(packageId, 'movementState', 'idle')
+    }
+    this.activeMountPackageId = null
+    this.lastMountMovementState = null
+
+    if (packageInstance) {
+      this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
+      if (mountedObjectId) {
+        this.logic.triggerPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
+      }
+    }
+  }
+
   listRules(): LogicRule[] { return this.logic.list() }
   listBehaviorPackages(ownerObjectId?: string): BehaviorPackageInstance[] { return this.logic.listPackages(ownerObjectId) }
   installBehaviorPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance {
@@ -219,19 +242,11 @@ export class Engine {
   ): void {
     this.logic.updatePackage(id, patch)
     const instance = this.logic.listPackages().find(item => item.id === id)
-    if (patch.enabled === false && this.activeMountPackageId === id) {
-      this.avatar.dismount()
-      this.logic.setPackageVariable(id, 'mounted', false)
-      this.activeMountPackageId = null
-    }
+    if (patch.enabled === false && this.activeMountPackageId === id) this.dismountActiveMount()
     if (instance) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
   }
   removeBehaviorPackage(id: string): void {
-    if (this.activeMountPackageId === id) {
-      this.avatar.dismount()
-      this.logic.setPackageVariable(id, 'mounted', false)
-      this.activeMountPackageId = null
-    }
+    if (this.activeMountPackageId === id) this.dismountActiveMount()
     this.logic.removePackage(id)
   }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
@@ -328,15 +343,7 @@ export class Engine {
     }
 
     this.input.setRuntimeMode(false)
-    if (this.avatar.isMounted()) {
-      this.avatar.dismount()
-      if (this.activeMountPackageId) {
-        const packageInstance = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
-        this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
-        if (packageInstance) this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
-      }
-      this.activeMountPackageId = null
-    }
+    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = false
     this.avatar.setFirstPersonMode(false)
@@ -915,11 +922,7 @@ export class Engine {
   }
 
   removeObject(id: string): void {
-    if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) {
-      if (this.activeMountPackageId) this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
-      this.avatar.dismount()
-      this.activeMountPackageId = null
-    }
+    if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) this.dismountActiveMount()
     this.world.remove(id)
     this.logic.removeObjectVariables(id)
   }
