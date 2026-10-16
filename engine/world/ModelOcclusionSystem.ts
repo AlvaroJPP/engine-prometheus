@@ -3,6 +3,7 @@ import type { GameObject } from '../model/object/GameObject'
 
 const MIN_RECHECK_INTERVAL_MS = 90
 const CAMERA_MOVE_THRESHOLD_SQ = 0.05 * 0.05
+const CAMERA_ROTATION_DOT_THRESHOLD = 0.00001
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
@@ -41,7 +42,13 @@ export class ModelOcclusionSystem {
   private dirty = true
   private lastEvaluationAt = 0
   private readonly lastCameraPosition = new THREE.Vector3()
+  private readonly lastCameraQuaternion = new THREE.Quaternion()
+  private readonly cameraQuaternion = new THREE.Quaternion()
+  private readonly lastProjectionMatrix = new THREE.Matrix4()
+  private readonly viewProjectionMatrix = new THREE.Matrix4()
+  private readonly frustum = new THREE.Frustum()
   private hasLastCamera = false
+  private hasLastProjection = false
   private readonly raycaster = new THREE.Raycaster()
   private readonly cameraPosition = new THREE.Vector3()
   private readonly rayDirection = new THREE.Vector3()
@@ -76,21 +83,39 @@ export class ModelOcclusionSystem {
    * Retorna true somente se o conjunto final de submalhas ocultas foi alterado.
    */
   update(camera: THREE.Camera, objects: readonly GameObject[], now = performance.now()): boolean {
+    camera.updateMatrixWorld(true)
     camera.getWorldPosition(this.cameraPosition)
-    // A rotação não altera a linha de visão geométrica a partir da mesma posição;
-    // reavaliamos quando a origem dos raios realmente se desloca.
+    camera.getWorldQuaternion(this.cameraQuaternion)
     const cameraMoved = !this.hasLastCamera
       || this.lastCameraPosition.distanceToSquared(this.cameraPosition) >= CAMERA_MOVE_THRESHOLD_SQ
+    // A visibilidade muda ao girar a câmera mesmo quando a posição não muda.
+    const cameraRotated = !this.hasLastCamera
+      || 1 - Math.abs(this.lastCameraQuaternion.dot(this.cameraQuaternion)) > CAMERA_ROTATION_DOT_THRESHOLD
+    const projectionChanged = !this.hasLastProjection
+      || !this.lastProjectionMatrix.equals(camera.projectionMatrix)
 
-    if (!this.dirty && !cameraMoved) return false
-    if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) return false
+    if (!this.dirty && !cameraMoved && !cameraRotated && !projectionChanged) return false
+    if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) {
+      // Não mantenha partes ocultas com base na posição antiga da câmera ou
+      // numa geometria que acabou de mudar. Mostre temporariamente tudo e
+      // reavalie quando o intervalo mínimo permitir.
+      const hadCulledMeshes = this.culledMeshes.size > 0
+      if (hadCulledMeshes) this.restoreCulledMeshes()
+      this.dirty = true
+      return hadCulledMeshes
+    }
 
     const previousCulled = new Set(this.culledMeshes.keys())
     this.restoreCulledMeshes()
     this.dirty = false
     this.lastEvaluationAt = now
     this.hasLastCamera = true
+    this.hasLastProjection = true
     this.lastCameraPosition.copy(this.cameraPosition)
+    this.lastCameraQuaternion.copy(this.cameraQuaternion)
+    this.lastProjectionMatrix.copy(camera.projectionMatrix)
+    this.viewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    this.frustum.setFromProjectionMatrix(this.viewProjectionMatrix)
 
     const preparedRoots = this.prepareRoots(objects)
     const modelRoots = preparedRoots.filter(root =>
@@ -120,6 +145,9 @@ export class ModelOcclusionSystem {
 
       for (const target of targetRoot.meshes) {
         if (!this.isEligibleTarget(target, targetRoot.root)) continue
+        // Malhas fora do volume visível já são ignoradas pelo renderer; não
+        // gaste raios de oclusão nelas durante esta avaliação.
+        if (!this.frustum.intersectsBox(target.bounds)) continue
         const samples = this.samplesForGeometry(target.mesh.geometry)
         if (samples.length < 3) continue
 
@@ -331,30 +359,44 @@ export class ModelOcclusionSystem {
     this.raycaster.near = 0.05
     this.raycaster.far = maxDistance
 
-    const candidates: THREE.Mesh[] = []
+    const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
     for (const source of roots) {
       if (source.animated || source.meshes.length === 0) continue
       // Não considerar como obstáculo a geometria que contém a câmera; em interiores
       // isso evita que a face traseira de uma parede esconda o mundo inteiro.
       if (source.bounds.containsPoint(origin)) continue
       const rootEntry = this.raycaster.ray.intersectBox(source.bounds, this.boundsHit)
-      if (!rootEntry || rootEntry.distanceTo(origin) >= maxDistance) continue
+      if (!rootEntry) continue
+      const rootEntryDistance = rootEntry.distanceTo(origin)
+      if (rootEntryDistance >= maxDistance) continue
 
       for (const candidate of source.meshes) {
         if (candidate.mesh === targetMesh || !candidate.opaque) continue
         const meshEntry = this.raycaster.ray.intersectBox(candidate.bounds, this.boundsHit)
-        if (meshEntry && meshEntry.distanceTo(origin) < maxDistance) candidates.push(candidate.mesh)
+        if (!meshEntry) continue
+        const entryDistance = meshEntry.distanceTo(origin)
+        if (entryDistance < maxDistance) candidates.push({ mesh: candidate.mesh, entryDistance })
       }
     }
 
     if (candidates.length === 0) return false
-    const intersections = this.raycaster.intersectObjects(candidates, false)
-    return intersections.length > 0 && intersections[0]!.distance < maxDistance
+
+    // Raycast nas caixas mais próximas primeiro. Depois de encontrar um bloqueio,
+    // os candidatos cujos bounds começam atrás dele não precisam testar triângulos.
+    candidates.sort((left, right) => left.entryDistance - right.entryDistance)
+    let nearestHitDistance = maxDistance
+    for (const candidate of candidates) {
+      if (candidate.entryDistance >= nearestHitDistance) break
+      const hit = this.raycaster.intersectObject(candidate.mesh, false)[0]
+      if (hit && hit.distance < nearestHitDistance) nearestHitDistance = hit.distance
+    }
+    return nearestHitDistance < maxDistance
   }
 
   dispose(): void {
     this.restoreCulledMeshes()
     this.dirty = false
     this.hasLastCamera = false
+    this.hasLastProjection = false
   }
 }
