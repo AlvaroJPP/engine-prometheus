@@ -723,7 +723,9 @@ export class HumanoidAvatar {
 
       const configuredCollider = obstacle.userData.colliderType
       const isTiltedRamp = Math.abs(obstacle.rotation.x) > 0.02 || Math.abs(obstacle.rotation.z) > 0.02
-      const rampSurfaceUnderMount = isTiltedRamp && this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
+      const obstacleBounds = isTiltedRamp ? getColliderBounds(obstacle) : null
+      const nearRamp = obstacleBounds !== null && mountBounds.intersectsBox(obstacleBounds)
+      const rampSurfaceUnderMount = isTiltedRamp && nearRamp && this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
       if (
         obstacle.userData.importedModel === true &&
         configuredCollider !== undefined &&
@@ -985,8 +987,8 @@ export class HumanoidAvatar {
       }
     }
 
-    // Caixas sem rotação também podem sustentar a montaria. Ramps are handled
-    // by their real top triangles above rather than their oversized AABB.
+    // Caixas sem rotação também podem sustentar a montaria. Rampas usam
+    // os triângulos superiores reais, evitando apoiar no AABB superdimensionado.
     for (const object of candidates) {
       const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
       if (rotatedRamp) continue
