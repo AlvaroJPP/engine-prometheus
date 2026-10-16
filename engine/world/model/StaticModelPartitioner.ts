@@ -5,7 +5,7 @@ const MIN_TRIANGLES_TO_PARTITION = 8_000
 // Acima disso, a divisão em tempo de importação alocaria memória demais;
 // esses assets precisam de LOD/simplificação offline antes do import.
 const MAX_TRIANGLES_TO_PARTITION = 200_000
-const TARGET_TRIANGLES_PER_REGION = 3_000
+const TARGET_TRIANGLES_PER_REGION = 14_000
 const MAX_SUBDIVISIONS_PER_AXIS = 4
 
 type AttributeLike = THREE.BufferAttribute | THREE.InterleavedBufferAttribute
@@ -53,7 +53,7 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     if (!bounds || bounds.isEmpty()) continue
 
     const subdivisions = Math.max(
-      2,
+      1,
       Math.min(
         MAX_SUBDIVISIONS_PER_AXIS,
         Math.ceil(Math.cbrt(triangleCount / TARGET_TRIANGLES_PER_REGION)),
