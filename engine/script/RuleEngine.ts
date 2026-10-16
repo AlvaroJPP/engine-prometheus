@@ -35,7 +35,7 @@ export class RuleEngine {
     for (const rule of this.data.events) {
       rule.lastInside = false
       // Migra projetos antigos para uma regra pertencente a um único objeto.
-      rule.ownerObjectId ??= rule.trigger.type === 'object_clicked'
+      rule.ownerObjectId ??= rule.trigger.type === 'object_clicked' || rule.trigger.type === 'package_event'
         ? rule.trigger.objectId
         : (rule.actions.find((action) => 'objectId' in action) as Extract<RuleAction, { objectId: string }> | undefined)?.objectId
     }
@@ -190,6 +190,27 @@ export class RuleEngine {
     return executed
   }
 
+  /** Dispara uma regra comum quando um pacote emite um dos seus gatilhos. */
+  triggerPackageEvent(objectId: string, packageId: string, eventId: string): boolean {
+    const instance = (this.data.packages ?? []).find(item =>
+      item.ownerObjectId === objectId && item.packageId === packageId,
+    )
+    if (!instance) return false
+
+    const matchingRules = this.rulesInHierarchyOrder().filter(rule =>
+      rule.enabled &&
+      rule.ownerObjectId === objectId &&
+      rule.trigger.type === 'package_event' &&
+      rule.trigger.objectId === objectId &&
+      rule.trigger.packageId === packageId &&
+      rule.trigger.eventId === eventId &&
+      this.conditionsMatch(rule, objectId, instance.variables),
+    )
+    let executed = false
+    for (const rule of matchingRules) executed = this.run(rule, objectId, true) || executed
+    return executed
+  }
+
   update(): void {
     const objects = this.world.info()
     // Eventos contínuos/por área também respeitam a ordem dos objetos da Hierarquia.
@@ -206,12 +227,19 @@ export class RuleEngine {
     }
   }
 
-  private conditionsMatch(rule: LogicRule, scopeId?: string): boolean {
+  private conditionsMatch(
+    rule: LogicRule,
+    scopeId?: string,
+    packageVariables?: Record<string, PackageScalar>,
+  ): boolean {
     return rule.conditions.every((c) => {
       const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
+      const hasPackage = !!packageVariables && Object.prototype.hasOwnProperty.call(packageVariables, c.name)
       const hasScoped = !!scoped && Object.prototype.hasOwnProperty.call(scoped, c.name)
-      if (!hasScoped && !Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
-      const actual = hasScoped ? scoped![c.name]! : this.data.variables[c.name]!
+      if (!hasPackage && !hasScoped && !Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
+      const actual = hasPackage
+        ? packageVariables![c.name]!
+        : hasScoped ? scoped![c.name]! : this.data.variables[c.name]!
       // Normalize valores antigos/campos de texto antes de comparar.
       const expected = normalizeConditionValue(c.value, actual)
       switch (c.operator) {
@@ -325,6 +353,13 @@ export class RuleEngine {
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
+      case 'set_package_variable': {
+        const instance = (this.data.packages ?? []).find(item =>
+          item.ownerObjectId === action.objectId && item.packageId === action.packageId,
+        )
+        if (instance && action.name.trim()) instance.variables[action.name] = action.value
+        break
+      }
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
         catch (error) { console.error('[Prometheus Script]', error) }
