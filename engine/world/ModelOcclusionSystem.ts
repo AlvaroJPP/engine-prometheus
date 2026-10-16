@@ -6,6 +6,7 @@ const CAMERA_MOVE_THRESHOLD_SQ = 0.05 * 0.05
 const CAMERA_ROTATION_DOT_THRESHOLD = 0.00001
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
+const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
 
 const OCCLUSION_ANCHORS = [
@@ -35,7 +36,8 @@ interface PreparedRoot {
  * Oclusão conservadora de submalhas de modelos importados.
  *
  * O sistema só oculta uma submalha estática quando todos os pontos de amostra
- * sobre sua geometria são bloqueados por malhas opacas de outros objetos.
+ * sobre sua geometria são bloqueados por malhas opacas de outros objetos ou por
+ * regiões independentes geradas pelo particionador dentro do mesmo modelo.
  * Superfícies parcialmente visíveis permanecem intactas.
  */
 export class ModelOcclusionSystem {
@@ -137,23 +139,32 @@ export class ModelOcclusionSystem {
     const hasEligibleTarget = modelRoots.some(targetRoot =>
       targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
     )
-    // As subdivisões de um único modelo não podem ocluir umas às outras neste
-    // passe. Exija um bloqueador de outra raiz antes de gastar tempo com raycasts.
-    const hasPotentialOccluder = modelRoots.some(targetRoot =>
-      occluderRoots.some(sourceRoot =>
-        sourceRoot.root !== targetRoot.root && sourceRoot.meshes.some(candidate => candidate.opaque),
-      ),
-    )
+    // Um modelo pode ocluir partes de si mesmo: isso cobre tanto regiões
+    // particionadas quanto GLBs que já possuem várias submalhas independentes.
+    // Apenas malhas opacas distintas podem bloquear um alvo dentro da mesma raiz.
+    const hasPotentialOccluder = modelRoots.some((targetRoot) => {
+      const eligibleTargets = targetRoot.meshes.filter((target) => this.isEligibleTarget(target, targetRoot.root))
+      if (eligibleTargets.length === 0) return false
+
+      return occluderRoots.some((sourceRoot) => {
+        if (sourceRoot.root !== targetRoot.root) {
+          return sourceRoot.meshes.some((candidate) => candidate.opaque)
+        }
+        return eligibleTargets.some((target) =>
+          sourceRoot.meshes.some((candidate) => candidate.opaque && candidate.mesh !== target.mesh),
+        )
+      })
+    })
     if (!hasPotentialOccluder || !hasEligibleTarget) return previousCulled.size > 0
 
     const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const targetRoot of modelRoots) {
-      // Não culle uma instância por submalha quando a câmera está dentro do volume
-      // aproximado do próprio modelo; interiores devem continuar visíveis.
-      if (targetRoot.bounds.containsPoint(this.cameraPosition)) continue
-
       for (const target of targetRoot.meshes) {
         if (!this.isEligibleTarget(target, targetRoot.root)) continue
+        // Nunca oculte o próprio volume que contém a câmera. Usar o AABB do
+        // modelo inteiro era demasiado conservador em castelos/edifícios ocos:
+        // a câmera ficava dentro do AABB global e desativava toda a oclusão.
+        if (target.bounds.containsPoint(this.cameraPosition)) continue
         // Malhas fora do volume visível já são ignoradas pelo renderer; não
         // gaste raios de oclusão nelas durante esta avaliação.
         if (!this.frustum.intersectsBox(target.bounds)) continue
@@ -366,31 +377,54 @@ export class ModelOcclusionSystem {
   ): boolean {
     this.rayDirection.copy(target).sub(origin)
     const distance = this.rayDirection.length()
-    if (distance <= MIN_TARGET_DISTANCE + margin) return false
+    if (distance <= MIN_TARGET_DISTANCE) return false
 
-    const maxDistance = distance - margin
     this.rayDirection.multiplyScalar(1 / distance)
     this.raycaster.set(origin, this.rayDirection)
     this.raycaster.near = 0.05
-    this.raycaster.far = maxDistance
+    // Self-occlusion can use a smaller margin because neighboring parts of one
+    // model are commonly close together. External occluders keep the conservative
+    // entry/stay margin used by the original system.
+    this.raycaster.far = distance - Math.min(margin, SELF_OCCLUSION_MARGIN)
 
-    const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
+    const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number; maxDistance: number }> = []
+    // isPointOccluded só é chamado para alvos de modelos importados estáticos.
+    // Permitir outros nós da mesma raiz habilita oclusão entre submalhas do GLB;
+    // a própria malha-alvo continua excluída abaixo.
+    const allowSelfOcclusion = targetRoot.userData.importedModel === true
+
     for (const source of roots) {
-      if (source.root === targetRoot || source.animated || source.meshes.length === 0) continue
-      // Não considerar como obstáculo a geometria que contém a câmera; em interiores
-      // isso evita que a face traseira de uma parede esconda o mundo inteiro.
-      if (source.bounds.containsPoint(origin)) continue
-      const rootEntry = this.raycaster.ray.intersectBox(source.bounds, this.boundsHit)
-      if (!rootEntry) continue
-      const rootEntryDistance = rootEntry.distanceTo(origin)
-      if (rootEntryDistance >= maxDistance) continue
+      const sameRoot = source.root === targetRoot
+      if (source.animated || source.meshes.length === 0) continue
+      // A oclusão entre nós da mesma raiz só vale para modelos importados estáticos;
+      // cada malha-alvo permanece excluída para que ela nunca oculte a si própria.
+      if (sameRoot && !allowSelfOcclusion) continue
+      const maxDistance = distance - (sameRoot ? SELF_OCCLUSION_MARGIN : margin)
+      if (maxDistance <= MIN_TARGET_DISTANCE) continue
+
+      if (!sameRoot) {
+        // Um objeto que contém a câmera não serve de bloqueador: isso evita que
+        // a face traseira de uma parede esconda o mundo visto de dentro.
+        if (source.bounds.containsPoint(origin)) continue
+        const rootEntry = this.raycaster.ray.intersectBox(source.bounds, this.boundsHit)
+        if (!rootEntry) continue
+        const rootEntryDistance = rootEntry.distanceTo(origin)
+        if (rootEntryDistance >= maxDistance) continue
+      }
 
       for (const candidate of source.meshes) {
         if (candidate.mesh === targetMesh || !candidate.opaque) continue
+        // O proxy raiz é transparente e não conta como bloqueador. Para oclusão
+        // própria, use qualquer submalha opaca real (região gerada ou nó original).
+        if (sameRoot && candidate.mesh === targetRoot) continue
+        // Para autoculling, usar também o volume de cada malha (e não o AABB
+        // global do castelo) impede que regiões atrás da câmera funcionem como
+        // bloqueadores fantasmas.
+        if (candidate.bounds.containsPoint(origin)) continue
         const meshEntry = this.raycaster.ray.intersectBox(candidate.bounds, this.boundsHit)
         if (!meshEntry) continue
         const entryDistance = meshEntry.distanceTo(origin)
-        if (entryDistance < maxDistance) candidates.push({ mesh: candidate.mesh, entryDistance })
+        if (entryDistance < maxDistance) candidates.push({ mesh: candidate.mesh, entryDistance, maxDistance })
       }
     }
 
@@ -399,13 +433,14 @@ export class ModelOcclusionSystem {
     // Raycast nas caixas mais próximas primeiro. Depois de encontrar um bloqueio,
     // os candidatos cujos bounds começam atrás dele não precisam testar triângulos.
     candidates.sort((left, right) => left.entryDistance - right.entryDistance)
-    let nearestHitDistance = maxDistance
+    let nearestHitDistance = Number.POSITIVE_INFINITY
     for (const candidate of candidates) {
       if (candidate.entryDistance >= nearestHitDistance) break
+      this.raycaster.far = candidate.maxDistance
       const hit = this.raycaster.intersectObject(candidate.mesh, false)[0]
-      if (hit && hit.distance < nearestHitDistance) nearestHitDistance = hit.distance
+      if (hit && hit.distance < candidate.maxDistance) nearestHitDistance = hit.distance
     }
-    return nearestHitDistance < maxDistance
+    return Number.isFinite(nearestHitDistance)
   }
 
   dispose(): void {
