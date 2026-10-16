@@ -4,10 +4,11 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
+import type { AnimationRole } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
-const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes: ArrayBuffer } | null }>()
+const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole> } | null }>()
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number }]
@@ -44,7 +45,27 @@ const modelDiagnostics = shallowRef<ModelDiagnostic[]>([])
 const diagnosticSummary = ref({ nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 })
 const previewAnimationIndex = ref(0)
 const previewPlaying = ref(true)
+const animationRoles = ref<Record<string, AnimationRole>>({})
 const previewAnimations = computed(() => (model.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [])
+const selectedAnimationRole = computed<AnimationRole>(() => animationRoles.value[String(previewAnimationIndex.value)] ?? 'ignore')
+
+function guessedAnimationRole(name: string): AnimationRole {
+  const normalized = name.toLowerCase().replace(/[\\s._-]+/g, '')
+  if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
+  if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
+  if (/gallop|canter|sprint|running|run/.test(normalized)) return 'run'
+  if (/walk|trot|locomotion|move/.test(normalized)) return 'walk'
+  if (/idle|stand|rest|breath|neutral/.test(normalized)) return 'idle'
+  return 'ignore'
+}
+
+function setSelectedAnimationRole(role: AnimationRole) {
+  const clip = previewAnimations.value[previewAnimationIndex.value]
+  if (!clip) return
+  animationRoles.value = { ...animationRoles.value, [String(previewAnimationIndex.value)]: role }
+  if (model.value) model.value.userData.importAnimationRoles = { ...animationRoles.value }
+}
+
 const textureRepairSelections = ref<Record<string, string>>({})
 const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
@@ -362,6 +383,7 @@ function clearLoadedModel() {
   previewMixer = null
   previewAnimationIndex.value = 0
   previewPlaying.value = true
+  animationRoles.value = {}
   if (model.value) {
     scene?.remove(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
@@ -542,6 +564,16 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   refreshPreviewParts()
   refreshModelDiagnostics()
   const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
+  const savedRoles = loaded.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
+  const nextRoles: Record<string, AnimationRole> = {}
+  ;(clips ?? []).forEach((clip, index) => {
+    const savedRole = savedRoles?.[String(index)]
+    nextRoles[String(index)] = savedRole && ['ignore', 'idle', 'walk', 'run', 'mount', 'dismount'].includes(savedRole)
+      ? savedRole
+      : guessedAnimationRole(clip.name)
+  })
+  animationRoles.value = nextRoles
+  loaded.userData.importAnimationRoles = { ...nextRoles }
   previewAnimationIndex.value = 0
   previewPlaying.value = true
   if (clips?.length) {
@@ -667,6 +699,7 @@ watch(() => props.open, async (open) => {
       loading.value = true
       try {
         const loaded = await parseGlbBytes(props.initialAsset.bytes.slice(0))
+        loaded.userData.importAnimationRoles = props.initialAsset.animationRoles ?? {}
         fileName.value = props.initialAsset.name
         await showLoadedModel(loaded, props.initialAsset.name)
       } catch (e) {
@@ -753,6 +786,7 @@ function confirmImport() {
   imported.userData.importColliderType = colliderType.value
   imported.userData.importColliderSize = [...colliderSize.value]
   imported.userData.importColliderOffset = [...colliderOffset.value]
+  imported.userData.importAnimationRoles = { ...animationRoles.value }
 
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
@@ -831,6 +865,16 @@ onBeforeUnmount(disposePreview)
               <label>ANIMAÇÃO
                 <select :value="previewAnimationIndex" @change="selectPreviewAnimation(Number(($event.target as HTMLSelectElement).value))">
                   <option v-for="(clip, index) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
+                </select>
+              </label>
+              <label>FUNÇÃO DO CLIPE
+                <select :value="selectedAnimationRole" @change="setSelectedAnimationRole(($event.target as HTMLSelectElement).value as AnimationRole)">
+                  <option value="ignore">Não usar</option>
+                  <option value="idle">Parado</option>
+                  <option value="walk">Andar</option>
+                  <option value="run">Correr</option>
+                  <option value="mount">Montar</option>
+                  <option value="dismount">Desmontar</option>
                 </select>
               </label>
               <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
