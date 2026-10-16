@@ -196,6 +196,7 @@ export class HumanoidAvatar {
     let nextY = oldY + this.verticalVelocity * step
 
     // Movimento relativo à orientação horizontal da câmera.
+    let horizontalStepY: number | null = null
     if (length > 0) {
       const direction = new THREE.Vector3(
         sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
@@ -206,7 +207,6 @@ export class HumanoidAvatar {
       const oldX = this.mesh.position.x
       const oldZ = this.mesh.position.z
       const oldFeetY = this.mesh.position.y
-      let horizontalStepY: number | null = null
       this.mesh.position.x = THREE.MathUtils.clamp(oldX + direction.x, -49, 49)
       if (this.collidesWithObjects()) {
         const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, oldZ, oldFeetY) : null
