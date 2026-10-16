@@ -1300,6 +1300,9 @@ export class Engine {
     onProgress?: (message: string, percent: number) => void,
   ): Promise<void> {
     this.runtimeModeActive = false
+    // Os IDs dos pacotes são persistidos. Limpe a assinatura em cache antes de
+    // recarregar um projeto para não confundir o estado visual da cena anterior.
+    this.mountModelStateSignatures.clear()
     const report = (message: string, percent: number) => onProgress?.(message, Math.max(0, Math.min(100, percent)))
     const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
 
@@ -1386,9 +1389,19 @@ export class Engine {
     await this.modelOcclusion.waitForPreparation()
     for (const object of this.world.list()) {
       if (object.mesh.userData.importedModel === true) {
+        // A oclusão restaura o estado anterior das submalhas. As regras visuais
+        // do pacote de montaria precisam ser reaplicadas depois desse último reset.
         this.modelOcclusion.restoreObjectVisibility(object.mesh)
       }
     }
+
+    // A preparação de oclusão pode terminar depois da primeira avaliação dos
+    // pacotes e restaurar a malha do cavaleiro como visível. Reaplique as regras
+    // explicitamente e force o bypass da assinatura para persistir o estado inicial.
+    for (const instance of this.logic.listPackages()) {
+      if (instance.packageId === 'mount') this.applyMountModelStates(instance, true)
+    }
+
     report('Preparando shaders e recursos gráficos…', 98)
     await this.viewport.precompile(this.world.scene, this.orbit.camera)
     report('Mundo carregado.', 100)
