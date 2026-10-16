@@ -225,6 +225,9 @@ export class GrassLayer {
   private renderRebuildRevision = 0
   private lastOcclusionCameraPosition: THREE.Vector3 | null = null
   private lastOcclusionRoots: readonly THREE.Object3D[] = []
+  private cachedOcclusionRoots: readonly THREE.Object3D[] | null = null
+  private cachedOcclusionData: GrassOcclusionData | null = null
+  private occlusionDataDirty = true
   private readonly occludedChunks = new Map<GrassChunk, THREE.Object3D>()
   private readonly occlusionRaycaster = new THREE.Raycaster()
   private readonly occlusionBoundsHit = new THREE.Vector3()
@@ -922,6 +925,16 @@ export class GrassLayer {
     return preparedRoots.length > 0 ? { roots: preparedRoots, ownerByMesh } : null
   }
 
+  private getOcclusionData(roots: readonly THREE.Object3D[]): GrassOcclusionData | null {
+    if (!this.occlusionDataDirty && this.cachedOcclusionRoots === roots) {
+      return this.cachedOcclusionData
+    }
+    this.cachedOcclusionData = this.prepareOcclusionData(roots)
+    this.cachedOcclusionRoots = roots
+    this.occlusionDataDirty = false
+    return this.cachedOcclusionData
+  }
+
   /** Retorna o objeto sólido mais próximo que bloqueia a linha até a ponta da grama. */
   private findOccluderForTarget(
     origin: THREE.Vector3,
@@ -1026,6 +1039,7 @@ export class GrassLayer {
 
   /** Invalida a seleção de chunks ocultos após mover/adicionar/remover objetos. */
   invalidateOcclusion(): void {
+    this.occlusionDataDirty = true
     this.renderDirty = true
   }
 
@@ -1068,7 +1082,7 @@ export class GrassLayer {
 
   private async rebuildDistanceRings(center: THREE.Vector3, revision: number): Promise<void> {
     const cameraOrigin = this.lastOcclusionCameraPosition?.clone() ?? center.clone()
-    const occlusionData = this.prepareOcclusionData(this.lastOcclusionRoots)
+    const occlusionData = this.getOcclusionData(this.lastOcclusionRoots)
     if (!occlusionData) this.occludedChunks.clear()
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
     const modelBuckets = this.renderBands.map(() =>
@@ -1536,6 +1550,7 @@ export class GrassLayer {
     this.lastOcclusionCameraPosition = cameraPosition.clone()
     if (this.lastOcclusionRoots !== occluderRoots) {
       this.lastOcclusionRoots = occluderRoots
+      this.occlusionDataDirty = true
       this.renderDirty = true
     }
 
@@ -1565,6 +1580,9 @@ export class GrassLayer {
     this.renderRebuildRevision += 1
     this.pendingRingCenter = null
     this.occludedChunks.clear()
+    this.cachedOcclusionRoots = null
+    this.cachedOcclusionData = null
+    this.lastOcclusionRoots = []
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
       for (const mesh of band.modelMeshes) mesh?.removeFromParent()
