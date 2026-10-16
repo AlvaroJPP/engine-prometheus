@@ -105,6 +105,25 @@ export class Viewport {
     this.invalidate()
   }
 
+  /**
+   * Compila previamente os programas gráficos que a cena carregada vai usar.
+   * Isso não converte o mundo em uma imagem: câmera, animações e objetos seguem
+   * sendo renderizados normalmente, mas shaders podem deixar de compilar no
+   * primeiro quadro em que aparecem.
+   */
+  async precompile(scene: THREE.Scene, camera: THREE.Camera): Promise<void> {
+    scene.updateMatrixWorld(true)
+    camera.updateMatrixWorld(true)
+    try {
+      await this.renderer.compileAsync(scene, camera)
+    } catch (error) {
+      // Falha na preparação não impede que o projeto abra: o renderer compilará
+      // os materiais sob demanda no fluxo normal.
+      console.warn('[Viewport] Pré-compilação de shaders não concluída.', error)
+    }
+    this.invalidate()
+  }
+
   /** Registra o custo CPU do motor por callback, fora da chamada WebGL render(). */
   recordUpdateDuration(durationMs: number): void {
     if (document.visibilityState === 'hidden' || !Number.isFinite(durationMs) || durationMs < 0) return
