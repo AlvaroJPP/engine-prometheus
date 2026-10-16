@@ -351,6 +351,18 @@ export class HumanoidAvatar {
     return this.mountedRoot ? this.mountedMovementState : null
   }
 
+  /** Aplica alterações de configuração do pacote enquanto o jogador já está montado. */
+  updateMountSettings(settings: MountPackageSettings): void {
+    if (!this.mountedRoot) return
+    this.mountSettings = {
+      interactionKey: settings.interactionKey,
+      seatOffset: [...settings.seatOffset],
+      speed: settings.speed,
+      runMultiplier: settings.runMultiplier,
+      interactionRadius: settings.interactionRadius,
+    }
+  }
+
   /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
   mount(root: THREE.Mesh, settings: MountPackageSettings): boolean {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
