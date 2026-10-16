@@ -44,6 +44,8 @@ const {
   gridVisible,
   polygonLinesVisible,
   performanceMode,
+  grassRenderDistance,
+  grassRenderAll,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
@@ -69,6 +71,8 @@ const {
   toggleGrid,
   togglePolygonLines,
   togglePerformanceMode,
+  setGrassRenderDistance,
+  setGrassRenderAll,
   removeSelected,
   onRename,
   onNumber,
@@ -956,6 +960,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :dirty="dirty"
       :camera-label="cameraLabel"
       :first-person-mode="firstPersonMode"
+      :grass-render-distance="grassRenderDistance"
+      :grass-render-all="grassRenderAll"
+      @grass-render-distance-change="setGrassRenderDistance"
+      @grass-render-all-change="setGrassRenderAll"
       @toggle-first-person="toggleFirstPerson"
       @mark-dirty="markDirty"
       @new-project="newProject"
@@ -1096,7 +1104,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <input v-model.number="brushRadius" type="range" min="0.5" max="12" step="0.5" />
               <div class="slider-row"><span>Densidade</span><b class="mono">{{ brushStrength.toFixed(2) }}</b></div>
               <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.1" />
-              <p class="component-note">A grama pintada é salva junto com o projeto. Limite de 16.000 tufos manuais.</p>
+              <p class="component-note">A grama pintada é salva junto com o projeto. Configure o alcance e a opção Renderizar tudo pelo menu Grama na barra superior.</p>
             </div>
           </section>
 
