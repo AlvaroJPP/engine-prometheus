@@ -28,6 +28,10 @@ export class World {
   private grid = new THREE.GridHelper(100, 100, 0x4a5060, 0x2a2f3a)
   private objects = new Map<string, GameObject>()
   private readonly worldFog = new THREE.Fog(BACKGROUND, 42, 68)
+  private readonly fogNightColor = new THREE.Color(0x080d22)
+  private readonly fogDawnColor = new THREE.Color(0xe58b67)
+  private readonly fogDayColor = new THREE.Color(0x87b9e8)
+  private readonly horizonColor = new THREE.Color()
   private grassOcclusionRootsCache: THREE.Object3D[] | null = null
   private selectedId: string | null = null
   private gridVisible = true
@@ -191,16 +195,16 @@ export class World {
     this.stars.visible = !this.skyTextureDataUrl && daylight < 0.28
     this.moonVisual.visible = !this.skyTextureDataUrl && daylight < 0.32
     this.sunVisual.visible = !this.skyTextureDataUrl && daylight > 0.02
-    const night = new THREE.Color(0x080d22)
-    const dawn = new THREE.Color(0xe58b67)
-    const day = new THREE.Color(0x87b9e8)
-    const horizonColor = daylight < 0.18
-      ? night.lerp(dawn, daylight / 0.18)
-      : dawn.lerp(day, Math.min(1, (daylight - 0.18) / 0.82))
+    // Reaproveita as mesmas cores em cada frame do ciclo dia/noite.
+    if (daylight < 0.18) {
+      this.horizonColor.copy(this.fogNightColor).lerp(this.fogDawnColor, daylight / 0.18)
+    } else {
+      this.horizonColor.copy(this.fogDawnColor).lerp(this.fogDayColor, Math.min(1, (daylight - 0.18) / 0.82))
+    }
     // A neblina usa a mesma cor do horizonte para disfarçar o limite da grama.
     // Com céu em imagem, usamos a paleta de horário como cor de mistura de materiais.
-    this.worldFog.color.copy(horizonColor)
-    if (!this.skyTextureDataUrl) this.scene.background = horizonColor
+    this.worldFog.color.copy(this.horizonColor)
+    if (!this.skyTextureDataUrl) this.scene.background = this.horizonColor
   }
 
   // ---- objetos ----
