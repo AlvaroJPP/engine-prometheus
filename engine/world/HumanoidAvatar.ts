@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
+import type { MountPackageSettings, AnimationRole } from '../script/packages'
 
 const PLAYER_ID = 'player'
 const WALK_SPEED = 4.2
@@ -96,6 +97,9 @@ export class HumanoidAvatar {
   private enabled = true
   private firstPersonMode = false
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
+  private mountedRoot: THREE.Mesh | null = null
+  private mountSettings: MountPackageSettings | null = null
+  private mountedMovementState: 'idle' | 'walk' | 'run' = 'idle'
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
@@ -185,6 +189,13 @@ export class HumanoidAvatar {
     const length = Math.hypot(forwardInput, sideInput)
     const running = this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight')
     const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
+
+    // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
+    if (this.mountedRoot && this.mountSettings) {
+      this.updateMountedMovement(step, forwardInput, sideInput, running)
+      this.updateCollisionEvents()
+      return
+    }
 
     if (this.pressed.has('Space') && this.grounded) {
       this.verticalVelocity = JUMP_SPEED
@@ -322,6 +333,204 @@ export class HumanoidAvatar {
       this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
       this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.12)
     }
+  }
+
+  isMounted(): boolean {
+    return this.mountedRoot !== null
+  }
+
+  getMountedObjectId(): string | null {
+    const id = this.mountedRoot?.userData.id
+    return typeof id === 'string' ? id : null
+  }
+
+  /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
+  mount(root: THREE.Mesh, settings: MountPackageSettings): boolean {
+    if (!this.enabled || this.mountedRoot || !root.visible || root.userData.colliderType === 'none') return false
+
+    this.mountedRoot = root
+    this.mountSettings = {
+      interactionKey: settings.interactionKey,
+      seatOffset: [...settings.seatOffset],
+      speed: settings.speed,
+      runMultiplier: settings.runMultiplier,
+      interactionRadius: settings.interactionRadius,
+    }
+    this.mountedMovementState = 'idle'
+    this.visualRoot.visible = false
+    root.updateWorldMatrix(true, true)
+    this.placeAvatarAtMountSeat()
+    this.playMountAnimation(root, 'mount', true)
+    if (!root.userData.importAnimationActions ||
+        !(root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>>).mount) {
+      this.playMountAnimation(root, 'idle')
+    }
+    this.verticalVelocity = 0
+    this.grounded = true
+    this.pressed.clear()
+    return true
+  }
+
+  /** Desvincula o jogador e o posiciona junto ao lado livre da montaria. */
+  dismount(): string | null {
+    const root = this.mountedRoot
+    if (!root) return null
+
+    const rootId = typeof root.userData.id === 'string' ? root.userData.id : null
+    root.updateWorldMatrix(true, true)
+    this.playMountAnimation(root, 'dismount', true)
+
+    const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
+    const halfWidth = Math.max(0.45, bounds.getSize(new THREE.Vector3()).x * 0.5)
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion).setY(0).normalize()
+    if (side.lengthSq() < 1e-8) side.set(1, 0, 0)
+    const candidates = [
+      root.position.clone().addScaledVector(side, halfWidth + PLAYER_RADIUS + 0.4),
+      root.position.clone().addScaledVector(side, -(halfWidth + PLAYER_RADIUS + 0.4)),
+      root.position.clone().add(new THREE.Vector3(0, 0, halfWidth + PLAYER_RADIUS + 0.4)),
+      root.position.clone().add(new THREE.Vector3(0, 0, -(halfWidth + PLAYER_RADIUS + 0.4))),
+    ]
+
+    this.mountedRoot = null
+    this.mountSettings = null
+    this.mountedMovementState = 'idle'
+    this.visualRoot.visible = true
+    this.pressed.clear()
+    let placed = false
+
+    for (const candidate of candidates) {
+      const x = THREE.MathUtils.clamp(candidate.x, -49, 49)
+      const z = THREE.MathUtils.clamp(candidate.z, -49, 49)
+      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      this.mesh.updateMatrixWorld(true)
+      if (!this.collidesWithObjects()) {
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      const x = THREE.MathUtils.clamp(root.position.x + halfWidth + PLAYER_RADIUS + 0.5, -49, 49)
+      const z = THREE.MathUtils.clamp(root.position.z, -49, 49)
+      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      this.mesh.updateMatrixWorld(true)
+    }
+    this.verticalVelocity = 0
+    this.grounded = true
+    this.activeCollisions.clear()
+    this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + 1, this.mesh.position.z)
+    this.playAnimation('idle')
+    return rootId
+  }
+
+  private placeAvatarAtMountSeat(): void {
+    const root = this.mountedRoot
+    const settings = this.mountSettings
+    if (!root || !settings) return
+    root.updateWorldMatrix(true, true)
+    const seat = root.localToWorld(new THREE.Vector3(...settings.seatOffset))
+    this.mesh.position.copy(seat)
+    this.mesh.updateMatrixWorld(true)
+    this.cameraTarget.set(seat.x, seat.y + 0.9, seat.z)
+  }
+
+  private playMountAnimation(root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
+    const actions = root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+    if (!actions) return
+    const transition = root.userData.importAnimationTransition as AnimationRole | undefined
+    const transitionAction = transition ? actions[transition] : undefined
+    if (transitionAction?.isRunning()) return
+
+    const next = actions[role]
+      ?? (role === 'run' ? actions.walk : undefined)
+      ?? (role === 'walk' || role === 'run' ? actions.idle : undefined)
+    if (!next) return
+
+    const currentRole = root.userData.importAnimationState as AnimationRole | undefined
+    const current = currentRole ? actions[currentRole] : undefined
+    if (current === next && next.isRunning()) return
+
+    if (oneShot) {
+      next.setLoop(THREE.LoopOnce, 1)
+      next.clampWhenFinished = true
+      root.userData.importAnimationTransition = role
+    } else {
+      next.setLoop(THREE.LoopRepeat, Infinity)
+      next.clampWhenFinished = false
+      root.userData.importAnimationTransition = undefined
+    }
+    next.reset().fadeIn(0.15).play()
+    for (const action of Object.values(actions)) {
+      if (action && action !== next && action.isRunning()) action.fadeOut(0.15)
+    }
+    root.userData.importAnimationState = role
+  }
+
+  private updateMountedMovement(
+    dt: number,
+    forwardInput: number,
+    sideInput: number,
+    running: boolean,
+  ): void {
+    const root = this.mountedRoot
+    const settings = this.mountSettings
+    if (!root || !settings) return
+
+    const length = Math.hypot(forwardInput, sideInput)
+    let state: 'idle' | 'walk' | 'run' = 'idle'
+    if (length > 0) {
+      const direction = new THREE.Vector3(
+        sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
+        0,
+        -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
+      ).normalize()
+      const speed = settings.speed * (running ? settings.runMultiplier : 1)
+      direction.multiplyScalar(speed * dt)
+      const moveAxis = (axis: 'x' | 'z', delta: number): void => {
+        if (Math.abs(delta) < 1e-8) return
+        const origin = root.position[axis]
+        const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
+        const count = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
+        let lastSafe = origin
+
+        for (let step = 1; step <= count; step += 1) {
+          root.position[axis] = THREE.MathUtils.clamp(origin + delta * step / count, -49, 49)
+          root.updateMatrixWorld(true)
+          const mountBounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
+          let blocked = false
+          for (const object of this.world.list()) {
+            if (object.mesh === root || !object.mesh.visible) continue
+            const otherBounds = getColliderBounds(object.mesh)
+            if (otherBounds && mountBounds.intersectsBox(otherBounds)) {
+              blocked = true
+              break
+            }
+          }
+          if (!blocked) {
+            lastSafe = root.position[axis]
+            continue
+          }
+          root.position[axis] = lastSafe
+          root.updateMatrixWorld(true)
+          break
+        }
+      }
+      moveAxis('x', direction.x)
+      moveAxis('z', direction.z)
+      root.rotation.y = Math.atan2(direction.x, direction.z)
+      state = running ? 'run' : 'walk'
+      this.world.notifyChanged(this.getMountedObjectId() ?? '')
+    }
+
+    const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
+    const halfHeight = Math.max(0.2, bounds.getSize(new THREE.Vector3()).y * 0.5)
+    root.position.y = this.world.terrain.heightAt(root.position.x, root.position.z) + halfHeight
+    root.updateMatrixWorld(true)
+    this.placeAvatarAtMountSeat()
+    this.playMountAnimation(root, state)
+    this.mountedMovementState = state
+    this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
+    this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
+    this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
   }
 
   setFirstPersonMode(enabled: boolean): void {
