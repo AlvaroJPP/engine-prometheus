@@ -21,6 +21,8 @@ import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
+import { getMountPackageSettings } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance } from './script/packages'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
@@ -40,6 +42,7 @@ export class Engine {
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
+  private activeMountPackageId: string | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
@@ -163,6 +166,28 @@ export class Engine {
   /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
   listRules(): LogicRule[] { return this.logic.list() }
+  listBehaviorPackages(ownerObjectId?: string): BehaviorPackageInstance[] { return this.logic.listPackages(ownerObjectId) }
+  installBehaviorPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance {
+    const instance = this.logic.installPackage(ownerObjectId, packageId)
+    this.world.notifyChanged(ownerObjectId)
+    return instance
+  }
+  updateBehaviorPackage(
+    id: string,
+    patch: Partial<Pick<BehaviorPackageInstance, 'enabled' | 'variables' | 'config'>>,
+  ): void {
+    this.logic.updatePackage(id, patch)
+    const instance = this.logic.listPackages().find(item => item.id === id)
+    if (instance) this.world.notifyChanged(instance.ownerObjectId)
+  }
+  removeBehaviorPackage(id: string): void {
+    if (this.activeMountPackageId === id) {
+      this.avatar.dismount()
+      this.logic.setPackageVariable(id, 'mounted', false)
+      this.activeMountPackageId = null
+    }
+    this.logic.removePackage(id)
+  }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
   moveRule(id: string, direction: -1 | 1): void { this.logic.move(id, direction) }
@@ -257,6 +282,11 @@ export class Engine {
     }
 
     this.input.setRuntimeMode(false)
+    if (this.avatar.isMounted()) {
+      this.avatar.dismount()
+      if (this.activeMountPackageId) this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
+      this.activeMountPackageId = null
+    }
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = false
     this.avatar.setFirstPersonMode(false)
@@ -348,7 +378,50 @@ export class Engine {
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
 
-    // Dispara os gatilhos de tecla definidos nas regras do projeto.
+    // Montaria é um pacote de comportamento comum, configurado por objeto.
+    // A tecla é lida da instância instalada; nenhum nome de espécie é necessário.
+    if (this.avatar.isMounted()) {
+      const packageInstance = this.activeMountPackageId
+        ? this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
+        : undefined
+      const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
+      if (event.code === interactionKey) {
+        this.avatar.dismount()
+        if (packageInstance) this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
+        this.activeMountPackageId = null
+        event.preventDefault()
+        return
+      }
+    } else {
+      const playerPosition = this.avatar.mesh.position
+      const candidates = this.logic.listPackages()
+        .filter(instance => instance.enabled && instance.packageId === 'mount')
+        .map(instance => {
+          const object = this.world.get(instance.ownerObjectId)
+          const settings = getMountPackageSettings(instance)
+          const distance = object
+            ? Math.hypot(object.mesh.position.x - playerPosition.x, object.mesh.position.z - playerPosition.z)
+            : Number.POSITIVE_INFINITY
+          return { instance, object, settings, distance }
+        })
+        .filter(candidate =>
+          candidate.object?.mesh.visible &&
+          event.code === candidate.settings.interactionKey &&
+          candidate.distance <= candidate.settings.interactionRadius,
+        )
+        .sort((a, b) => a.distance - b.distance)
+
+      for (const candidate of candidates) {
+        if (!candidate.object) continue
+        if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
+        this.activeMountPackageId = candidate.instance.id
+        this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
+        event.preventDefault()
+        return
+      }
+    }
+
+    // Mantém o sistema de eventos existente funcionando para as outras teclas.
     const executed = this.logic.triggerKeyPressed(event.code)
     if (executed) event.preventDefault()
   }
@@ -610,21 +683,36 @@ export class Engine {
     // comparação textual removia animações válidas em alguns rigs/exportadores.
     // Só uma animação toca por vez para evitar que idle/walk/run briguem pelos ossos.
     const animationClips = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const explicitRoles = model.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
     const idleClip = animationClips.find((clip) => /idle|stand|rest|breath|neutral/i.test(clip.name))
       ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
-    const animationActions: Partial<Record<'idle' | 'walk' | 'run', THREE.AnimationAction>> = {}
+    const animationActions: Partial<Record<'idle' | 'walk' | 'run' | 'mount' | 'dismount', THREE.AnimationAction>> = {}
     if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
-      for (const clip of animationClips) {
+      animationClips.forEach((clip, index) => {
         const normalizedName = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
-        const state = /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
-          : /gallop|canter|run|sprint/.test(normalizedName) ? 'run'
-            : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : null
-        if (state && !animationActions[state]) animationActions[state] = animationMixer.clipAction(clip)
+        const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
+          : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
+            : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
+              : /gallop|canter|run|sprint/.test(normalizedName) ? 'run'
+                : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
+        const role = explicitRoles?.[String(index)] ?? guessed
+        if (role === 'ignore') return
+        if (role in { idle: true, walk: true, run: true, mount: true, dismount: true }) {
+          const key = role as 'idle' | 'walk' | 'run' | 'mount' | 'dismount'
+          if (!animationActions[key]) animationActions[key] = animationMixer!.clipAction(clip)
+        }
+      })
+      if (!animationActions.idle && idleClip) {
+        const idleIndex = animationClips.indexOf(idleClip)
+        if (!explicitRoles || explicitRoles[String(idleIndex)] === undefined) {
+          animationActions.idle = animationMixer.clipAction(idleClip)
+        }
       }
-      if (!animationActions.idle && idleClip) animationActions.idle = animationMixer.clipAction(idleClip)
-      const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run ?? animationMixer.clipAction(animationClips[0]!)
+      const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run
+        ?? animationActions.mount ?? animationActions.dismount
+        ?? animationMixer.clipAction(animationClips[0]!)
       initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
       console.info('[Engine] Animações do componente:', {
         name,
@@ -712,6 +800,7 @@ export class Engine {
       root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
     }
     root.userData.importedModel = true
+    root.userData.importAnimationRoles = explicitRoles ? { ...explicitRoles } : undefined
     const componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : null
     const componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
     if (model.userData.sceneKind === 'entity') {
@@ -913,6 +1002,7 @@ export class Engine {
         // O nome visível fica no proxy; preservar o nome do nó glTF mantém os bindings de animação.
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
+        model.userData.importAnimationRoles = data.importAnimationRoles ?? {}
         model.userData.componentId = data.componentId
         model.userData.sceneKind = data.sceneKind === 'entity' ? 'entity' : 'object'
         model.userData.importedModelData = data.importedModelData
