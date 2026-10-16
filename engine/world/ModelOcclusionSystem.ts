@@ -95,7 +95,15 @@ export class ModelOcclusionSystem {
       || !this.lastProjectionMatrix.equals(camera.projectionMatrix)
 
     if (!this.dirty && !cameraMoved && !cameraRotated && !projectionChanged) return false
-    if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) return false
+    if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) {
+      // Não mantenha partes ocultas com base na posição antiga da câmera ou
+      // numa geometria que acabou de mudar. Mostre temporariamente tudo e
+      // reavalie quando o intervalo mínimo permitir.
+      const hadCulledMeshes = this.culledMeshes.size > 0
+      if (hadCulledMeshes) this.restoreCulledMeshes()
+      this.dirty = true
+      return hadCulledMeshes
+    }
 
     const previousCulled = new Set(this.culledMeshes.keys())
     this.restoreCulledMeshes()
