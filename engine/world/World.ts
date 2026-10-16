@@ -10,6 +10,8 @@ import { DEFAULT_SEED } from './worldGeneration/Heightfield'
 import { clamp } from '../lib/math'
 import { reserveId } from '../lib/id'
 import type { ObjectType, TerrainData } from '../project/format'
+import { getEntity as toEntity } from '../model/entity/Entity'
+import type { Entity } from '../model/entity/Entity'
 
 export interface TerrainInfo {
   visible: boolean
@@ -379,6 +381,26 @@ export class World {
 
   list(): GameObject[] {
     return [...this.objects.values()]
+  }
+
+  /** Retorna uma entidade pelo ID apenas quando o elemento foi declarado como entity. */
+  getEntity(id: string): Entity | null {
+    return toEntity(this.objects.get(id))
+  }
+
+  /** Lista entidades de primeira classe sem duplicar nem separar suas raízes visuais do World. */
+  listEntities(): Entity[] {
+    const entities: Entity[] = []
+    for (const object of this.objects.values()) {
+      const entity = toEntity(object)
+      if (entity) entities.push(entity)
+    }
+    return entities
+  }
+
+  /** Atalho semântico para código de gameplay que precisa iterar entidades. */
+  hasEntity(id: string): boolean {
+    return this.getEntity(id) !== null
   }
 
   info(): ObjectInfo[] {
