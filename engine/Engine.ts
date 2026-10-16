@@ -825,7 +825,10 @@ export class Engine {
         ? geometries.index.count / 3
         : position.count / 3
       const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material]
-      const materials = sourceMaterials.map((material) => {
+      const materials: THREE.Material[] = sourceMaterials.map((material) => {
+        // GLTFs válidos costumam definir material, mas meshes sem material podem
+        // aparecer em arquivos exportados por ferramentas externas.
+        if (!(material instanceof THREE.Material)) return new THREE.MeshStandardMaterial()
         let clone = clonedMaterials.get(material)
         if (!clone) {
           clone = material.clone()
@@ -1167,11 +1170,13 @@ export class Engine {
     let current: THREE.Object3D | null = node
     while (current && current !== root) {
       const label = current.name.trim() || current.type
-      const parent = current.parent
-      const siblings = parent?.children.filter(sibling => (sibling.name.trim() || sibling.type) === label) ?? []
+      const parentNode: THREE.Object3D | null = current.parent
+      const siblings: THREE.Object3D[] = parentNode?.children.filter(
+        (sibling: THREE.Object3D) => (sibling.name.trim() || sibling.type) === label,
+      ) ?? []
       const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
       segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
-      current = parent
+      current = parentNode
     }
     return segments.join('/')
   }
