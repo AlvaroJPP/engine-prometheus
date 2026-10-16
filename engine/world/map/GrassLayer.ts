@@ -8,7 +8,7 @@ const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
 // Os chunks mantêm apenas os dados espaciais. A renderização usa malhas globais
 // agrupadas por anéis concêntricos de distância da câmera.
-const CHUNK_SIZE = 20
+const CHUNK_SIZE = 10
 const CHUNKS_PER_AXIS = (WORLD_HALF * 2) / CHUNK_SIZE
 const GRASS_NEAR_DISTANCE = 18
 const GRASS_MIDDLE_DISTANCE = 42
@@ -21,6 +21,13 @@ const PAINTED_GRASS_SPACING = 0.17
 const PAINTED_GRASS_BUCKET_SIZE = 1
 const PAINTED_GRASS_PER_AREA = 12
 const PAINTED_GRASS_MODEL_HEIGHT = 0.55
+// Oclusão conservadora por chunk: todos os pontos precisam estar bloqueados
+// pelo mesmo objeto sólido antes de remover a vegetação do conjunto de instâncias.
+const GRASS_OCCLUSION_ENTER_MARGIN = 1.25
+const GRASS_OCCLUSION_STAY_MARGIN = 0.35
+const GRASS_OCCLUSION_RELEASE_MISSES = 2
+const GRASS_OCCLUSION_SAMPLE_OFFSETS = [0.15, 0.5, 0.85] as const
+const GRASS_OCCLUSION_SAMPLE_HEIGHTS = [0.08, 0.62] as const
 const GRASS_MODEL_URL = grassModelUrl
 
 export type PaintedGrassTuft = [x: number, z: number, scale: number, color: number]
@@ -48,6 +55,22 @@ interface GrassChunk {
   row: number
   procedural: GrassInstance[]
   painted: PaintedGrassTuft[]
+}
+
+interface GrassOcclusionMesh {
+  mesh: THREE.Mesh
+  bounds: THREE.Box3
+}
+
+interface GrassOcclusionRoot {
+  root: THREE.Object3D
+  bounds: THREE.Box3
+  meshes: GrassOcclusionMesh[]
+}
+
+interface GrassOcclusionData {
+  roots: GrassOcclusionRoot[]
+  ownerByMesh: Map<THREE.Mesh, THREE.Object3D>
 }
 
 type GrassBandName = 'near' | 'middle' | 'far'
@@ -200,6 +223,17 @@ export class GrassLayer {
   private renderRebuildInProgress = false
   private pendingRingCenter: THREE.Vector3 | null = null
   private renderRebuildRevision = 0
+  private lastOcclusionCameraPosition: THREE.Vector3 | null = null
+  private lastOcclusionRebuildCameraPosition: THREE.Vector3 | null = null
+  private lastOcclusionRoots: readonly THREE.Object3D[] = []
+  private cachedOcclusionRoots: readonly THREE.Object3D[] | null = null
+  private cachedOcclusionData: GrassOcclusionData | null = null
+  private occlusionDataDirty = true
+  private readonly occludedChunks = new Map<GrassChunk, THREE.Object3D>()
+  private readonly occlusionRaycaster = new THREE.Raycaster()
+  private readonly occlusionBoundsHit = new THREE.Vector3()
+  private readonly occlusionDirection = new THREE.Vector3()
+  private readonly occlusionTarget = new THREE.Vector3()
   private readonly windUniforms = {
     uGrassTime: { value: 0 },
     uGrassWindStrength: { value: 0.11 },
@@ -832,6 +866,184 @@ export class GrassLayer {
     ) >>> 0
   }
 
+  /**
+   * Reúne somente malhas opacas e estáticas como possíveis bloqueadores.
+   * Materiais transparentes, alpha-tested, overlays e malhas esqueléticas são
+   * excluídos para não esconder grama por causa de folhagem vazada ou animações.
+   */
+  private prepareOcclusionData(roots: readonly THREE.Object3D[]): GrassOcclusionData | null {
+    if (roots.length === 0) return null
+    const preparedRoots: GrassOcclusionRoot[] = []
+    const ownerByMesh = new Map<THREE.Mesh, THREE.Object3D>()
+
+    const isOpaqueMaterial = (material: THREE.Material): boolean => {
+      const extended = material as THREE.Material & { alphaTest?: number; colorWrite?: boolean }
+      return material.visible
+        && !material.transparent
+        && material.opacity >= 0.98
+        && material.depthWrite
+        && (extended.alphaTest ?? 0) <= 0
+        && extended.colorWrite !== false
+    }
+
+    for (const root of roots) {
+      if (!root.visible || root.userData.importAnimationMixer) continue
+      root.updateWorldMatrix(true, true)
+      const meshes: GrassOcclusionMesh[] = []
+      const rootBounds = new THREE.Box3()
+
+      const visit = (node: THREE.Object3D): void => {
+        if (!node.visible) return
+        if (
+          node instanceof THREE.Mesh
+          && !(node instanceof THREE.SkinnedMesh)
+          && node.userData.editorOverlay !== true
+          && node.geometry.getAttribute('position')
+        ) {
+          const materials = Array.isArray(node.material) ? node.material : [node.material]
+          if (materials.length > 0 && materials.every(isOpaqueMaterial)) {
+            if (!node.geometry.boundingBox) node.geometry.computeBoundingBox()
+            const localBounds = node.geometry.boundingBox
+            if (localBounds && !localBounds.isEmpty()) {
+              const bounds = localBounds.clone().applyMatrix4(node.matrixWorld)
+              if (!bounds.isEmpty()) {
+                meshes.push({ mesh: node, bounds })
+                rootBounds.union(bounds)
+                ownerByMesh.set(node, root)
+              }
+            }
+          }
+        }
+        for (const child of node.children) visit(child)
+      }
+
+      visit(root)
+      if (meshes.length > 0 && !rootBounds.isEmpty()) {
+        preparedRoots.push({ root, bounds: rootBounds, meshes })
+      }
+    }
+
+    return preparedRoots.length > 0 ? { roots: preparedRoots, ownerByMesh } : null
+  }
+
+  private getOcclusionData(roots: readonly THREE.Object3D[]): GrassOcclusionData | null {
+    if (!this.occlusionDataDirty && this.cachedOcclusionRoots === roots) {
+      return this.cachedOcclusionData
+    }
+    this.cachedOcclusionData = this.prepareOcclusionData(roots)
+    this.cachedOcclusionRoots = roots
+    this.occlusionDataDirty = false
+    return this.cachedOcclusionData
+  }
+
+  /** Retorna o objeto sólido mais próximo que bloqueia a linha até a ponta da grama. */
+  private findOccluderForTarget(
+    origin: THREE.Vector3,
+    target: THREE.Vector3,
+    data: GrassOcclusionData,
+    margin: number,
+  ): THREE.Object3D | null {
+    const direction = this.occlusionDirection.copy(target).sub(origin)
+    const targetDistance = direction.length()
+    const maxDistance = targetDistance - margin
+    if (maxDistance <= 0.15) return null
+    direction.multiplyScalar(1 / targetDistance)
+    this.occlusionRaycaster.set(origin, direction)
+    this.occlusionRaycaster.near = 0.05
+    this.occlusionRaycaster.far = maxDistance
+
+    const candidates: THREE.Mesh[] = []
+    for (const source of data.roots) {
+      // Não usar a caixa de um objeto que contém a própria câmera como bloqueador:
+      // em interiores isso causaria o desaparecimento de toda a vegetação ao redor.
+      if (source.bounds.containsPoint(origin)) continue
+      const rootEntry = this.occlusionRaycaster.ray.intersectBox(source.bounds, this.occlusionBoundsHit)
+      if (!rootEntry || rootEntry.distanceTo(origin) >= maxDistance) continue
+
+      for (const candidate of source.meshes) {
+        const meshEntry = this.occlusionRaycaster.ray.intersectBox(candidate.bounds, this.occlusionBoundsHit)
+        if (meshEntry && meshEntry.distanceTo(origin) < maxDistance) candidates.push(candidate.mesh)
+      }
+    }
+    if (candidates.length === 0) return null
+    const nearestHit = this.occlusionRaycaster.intersectObjects(candidates, false)[0]
+    if (!nearestHit) return null
+    return data.ownerByMesh.get(nearestHit.object as THREE.Mesh) ?? null
+  }
+
+  /**
+   * Um chunk de 10x10 só entra em oclusão se 18 amostras (grade 3x3, base e ponta)
+   * estiverem atrás do mesmo objeto sólido. O estado anterior tem uma pequena
+   * tolerância para evitar piscar quando a câmera passa pela borda do bloqueador.
+   */
+  private isChunkOccluded(
+    chunk: GrassChunk,
+    cameraPosition: THREE.Vector3,
+    renderCenter: THREE.Vector3,
+    data: GrassOcclusionData,
+  ): boolean {
+    const minX = -WORLD_HALF + chunk.column * CHUNK_SIZE
+    const minZ = -WORLD_HALF + chunk.row * CHUNK_SIZE
+    const maxX = minX + CHUNK_SIZE
+    const maxZ = minZ + CHUNK_SIZE
+    const cameraInsideChunk = cameraPosition.x >= minX - 1.5
+      && cameraPosition.x <= maxX + 1.5
+      && cameraPosition.z >= minZ - 1.5
+      && cameraPosition.z <= maxZ + 1.5
+    const centerInsideChunk = renderCenter.x >= minX
+      && renderCenter.x <= maxX
+      && renderCenter.z >= minZ
+      && renderCenter.z <= maxZ
+    if (cameraInsideChunk || centerInsideChunk) {
+      this.occludedChunks.delete(chunk)
+      return false
+    }
+
+    const previousOwner = this.occludedChunks.get(chunk) ?? null
+    const margin = previousOwner ? GRASS_OCCLUSION_STAY_MARGIN : GRASS_OCCLUSION_ENTER_MARGIN
+    let candidateOwner = previousOwner
+    let misses = 0
+
+    for (const offsetX of GRASS_OCCLUSION_SAMPLE_OFFSETS) {
+      for (const offsetZ of GRASS_OCCLUSION_SAMPLE_OFFSETS) {
+        const x = minX + CHUNK_SIZE * offsetX
+        const z = minZ + CHUNK_SIZE * offsetZ
+        const groundY = this.field.sample(x, z)
+        for (const height of GRASS_OCCLUSION_SAMPLE_HEIGHTS) {
+          this.occlusionTarget.set(x, groundY + height, z)
+          const owner = this.findOccluderForTarget(cameraPosition, this.occlusionTarget, data, margin)
+          if (!owner || (candidateOwner && owner !== candidateOwner)) {
+            if (!previousOwner) return false
+            misses += 1
+            if (misses > GRASS_OCCLUSION_RELEASE_MISSES) {
+              this.occludedChunks.delete(chunk)
+              return false
+            }
+          } else {
+            candidateOwner ??= owner
+          }
+        }
+      }
+    }
+
+    if (previousOwner) {
+      if (misses <= GRASS_OCCLUSION_RELEASE_MISSES) return true
+      this.occludedChunks.delete(chunk)
+      return false
+    }
+    if (candidateOwner && misses === 0) {
+      this.occludedChunks.set(chunk, candidateOwner)
+      return true
+    }
+    return false
+  }
+
+  /** Invalida a seleção de chunks ocultos após mover/adicionar/remover objetos. */
+  invalidateOcclusion(): void {
+    this.occlusionDataDirty = true
+    this.renderDirty = true
+  }
+
   private shouldCancelRenderRebuild(revision: number): boolean {
     return this.disposed || this.loadingPainted || revision !== this.renderRebuildRevision
   }
@@ -870,6 +1082,9 @@ export class GrassLayer {
   }
 
   private async rebuildDistanceRings(center: THREE.Vector3, revision: number): Promise<void> {
+    const cameraOrigin = this.lastOcclusionCameraPosition?.clone() ?? center.clone()
+    const occlusionData = this.getOcclusionData(this.lastOcclusionRoots)
+    if (!occlusionData) this.occludedChunks.clear()
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
     const modelBuckets = this.renderBands.map(() =>
       this.modelParts.map(() => [] as GrassInstance[]),
@@ -877,6 +1092,14 @@ export class GrassLayer {
     let processed = 0
 
     for (const chunk of this.chunks) {
+      if (
+        occlusionData
+        && (chunk.procedural.length > 0 || chunk.painted.length > 0)
+        && this.isChunkOccluded(chunk, cameraOrigin, center, occlusionData)
+      ) {
+        // Nenhum tufo desse chunk será incluído nas malhas GPU desta reconstrução.
+        continue
+      }
       for (const instance of chunk.procedural) {
         const bandIndex = this.distanceBandIndex(instance.x, instance.z, center)
         if (bandIndex >= 0) {
@@ -1315,11 +1538,25 @@ export class GrassLayer {
   }
 
   /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */
-  updateVisibility(cameraPosition: THREE.Vector3, playerPosition: THREE.Vector3 | null = null): void {
+  updateVisibility(
+    cameraPosition: THREE.Vector3,
+    playerPosition: THREE.Vector3 | null = null,
+    occluderRoots: readonly THREE.Object3D[] = [],
+  ): void {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
     else this.windUniforms.uGrassPlayerPosition.value.set(100000, 0, 100000)
 
     if (this.loadingPainted) return
+
+    const cameraMoved = !this.lastOcclusionRebuildCameraPosition
+      || this.lastOcclusionRebuildCameraPosition.distanceToSquared(cameraPosition)
+        >= GRASS_RING_REBUILD_DISTANCE * GRASS_RING_REBUILD_DISTANCE
+    this.lastOcclusionCameraPosition = cameraPosition.clone()
+    if (this.lastOcclusionRoots !== occluderRoots) {
+      this.lastOcclusionRoots = occluderRoots
+      this.occlusionDataDirty = true
+      this.renderDirty = true
+    }
 
     const renderCenter = playerPosition ?? cameraPosition
     const centerMoved = !this.lastRingCenter ||
@@ -1329,7 +1566,8 @@ export class GrassLayer {
       ) >= GRASS_RING_REBUILD_DISTANCE
 
     if (centerMoved) this.lastRingCenter = renderCenter.clone()
-    if (centerMoved || this.renderDirty) {
+    if (centerMoved || cameraMoved || this.renderDirty) {
+      this.lastOcclusionRebuildCameraPosition = cameraPosition.clone()
       this.queueDistanceRingRebuild(this.lastRingCenter ?? renderCenter)
     }
   }
@@ -1346,6 +1584,12 @@ export class GrassLayer {
     this.disposed = true
     this.renderRebuildRevision += 1
     this.pendingRingCenter = null
+    this.occludedChunks.clear()
+    this.cachedOcclusionRoots = null
+    this.cachedOcclusionData = null
+    this.lastOcclusionRoots = []
+    this.lastOcclusionCameraPosition = null
+    this.lastOcclusionRebuildCameraPosition = null
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
       for (const mesh of band.modelMeshes) mesh?.removeFromParent()

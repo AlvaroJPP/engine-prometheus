@@ -202,6 +202,7 @@ export class Engine {
       this.world.terrain.grass.updateVisibility(
         this.orbit.camera.position,
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
+        this.world.grassOcclusionRoots(),
       )
       this.viewport.renderer.render(this.world.scene, this.orbit.camera)
     })
