@@ -99,6 +99,7 @@ export class HumanoidAvatar {
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
+  private mountedMovementState: 'idle' | 'walk' | 'run' = 'idle'
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -346,6 +347,10 @@ export class HumanoidAvatar {
     return typeof id === 'string' ? id : null
   }
 
+  getMountedMovementState(): 'idle' | 'walk' | 'run' | null {
+    return this.mountedRoot ? this.mountedMovementState : null
+  }
+
   /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
   mount(root: THREE.Mesh, settings: MountPackageSettings): boolean {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
@@ -353,6 +358,7 @@ export class HumanoidAvatar {
     this.mountedRoot = root
     this.mountedStartPosition = root.position.clone()
     this.mountedStartRotation = root.rotation.clone()
+    this.mountedMovementState = 'idle'
     this.mountSettings = {
       interactionKey: settings.interactionKey,
       seatOffset: [...settings.seatOffset],
@@ -405,6 +411,7 @@ export class HumanoidAvatar {
 
     this.mountedRoot = null
     this.mountSettings = null
+    this.mountedMovementState = 'idle'
     this.mountedStartPosition = null
     this.mountedStartRotation = null
     this.visualRoot.visible = true
@@ -577,6 +584,7 @@ export class HumanoidAvatar {
     root.position.y = this.world.terrain.heightAt(root.position.x, root.position.z) + halfHeight
     root.updateMatrixWorld(true)
     this.placeAvatarAtMountSeat()
+    this.mountedMovementState = state
     this.playMountAnimation(root, state)
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
