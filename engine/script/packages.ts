@@ -70,6 +70,14 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
         readOnly: true,
       },
       {
+        name: 'movementState',
+        label: 'Estado do movimento',
+        type: 'string',
+        defaultValue: 'idle',
+        description: 'Parado, andando ou correndo; pode ser usado como condição em regras deste pacote.',
+        readOnly: true,
+      },
+      {
         name: 'speed',
         label: 'Velocidade base',
         type: 'number',
