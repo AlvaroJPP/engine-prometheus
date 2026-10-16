@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
-import { ENGINE_VERSION, TERRAIN_ID } from '@engine'
+import { ENGINE_VERSION, TERRAIN_ID, markEntity } from '@engine'
 import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 import EditorTopBar from '@/components/EditorTopBar.vue'
@@ -697,9 +697,18 @@ async function placeSavedComponent(id: string) {
     const sourceSize = sourceBounds.getSize(new THREE.Vector3())
     if (sourceBounds.isEmpty() || sourceSize.y <= 0) throw new Error('O componente não contém dimensões válidas.')
     model.userData.importPart = true
-    model.userData.sceneKind = component.kind ?? 'object'
-    model.userData.componentId = component.id
-    model.userData.componentLogic = component.logic ?? []
+    if (component.kind === 'entity') {
+      // A biblioteca declara a semântica. O GLB é marcado como entidade genérica
+      // antes de entrar no World; o Engine transfere esses metadados para a raiz.
+      markEntity(model, {
+        componentId: component.id,
+        componentLogic: component.logic ?? [],
+      })
+    } else {
+      model.userData.sceneKind = 'object'
+      model.userData.componentId = component.id
+      model.userData.componentLogic = component.logic ?? []
+    }
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
     model.userData.importedModelHeight = component.height
     model.userData.importColliderType = component.colliderType
