@@ -14,10 +14,12 @@ import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
 import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
+import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
+import { ModelLodSystem } from './world/ModelLodSystem'
 import { partitionLargeStaticMeshes } from './world/model/StaticModelPartitioner'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
@@ -34,6 +36,7 @@ export class Engine {
   readonly world = new World()
   readonly collisions = new CollisionSystem(this.world)
   private readonly modelOcclusion = new ModelOcclusionSystem()
+  private modelLod!: ModelLodSystem
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
@@ -52,6 +55,10 @@ export class Engine {
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
+    this.modelLod = new ModelLodSystem(() => {
+      this.viewport.invalidate()
+      this.modelOcclusion.invalidate()
+    })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
@@ -64,7 +71,13 @@ export class Engine {
       this.events.on('objectAdded', () => this.modelOcclusion.invalidate()),
       this.events.on('objectRemoved', () => this.modelOcclusion.invalidate()),
       this.events.on('objectChanged', () => this.modelOcclusion.invalidate()),
-      this.events.on('worldReset', () => this.modelOcclusion.invalidate()),
+      this.events.on('worldReset', () => {
+        this.modelOcclusion.invalidate()
+        this.modelLod.clear()
+        this.viewport.invalidate()
+      }),
+      this.events.on('objectRemoved', ({ id }) => this.modelLod.remove(id)),
+      this.events.on('objectChanged', () => this.modelLod.invalidate()),
       this.events.on('behaviorPackageChanged', () => this.viewport.invalidate()),
       this.events.on('objectClicked', () => this.viewport.invalidate()),
       this.events.on('collisionStarted', () => this.viewport.invalidate()),
@@ -233,6 +246,7 @@ export class Engine {
       }
       this.orbit.update()
       this.world.updateFogForCamera(this.orbit.camera.position)
+      this.modelLod.update(this.orbit.camera.position)
       if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
         this.viewport.invalidate()
       }
@@ -256,14 +270,21 @@ export class Engine {
     this.viewport.setFpsListener(listener)
   }
 
-  /** Configura o limite de renderização e a resolução interna do viewport. */
+  /** Expõe estatísticas de triângulos/draw calls e custo CPU do renderizador. */
+  setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void {
+    this.viewport.setRenderStatsListener(listener)
+  }
+
+  /** Configura o limite de renderização, resolução e distâncias de LOD. */
   setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
     this.viewport.setPerformancePreset(preset)
+    this.modelLod.setPreset(preset)
   }
 
   /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
     this.viewport.setPerformanceMode(enabled)
+    this.modelLod.setPreset(enabled ? 'economy' : 'quality')
   }
 
   /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
@@ -958,7 +979,10 @@ export class Engine {
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.visible = true
-        child.frustumCulled = child.userData.generatedOcclusionCluster === true
+        // Ativa o culling nativo para toda malha estática, não apenas para
+        // regiões geradas pelo particionador. Malhas esqueléticas ficam fora
+        // desse descarte para evitar popping causado pela deformação dos ossos.
+        child.frustumCulled = !(child instanceof THREE.SkinnedMesh)
       }
     })
     root.frustumCulled = false
@@ -1021,6 +1045,11 @@ export class Engine {
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
+    // Simplifica apenas modelos estáticos grandes; o processamento não bloqueia
+    // o carregamento do projeto e não altera a geometria original salva no GLB.
+    void this.modelLod.prepare(finalId, root, importedAnimations.length > 0).catch((error) => {
+      console.warn('[Engine] Não foi possível preparar LOD para o modelo:', root.name, error)
+    })
     // Ao restaurar um projeto, o ID persistido é diferente do ID temporário.
     // Selecionar o temporário deixa a raiz sem seleção válida para o gizmo.
     this.world.select(finalId)
@@ -1049,6 +1078,7 @@ export class Engine {
   }
 
   updateObject(id: string, patch: ObjectPatch): void {
+    if (patch.wireframeVisible === true) this.modelLod.forceOriginal(id)
     this.world.update(id, patch)
     const object = this.world.get(id)
     if (id === this.world.getSelectedId() && object?.mesh.userData.locked === true) this.transformControls.detach()
@@ -1079,7 +1109,9 @@ export class Engine {
   toggleObjectWireframe(id: string): void {
     const object = this.world.get(id)
     if (!object) return
-    this.world.update(id, { wireframeVisible: object.mesh.userData.wireframeVisible === false })
+    const wireframeVisible = object.mesh.userData.wireframeVisible === false
+    if (wireframeVisible) this.modelLod.forceOriginal(id)
+    this.world.update(id, { wireframeVisible })
   }
 
   listObjects(): ObjectInfo[] {
@@ -1329,6 +1361,7 @@ export class Engine {
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.clear()
+    this.modelLod.dispose()
     this.modelOcclusion.dispose()
     this.transformControls.dispose()
     for (const off of this.viewportInvalidationOffs) off()
