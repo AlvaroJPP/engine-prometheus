@@ -938,7 +938,12 @@ export class GrassLayer {
       const modelCapacities: number[] = []
       if (bandIndex < 2) {
         for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
-          const modelCapacity = this.nextInstanceCapacity(modelBuckets[bandIndex]![partIndex]!.length)
+          const records = modelBuckets[bandIndex]![partIndex]!
+          if (records.length === 0) {
+            modelCapacities[partIndex] = 0
+            continue
+          }
+          const modelCapacity = this.nextInstanceCapacity(records.length)
           const modelMesh = this.createModelInstancedMesh(this.modelParts[partIndex]!, modelCapacity, band.name)
           modelMesh.visible = false
           modelMeshes[partIndex] = modelMesh
