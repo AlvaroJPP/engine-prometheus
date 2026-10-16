@@ -100,12 +100,16 @@ export class HumanoidAvatar {
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
   private mountedMovementState: MountMovementState = 'idle'
+  private mountedJumpRequested = false
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
-      if (event.code === 'Space') event.preventDefault()
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (this.mountedRoot && !event.repeat) this.mountedJumpRequested = true
+      }
       this.pressed.add(event.code)
     }
   }
@@ -372,6 +376,7 @@ export class HumanoidAvatar {
     this.mountedStartPosition = root.position.clone()
     this.mountedStartRotation = root.rotation.clone()
     this.mountedMovementState = 'idle'
+    this.mountedJumpRequested = false
     this.mountSettings = {
       interactionKey: settings.interactionKey,
       seatOffset: [...settings.seatOffset],
@@ -426,6 +431,7 @@ export class HumanoidAvatar {
     this.mountedRoot = null
     this.mountSettings = null
     this.mountedMovementState = 'idle'
+    this.mountedJumpRequested = false
     this.mountedStartPosition = null
     this.mountedStartRotation = null
     this.visualRoot.visible = true
@@ -554,6 +560,8 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
+    const shouldJump = this.mountedJumpRequested
+    this.mountedJumpRequested = false
     let state: MountMovementState = 'idle'
     if (length > 0) {
       const direction = new THREE.Vector3(
@@ -620,7 +628,9 @@ export class HumanoidAvatar {
     this.placeAvatarAtMountSeat()
     const previousState = this.mountedMovementState
     this.mountedMovementState = state
-    if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
+    if (shouldJump) {
+      this.playMountAnimation(root, 'jump', true)
+    } else if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
       this.playMountAnimation(root, 'run_stop', true)
     } else {
       this.playMountAnimation(root, state)

@@ -53,6 +53,7 @@ function guessedAnimationRole(name: string): AnimationRole {
   const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
   if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
   if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
+  if (/jump|leap|hop|saut|salto|pular/.test(normalized)) return 'jump'
   if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
   const isRun = /gallop|canter|sprint|running|run/.test(normalized)
   const diagonal = /diagonal|diag/.test(normalized)
@@ -884,6 +885,7 @@ onBeforeUnmount(disposePreview)
                   <option value="run_diagonal_left">Correr na diagonal esquerda</option>
                   <option value="run_diagonal_right">Correr na diagonal direita</option>
                   <option value="run_stop">Parar após correr</option>
+                  <option value="jump">Pular</option>
                   <option value="mount">Montar / subir</option>
                   <option value="dismount">Desmontar / descer</option>
                 </select>
