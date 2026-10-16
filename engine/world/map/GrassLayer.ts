@@ -1125,7 +1125,9 @@ export class GrassLayer {
     }
     for (const part of this.modelParts) part.geometry.dispose()
     for (const material of this.modelMaterials) material.dispose()
+    const fallbackTextureWasTracked = this.modelTextures.has(this.modelFallbackTexture)
     for (const texture of this.modelTextures) texture.dispose()
+    if (!fallbackTextureWasTracked) this.modelFallbackTexture.dispose()
     this.modelParts.length = 0
     this.modelMaterials.clear()
     this.modelTextures.clear()
@@ -1133,7 +1135,6 @@ export class GrassLayer {
     this.geometry.dispose()
     this.lowDetailGeometry.dispose()
     this.texture.dispose()
-    if (!this.modelTextures.has(this.modelFallbackTexture)) this.modelFallbackTexture.dispose()
     this.highMaterial.dispose()
     this.lowMaterial.dispose()
     this.mesh.clear()
