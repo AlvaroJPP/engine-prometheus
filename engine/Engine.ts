@@ -416,7 +416,7 @@ export class Engine {
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
           this.world.notifyChanged(packageInstance.ownerObjectId)
-          this.logic.triggerKeyPressed(event.code, packageInstance.ownerObjectId)
+          this.logic.triggerKeyPressed(event.code)
         }
         this.activeMountPackageId = null
         event.preventDefault()
@@ -449,7 +449,7 @@ export class Engine {
         this.world.notifyChanged(candidate.instance.ownerObjectId)
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
-        this.logic.triggerKeyPressed(event.code, candidate.instance.ownerObjectId)
+        this.logic.triggerKeyPressed(event.code)
         event.preventDefault()
         return
       }
