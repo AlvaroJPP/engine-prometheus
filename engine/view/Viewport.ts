@@ -9,6 +9,7 @@ export interface ViewportRenderStats {
   geometries: number
   textures: number
   cpuRenderMs: number
+  cpuUpdateMs: number
 }
 
 const FRAME_INTERVAL_MS: Record<PerformancePreset, number> = {
@@ -41,6 +42,8 @@ export class Viewport {
   private fpsListener: ((fps: number) => void) | null = null
   private renderStatsListener: ((stats: ViewportRenderStats) => void) | null = null
   private renderTimeAccumulated = 0
+  private updateTimeAccumulated = 0
+  private updateTimeSamples = 0
   private readonly invalidateFromInput = () => this.invalidate()
 
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
@@ -102,6 +105,13 @@ export class Viewport {
     this.invalidate()
   }
 
+  /** Registra o custo CPU do motor por callback, fora da chamada WebGL render(). */
+  recordUpdateDuration(durationMs: number): void {
+    if (!Number.isFinite(durationMs) || durationMs < 0) return
+    this.updateTimeAccumulated += durationMs
+    this.updateTimeSamples += 1
+  }
+
   /** Recebe FPS efetivamente renderizados, não apenas callbacks de requestAnimationFrame. */
   setFpsListener(listener: ((fps: number) => void) | null): void {
     this.fpsListener = listener
@@ -115,6 +125,8 @@ export class Viewport {
     this.fpsFrameCount = 0
     this.fpsWindowStart = 0
     this.renderTimeAccumulated = 0
+    this.updateTimeAccumulated = 0
+    this.updateTimeSamples = 0
   }
 
   /** Renderiza dentro do limite do preset e dorme enquanto uma cena estática não muda. */
@@ -172,10 +184,13 @@ export class Viewport {
           geometries: this.renderer.info.memory.geometries,
           textures: this.renderer.info.memory.textures,
           cpuRenderMs: this.renderTimeAccumulated / Math.max(1, this.fpsFrameCount),
+          cpuUpdateMs: this.updateTimeAccumulated / Math.max(1, this.updateTimeSamples),
         })
         this.fpsFrameCount = 0
         this.fpsWindowStart = now
         this.renderTimeAccumulated = 0
+        this.updateTimeAccumulated = 0
+        this.updateTimeSamples = 0
       }
     }
     return true
