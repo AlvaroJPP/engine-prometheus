@@ -175,7 +175,7 @@ export class Engine {
           this.logic.setPackageVariable(mountInstance.id, 'movementState', mountedMovementState)
           this.notifyBehaviorPackageChanged(mountInstance.ownerObjectId)
           if (this.lastMountMovementState !== null && this.lastMountMovementState !== mountedMovementState) {
-            this.logic.triggerPackageEvent(mountedObjectId, mountInstance.packageId, 'movement_changed')
+            this.triggerBehaviorPackageEvent(mountedObjectId, mountInstance.packageId, 'movement_changed')
           }
         }
         this.lastMountMovementState = mountedMovementState
@@ -206,6 +206,13 @@ export class Engine {
     this.events.emit('behaviorPackageChanged', { ownerObjectId })
   }
 
+  /** Despacha um gatilho do pacote e atualiza a interface se suas ações alterarem variáveis. */
+  private triggerBehaviorPackageEvent(ownerObjectId: string, packageId: string, eventId: string): boolean {
+    const executed = this.logic.triggerPackageEvent(ownerObjectId, packageId, eventId)
+    this.notifyBehaviorPackageChanged(ownerObjectId)
+    return executed
+  }
+
   /** Finaliza a montaria uma vez, sincronizando variáveis e o gatilho Desmontou. */
   private dismountActiveMount(): void {
     const packageId = this.activeMountPackageId
@@ -224,7 +231,7 @@ export class Engine {
     if (packageInstance) {
       this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
       if (mountedObjectId) {
-        this.logic.triggerPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
+        this.triggerBehaviorPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
       }
     }
   }
@@ -448,7 +455,7 @@ export class Engine {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
           this.logic.setPackageVariable(packageInstance.id, 'movementState', 'idle')
           this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
-          if (mountedObjectId) this.logic.triggerPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
+          if (mountedObjectId) this.triggerBehaviorPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
           this.logic.triggerKeyPressed(event.code)
         }
         this.activeMountPackageId = null
@@ -479,14 +486,14 @@ export class Engine {
         if (!candidate.object) continue
         // A tentativa de interação é um gatilho próprio do pacote; as regras
         // podem avaliar variáveis/condições antes da ação Montar.
-        this.logic.triggerPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
+        this.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.lastMountMovementState = this.avatar.getMountedMovementState()
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
         this.logic.setPackageVariable(candidate.instance.id, 'movementState', this.lastMountMovementState ?? 'idle')
         this.notifyBehaviorPackageChanged(candidate.instance.ownerObjectId)
-        this.logic.triggerPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'mounted')
+        this.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'mounted')
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
         this.logic.triggerKeyPressed(event.code)
