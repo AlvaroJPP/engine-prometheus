@@ -44,20 +44,23 @@ function createGrassGeometry(lowDetail: boolean): THREE.BufferGeometry {
   const colors: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
-  const levels = lowDetail ? [0, 0.62, 1] : [0, 0.28, 0.58, 0.82, 1]
-  const widths = lowDetail ? [0.17, 0.08, 0.006] : [0.17, 0.135, 0.09, 0.045, 0.006]
-  const bladeCount = lowDetail ? 3 : 5
-  const baseColor = new THREE.Color(0x84b857)
-  const tipColor = new THREE.Color(0xe5ef95)
+  const levels = lowDetail ? [0, 0.62, 1] : [0, 0.24, 0.5, 0.76, 1]
+  // Lâminas mais finas e afiladas. A silhueta vem da geometria, não de folhas grossas.
+  const widths = lowDetail ? [0.105, 0.048, 0.0015] : [0.105, 0.082, 0.056, 0.028, 0.0015]
+  const bladeCount = lowDetail ? 3 : 7
+  const baseColor = new THREE.Color(0x76964a)
+  const midColor = new THREE.Color(0x91ae57)
+  const tipColor = new THREE.Color(0xb8c975)
 
   for (let blade = 0; blade < bladeCount; blade += 1) {
-    const angle = (blade / bladeCount) * Math.PI * 2 + (blade % 2) * 0.18
+    // Ângulo áureo: evita que as folhas formem uma estrela perfeitamente regular.
+    const angle = blade * 2.399963229728653 + (blade % 2) * 0.13
     const dirX = Math.cos(angle)
     const dirZ = Math.sin(angle)
     const sideX = -dirZ
     const sideZ = dirX
-    const length = 0.68 + (blade % 3) * 0.12
-    const lean = 0.12 + (blade % 2) * 0.08
+    const length = lowDetail ? 0.46 + (blade % 3) * 0.065 : 0.47 + (blade % 4) * 0.075
+    const lean = 0.055 + (blade % 3) * 0.035
     const base = positions.length / 3
 
     for (let level = 0; level < levels.length; level += 1) {
@@ -73,9 +76,12 @@ function createGrassGeometry(lowDetail: boolean): THREE.BufferGeometry {
       )
       uvs.push(0, t, 1, t)
 
-      const shade = baseColor.clone().lerp(tipColor, t * 0.78)
-      colors.push(shade.r * 0.92, shade.g * 0.92, shade.b * 0.92)
-      colors.push(shade.r * 1.04, shade.g * 1.04, shade.b * 1.04)
+      const shade = baseColor.clone()
+        .lerp(midColor, Math.min(1, t * 1.45))
+        .lerp(tipColor, Math.max(0, (t - 0.62) * 1.65))
+      const bladeTone = blade % 3 === 0 ? 0.82 : blade % 3 === 1 ? 0.94 : 1.04
+      colors.push(shade.r * bladeTone * 0.94, shade.g * bladeTone * 0.94, shade.b * bladeTone * 0.94)
+      colors.push(shade.r * bladeTone * 1.02, shade.g * bladeTone * 1.02, shade.b * bladeTone * 1.02)
 
       if (level > 0) {
         const current = base + level * 2
@@ -104,32 +110,25 @@ function createGrassTexture(): THREE.CanvasTexture {
   if (context) {
     context.clearRect(0, 0, canvas.width, canvas.height)
     const gradient = context.createLinearGradient(0, 0, 32, 0)
-    gradient.addColorStop(0, 'rgba(255,255,255,0.72)')
-    gradient.addColorStop(0.48, 'rgba(255,255,255,1)')
+    gradient.addColorStop(0, 'rgba(255,255,255,0.68)')
+    gradient.addColorStop(0.5, 'rgba(255,255,255,1)')
     gradient.addColorStop(1, 'rgba(255,255,255,0.68)')
     context.fillStyle = gradient
+    // Recorte comprido e orgânico: base estreita, centro cheio e ponta fina.
     context.beginPath()
-    context.moveTo(16, 0)
-    context.bezierCurveTo(5, 28, 1, 72, 16, 128)
-    context.bezierCurveTo(31, 72, 27, 28, 16, 0)
+    context.moveTo(16, 1)
+    context.quadraticCurveTo(8, 20, 10, 48)
+    context.bezierCurveTo(11, 80, 13, 111, 16, 127)
+    context.bezierCurveTo(22, 101, 25, 72, 22, 43)
+    context.quadraticCurveTo(22, 19, 16, 1)
     context.fill()
-    context.strokeStyle = 'rgba(225,245,174,0.48)'
-    context.lineWidth = 1.2
+    // Nervura discreta, sem os riscos brancos fortes do visual anterior.
+    context.strokeStyle = 'rgba(222,239,186,0.2)'
+    context.lineWidth = 0.65
     context.beginPath()
-    context.moveTo(16, 8)
-    context.quadraticCurveTo(14, 60, 16, 120)
+    context.moveTo(16, 12)
+    context.quadraticCurveTo(14, 62, 16, 117)
     context.stroke()
-    context.strokeStyle = 'rgba(255,255,255,0.32)'
-    context.lineWidth = 1
-    for (let vein = 0; vein < 5; vein += 1) {
-      const y = 24 + vein * 18
-      context.beginPath()
-      context.moveTo(15, y)
-      context.lineTo(7 + (vein % 2) * 3, y + 9)
-      context.moveTo(17, y + 3)
-      context.lineTo(24 - (vein % 2) * 3, y + 10)
-      context.stroke()
-    }
   }
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -341,8 +340,8 @@ export class GrassLayer {
       x,
       y: this.field.sample(x, z) + 0.008,
       z,
-      width: 0.82 * scale,
-      height: (0.48 + random() * 0.68) * scale,
+      width: 0.55 * scale,
+      height: (0.3 + random() * 0.17) * scale,
       rotationX: 0,
       rotationY: random() * Math.PI * 2,
       rotationZ: 0,
@@ -418,8 +417,9 @@ export class GrassLayer {
       const height = this.field.sample(x, z)
       const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
       const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
-      const bladeHeight = 0.48 + random() * 0.68
-      const width = 0.62 + random() * 0.56
+      // Altura final aproximada de 0.25–0.45 unidades; o tuft deixa de parecer um arbusto.
+      const bladeHeight = 0.36 + random() * 0.28
+      const width = 0.52 + random() * 0.28
       const palette = palettes[Math.floor(random() * palettes.length)] ?? palettes[0]
       const variation = 0.82 + random() * 0.32
       this.color.setRGB(palette[0] * variation, palette[1] * variation, palette[2] * variation)
@@ -455,7 +455,7 @@ export class GrassLayer {
       const distance = Math.sqrt(this.random()) * radius
       const px = THREE.MathUtils.clamp(x + Math.cos(angle) * distance, -WORLD_HALF, WORLD_HALF)
       const pz = THREE.MathUtils.clamp(z + Math.sin(angle) * distance, -WORLD_HALF, WORLD_HALF)
-      const scale = 0.7 + this.random() * 0.85
+      const scale = 0.55 + this.random() * 0.65
       const color = palette[Math.floor(this.random() * palette.length)] ?? 0x3e7021
       const tuft: PaintedGrassTuft = [px, pz, scale, color]
       this.painted.push(tuft)
@@ -504,7 +504,7 @@ export class GrassLayer {
       const sanitized: PaintedGrassTuft = [
         THREE.MathUtils.clamp(tuft[0], -WORLD_HALF, WORLD_HALF),
         THREE.MathUtils.clamp(tuft[1], -WORLD_HALF, WORLD_HALF),
-        THREE.MathUtils.clamp(tuft[2], 0.2, 2),
+        THREE.MathUtils.clamp(tuft[2], 0.2, 1.5),
         Math.max(0, Math.min(0xffffff, Math.floor(tuft[3]))),
       ]
       this.painted.push(sanitized)
