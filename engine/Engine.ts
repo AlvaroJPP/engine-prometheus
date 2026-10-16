@@ -103,7 +103,19 @@ export class Engine {
         this.groupTransformSnapshot = mesh ? { position: [mesh.position.x, mesh.position.y, mesh.position.z], rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z], scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] } : null
       } else this.groupTransformSnapshot = null
     })
-    this.input = new PointerController(canvas, this.orbit, this.world, this.state, () => this.transformControls.dragging, (x, y, z) => this.placePendingBuildComponent(x, y, z), (id) => {
+    this.input = new PointerController(
+      canvas,
+      this.orbit,
+      this.world,
+      this.state,
+      // O TransformControls e o PointerController escutam o mesmo canvas.
+      // Ao clicar num eixo, a ferramenta manual não pode capturar o ponteiro
+      // antes do gizmo iniciar o arrasto. Consideramos também o eixo sob o
+      // cursor, não apenas dragging (que só fica true depois do pointerdown).
+      () => this.transformControls.dragging || this.transformControls.axis !== null,
+      (x, y, z) => this.placePendingBuildComponent(x, y, z),
+      (id) => {
+
       this.events.emit('objectClicked', { id })
     })
     this.events.on('selectionChanged', ({ id }) => {
