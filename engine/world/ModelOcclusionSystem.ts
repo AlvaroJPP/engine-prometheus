@@ -166,7 +166,8 @@ export class ModelOcclusionSystem {
       if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
       const geometry = node.geometry
       if (geometry.getAttribute('skinIndex') || geometry.getAttribute('skinWeight')) return
-      if (Object.values(geometry.morphAttributes).some((attributes) => attributes.length > 0)) return
+      const morphAttributes = geometry.morphAttributes as Record<string, { length: number } | undefined>
+      if (Object.values(morphAttributes).some((attributes) => (attributes?.length ?? 0) > 0)) return
       // A partição precisa cobrir exatamente a faixa desenhada, sem omitir nem
       // duplicar grupos/materiais de geometrias glTF especiais.
       if (geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity) return
@@ -186,16 +187,17 @@ export class ModelOcclusionSystem {
       const triangleCount = Math.floor(elementCount / 3)
       if (triangleCount < MIN_TRIANGLES_FOR_PARTITION) return
       if (elementCount % 3 !== 0) return
-      if (geometry.groups.some(group => group.start % 3 !== 0 || group.count % 3 !== 0)) return
+      if (geometry.groups.some((group: { start: number; count: number; materialIndex?: number }) => group.start % 3 !== 0 || group.count % 3 !== 0)) return
       if (Array.isArray(node.material)) {
         if (geometry.groups.length === 0) return
-        const orderedGroups = [...geometry.groups].sort((a, b) => a.start - b.start)
+        const orderedGroups = [...geometry.groups].sort((a: { start: number; count: number; materialIndex?: number }, b: { start: number; count: number; materialIndex?: number }) => a.start - b.start)
         let coveredUntil = 0
         for (const group of orderedGroups) {
           if (
             group.start !== coveredUntil
             || group.count <= 0
             || group.start + group.count > elementCount
+            || group.materialIndex === undefined
             || group.materialIndex < 0
             || group.materialIndex >= node.material.length
           ) return
@@ -264,10 +266,17 @@ export class ModelOcclusionSystem {
       partCount *= 2
     }
 
-    const materialGroups = Array.isArray(mesh.material)
-      ? geometry.groups.map(group => ({ start: group.start, count: group.count, materialIndex: group.materialIndex }))
+    const materialGroups: Array<{ start: number; count: number; materialIndex: number }> = Array.isArray(mesh.material)
+      ? geometry.groups.flatMap((group: { start: number; count: number; materialIndex?: number }) =>
+        typeof group.materialIndex === 'number'
+          ? [{ start: group.start, count: group.count, materialIndex: group.materialIndex }]
+          : [],
+      )
       : [{ start: 0, count: elementCount, materialIndex: 0 }]
-    if (materialGroups.length === 0) return null
+    if (
+      materialGroups.length === 0
+      || (Array.isArray(mesh.material) && materialGroups.length !== geometry.groups.length)
+    ) return null
 
     // Cada célula mantém triângulos agrupados por material. A partição só muda
     // a organização espacial; não descarta polígonos nem modifica UVs/normais.
