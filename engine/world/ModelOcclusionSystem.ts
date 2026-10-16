@@ -104,10 +104,14 @@ export class ModelOcclusionSystem {
       && !root.bounds.isEmpty()
       && root.meshes.some(mesh => mesh.opaque)
     )
-    const hasExternalOccluder = modelRoots.some(targetRoot =>
-      occluderRoots.some(sourceRoot => sourceRoot.root !== targetRoot.root)
+    const hasPotentialOccluder = modelRoots.some(targetRoot =>
+      targetRoot.meshes.some(target =>
+        occluderRoots.some(sourceRoot =>
+          sourceRoot.meshes.some(candidate => candidate.opaque && candidate.mesh !== target.mesh)
+        )
+      )
     )
-    if (!hasExternalOccluder) return previousCulled.size > 0
+    if (!hasPotentialOccluder) return previousCulled.size > 0
 
     for (const targetRoot of modelRoots) {
       // Não culle uma instância por submalha quando a câmera está dentro do volume
@@ -126,7 +130,7 @@ export class ModelOcclusionSystem {
 
         for (const sample of samples) {
           this.targetPoint.copy(sample).applyMatrix4(target.mesh.matrixWorld)
-          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, targetRoot.root, occluderRoots, margin)) {
+          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, targetRoot.root, target.mesh, occluderRoots, margin)) {
             fullyOccluded = false
             break
           }
@@ -314,6 +318,7 @@ export class ModelOcclusionSystem {
     origin: THREE.Vector3,
     target: THREE.Vector3,
     targetRoot: THREE.Object3D,
+    targetMesh: THREE.Mesh,
     roots: readonly PreparedRoot[],
     margin: number,
   ): boolean {
@@ -329,7 +334,7 @@ export class ModelOcclusionSystem {
 
     const candidates: THREE.Mesh[] = []
     for (const source of roots) {
-      if (source.root === targetRoot || source.animated || source.meshes.length === 0) continue
+      if (source.animated || source.meshes.length === 0) continue
       // Não considerar como obstáculo a geometria que contém a câmera; em interiores
       // isso evita que a face traseira de uma parede esconda o mundo inteiro.
       if (source.bounds.containsPoint(origin)) continue
@@ -337,7 +342,7 @@ export class ModelOcclusionSystem {
       if (!rootEntry || rootEntry.distanceTo(origin) >= maxDistance) continue
 
       for (const candidate of source.meshes) {
-        if (!candidate.opaque) continue
+        if (candidate.mesh === targetMesh || !candidate.opaque) continue
         const meshEntry = this.raycaster.ray.intersectBox(candidate.bounds, this.boundsHit)
         if (meshEntry && meshEntry.distanceTo(origin) < maxDistance) candidates.push(candidate.mesh)
       }
