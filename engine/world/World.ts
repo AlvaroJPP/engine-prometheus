@@ -57,6 +57,7 @@ export class World {
   private moonVisual!: THREE.Mesh
 
   constructor() {
+    this.terrain.grass.onRenderChanged = () => this.events.emit('renderInvalidated', {})
     this.scene.background = new THREE.Color(BACKGROUND)
     this.scene.fog = this.worldFog
     this.updateGrassFogDistance(72)
@@ -162,11 +163,13 @@ export class World {
           this.skyBackgroundTexture = texture
           this.scene.background = texture
           this.proceduralSky.visible = false
+          this.events.emit('renderInvalidated', {})
         }, undefined, (error) => {
           console.error('[World] Não foi possível carregar a textura do céu:', error)
           if (this.skyTextureDataUrl === requestedDataUrl) {
             this.skyTextureDataUrl = ''
             this.applyDayNight()
+            this.events.emit('renderInvalidated', {})
           }
         })
       }
@@ -175,6 +178,7 @@ export class World {
     if (settings.cycleEnabled !== undefined) this.cycleEnabled = settings.cycleEnabled
     if (settings.cycleSpeed !== undefined && Number.isFinite(settings.cycleSpeed)) this.cycleSpeed = Math.max(0.01, Math.min(4, settings.cycleSpeed))
     this.applyDayNight()
+    this.events.emit('renderInvalidated', {})
   }
 
   updateEnvironment(dt: number): void {
@@ -565,6 +569,7 @@ export class World {
     this.grassRenderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
     this.terrain.grass.setRenderDistance(distance)
     this.updateGrassFogDistance(this.grassRenderDistance ?? 72)
+    this.events.emit('renderInvalidated', {})
   }
 
   /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
@@ -612,6 +617,7 @@ export class World {
   setGridVisible(visible: boolean): void {
     this.gridVisible = visible
     this.grid.visible = visible
+    this.events.emit('renderInvalidated', {})
   }
 
   isGridVisible(): boolean {
