@@ -586,9 +586,11 @@ async function ensureHorseComponent() {
     }
 
     // Evita gravações desnecessárias, mas substitui o GLB antigo quando o asset mudou.
-    const sameBytes = existing !== null
-      && existing.bytes.byteLength === bytes.byteLength
-      && new Uint8Array(existing.bytes).every((value, index) => value === new Uint8Array(bytes)[index])
+    const existingBytes = existing ? new Uint8Array(existing.bytes) : null
+    const currentBytes = new Uint8Array(bytes)
+    const sameBytes = existingBytes !== null
+      && existingBytes.length === currentBytes.length
+      && existingBytes.every((value, index) => value === currentBytes[index])
     const metadataChanged = !existing
       || existing.kind !== component.kind
       || existing.height !== component.height
