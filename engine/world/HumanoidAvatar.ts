@@ -547,8 +547,6 @@ export class HumanoidAvatar {
       moveAxis('z', direction.z)
       root.rotation.y = Math.atan2(direction.x, direction.z)
       state = running ? 'run' : 'walk'
-      const mountedId = this.getMountedObjectId()
-      if (mountedId) this.world.notifyChanged(mountedId)
     }
 
     const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
