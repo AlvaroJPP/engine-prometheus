@@ -32,6 +32,7 @@ type RenderStats = {
   geometries: number
   textures: number
   cpuRenderMs: number
+  cpuUpdateMs: number
 }
 
 export const CAMERA_LABELS: Record<CameraPreset, string> = {
@@ -60,6 +61,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     geometries: 0,
     textures: 0,
     cpuRenderMs: 0,
+    cpuUpdateMs: 0,
   })
   const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
