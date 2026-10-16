@@ -314,7 +314,11 @@ export class Engine {
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted()) {
       this.avatar.dismount()
-      if (this.activeMountPackageId) this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
+      if (this.activeMountPackageId) {
+        const packageInstance = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
+        this.logic.setPackageVariable(this.activeMountPackageId, 'mounted', false)
+        if (packageInstance) this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
+      }
       this.activeMountPackageId = null
     }
     this.avatar.setEnabled(false)
