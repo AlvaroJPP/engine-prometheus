@@ -42,6 +42,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const projectDir = ref<string | null>(null)
   const dirty = ref(false)
   const status = ref('')
+  const fps = ref(0)
   const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
   const selectedModelNodes = ref<Array<{ path: string; name: string; meshCount: number }>>([])
@@ -385,6 +386,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!canvas.value) return
     const e = new Engine(canvas.value)
     engine = e
+    e.setFpsListener((value) => { fps.value = value })
     loadGrassRenderSettings()
     e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
     offs.push(
@@ -421,8 +423,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     offs.forEach((off) => off())
     window.removeEventListener('keydown', onKey)
     window.clearTimeout(statusTimer)
+    engine?.setFpsListener(null)
     engine?.dispose()
     engine = null
+    fps.value = 0
   })
 
   // ---- ferramentas ----
@@ -1155,6 +1159,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     projectName,
     dirty,
     status,
+    fps,
     ioProgress,
     objects,
     selectedModelNodes,
