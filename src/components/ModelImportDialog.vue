@@ -699,7 +699,7 @@ watch(() => props.open, async (open) => {
       loading.value = true
       try {
         const loaded = await parseGlbBytes(props.initialAsset.bytes.slice(0))
-        loaded.userData.importAnimationRoles = props.initialAsset.animationRoles ?? {}
+        loaded.userData.importAnimationRoles = props.initialAsset.animationRoles
         fileName.value = props.initialAsset.name
         await showLoadedModel(loaded, props.initialAsset.name)
       } catch (e) {
