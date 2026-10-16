@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { CENTER, MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import { GenerateMeshBVHWorker } from 'three-mesh-bvh/worker'
 import type { GameObject } from '../model/object/GameObject'
 
 // A oclusão usa raycasts contra a geometria real; intervalos maiores evitam
@@ -10,6 +12,10 @@ const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
+const MIN_BVH_TRIANGLES = 700
+const BVH_TARGET_LEAF_SIZE = 12
+
+type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
 
 const OCCLUSION_ANCHORS = [
   [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
@@ -55,7 +61,9 @@ export class ModelOcclusionSystem {
   private readonly frustum = new THREE.Frustum()
   private hasLastCamera = false
   private hasLastProjection = false
-  private readonly raycaster = new THREE.Raycaster()
+  // three-mesh-bvh usa firstHitOnly para terminar cada raio assim que encontra
+  // a interseção mais próxima, em vez de coletar todos os triângulos atingidos.
+  private readonly raycaster = Object.assign(new THREE.Raycaster(), { firstHitOnly: true })
   private readonly cameraPosition = new THREE.Vector3()
   private readonly rayDirection = new THREE.Vector3()
   private readonly targetPoint = new THREE.Vector3()
@@ -63,10 +71,134 @@ export class ModelOcclusionSystem {
   private readonly localSamples = new WeakMap<THREE.BufferGeometry, THREE.Vector3[]>()
   /** Meshas removidas visualmente pelo sistema e seu estado antes da oclusão. */
   private readonly culledMeshes = new Map<THREE.Mesh, boolean>()
+  private readonly rootsBeingPrepared = new WeakSet<THREE.Object3D>()
+  private readonly rootsPrepared = new WeakSet<THREE.Object3D>()
+  private readonly geometryBuilds = new WeakMap<THREE.BufferGeometry, Promise<boolean>>()
+  private preparationQueue: Promise<void> = Promise.resolve()
+  private bvhWorker: GenerateMeshBVHWorker | null = null
+  private disposed = false
 
   invalidate(): void {
     this.dirty = true
     this.rootsDirty = true
+  }
+
+  /**
+   * Pré-processa as malhas opacas e estáticas de um modelo importado.
+   *
+   * A árvore BVH acelera o teste de raios por triângulo em modelos densos. A
+   * geometria é clonada antes de ser enviada ao Web Worker para que o modelo
+   * continue renderizável durante o cálculo. A preparação é serializada para
+   * não abrir um worker por malha ou competir com outros modelos carregados.
+   */
+  prepareRoot(root: THREE.Object3D, animated: boolean): Promise<void> {
+    if (this.disposed || animated || this.rootsPrepared.has(root)) return Promise.resolve()
+    if (this.rootsBeingPrepared.has(root)) return this.preparationQueue
+
+    this.rootsBeingPrepared.add(root)
+    const task = this.preparationQueue.then(async () => {
+      try {
+        if (this.disposed || root.parent === null) return
+        root.updateWorldMatrix(true, true)
+
+        const blockerMeshes = new Set<THREE.Mesh>()
+        const geometries = new Set<THREE.BufferGeometry>()
+        root.traverse((node) => {
+          if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh) return
+          if (this.isEditorOverlay(node) || node.name === 'collider-debug-wireframe') return
+          if (!this.isEffectivelyVisible(node, root) || !this.isOpaqueBlocker(node.material)) return
+          if (node.geometry.morphAttributes.position?.length) return
+
+          const geometry = node.geometry
+          const position = geometry.getAttribute('position')
+          if (!position || position.isInterleavedBufferAttribute) return
+          if (geometry.index?.isInterleavedBufferAttribute) return
+          if (geometry.drawRange.count !== Infinity) return
+          const triangleCount = Math.floor((geometry.index?.count ?? position.count) / 3)
+          if (triangleCount < MIN_BVH_TRIANGLES) return
+
+          blockerMeshes.add(node)
+          geometries.add(geometry)
+        })
+
+        for (const geometry of geometries) {
+          if (this.disposed || root.parent === null) break
+          await this.buildBoundsTreeIfNeeded(geometry)
+          // Ceder entre malhas mantém a interface responsiva enquanto um GLB
+          // com vários objetos densos é preparado.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+        }
+
+        for (const mesh of blockerMeshes) {
+          if ((mesh.geometry as GeometryWithBoundsTree).boundsTree) {
+            // A função acelerada mantém o mesmo contrato da interseção Three.js;
+            // malhas sem BVH continuam usando o raycast tradicional.
+            mesh.raycast = acceleratedRaycast
+          }
+        }
+
+        if (!this.disposed && root.parent !== null) this.rootsPrepared.add(root)
+        this.invalidate()
+      } finally {
+        this.rootsBeingPrepared.delete(root)
+      }
+    })
+
+    this.preparationQueue = task.catch((error: unknown) => {
+      console.warn('[ModelOcclusion] Falha ao preparar o modelo para oclusão.', error)
+    })
+    return this.preparationQueue
+  }
+
+  private buildBoundsTreeIfNeeded(geometry: THREE.BufferGeometry): Promise<boolean> {
+    const typedGeometry = geometry as GeometryWithBoundsTree
+    if (typedGeometry.boundsTree) return Promise.resolve(true)
+
+    const currentBuild = this.geometryBuilds.get(geometry)
+    if (currentBuild) return currentBuild
+
+    const build = this.buildBoundsTree(geometry)
+    this.geometryBuilds.set(geometry, build)
+    return build
+  }
+
+  private async buildBoundsTree(geometry: THREE.BufferGeometry): Promise<boolean> {
+    const typedGeometry = geometry as GeometryWithBoundsTree
+    const workerGeometry = geometry.clone()
+
+    try {
+      this.bvhWorker ??= new GenerateMeshBVHWorker()
+      const workerTree = await this.bvhWorker.generate(workerGeometry, {
+        strategy: CENTER,
+        targetLeafSize: BVH_TARGET_LEAF_SIZE,
+        indirect: true,
+      })
+
+      if (this.disposed) return false
+
+      // A árvore devolvida pelo worker aponta para o clone enviado. Serializar e
+      // desserializar contra a geometria original permite manter os buffers de
+      // renderização intactos e deixa apenas a estrutura espacial em cache.
+      const serialized = MeshBVH.serialize(workerTree, { cloneBuffers: true })
+      typedGeometry.boundsTree = MeshBVH.deserialize(serialized, geometry, { setIndex: false })
+      return true
+    } catch (error) {
+      if (this.disposed) return false
+      console.warn('[ModelOcclusion] BVH em worker indisponível; tentando preparação local.', error)
+      try {
+        typedGeometry.boundsTree = new MeshBVH(geometry, {
+          strategy: CENTER,
+          targetLeafSize: BVH_TARGET_LEAF_SIZE,
+          indirect: true,
+        })
+        return true
+      } catch (fallbackError) {
+        console.warn('[ModelOcclusion] Não foi possível criar BVH; usando raycast padrão.', fallbackError)
+        return false
+      }
+    } finally {
+      workerGeometry.dispose()
+    }
   }
 
   /**
@@ -130,6 +262,7 @@ export class ModelOcclusionSystem {
     const modelRoots = preparedRoots.filter(root =>
       root.importedModel
       && !root.animated
+      && !this.rootsBeingPrepared.has(root.root)
       && root.root.userData.wireframeVisible !== true
       && !root.bounds.isEmpty()
     )
@@ -138,6 +271,7 @@ export class ModelOcclusionSystem {
     // conjunto de caixas e geometrias consultadas por cada raio.
     const occluderRoots = preparedRoots.filter(root =>
       !root.animated
+      && !this.rootsBeingPrepared.has(root.root)
       && !root.bounds.isEmpty()
       && this.frustum.intersectsBox(root.bounds)
       && root.meshes.some(mesh => mesh.opaque)
@@ -457,11 +591,18 @@ export class ModelOcclusionSystem {
   }
 
   dispose(): void {
+    this.disposed = true
     this.restoreCulledMeshes()
     this.cachedPreparedRoots = null
     this.rootsDirty = true
     this.dirty = false
     this.hasLastCamera = false
     this.hasLastProjection = false
+    // Se uma árvore estiver sendo calculada, deixe o job terminar antes de
+    // encerrar o worker; isso evita uma Promise pendurada durante o teardown.
+    void this.preparationQueue.finally(() => {
+      this.bvhWorker?.dispose()
+      this.bvhWorker = null
+    })
   }
 }
