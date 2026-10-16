@@ -956,7 +956,7 @@ export class GrassLayer {
     const discardStagedBands = (): void => {
       for (const staged of stagedBands) {
         staged.mesh.dispose()
-        for (const modelMesh of staged.modelMeshes) modelMesh.dispose()
+        for (const modelMesh of staged.modelMeshes) modelMesh?.dispose()
       }
     }
 
@@ -1017,6 +1017,7 @@ export class GrassLayer {
       band.mesh.removeFromParent()
       band.mesh.dispose()
       for (const oldModelMesh of band.modelMeshes) {
+        if (!oldModelMesh) continue
         oldModelMesh.removeFromParent()
         oldModelMesh.dispose()
       }
@@ -1026,7 +1027,9 @@ export class GrassLayer {
       band.modelMeshes = staged.modelMeshes
       band.modelCapacities = staged.modelCapacities
       this.mesh.add(band.mesh)
-      for (const modelMesh of band.modelMeshes) this.mesh.add(modelMesh)
+      for (const modelMesh of band.modelMeshes) {
+        if (modelMesh) this.mesh.add(modelMesh)
+      }
     }
     this.renderDirty = false
   }
@@ -1344,7 +1347,7 @@ export class GrassLayer {
     this.pendingRingCenter = null
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
-      for (const mesh of band.modelMeshes) mesh.removeFromParent()
+      for (const mesh of band.modelMeshes) mesh?.removeFromParent()
       band.modelMeshes.length = 0
       band.modelCapacities.length = 0
     }
