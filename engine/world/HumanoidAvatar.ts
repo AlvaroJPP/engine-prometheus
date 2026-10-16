@@ -563,6 +563,7 @@ export class HumanoidAvatar {
     const shouldJump = this.mountedJumpRequested
     this.mountedJumpRequested = false
     let state: MountMovementState = 'idle'
+
     if (length > 0) {
       const direction = new THREE.Vector3(
         sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
@@ -571,6 +572,9 @@ export class HumanoidAvatar {
       ).normalize()
       const speed = settings.speed * (running ? settings.runMultiplier : 1)
       direction.multiplyScalar(speed * dt)
+
+      const initialBounds = this.getMountedBounds(root)
+      let feetY = initialBounds.min.y
       const moveAxis = (axis: 'x' | 'z', delta: number): void => {
         if (Math.abs(delta) < 1e-8) return
         const origin = root.position[axis]
@@ -580,38 +584,43 @@ export class HumanoidAvatar {
 
         for (let step = 1; step <= count; step += 1) {
           root.position[axis] = THREE.MathUtils.clamp(origin + delta * step / count, -49, 49)
-          root.updateMatrixWorld(true)
-          const mountBounds = getColliderBounds(root)
-          let blocked = false
-          // "Sem colisão" significa que a montaria pode atravessar obstáculos;
-          // não use a caixa visual como colisor implícito nesse modo.
-          if (mountBounds) {
-            for (const object of this.world.list()) {
-              if (object.mesh === root || !object.mesh.visible) continue
-              const otherBounds = getColliderBounds(object.mesh)
-              if (!otherBounds || !mountBounds.intersectsBox(otherBounds)) continue
-              // Encostar no topo de uma plataforma não deve contar como penetração.
-              const overlapX = Math.min(mountBounds.max.x, otherBounds.max.x) - Math.max(mountBounds.min.x, otherBounds.min.x)
-              const overlapY = Math.min(mountBounds.max.y, otherBounds.max.y) - Math.max(mountBounds.min.y, otherBounds.min.y)
-              const overlapZ = Math.min(mountBounds.max.z, otherBounds.max.z) - Math.max(mountBounds.min.z, otherBounds.min.z)
-              if (overlapX > 0.02 && overlapY > 0.02 && overlapZ > 0.02) {
-                blocked = true
-                break
-              }
-            }
-          }
-          if (!blocked) {
+          root.updateWorldMatrix(true, true)
+
+          if (!this.mountedCollidesWithObjects(root)) {
             lastSafe = root.position[axis]
+            feetY = this.getMountedBounds(root).min.y
             continue
           }
+
+          // Como o player, a montaria pode subir degraus baixos; faces laterais
+          // bloqueiam, enquanto a face superior pode virar uma nova superfície de apoio.
+          const stepSurface = this.findMountedStepUpSurface(root, feetY)
+          if (stepSurface !== null) {
+            const previousY = root.position.y
+            const bounds = this.getMountedBounds(root)
+            root.position.y += stepSurface - bounds.min.y
+            root.updateWorldMatrix(true, true)
+            if (!this.mountedCollidesWithObjects(root)) {
+              lastSafe = root.position[axis]
+              feetY = this.getMountedBounds(root).min.y
+              continue
+            }
+            root.position.y = previousY
+            root.updateWorldMatrix(true, true)
+          }
+
+          // Para no último ponto livre, preservando o movimento pelo outro eixo.
           root.position[axis] = lastSafe
-          root.updateMatrixWorld(true)
+          root.updateWorldMatrix(true, true)
           break
         }
       }
+
       moveAxis('x', direction.x)
       moveAxis('z', direction.z)
       root.rotation.y = Math.atan2(direction.x, direction.z)
+      root.updateWorldMatrix(true, true)
+
       if (forwardInput !== 0 && sideInput !== 0) {
         state = running
           ? (sideInput < 0 ? 'run_diagonal_left' : 'run_diagonal_right')
@@ -621,10 +630,19 @@ export class HumanoidAvatar {
       }
     }
 
-    const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
-    const halfHeight = Math.max(0.2, bounds.getSize(new THREE.Vector3()).y * 0.5)
-    root.position.y = this.world.terrain.heightAt(root.position.x, root.position.z) + halfHeight
-    root.updateMatrixWorld(true)
+    // O player apoia-se nas superfícies do mundo, não somente na altura do terreno.
+    // A montaria também segue plataformas e rampas e mantém a base do colisor apoiada.
+    const beforeGroundingY = root.position.y
+    const boundsBeforeGrounding = this.getMountedBounds(root)
+    const bottomOffset = root.position.y - boundsBeforeGrounding.min.y
+    const supportY = this.findMountedGroundSurface(root, boundsBeforeGrounding)
+    root.position.y = supportY + bottomOffset
+    root.updateWorldMatrix(true, true)
+    if (this.mountedCollidesWithObjects(root)) {
+      root.position.y = beforeGroundingY
+      root.updateWorldMatrix(true, true)
+    }
+
     this.placeAvatarAtMountSeat()
     const previousState = this.mountedMovementState
     this.mountedMovementState = state
@@ -639,6 +657,178 @@ export class HumanoidAvatar {
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
     this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
   }
+
+  /** Bounds de movimento da montaria, usando o colisor configurado ou o modelo visual como fallback. */
+  private getMountedBounds(root: THREE.Mesh): THREE.Box3 {
+    return getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
+  }
+
+  /**
+   * Verifica colisão da montaria com o mesmo princípio usado pelo player:
+   * colisor configurado para modelos importados e triângulos reais para colisão automática.
+   */
+  private mountedCollidesWithObjects(root: THREE.Mesh): boolean {
+    const mountBounds = getColliderBounds(root)
+    if (!mountBounds || root.userData.colliderType === 'none') return false
+
+    const triangle = new THREE.Triangle()
+    const normal = new THREE.Vector3()
+    const collisionRoots = this.world.list().map(object => object.mesh)
+
+    for (const obstacle of collisionRoots) {
+      if (obstacle === root || !obstacle.visible || obstacle.userData.colliderType === 'none') continue
+      obstacle.updateWorldMatrix(true, true)
+
+      const configuredCollider = obstacle.userData.colliderType
+      if (
+        obstacle.userData.importedModel === true &&
+        configuredCollider !== undefined &&
+        configuredCollider !== 'auto'
+      ) {
+        const obstacleBounds = getColliderBounds(obstacle)
+        if (obstacleBounds && this.hasVolumeOverlap(mountBounds, obstacleBounds)) return true
+        continue
+      }
+
+      const meshes: THREE.Mesh[] = []
+      obstacle.traverse(child => {
+        if (!(child instanceof THREE.Mesh) || !child.visible) return
+        if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+        if (obstacle.userData.importedModel === true && child === obstacle) return
+        meshes.push(child)
+      })
+
+      for (const mesh of meshes) {
+        const geometry = mesh.geometry
+        const position = geometry.getAttribute('position')
+        if (!position || position.count < 3) continue
+        if (!geometry.boundingBox) geometry.computeBoundingBox()
+        if (!geometry.boundingBox) continue
+
+        const meshBounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        if (!this.hasVolumeOverlap(mountBounds, meshBounds)) continue
+
+        // Igual ao player: considera a pose atual de malhas esqueléticas, não apenas bind pose.
+        if (mesh instanceof THREE.SkinnedMesh) mesh.skeleton.update()
+        const vertices: THREE.Vector3[] = new Array(position.count)
+        for (let index = 0; index < position.count; index += 1) {
+          vertices[index] = mesh.getVertexPosition(index, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld)
+        }
+
+        const geometryIndex = geometry.getIndex()
+        const triangleCount = Math.floor((geometryIndex ? geometryIndex.count : position.count) / 3)
+        for (let index = 0; index < triangleCount; index += 1) {
+          const ia = geometryIndex ? geometryIndex.getX(index * 3) : index * 3
+          const ib = geometryIndex ? geometryIndex.getX(index * 3 + 1) : index * 3 + 1
+          const ic = geometryIndex ? geometryIndex.getX(index * 3 + 2) : index * 3 + 2
+          const a = vertices[ia]
+          const b = vertices[ib]
+          const c = vertices[ic]
+          if (!a || !b || !c) continue
+          triangle.set(a, b, c)
+          triangle.getNormal(normal).normalize()
+
+          // Modelos importados automáticos usam a malha integral, como o player.
+          // Em primitivas, faces de topo são piso; não devem bloquear o movimento horizontal.
+          if (obstacle.userData.importedModel !== true && normal.y >= 0.45) continue
+          if (mountBounds.intersectsTriangle(triangle)) return true
+        }
+      }
+    }
+    return false
+  }
+
+  /** Detecta degraus alcançáveis sobre superfícies reais, sem subir pela lateral de modelos importados. */
+  private findMountedStepUpSurface(root: THREE.Mesh, feetY: number): number | null {
+    const bounds = this.getMountedBounds(root)
+    const height = Math.max(0.5, bounds.getSize(new THREE.Vector3()).y)
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(root.position.x, feetY + height + 0.65, root.position.z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      height + 1.15,
+    )
+    const candidates = this.world.list().filter(object =>
+      object.mesh !== root &&
+      object.mesh.visible &&
+      object.mesh.userData.colliderType !== 'none',
+    )
+    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+
+    for (const hit of hits) {
+      if (!hit.face) continue
+      const owner = candidates.find(object =>
+        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+      )
+      if (!owner || owner.mesh.userData.importedModel === true) continue
+      const normal = hit.face.normal.clone()
+        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+        .normalize()
+      if (normal.y < 0.45) continue
+
+      const rise = hit.point.y - feetY
+      if (rise >= -0.12 && rise <= 0.5) return hit.point.y
+    }
+    return null
+  }
+
+  /** Obtém o piso válido sob a montaria: terreno, plataformas ou superfícies inclinadas. */
+  private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
+    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
+    const feetY = bounds.min.y
+    let supportY = terrainY
+    const size = bounds.getSize(new THREE.Vector3())
+    const originY = Math.max(bounds.max.y + 1, feetY + size.y + 1, terrainY + size.y + 2)
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(root.position.x, originY, root.position.z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      Math.max(2, originY - Math.min(feetY, terrainY) + 1),
+    )
+    const candidates = this.world.list().filter(object =>
+      object.mesh !== root &&
+      object.mesh.visible &&
+      object.mesh.userData.colliderType !== 'none',
+    )
+    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+
+    for (const hit of hits) {
+      if (!hit.face) continue
+      const owner = candidates.find(object =>
+        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+      )
+      if (!owner) continue
+      // A raiz do modelo importado é um proxy; a superfície precisa vir do GLB.
+      if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+      const normal = hit.face.normal.clone()
+        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+        .normalize()
+      if (normal.y < 0.45) continue
+
+      const surfaceY = hit.point.y
+      const rise = surfaceY - feetY
+      if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
+      supportY = Math.max(supportY, surfaceY)
+      break
+    }
+
+    // O mesmo fallback de aterrissagem do player: caixas simples também podem sustentar o corpo.
+    for (const object of candidates) {
+      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
+      if (rotatedRamp) continue
+      const box = getColliderBounds(object.mesh)
+      if (!box) continue
+      const horizontalOverlap = bounds.max.x > box.min.x && bounds.min.x < box.max.x &&
+        bounds.max.z > box.min.z && bounds.min.z < box.max.z
+      if (!horizontalOverlap) continue
+      const surfaceY = box.max.y
+      const rise = surfaceY - feetY
+      if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
+      supportY = Math.max(supportY, surfaceY)
+    }
+    return supportY
+  }
+
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
