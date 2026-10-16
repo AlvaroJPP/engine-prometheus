@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
-import { MAIN_SCENE_PATH, parseProject, parseScene } from '@engine'
+import { MAIN_SCENE_PATH, parseProject, parseScene, parseSceneObject } from '@engine'
 import type { FaceTextureMap, ProjectBundle, SceneFile, SceneObjectData } from '@engine'
 
 export type ProjectProgress = (message: string, percent: number) => void
@@ -110,7 +110,7 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   onProgress?.('Salvamento concluído.', 100)
 }
 
-async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: ProjectProgress, percent = 10): Promise<string> {
+async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: ProjectProgress, percent = 10): Promise<string | SceneFile> {
   // Sem arquivos referenciados externamente, evitamos parse + stringify + parse
   // da cena completa — caro em projetos com centenas de milhares de tufos de grama.
   if (!rawText.includes('asset://')) return rawText
@@ -149,7 +149,9 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
       object.importedModelData = await readAsset(dir, rel)
     }
   }
-  return JSON.stringify(scene)
+  // Entrega o objeto já hidratado diretamente à validação, evitando outra
+  // serialização e parse completo da cena quando há referências a assets.
+  return scene
 }
 
 export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress): Promise<ProjectBundle> {
@@ -162,7 +164,9 @@ export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress)
     const raw = await invoke<string>('read_project_file', { dir, rel: path })
     onProgress?.(`Carregando recursos da cena ${index + 1}/${totalScenes}…`, Math.round(5 + ((index + 1) / totalScenes) * 65))
     const hydrated = await hydrateSceneAssets(dir, raw, onProgress, Math.round(5 + ((index + 1) / totalScenes) * 65))
-    scenes[path] = parseScene(hydrated, path)
+    scenes[path] = typeof hydrated === 'string'
+      ? parseScene(hydrated, path)
+      : parseSceneObject(hydrated, path)
   }
   if (!scenes[MAIN_SCENE_PATH] && Object.keys(scenes).length === 0) {
     throw new Error('Nenhuma cena foi carregada.')
