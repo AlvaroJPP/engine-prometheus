@@ -651,9 +651,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     persistPerformanceSettings()
 
     const messages: Record<PerformancePreset, string> = {
-      quality: 'Modo qualidade: alvo de 60 FPS e resolução padrão.',
-      balanced: 'Modo equilibrado: alvo de 45 FPS e resolução interna reduzida.',
-      economy: 'Modo econômico: alvo de 30 FPS e resolução interna em 75%.',
+      quality: 'Modo qualidade: alvo de 60 FPS, grama densa e resolução padrão.',
+      balanced: 'Modo equilibrado: alvo de 45 FPS, grama menos densa à distância e resolução em 85%.',
+      economy: 'Modo econômico: alvo de 30 FPS, grama distante bem menos densa e resolução em 75%.',
     }
     say(messages[performanceMode.value])
   }
