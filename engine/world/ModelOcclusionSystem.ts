@@ -176,7 +176,9 @@ export class ModelOcclusionSystem {
           isInterleavedBufferAttribute?: boolean
           isInstancedBufferAttribute?: boolean
         }
-        return candidate.isInterleavedBufferAttribute === true || candidate.isInstancedBufferAttribute === true
+        return candidate.isInterleavedBufferAttribute === true
+          || candidate.isInstancedBufferAttribute === true
+          || (candidate as THREE.BufferAttribute & { isFloat16BufferAttribute?: boolean }).isFloat16BufferAttribute === true
       })) return
 
       const elementCount = geometry.index?.count ?? position.count
