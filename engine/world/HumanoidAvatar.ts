@@ -623,9 +623,6 @@ export class HumanoidAvatar {
     const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + sampleY, this.mesh.position.z)
     const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
     const triangle = new THREE.Triangle()
-    const a = new THREE.Vector3()
-    const b = new THREE.Vector3()
-    const c = new THREE.Vector3()
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
 
@@ -653,14 +650,29 @@ export class HumanoidAvatar {
         if (!geometry.boundingBox) geometry.computeBoundingBox()
         if (!geometry.boundingBox) continue
 
-        const bounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
-        bounds.min.x -= PLAYER_RADIUS
-        bounds.max.x += PLAYER_RADIUS
-        bounds.min.y -= PLAYER_HEIGHT
-        bounds.max.y += PLAYER_RADIUS
-        bounds.min.z -= PLAYER_RADIUS
-        bounds.max.z += PLAYER_RADIUS
-        if (!playerBox.intersectsBox(bounds)) continue
+        // Primeiro, descarta malhas distantes usando o bound de repouso ampliado.
+        // Ossos/morph targets podem mover vértices para fora da caixa original.
+        const coarseBounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        coarseBounds.min.x -= PLAYER_RADIUS + 0.75
+        coarseBounds.max.x += PLAYER_RADIUS + 0.75
+        coarseBounds.min.y -= PLAYER_HEIGHT + 0.75
+        coarseBounds.max.y += 0.75
+        coarseBounds.min.z -= PLAYER_RADIUS + 0.75
+        coarseBounds.max.z += PLAYER_RADIUS + 0.75
+        if (!playerBox.intersectsBox(coarseBounds)) continue
+
+        // getVertexPosition aplica morph targets e, em SkinnedMesh, os ossos.
+        // Ler diretamente o atributo position usa a pose de bind, que não é
+        // necessariamente onde o animal aparece no viewport.
+        if (mesh instanceof THREE.SkinnedMesh) mesh.skeleton.update()
+        const worldVertices: THREE.Vector3[] = new Array(position.count)
+        const localVertex = new THREE.Vector3()
+        for (let vertexIndex = 0; vertexIndex < position.count; vertexIndex += 1) {
+          worldVertices[vertexIndex] = mesh.getVertexPosition(vertexIndex, localVertex.clone())
+            .applyMatrix4(mesh.matrixWorld)
+        }
+        const deformedBounds = new THREE.Box3().setFromPoints(worldVertices)
+        if (!playerBox.intersectsBox(deformedBounds)) continue
 
         const index = geometry.getIndex()
         const triangleCount = Math.floor((index ? index.count : position.count) / 3)
@@ -668,9 +680,10 @@ export class HumanoidAvatar {
           const ia = index ? index.getX(i * 3) : i * 3
           const ib = index ? index.getX(i * 3 + 1) : i * 3 + 1
           const ic = index ? index.getX(i * 3 + 2) : i * 3 + 2
-          a.fromBufferAttribute(position, ia).applyMatrix4(mesh.matrixWorld)
-          b.fromBufferAttribute(position, ib).applyMatrix4(mesh.matrixWorld)
-          c.fromBufferAttribute(position, ic).applyMatrix4(mesh.matrixWorld)
+          const a = worldVertices[ia]
+          const b = worldVertices[ib]
+          const c = worldVertices[ic]
+          if (!a || !b || !c) continue
           triangle.set(a, b, c)
           triangle.getNormal(normal).normalize()
 
