@@ -101,6 +101,8 @@ export class HumanoidAvatar {
   private mountSettings: MountPackageSettings | null = null
   private mountedMovementState: MountMovementState = 'idle'
   private mountedJumpRequested = false
+  private mountedAirborne = false
+  private mountedVerticalVelocity = 0
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -377,6 +379,8 @@ export class HumanoidAvatar {
     this.mountedStartRotation = root.rotation.clone()
     this.mountedMovementState = 'idle'
     this.mountedJumpRequested = false
+    this.mountedAirborne = false
+    this.mountedVerticalVelocity = 0
     this.mountSettings = {
       interactionKey: settings.interactionKey,
       seatOffset: [...settings.seatOffset],
@@ -432,6 +436,8 @@ export class HumanoidAvatar {
     this.mountSettings = null
     this.mountedMovementState = 'idle'
     this.mountedJumpRequested = false
+    this.mountedAirborne = false
+    this.mountedVerticalVelocity = 0
     this.mountedStartPosition = null
     this.mountedStartRotation = null
     this.visualRoot.visible = true
@@ -560,7 +566,7 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
-    const shouldJump = this.mountedJumpRequested
+    const shouldJump = this.mountedJumpRequested && !this.mountedAirborne
     this.mountedJumpRequested = false
     let state: MountMovementState = 'idle'
 
@@ -630,17 +636,53 @@ export class HumanoidAvatar {
       }
     }
 
-    // O player apoia-se nas superfícies do mundo, não somente na altura do terreno.
-    // A montaria também segue plataformas e rampas e mantém a base do colisor apoiada.
-    const beforeGroundingY = root.position.y
-    const boundsBeforeGrounding = this.getMountedBounds(root)
-    const bottomOffset = root.position.y - boundsBeforeGrounding.min.y
-    const supportY = this.findMountedGroundSurface(root, boundsBeforeGrounding)
-    root.position.y = supportY + bottomOffset
-    root.updateWorldMatrix(true, true)
-    if (this.mountedCollidesWithObjects(root)) {
-      root.position.y = beforeGroundingY
-      root.updateWorldMatrix(true, true)
+    // O pulo montado precisa de física própria: só tocar a animação não desloca
+    // a raiz do cavalo. Velocidade vertical e gravidade mantêm o salto até aterrissar.
+    if (shouldJump && !this.mountedAirborne) {
+      this.mountedAirborne = true
+      this.mountedVerticalVelocity = JUMP_SPEED
+    }
+
+    if (this.mountedAirborne) {
+      const previousRootY = root.position.y
+      const previousBounds = this.getMountedBounds(root)
+      const previousFeetY = previousBounds.min.y
+
+      root.position.y += this.mountedVerticalVelocity * dt
+      root.updateMatrixWorld(true, true)
+
+      // Bloqueia a subida ao atingir a parte inferior de um teto.
+      if (this.mountedVerticalVelocity > 0 && this.mountedCollidesWithCeiling(root, previousRootY)) {
+        root.position.y = previousRootY
+        this.mountedVerticalVelocity = 0
+        root.updateMatrixWorld(true, true)
+      }
+
+      this.mountedVerticalVelocity -= GRAVITY * dt
+      const currentBounds = this.getMountedBounds(root)
+      const supportY = this.findMountedGroundSurface(root, currentBounds)
+      if (
+        this.mountedVerticalVelocity <= 0 &&
+        previousFeetY >= supportY - 0.05 &&
+        currentBounds.min.y <= supportY + 0.05
+      ) {
+        root.position.y += supportY - currentBounds.min.y
+        this.mountedVerticalVelocity = 0
+        this.mountedAirborne = false
+        root.updateMatrixWorld(true, true)
+      }
+    } else {
+      // No chão, acompanha o terreno, plataformas e rampas conforme o player.
+      const beforeGroundingY = root.position.y
+      const boundsBeforeGrounding = this.getMountedBounds(root)
+      const bottomOffset = root.position.y - boundsBeforeGrounding.min.y
+      const supportY = this.findMountedGroundSurface(root, boundsBeforeGrounding)
+      root.position.y = supportY + bottomOffset
+      root.updateMatrixWorld(true, true)
+      if (this.mountedCollidesWithObjects(root)) {
+        root.position.y = beforeGroundingY
+        root.updateMatrixWorld(true, true)
+      }
     }
 
     this.placeAvatarAtMountSeat()
@@ -732,6 +774,80 @@ export class HumanoidAvatar {
           // Em primitivas, faces de topo são piso; não devem bloquear o movimento horizontal.
           if (obstacle.userData.importedModel !== true && normal.y >= 0.45) continue
           if (mountBounds.intersectsTriangle(triangle)) return true
+        }
+      }
+    }
+    return false
+  }
+
+  /**
+   * Detecta colisão ascendente com tetos. Usa colisores simplificados nos modelos
+   * configurados manualmente e triângulos reais quando a colisão é automática.
+   */
+  private mountedCollidesWithCeiling(root: THREE.Mesh, previousRootY: number): boolean {
+    const currentBounds = this.getMountedBounds(root)
+    const previousBounds = currentBounds.clone().translate(
+      new THREE.Vector3(0, previousRootY - root.position.y, 0),
+    )
+
+    for (const obstacle of this.world.list().map(object => object.mesh)) {
+      if (obstacle === root || !obstacle.visible || obstacle.userData.colliderType === 'none') continue
+      obstacle.updateWorldMatrix(true, true)
+
+      const configuredCollider = obstacle.userData.colliderType
+      if (obstacle.userData.importedModel === true && configuredCollider !== undefined && configuredCollider !== 'auto') {
+        const box = getColliderBounds(obstacle)
+        if (!box) continue
+        const overlapsHorizontally = currentBounds.max.x > box.min.x && currentBounds.min.x < box.max.x &&
+          currentBounds.max.z > box.min.z && currentBounds.min.z < box.max.z
+        const crossesUnderside = previousBounds.max.y <= box.min.y + 0.05 &&
+          currentBounds.max.y >= box.min.y - 0.02
+        if (overlapsHorizontally && crossesUnderside) return true
+        continue
+      }
+
+      const meshes: THREE.Mesh[] = []
+      obstacle.traverse(child => {
+        if (!(child instanceof THREE.Mesh) || !child.visible) return
+        if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+        if (obstacle.userData.importedModel === true && child === obstacle) return
+        meshes.push(child)
+      })
+
+      for (const mesh of meshes) {
+        const geometry = mesh.geometry
+        const position = geometry.getAttribute('position')
+        if (!position || position.count < 3) continue
+        if (!geometry.boundingBox) geometry.computeBoundingBox()
+        if (!geometry.boundingBox) continue
+        const broadBounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        if (!currentBounds.intersectsBox(broadBounds)) continue
+
+        if (mesh instanceof THREE.SkinnedMesh) mesh.skeleton.update()
+        const vertices: THREE.Vector3[] = new Array(position.count)
+        for (let index = 0; index < position.count; index += 1) {
+          vertices[index] = mesh.getVertexPosition(index, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld)
+        }
+        const geometryIndex = geometry.getIndex()
+        const triangleCount = Math.floor((geometryIndex ? geometryIndex.count : position.count) / 3)
+        const triangle = new THREE.Triangle()
+        const normal = new THREE.Vector3()
+        const triangleBounds = new THREE.Box3()
+
+        for (let index = 0; index < triangleCount; index += 1) {
+          const ia = geometryIndex ? geometryIndex.getX(index * 3) : index * 3
+          const ib = geometryIndex ? geometryIndex.getX(index * 3 + 1) : index * 3 + 1
+          const ic = geometryIndex ? geometryIndex.getX(index * 3 + 2) : index * 3 + 2
+          const a = vertices[ia]
+          const b = vertices[ib]
+          const c = vertices[ic]
+          if (!a || !b || !c) continue
+          triangle.set(a, b, c)
+          triangle.getNormal(normal).normalize()
+          if (normal.y >= -0.45) continue
+          triangleBounds.setFromPoints([a, b, c])
+          if (!currentBounds.intersectsBox(triangleBounds) || !currentBounds.intersectsTriangle(triangle)) continue
+          if (previousBounds.max.y <= triangleBounds.max.y + 0.05) return true
         }
       }
     }

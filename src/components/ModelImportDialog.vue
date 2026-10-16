@@ -56,11 +56,13 @@ function guessedAnimationRole(name: string): AnimationRole {
   if (/jump|leap|hop|saut|salto|pular/.test(normalized)) return 'jump'
   if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
   const isRun = /gallop|canter|sprint|running|run/.test(normalized)
-  const diagonal = /diagonal|diag/.test(normalized)
   const left = /left|esquerda|izquierda/.test(normalized)
   const right = /right|direita|derecha/.test(normalized)
-  if (diagonal && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
-  if (diagonal && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
+  const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalized)
+  const lateral = /diagonal|diag|strafe|sidestep|sideways/.test(normalized) ||
+    (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalized))
+  if (lateral && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
+  if (lateral && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
   if (isRun) return 'run'
   if (/walk|trot|locomotion|move/.test(normalized)) return 'walk'
   if (/idle|stand|rest|breath|neutral/.test(normalized)) return 'idle'
@@ -575,9 +577,18 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   const nextRoles: Record<string, AnimationRole> = {}
   ;(clips ?? []).forEach((clip, index) => {
     const savedRole = savedRoles?.[String(index)]
-    nextRoles[String(index)] = savedRole && ['ignore', 'idle', 'walk', 'run', 'mount', 'dismount'].includes(savedRole)
+    const guessed = guessedAnimationRole(clip.name)
+    const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
+    const recognizedRoles: AnimationRole[] = [
+      'ignore', 'idle', 'walk', 'run',
+      'walk_diagonal_left', 'walk_diagonal_right',
+      'run_diagonal_left', 'run_diagonal_right',
+      'run_stop', 'jump', 'mount', 'dismount',
+    ]
+    // Atualiza classificações automáticas antigas que guardaram um papel genérico.
+    nextRoles[String(index)] = savedRole && recognizedRoles.includes(savedRole) && !(guessedIsDiagonal && ['ignore', 'walk', 'run'].includes(savedRole))
       ? savedRole
-      : guessedAnimationRole(clip.name)
+      : guessed
   })
   animationRoles.value = nextRoles
   loaded.userData.importAnimationRoles = { ...nextRoles }
