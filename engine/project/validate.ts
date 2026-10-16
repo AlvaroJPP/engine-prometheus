@@ -184,7 +184,13 @@ function parseFaceTextures(value: unknown, label: string, id: string): import('.
 }
 
 export function parseScene(text: string, label = 'cena'): SceneFile {
-  const obj = parseJson(text, label)
+  return parseSceneObject(parseJson(text, label), label)
+}
+
+/** Valida uma cena já parseada sem serializar e parsear novamente JSON grande. */
+export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
+  if (!isRecord(value)) fail(`${label} deve conter um objeto JSON.`)
+  const obj = value
   const version = checkVersion(obj, label)
   if (!Array.isArray(obj.objects)) fail(`${label}: "objects" deve ser uma lista.`)
 
