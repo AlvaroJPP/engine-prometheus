@@ -1149,7 +1149,9 @@ export class GrassLayer {
       this.renderBands[2]!.maxDistance = safeDistance
     }
 
-    this.requestRenderRebuild()
+    // A atualização é aplicada no próximo frame, evitando reconstruções repetidas
+    // enquanto o controle deslizante está sendo arrastado.
+    this.renderDirty = true
   }
 
   /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */
