@@ -1307,6 +1307,7 @@ export class HumanoidAvatar {
 
   private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
     const feetY = bounds.min.y
+    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const size = bounds.getSize(new THREE.Vector3())
     const maxRise = 0.55
     const maxFlatDrop = Math.max(0.75, size.y * 0.35)
@@ -1469,7 +1470,6 @@ export class HumanoidAvatar {
     const bounds = this.getMountedBounds(root)
     const bottomOffset = root.position.y - bounds.min.y
     const feetY = bounds.min.y
-    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const maxRise = Math.max(0.16, horizontalStep * 3.5)
     const maxFlatDrop = Math.max(0.28, horizontalStep * 4)
     const maxSlopeDrop = Math.max(1.25, maxFlatDrop)
