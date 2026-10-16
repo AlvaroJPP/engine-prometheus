@@ -678,13 +678,11 @@ export class HumanoidAvatar {
         root.updateMatrixWorld(true, true)
       }
     } else {
-      // No chão, acompanha o terreno, plataformas e rampas conforme o player.
+      // Usa a mesma amostragem do subpasso também no fim do frame. O cálculo
+      // antigo elevava o cavalo pelo ponto mais alto de toda a pegada e filtrava
+      // rampas mais inclinadas, anulando o acompanhamento durante a subida.
       const beforeGroundingY = root.position.y
-      const boundsBeforeGrounding = this.getMountedBounds(root)
-      const bottomOffset = root.position.y - boundsBeforeGrounding.min.y
-      const supportY = this.findMountedGroundSurface(root, boundsBeforeGrounding)
-      root.position.y = supportY + bottomOffset
-      root.updateMatrixWorld(true, true)
+      this.followMountedSurfaceAtStep(root, 0.08)
       if (this.mountedCollidesWithObjects(root)) {
         root.position.y = beforeGroundingY
         root.updateMatrixWorld(true, true)
