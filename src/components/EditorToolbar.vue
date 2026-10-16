@@ -13,7 +13,7 @@ const props = defineProps<{
   graphOpen: boolean
   gridVisible: boolean
   polygonLinesVisible: boolean
-  performanceMode: boolean
+  performanceMode: 'quality' | 'balanced' | 'economy'
 }>()
 
 const emit = defineEmits<{
@@ -60,6 +60,15 @@ const emit = defineEmits<{
     <span class="vsep" />
     <button class="tool grid-toggle" :class="{ active: props.gridVisible }" @click="emit('toggle-grid')" title="Mostrar ou ocultar a malha">▦ Malha</button>
     <button class="tool grid-toggle" :class="{ active: props.polygonLinesVisible }" @click="emit('toggle-polygon-lines')" :title="props.polygonLinesVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'">⬡ Linhas</button>
-    <button class="tool grid-toggle" :class="{ active: props.performanceMode }" @click="emit('toggle-performance-mode')" :title="props.performanceMode ? 'Voltar à qualidade normal' : 'Reduzir a resolução do viewport para melhorar o desempenho'">{{ props.performanceMode ? '⚡ Desempenho' : '⚡ Qualidade' }}</button>
+    <button
+      class="tool grid-toggle"
+      :class="{ active: props.performanceMode !== 'quality' }"
+      @click="emit('toggle-performance-mode')"
+      :title="props.performanceMode === 'quality'
+        ? 'Modo qualidade: alvo de 60 FPS. Clique para equilibrado.'
+        : props.performanceMode === 'balanced'
+          ? 'Modo equilibrado: alvo de 45 FPS. Clique para econômico.'
+          : 'Modo econômico: alvo de 30 FPS, com resolução reduzida. Clique para qualidade.'"
+    >{{ props.performanceMode === 'quality' ? '⚡ Qualidade' : props.performanceMode === 'balanced' ? '⚡ Equilibrado' : '⚡ Econômico' }}</button>
   </nav>
 </template>
