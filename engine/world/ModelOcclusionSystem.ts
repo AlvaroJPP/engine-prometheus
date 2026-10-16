@@ -138,9 +138,9 @@ export class ModelOcclusionSystem {
     const hasEligibleTarget = modelRoots.some(targetRoot =>
       targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
     )
-    // Um modelo pode ocluir as próprias regiões espaciais, desde que o alvo
-    // tenha sido particionado. Para malhas não particionadas, evitamos autoculling
-    // para que superfícies largas não ocultem partes do mesmo componente por engano.
+    // Um modelo pode ocluir partes de si mesmo: isso cobre tanto regiões
+    // particionadas quanto GLBs que já possuem várias submalhas independentes.
+    // Apenas malhas opacas distintas podem bloquear um alvo dentro da mesma raiz.
     const hasPotentialOccluder = modelRoots.some((targetRoot) => {
       const eligibleTargets = targetRoot.meshes.filter((target) => this.isEligibleTarget(target, targetRoot.root))
       if (eligibleTargets.length === 0) return false
@@ -149,15 +149,8 @@ export class ModelOcclusionSystem {
         if (sourceRoot.root !== targetRoot.root) {
           return sourceRoot.meshes.some((candidate) => candidate.opaque)
         }
-        const partitionedTargets = eligibleTargets.filter(
-          (target) => target.mesh.userData.generatedOcclusionCluster === true,
-        )
-        return partitionedTargets.some((target) =>
-          sourceRoot.meshes.some((candidate) =>
-            candidate.opaque
-            && candidate.mesh !== target.mesh
-            && candidate.mesh.userData.generatedOcclusionCluster === true,
-          ),
+        return eligibleTargets.some((target) =>
+          sourceRoot.meshes.some((candidate) => candidate.opaque && candidate.mesh !== target.mesh),
         )
       })
     })
@@ -392,7 +385,10 @@ export class ModelOcclusionSystem {
     this.raycaster.far = maxDistance
 
     const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
-    const allowSelfOcclusion = targetMesh.userData.generatedOcclusionCluster === true
+    // isPointOccluded só é chamado para alvos de modelos importados estáticos.
+    // Permitir outros nós da mesma raiz habilita oclusão entre submalhas do GLB;
+    // a própria malha-alvo continua excluída abaixo.
+    const allowSelfOcclusion = targetRoot.userData.importedModel === true
 
     for (const source of roots) {
       const sameRoot = source.root === targetRoot
@@ -413,9 +409,9 @@ export class ModelOcclusionSystem {
 
       for (const candidate of source.meshes) {
         if (candidate.mesh === targetMesh || !candidate.opaque) continue
-        // Dentro da mesma raiz, só regiões particionadas podem ser bloqueadores:
-        // isso evita que um nó visual pequeno ou o proxy invisível oculte o resto.
-        if (sameRoot && candidate.mesh.userData.generatedOcclusionCluster !== true) continue
+        // O proxy raiz é transparente e não conta como bloqueador. Para oclusão
+        // própria, use qualquer submalha opaca real (região gerada ou nó original).
+        if (sameRoot && candidate.mesh === targetRoot) continue
         // Para autoculling, usar também o volume de cada malha (e não o AABB
         // global do castelo) impede que regiões atrás da câmera funcionem como
         // bloqueadores fantasmas.
