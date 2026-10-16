@@ -391,7 +391,6 @@ export class HumanoidAvatar {
 
     this.mountedRoot = null
     this.mountSettings = null
-    this.mountedMovementState = 'idle'
     this.visualRoot.visible = true
     this.pressed.clear()
     let placed = false
@@ -533,7 +532,8 @@ export class HumanoidAvatar {
       moveAxis('z', direction.z)
       root.rotation.y = Math.atan2(direction.x, direction.z)
       state = running ? 'run' : 'walk'
-      this.world.notifyChanged(this.getMountedObjectId() ?? '')
+      const mountedId = this.getMountedObjectId()
+      if (mountedId) this.world.notifyChanged(mountedId)
     }
 
     const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
