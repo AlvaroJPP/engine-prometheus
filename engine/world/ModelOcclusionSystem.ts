@@ -3,7 +3,6 @@ import type { GameObject } from '../model/object/GameObject'
 
 const MIN_RECHECK_INTERVAL_MS = 90
 const CAMERA_MOVE_THRESHOLD_SQ = 0.05 * 0.05
-const CAMERA_ROTATION_THRESHOLD = 0.0006
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
@@ -43,7 +42,6 @@ export class ModelOcclusionSystem {
   private dirty = true
   private lastEvaluationAt = 0
   private readonly lastCameraPosition = new THREE.Vector3()
-  private readonly lastCameraQuaternion = new THREE.Quaternion()
   private hasLastCamera = false
   private readonly raycaster = new THREE.Raycaster()
   private readonly cameraPosition = new THREE.Vector3()
@@ -80,10 +78,10 @@ export class ModelOcclusionSystem {
    */
   update(camera: THREE.Camera, objects: readonly GameObject[], now = performance.now()): boolean {
     camera.getWorldPosition(this.cameraPosition)
-    const cameraQuaternion = camera.getWorldQuaternion(new THREE.Quaternion())
+    // A rotação não altera a linha de visão geométrica a partir da mesma posição;
+    // reavaliamos quando a origem dos raios realmente se desloca.
     const cameraMoved = !this.hasLastCamera
       || this.lastCameraPosition.distanceToSquared(this.cameraPosition) >= CAMERA_MOVE_THRESHOLD_SQ
-      || 1 - Math.abs(this.lastCameraQuaternion.dot(cameraQuaternion)) >= CAMERA_ROTATION_THRESHOLD
 
     if (!this.dirty && !cameraMoved) return false
     if (this.lastEvaluationAt > 0 && now - this.lastEvaluationAt < MIN_RECHECK_INTERVAL_MS) return false
@@ -94,7 +92,6 @@ export class ModelOcclusionSystem {
     this.lastEvaluationAt = now
     this.hasLastCamera = true
     this.lastCameraPosition.copy(this.cameraPosition)
-    this.lastCameraQuaternion.copy(cameraQuaternion)
 
     const preparedRoots = this.prepareRoots(objects)
     const modelRoots = preparedRoots.filter(root => root.importedModel && !root.animated && !root.bounds.isEmpty())
@@ -232,7 +229,7 @@ export class ModelOcclusionSystem {
   }
 
   private isEligibleTarget(target: PreparedMesh, root: THREE.Object3D): boolean {
-    if (!target.mesh.visible || target.samples?.length === 0) return false
+    if (!target.mesh.visible) return false
     if (this.isEditorOverlay(target.mesh) || target.mesh instanceof THREE.SkinnedMesh) return false
 
     // Nós controlados por estados de um pacote (ex.: montar/desmontar) mantêm
