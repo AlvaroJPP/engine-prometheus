@@ -107,7 +107,7 @@ export class Viewport {
 
   /** Registra o custo CPU do motor por callback, fora da chamada WebGL render(). */
   recordUpdateDuration(durationMs: number): void {
-    if (!Number.isFinite(durationMs) || durationMs < 0) return
+    if (document.visibilityState === 'hidden' || !Number.isFinite(durationMs) || durationMs < 0) return
     this.updateTimeAccumulated += durationMs
     this.updateTimeSamples += 1
   }
@@ -170,8 +170,11 @@ export class Viewport {
     }
 
     if (this.fpsListener || this.renderStatsListener) {
-      if (this.fpsWindowStart === 0) this.fpsWindowStart = now
-      this.fpsFrameCount += 1
+      if (this.fpsWindowStart === 0) {
+        this.fpsWindowStart = now
+      } else {
+        this.fpsFrameCount += 1
+      }
       this.renderTimeAccumulated += renderDuration
       const elapsed = now - this.fpsWindowStart
       if (elapsed >= 500) {
