@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.glb?url'
+import { STLLoader } from 'three/addons/loaders/STLLoader.js'
+import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.stl?url'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
 const GRASS_COUNT = 7200
@@ -391,39 +391,140 @@ export class GrassLayer {
 
 
   /**
-   * Carrega o pacote GLB como variantes instanciadas. A pintura continua usando
-   * os mesmos dados [x, z, escala, cor], então projetos antigos seguem abrindo.
+   * Carrega o STL versionado no repositório. Como STL não preserva hierarquia
+   * nem materiais, primeiro separa as faces conectadas e depois deixa o agrupador
+   * espacial existente reunir as folhas vizinhas em tufos completos.
    */
   private loadGrassModel(): void {
-    const loader = new GLTFLoader()
-    console.info('[GrassLayer] Carregando pacote de grama:', GRASS_MODEL_URL)
+    const loader = new STLLoader()
+    console.info('[GrassLayer] Carregando modelo STL para pintura:', GRASS_MODEL_URL)
     loader.load(
       GRASS_MODEL_URL,
-      (gltf) => {
-        if (this.disposed) return
+      (geometry) => {
+        if (this.disposed) {
+          geometry.dispose()
+          return
+        }
         try {
-          const parts = this.buildGrassModelParts(gltf.scene)
-          if (parts.length === 0) throw new Error('O GLB não contém malhas de grama utilizáveis.')
+          geometry.computeBoundingBox()
+          const scene = this.splitStlIntoComponents(geometry)
+          const parts = this.buildGrassModelParts(scene)
+          scene.traverse((node) => {
+            if (node instanceof THREE.Mesh) node.geometry.dispose()
+          })
+          geometry.dispose()
+          if (parts.length === 0) throw new Error('O STL não contém componentes de grama utilizáveis.')
           this.modelParts.push(...parts)
           for (const chunk of this.chunks) this.rebuildChunk(chunk)
-          const variantIndices = [...new Set(parts.map((part) => part.variantIndex))]
-          console.info('[GrassLayer] Pacote de grama pronto para pintura:', {
-            variants: variantIndices.length,
-            meshParts: parts.length,
-            variantMeshCounts: variantIndices.map((variant) => ({
-              variant,
-              meshes: parts.filter((part) => part.variantIndex === variant).length,
-            })),
+          console.info('[GrassLayer] Modelo STL pronto para pintura:', {
+            source: GRASS_MODEL_URL,
+            componentMeshes: scene.children.length,
+            tuftParts: parts.length,
+            variants: new Set(parts.map((part) => part.variantIndex)).size,
           })
         } catch (error) {
-          console.error('[GrassLayer] O GLB foi baixado, mas não pôde ser convertido em tufos de grama.', error)
+          geometry.dispose()
+          console.error('[GrassLayer] O STL foi carregado, mas não pôde ser convertido em tufos de grama.', error)
         }
       },
       undefined,
       (error) => {
-        console.error('[GrassLayer] Não foi possível carregar o GLB da pintura de grama:', GRASS_MODEL_URL, error)
+        console.error('[GrassLayer] Não foi possível carregar o STL da pintura de grama:', GRASS_MODEL_URL, error)
       },
     )
+  }
+
+  /**
+   * STLLoader devolve triângulos sem índice. Une triângulos que compartilham
+   * vértices para isolar folhas/componentes antes de agrupar folhas próximas.
+   * Componentes enormes são descartados: neste pacote representam geometria
+   * de suporte/artefatos, não uma folha que possa ser instanciada como tufo.
+   */
+  private splitStlIntoComponents(source: THREE.BufferGeometry): THREE.Group {
+    const position = source.getAttribute('position')
+    const scene = new THREE.Group()
+    if (!position || position.count < 3) return scene
+
+    const faceCount = Math.floor(position.count / 3)
+    const parent = Array.from({ length: faceCount }, (_, index) => index)
+    const vertexOwners = new Map<string, number>()
+    const find = (value: number): number => {
+      let root = value
+      while (parent[root] !== root) {
+        parent[root] = parent[parent[root]!]!
+        root = parent[root]!
+      }
+      return root
+    }
+    const union = (left: number, right: number): void => {
+      const a = find(left)
+      const b = find(right)
+      if (a !== b) parent[b] = a
+    }
+
+    for (let face = 0; face < faceCount; face += 1) {
+      for (let corner = 0; corner < 3; corner += 1) {
+        const index = face * 3 + corner
+        const key = [
+          position.getX(index),
+          position.getY(index),
+          position.getZ(index),
+        ].map((value) => Math.round(value * 1000)).join(',')
+        const owner = vertexOwners.get(key)
+        if (owner !== undefined) union(face, owner)
+        else vertexOwners.set(key, face)
+      }
+    }
+
+    const facesByRoot = new Map<number, number[]>()
+    for (let face = 0; face < faceCount; face += 1) {
+      const root = find(face)
+      const faces = facesByRoot.get(root)
+      if (faces) faces.push(face)
+      else facesByRoot.set(root, [face])
+    }
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.92,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    })
+    let accepted = 0
+    for (const faces of facesByRoot.values()) {
+      const positions: number[] = []
+      const bounds = new THREE.Box3()
+      for (const face of faces) {
+        for (let corner = 0; corner < 3; corner += 1) {
+          const index = face * 3 + corner
+          const x = position.getX(index)
+          const y = position.getY(index)
+          const z = position.getZ(index)
+          positions.push(x, y, z)
+          bounds.expandByPoint(new THREE.Vector3(x, y, z))
+        }
+      }
+      const size = bounds.getSize(new THREE.Vector3())
+      const largestDimension = Math.max(size.x, size.y, size.z)
+      if (!Number.isFinite(size.y) || size.y < 1 || largestDimension > 2000) continue
+
+      const component = new THREE.BufferGeometry()
+      component.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+      component.computeVertexNormals()
+      component.computeBoundingBox()
+      component.computeBoundingSphere()
+      const mesh = new THREE.Mesh(component, material)
+      mesh.name = `STLGrassComponent${accepted + 1}`
+      scene.add(mesh)
+      accepted += 1
+    }
+
+    console.info('[GrassLayer] Componentes do STL separados:', {
+      triangles: faceCount,
+      connectedComponents: facesByRoot.size,
+      usableComponents: accepted,
+    })
+    return scene
   }
 
   private subtreeHasMesh(root: THREE.Object3D): boolean {
