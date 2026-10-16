@@ -821,15 +821,16 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   function installBehaviorPackage(packageId: string): string | null {
-    if (!engine || !selectedId.value || selectedId.value === TERRAIN_ID) {
+    const ownerObjectId = selectedId.value
+    if (!engine || !ownerObjectId || ownerObjectId === TERRAIN_ID) {
       say('Selecione um objeto da cena antes de instalar um pacote.')
       return null
     }
     try {
-      const instance = engine.installBehaviorPackage(selectedId.value, packageId)
+      const instance = engine.installBehaviorPackage(ownerObjectId, packageId)
       refresh()
       dirty.value = true
-      say(`Pacote "${packageId}" instalado em "${objects.value.find(object => object.id === selectedId.value)?.name ?? 'objeto'}".`)
+      say(`Pacote "${packageId}" instalado em "${objects.value.find(object => object.id === ownerObjectId)?.name ?? 'objeto'}".`)
       return instance.id
     } catch (error) {
       say(error instanceof Error ? error.message : String(error))
