@@ -797,9 +797,11 @@ export class Engine {
       animationClips.forEach((clip, index) => {
         const normalizedName = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
         const isRun = /gallop|canter|sprint|running|run/.test(normalizedName)
-        const diagonal = /diagonal|diag/.test(normalizedName)
         const left = /left|esquerda|izquierda/.test(normalizedName)
         const right = /right|direita|derecha/.test(normalizedName)
+        const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalizedName)
+        const diagonal = /diagonal|diag|strafe|sidestep|sideways/.test(normalizedName) ||
+          (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalizedName))
         const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
           : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
             : /stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalizedName) ? 'run_stop'
@@ -808,7 +810,13 @@ export class Engine {
                   : isRun ? 'run'
                     : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
                       : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
-        const role = explicitRoles?.[String(index)] ?? guessed
+        const savedRole = explicitRoles?.[String(index)]
+        const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
+        // Migra papéis automáticos antigos de locomoção para os papéis diagonais
+        // mais específicos identificados no próprio nome do clipe.
+        const role = guessedIsDiagonal && (savedRole === undefined || savedRole === 'ignore' || savedRole === 'walk' || savedRole === 'run')
+          ? guessed
+          : savedRole ?? guessed
         if (role === 'ignore') return
         if (!animationActions[role]) animationActions[role] = animationMixer!.clipAction(clip)
       })
