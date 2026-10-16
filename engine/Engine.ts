@@ -129,13 +129,18 @@ export class Engine {
     })
     this.viewport.start((dt) => {
       this.input.update(dt)
-      this.collisions.update()
-      // Os mixers pertencem à raiz de cada objeto importado; assim uma árvore
-      // pode animar-se independentemente das outras e a remoção libera a raiz.
+      // Atualize animações antes dos testes físicos para usar a pose exibida
+      // no quadro atual. A versão invalida o wireframe automático do modelo
+      // quando ossos ou morph targets mudam.
       for (const object of this.world.list()) {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
-        mixer?.update(dt)
+        if (!mixer) continue
+        mixer.update(dt)
+        const previousPoseVersion = object.mesh.userData.colliderPoseVersion
+        object.mesh.userData.colliderPoseVersion =
+          (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
       }
+      this.collisions.update()
       this.avatar.update(dt)
       this.world.updateEnvironment(dt)
       this.logic.update()
