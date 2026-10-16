@@ -99,7 +99,6 @@ export class HumanoidAvatar {
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
-  private mountedMovementState: 'idle' | 'walk' | 'run' = 'idle'
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
@@ -346,7 +345,7 @@ export class HumanoidAvatar {
 
   /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
   mount(root: THREE.Mesh, settings: MountPackageSettings): boolean {
-    if (!this.enabled || this.mountedRoot || !root.visible || root.userData.colliderType === 'none') return false
+    if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
     this.mountSettings = {
@@ -356,7 +355,6 @@ export class HumanoidAvatar {
       runMultiplier: settings.runMultiplier,
       interactionRadius: settings.interactionRadius,
     }
-    this.mountedMovementState = 'idle'
     this.visualRoot.visible = false
     root.updateWorldMatrix(true, true)
     this.placeAvatarAtMountSeat()
@@ -438,12 +436,27 @@ export class HumanoidAvatar {
     if (!actions) return
     const transition = root.userData.importAnimationTransition as AnimationRole | undefined
     const transitionAction = transition ? actions[transition] : undefined
-    if (transitionAction?.isRunning()) return
+    if (!oneShot && transitionAction?.isRunning()) return
 
     const next = actions[role]
       ?? (role === 'run' ? actions.walk : undefined)
       ?? (role === 'walk' || role === 'run' ? actions.idle : undefined)
-    if (!next) return
+    if (!next) {
+      if (oneShot && role === 'dismount') {
+        root.userData.importAnimationTransition = undefined
+        const idle = actions.idle
+        if (idle) {
+          idle.setLoop(THREE.LoopRepeat, Infinity)
+          idle.clampWhenFinished = false
+          idle.reset().fadeIn(0.15).play()
+          for (const action of Object.values(actions)) {
+            if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
+          }
+          root.userData.importAnimationState = 'idle'
+        }
+      }
+      return
+    }
 
     const currentRole = root.userData.importAnimationState as AnimationRole | undefined
     const current = currentRole ? actions[currentRole] : undefined
@@ -459,6 +472,8 @@ export class HumanoidAvatar {
       root.userData.importAnimationTransition = undefined
     }
     next.reset().fadeIn(0.15).play()
+    const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+    if (fallbackAction && fallbackAction !== next && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
     for (const action of Object.values(actions)) {
       if (action && action !== next && action.isRunning()) action.fadeOut(0.15)
     }
@@ -527,7 +542,6 @@ export class HumanoidAvatar {
     root.updateMatrixWorld(true)
     this.placeAvatarAtMountSeat()
     this.playMountAnimation(root, state)
-    this.mountedMovementState = state
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
     this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
@@ -535,7 +549,7 @@ export class HumanoidAvatar {
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
-    this.visualRoot.visible = true
+    this.visualRoot.visible = this.mountedRoot === null
     const headPartPattern = /head|hair|face|neck|jaw|eye|teeth|tongue|cabe[cç]a|cabelo|rosto|pesco[cç]o|mand[ií]bula|olho|dente|l[ií]ngua/i
     this.visualRoot.traverse((child) => {
       const partName = child.name
