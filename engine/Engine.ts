@@ -186,11 +186,15 @@ export class Engine {
   getEntity(id: string): Entity | null { return this.world.getEntity(id) }
   /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
+  private notifyBehaviorPackageChanged(ownerObjectId: string): void {
+    this.events.emit('behaviorPackageChanged', { ownerObjectId })
+  }
+
   listRules(): LogicRule[] { return this.logic.list() }
   listBehaviorPackages(ownerObjectId?: string): BehaviorPackageInstance[] { return this.logic.listPackages(ownerObjectId) }
   installBehaviorPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance {
     const instance = this.logic.installPackage(ownerObjectId, packageId)
-    this.world.notifyChanged(ownerObjectId)
+    this.notifyBehaviorPackageChanged(ownerObjectId)
     return instance
   }
   updateBehaviorPackage(
@@ -204,7 +208,7 @@ export class Engine {
       this.logic.setPackageVariable(id, 'mounted', false)
       this.activeMountPackageId = null
     }
-    if (instance) this.world.notifyChanged(instance.ownerObjectId)
+    if (instance) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
   }
   removeBehaviorPackage(id: string): void {
     if (this.activeMountPackageId === id) {
@@ -415,7 +419,7 @@ export class Engine {
         this.avatar.dismount()
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
-          this.world.notifyChanged(packageInstance.ownerObjectId)
+          this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
           this.logic.triggerKeyPressed(event.code)
         }
         this.activeMountPackageId = null
@@ -446,7 +450,7 @@ export class Engine {
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
-        this.world.notifyChanged(candidate.instance.ownerObjectId)
+        this.notifyBehaviorPackageChanged(candidate.instance.ownerObjectId)
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
         this.logic.triggerKeyPressed(event.code)
