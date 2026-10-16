@@ -145,15 +145,18 @@ export class Engine {
           const transitionAction = actions?.dismount
           if (!transitionAction?.isRunning()) {
             object.mesh.userData.importAnimationTransition = undefined
-            const idle = actions?.idle
-            if (idle) {
-              idle.setLoop(THREE.LoopRepeat, Infinity)
-              idle.clampWhenFinished = false
-              idle.reset().fadeIn(0.15).play()
+            const restingAction = actions?.idle ?? actions?.walk ?? actions?.run
+            if (restingAction && actions) {
+              restingAction.setLoop(THREE.LoopRepeat, Infinity)
+              restingAction.clampWhenFinished = false
+              restingAction.reset().fadeIn(0.15).play()
+              const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+              if (fallbackAction && fallbackAction !== restingAction && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
               for (const action of Object.values(actions)) {
-                if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
+                if (action && action !== restingAction && action.isRunning()) action.fadeOut(0.15)
               }
-              object.mesh.userData.importAnimationState = 'idle'
+              object.mesh.userData.importAnimationState = restingAction === actions.idle ? 'idle'
+                : restingAction === actions.walk ? 'walk' : 'run'
             }
           }
         }
