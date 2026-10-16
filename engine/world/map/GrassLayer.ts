@@ -192,7 +192,7 @@ export class GrassLayer {
   // Evita consultar o heightfield de cada tufo sempre que os anéis se movem.
   private paintedModelCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
   private paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
-  private lastCameraPosition: THREE.Vector3 | null = null
+  private lastRingCenter: THREE.Vector3 | null = null
   private renderDirty = true
   private readonly windUniforms = {
     uGrassTime: { value: 0 },
@@ -983,8 +983,8 @@ export class GrassLayer {
 
   private requestRenderRebuild(): void {
     this.renderDirty = true
-    if (!this.lastCameraPosition || this.disposed) return
-    this.rebuildDistanceRings(this.lastCameraPosition)
+    if (!this.lastRingCenter || this.disposed) return
+    this.rebuildDistanceRings(this.lastRingCenter)
     this.renderDirty = false
   }
 
@@ -1130,20 +1130,21 @@ export class GrassLayer {
     this.requestRenderRebuild()
   }
 
-  /** A qualidade é decidida por distância individual, não pelo centro de um chunk. */
+  /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */
   updateVisibility(cameraPosition: THREE.Vector3, playerPosition: THREE.Vector3 | null = null): void {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
     else this.windUniforms.uGrassPlayerPosition.value.set(100000, 0, 100000)
 
-    const cameraMoved = !this.lastCameraPosition ||
+    const renderCenter = playerPosition ?? cameraPosition
+    const centerMoved = !this.lastRingCenter ||
       Math.hypot(
-        cameraPosition.x - this.lastCameraPosition.x,
-        cameraPosition.z - this.lastCameraPosition.z,
+        renderCenter.x - this.lastRingCenter.x,
+        renderCenter.z - this.lastRingCenter.z,
       ) >= GRASS_RING_REBUILD_DISTANCE
 
-    if (cameraMoved) this.lastCameraPosition = cameraPosition.clone()
-    if (cameraMoved || this.renderDirty) {
-      this.rebuildDistanceRings(this.lastCameraPosition ?? cameraPosition)
+    if (centerMoved) this.lastRingCenter = renderCenter.clone()
+    if (centerMoved || this.renderDirty) {
+      this.rebuildDistanceRings(this.lastRingCenter ?? renderCenter)
       this.renderDirty = false
     }
   }
