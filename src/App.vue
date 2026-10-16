@@ -785,6 +785,34 @@ async function refreshSavedComponents() {
   }
 }
 
+async function renameSavedComponent(id: string, requestedName: string) {
+  const name = requestedName.trim().slice(0, 80)
+  if (!name) {
+    status.value = 'Informe um nome para o componente.'
+    return
+  }
+  const normalized = name.toLocaleLowerCase('pt-BR')
+  const duplicate = savedComponents.value.find(
+    component => component.id !== id && component.name.trim().toLocaleLowerCase('pt-BR') === normalized,
+  )
+  if (duplicate) {
+    status.value = 'Já existe um componente chamado "' + duplicate.name + '". Escolha outro nome.'
+    return
+  }
+
+  try {
+    const component = await getSavedComponent(id)
+    if (!component) throw new Error('Este componente não está mais na biblioteca.')
+    // Atualiza apenas os metadados. O GLB, animações, colisor e ID permanecem intactos.
+    component.name = name
+    await saveComponentAsset(component)
+    await refreshSavedComponents()
+    status.value = 'Componente renomeado para "' + name + '".'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível renomear o componente.'
+  }
+}
+
 async function previewSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
@@ -1012,8 +1040,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @toggle-lock="toggleObjectLock"
         @toggle-wireframe="toggleObjectWireframe"
         @place-component="placeSavedComponent"
+        @rename-component="renameSavedComponent"
         @delete-component="removeSavedComponent"
-         @preview-component="previewSavedComponent"
+        @preview-component="previewSavedComponent"
       />
 
       <!-- Viewport -->
