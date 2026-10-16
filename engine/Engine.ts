@@ -741,7 +741,7 @@ export class Engine {
       // Se o usuário atribuiu papéis no preview, respeite "Não usar":
       // clipes de montar/desmontar nunca devem tocar em loop fora da ação.
       const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run
-        ?? (!explicitRoles ? animationMixer.clipAction(animationClips[0]!) : undefined)
+        ?? (!explicitRoles && !animationActions.mount && !animationActions.dismount ? animationMixer.clipAction(animationClips[0]!) : undefined)
       if (initialAction) {
         initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
         if (!Object.values(animationActions).includes(initialAction)) fallbackAnimationAction = initialAction
