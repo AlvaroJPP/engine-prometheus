@@ -26,6 +26,8 @@ const model = shallowRef<THREE.Object3D | null>(null)
 const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }>>([])
 const selectedPartId = ref('')
 const soloPartId = ref('')
+const partSearch = ref('')
+const componentName = ref('')
 
 type ModelDiagnostic = {
   id: string
@@ -48,6 +50,11 @@ const previewPlaying = ref(true)
 const animationRoles = ref<Record<string, AnimationRole>>({})
 const previewAnimations = computed(() => (model.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [])
 const selectedAnimationRole = computed<AnimationRole>(() => animationRoles.value[String(previewAnimationIndex.value)] ?? 'ignore')
+const filteredPreviewParts = computed(() => {
+  const query = partSearch.value.trim().toLocaleLowerCase('pt-BR')
+  if (!query) return previewParts.value
+  return previewParts.value.filter(part => part.name.toLocaleLowerCase('pt-BR').includes(query))
+})
 
 function guessedAnimationRole(name: string): AnimationRole {
   const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
@@ -218,7 +225,22 @@ function findPreviewPart(id: string) {
 }
 
 function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+  if (soloPartId.value) restorePreviewVisibility()
   selectedPartId.value = part.id
+  componentName.value = part.name
+
+  // Ajuste o colisor ao item selecionado em vez de manter as dimensões
+  // da cidade inteira quando o usuário importa somente uma casa ou torre.
+  const bounds = new THREE.Box3().setFromObject(part.object)
+  if (!bounds.isEmpty()) {
+    const size = bounds.getSize(new THREE.Vector3())
+    colliderSize.value = [
+      Math.max(0.05, size.x),
+      Math.max(0.05, size.y),
+      Math.max(0.05, size.z),
+    ]
+    colliderOffset.value = [0, 0, 0]
+  }
   fitCamera(part.object)
   updateColliderPreview()
 }
@@ -232,14 +254,45 @@ function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Obj
   const root = model.value
   if (!root) return
   if (soloPartId.value === part.id) {
-    root.traverse(node => { node.visible = true })
-    soloPartId.value = ''
+    restorePreviewVisibility()
   } else {
-    root.traverse(node => { node.visible = node === part.object || isDescendantOf(node, part.object) })
+    // Os ancestrais precisam permanecer visíveis: no Three.js, esconder um pai
+    // também esconde todos os seus descendentes, mesmo que o filho esteja visible=true.
+    root.traverse(node => {
+      const isPart = node === part.object
+      const isChild = isDescendantOf(node, part.object)
+      const isParent = isDescendantOf(part.object, node)
+      node.visible = node === root || isPart || isChild || isParent
+    })
     soloPartId.value = part.id
     selectedPartId.value = part.id
+    componentName.value = part.name
+    const bounds = new THREE.Box3().setFromObject(part.object)
+    if (!bounds.isEmpty()) {
+      const size = bounds.getSize(new THREE.Vector3())
+      colliderSize.value = [Math.max(0.05, size.x), Math.max(0.05, size.y), Math.max(0.05, size.z)]
+      colliderOffset.value = [0, 0, 0]
+    }
     fitCamera(part.object)
+    updateColliderPreview()
   }
+}
+
+function selectWholeModel() {
+  const root = model.value
+  if (!root) return
+  restorePreviewVisibility()
+  selectedPartId.value = ''
+  componentName.value = root.name.trim() || fileName.value.replace(/\\.[^.]+$/, '') || 'Modelo 3D'
+  const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
+  colliderSize.value = [
+    Math.max(0.05, dimensions.value[0] * scale),
+    Math.max(0.05, dimensions.value[1] * scale),
+    Math.max(0.05, dimensions.value[2] * scale),
+  ]
+  colliderOffset.value = [0, 0, 0]
+  fitCamera(root)
+  updateColliderPreview()
 }
 
 function isDescendantOf(node: THREE.Object3D, ancestor: THREE.Object3D) {
@@ -388,6 +441,8 @@ function clearLoadedModel() {
   previewParts.value = []
   selectedPartId.value = ''
   soloPartId.value = ''
+  partSearch.value = ''
+  componentName.value = ''
   previewMixer?.stopAllAction()
   previewMixer = null
   previewAnimationIndex.value = 0
@@ -561,6 +616,8 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   colliderType.value = 'box'
   colliderOffset.value = [0, 0, 0]
   loaded.name = displayName.replace(/\.[^.]+$/, '') || 'Modelo importado'
+  componentName.value = loaded.name
+  partSearch.value = ''
   const height = centerAndMeasure(loaded)
   const initialScale = 2 / height
   loaded.scale.setScalar(initialScale)
@@ -770,6 +827,7 @@ function confirmImport() {
   if (!model.value || !fileName.value) return
   const root = model.value
   const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  const chosenName = componentName.value.trim() || chosenPart?.name || root.name.trim() || 'Modelo 3D'
   let imported: THREE.Object3D
   let importedHeight = modelHeight.value
 
@@ -791,12 +849,12 @@ function confirmImport() {
       return
     }
     imported.position.sub(center)
-    const scale = 2 / size.y
+    const scale = modelHeight.value / size.y
     imported.scale.multiplyScalar(scale)
     imported.position.multiplyScalar(scale)
     imported.userData.importAnimations = root.userData.importAnimations ?? []
     imported.userData.importGltfMetadata = root.userData.importGltfMetadata
-    importedHeight = 2
+    importedHeight = modelHeight.value
   } else {
     imported = root
   }
@@ -811,7 +869,7 @@ function confirmImport() {
   previewMixer = null
   scene?.remove(root)
   model.value = null
-  emit('import', { name: imported.name || 'Modelo importado', model: imported, height: importedHeight })
+  emit('import', { name: chosenName, model: imported, height: importedHeight })
   emit('close')
 }
 
@@ -850,9 +908,12 @@ onBeforeUnmount(disposePreview)
           <div class="model-panel-separator"></div>
           <section class="model-panel-section model-hierarchy-section">
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
-            <p class="model-panel-hint">Selecione uma parte para enquadrá-la na prévia. Você também pode ocultar, isolar ou remover partes.</p>
-            <div v-if="previewParts.length" class="model-preview-parts">
-              <div v-for="(part, index) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
+            <p class="model-panel-hint">Escolha a casa, castelo ou grupo que deseja transformar em componente. Sem uma parte selecionada, o modelo inteiro será salvo.</p>
+            <label class="model-part-search">FILTRAR HIERARQUIA
+              <input v-model="partSearch" type="search" placeholder="Ex.: castelo, casa, taverna" :disabled="!previewParts.length" />
+            </label>
+            <div v-if="filteredPreviewParts.length" class="model-preview-parts">
+              <div v-for="(part, index) in filteredPreviewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
                 <button class="model-preview-part-select" :title="`Selecionar ${part.name}`" @click="selectPreviewPart(part)">
                   <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
                   <span class="model-tree-cube">◇</span>
@@ -863,8 +924,10 @@ onBeforeUnmount(disposePreview)
                 <button class="model-preview-part-solo" :class="{ active: soloPartId === part.id }" :aria-label="`Visualizar somente ${part.name}`" title="Isolar parte" @click="showOnlyPreviewPart(part)">1×</button>
                 <button class="model-preview-part-delete" :aria-label="`Remover ${part.name} da importação`" title="Remover parte" @click="deletePreviewPart(part)">×</button>
               </div>
-              <button class="model-preview-show-all" @click="restorePreviewVisibility">Mostrar todas as partes</button>
+              <button class="model-preview-show-all" @click="selectWholeModel">Selecionar modelo inteiro</button>
+              <button class="model-preview-show-all" @click="restorePreviewVisibility">Mostrar todas as partes na prévia</button>
             </div>
+            <div v-else-if="previewParts.length" class="model-hierarchy-empty"><span>⌕</span><p>Nenhuma parte encontrada</p><small>Tente outro nome ou apague o filtro.</small></div>
             <div v-else class="model-hierarchy-empty"><span>◇</span><p>Nenhuma malha carregada</p><small>A hierarquia aparecerá aqui após abrir um modelo.</small></div>
           </section>
         </aside>
@@ -912,7 +975,15 @@ onBeforeUnmount(disposePreview)
 
         <aside class="model-import-right-panel">
           <section class="model-panel-section">
-            <div class="model-panel-heading"><span>03</span> TRANSFORMAÇÃO</div>
+            <div class="model-panel-heading"><span>03</span> NOME DO COMPONENTE</div>
+            <label class="model-component-name-field">Nome na biblioteca
+              <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model" />
+            </label>
+            <p class="model-panel-hint">Esse nome será usado na biblioteca e nas novas cópias colocadas no mundo.</p>
+          </section>
+          <div class="model-panel-separator"></div>
+          <section class="model-panel-section">
+            <div class="model-panel-heading"><span>04</span> TRANSFORMAÇÃO</div>
             <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} <small>u</small></strong></label>
             <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" />
             <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }}u</button></div>
@@ -924,7 +995,7 @@ onBeforeUnmount(disposePreview)
           </section>
           <div class="model-panel-separator"></div>
           <section class="model-panel-section model-collider-section">
-            <div class="model-panel-heading"><span>04</span> COLISOR FÍSICO</div>
+            <div class="model-panel-heading"><span>05</span> COLISOR FÍSICO</div>
             <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
             <label class="model-collider-field">Forma
               <select :value="colliderType" :disabled="!model" @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
@@ -950,7 +1021,7 @@ onBeforeUnmount(disposePreview)
           </section>
           <div class="model-panel-separator"></div>
           <section class="model-panel-section">
-            <div class="model-panel-heading"><span>05</span> INFORMAÇÕES</div>
+            <div class="model-panel-heading"><span>06</span> INFORMAÇÕES</div>
             <div class="model-asset-info-row"><span>Arquivo</span><strong :title="fileName">{{ fileName || '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Tipo</span><strong>{{ fileName ? (fileName.split('.').pop() || '—').toUpperCase() : '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Geometria</span><strong>{{ diagnosticSummary.meshes }} malhas</strong></div>
@@ -960,7 +1031,7 @@ onBeforeUnmount(disposePreview)
           </section>
           <div class="model-panel-separator"></div>
           <section class="model-panel-section model-diagnostic-section">
-            <div class="model-panel-heading"><span>06</span> FERRAMENTAS</div>
+            <div class="model-panel-heading"><span>07</span> FERRAMENTAS</div>
                       <details class="model-diagnostics">
             <summary>DIAGNÓSTICO TÉCNICO DO MODELO</summary>
             <div class="model-diagnostics-summary">
@@ -1026,7 +1097,7 @@ onBeforeUnmount(disposePreview)
 
       <footer class="model-import-footer">
         <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
       </footer>
     </section>
   </div>
@@ -1062,4 +1133,6 @@ onBeforeUnmount(disposePreview)
 @media(max-width:1000px){.model-import-workspace{grid-template-columns:210px minmax(250px,1fr) 240px}.model-import-dialog{width:99vw}.model-panel-section{padding:12px 10px}.model-import-right-panel .model-panel-section{padding:12px 10px}}
 @media(max-width:760px){.model-import-backdrop{padding:5px}.model-import-dialog{height:98vh;max-height:98vh;min-height:0;width:100%;border-radius:5px}.model-import-header{padding:10px}.model-import-header-status{display:none}.model-import-toolbar{align-items:flex-start;flex-direction:column;padding:8px}.model-import-toolbar-file{max-width:100%;width:100%}.model-import-workspace{display:flex;flex-direction:column;overflow:auto}.model-import-center-panel{order:0;min-height:340px;flex:none}.model-import-preview{min-height:280px;flex:none}.model-import-preview canvas{height:280px;min-height:280px}.model-import-left-panel{order:1;overflow:visible;border-right:0;border-bottom:1px solid #30343c}.model-import-right-panel{order:2;overflow:visible;border-left:0}.model-hierarchy-section .model-preview-parts{max-height:230px;overflow:auto}.model-viewport-statusbar span:last-child{display:none}.model-import-footer{align-items:center;padding:8px;min-height:50px}.model-footer-state{font-size:9px}.model-footer-actions{gap:5px}.model-import-primary,.model-import-secondary{padding:8px;font-size:9px}}
 @media(prefers-reduced-motion:reduce){.model-loading-spinner{animation:none}}
+.model-part-search{display:flex;flex-direction:column;gap:5px;margin:10px 0;color:#9ca5b3;font-size:8px;font-weight:750;letter-spacing:.08em}.model-part-search input,.model-component-name-field input{box-sizing:border-box;width:100%;min-width:0;padding:8px 9px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:11px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.model-part-search input:focus,.model-component-name-field input:focus{outline:1px solid #b98255;border-color:#b98255}.model-preview-parts{max-height:360px!important;overflow:auto!important;padding-right:2px}.model-preview-show-all{margin-top:6px}
+.model-component-name-field{display:flex;flex-direction:column;gap:6px;color:#aeb6c4;font-size:10px}
 </style>
