@@ -84,8 +84,13 @@ interface GrassRenderBand {
   material: THREE.MeshStandardMaterial
   mesh: THREE.InstancedMesh
   capacity: number
-  modelMeshes: THREE.InstancedMesh[]
+  modelMeshes: Array<THREE.InstancedMesh | undefined>
   modelCapacities: number[]
+  /** Buffer de reserva reutilizável para o próximo rebuild (reduz churn de GPU). */
+  spareMesh: THREE.InstancedMesh | null
+  spareCapacity: number
+  spareModelMeshes: Array<THREE.InstancedMesh | undefined>
+  spareModelCapacities: number[]
 }
 
 /** Gera um tufo de folhas em malha compartilhada. A versão distante usa bem menos polígonos. */
@@ -713,6 +718,10 @@ export class GrassLayer {
       capacity,
       modelMeshes: [],
       modelCapacities: [],
+      spareMesh: null,
+      spareCapacity: 0,
+      spareModelMeshes: [],
+      spareModelCapacities: [],
     }
   }
 
@@ -738,6 +747,95 @@ export class GrassLayer {
     let capacity = 64
     while (capacity < required) capacity *= 2
     return capacity
+  }
+
+  private acquireStagedBandMesh(
+    band: GrassRenderBand,
+    required: number,
+  ): { mesh: THREE.InstancedMesh; capacity: number } {
+    const pooled = band.spareMesh
+    const pooledCapacity = band.spareCapacity
+    band.spareMesh = null
+    band.spareCapacity = 0
+
+    if (pooled && pooledCapacity >= required) {
+      pooled.count = 0
+      pooled.visible = false
+      return { mesh: pooled, capacity: pooledCapacity }
+    }
+    pooled?.dispose()
+
+    const capacity = this.nextInstanceCapacity(required)
+    const mesh = this.createInstancedMesh(
+      band.geometry,
+      band.material,
+      capacity,
+      `GrassDistanceRing-${band.name}`,
+    )
+    mesh.visible = false
+    return { mesh, capacity }
+  }
+
+  private acquireStagedModelMesh(
+    band: GrassRenderBand,
+    partIndex: number,
+    required: number,
+  ): { mesh: THREE.InstancedMesh; capacity: number } {
+    const pooled = band.spareModelMeshes[partIndex]
+    const pooledCapacity = band.spareModelCapacities[partIndex] ?? 0
+    band.spareModelMeshes[partIndex] = undefined
+    band.spareModelCapacities[partIndex] = 0
+
+    if (pooled && pooledCapacity >= required) {
+      pooled.count = 0
+      pooled.visible = false
+      return { mesh: pooled, capacity: pooledCapacity }
+    }
+    pooled?.dispose()
+
+    const part = this.modelParts[partIndex]
+    if (!part) throw new Error(`A parte de grama ${partIndex} não está disponível.`)
+    const capacity = this.nextInstanceCapacity(required)
+    const mesh = this.createModelInstancedMesh(part, capacity, band.name)
+    mesh.visible = false
+    return { mesh, capacity }
+  }
+
+  private storeSpareBandMesh(
+    band: GrassRenderBand,
+    mesh: THREE.InstancedMesh,
+    capacity: number,
+  ): void {
+    mesh.removeFromParent()
+    mesh.visible = false
+    mesh.count = 0
+    if (!band.spareMesh || capacity > band.spareCapacity) {
+      band.spareMesh?.dispose()
+      band.spareMesh = mesh
+      band.spareCapacity = capacity
+    } else if (band.spareMesh !== mesh) {
+      mesh.dispose()
+    }
+  }
+
+  private storeSpareModelMesh(
+    band: GrassRenderBand,
+    partIndex: number,
+    mesh: THREE.InstancedMesh,
+    capacity: number,
+  ): void {
+    mesh.removeFromParent()
+    mesh.visible = false
+    mesh.count = 0
+    const current = band.spareModelMeshes[partIndex]
+    const currentCapacity = band.spareModelCapacities[partIndex] ?? 0
+    if (!current || capacity > currentCapacity) {
+      current?.dispose()
+      band.spareModelMeshes[partIndex] = mesh
+      band.spareModelCapacities[partIndex] = capacity
+    } else if (current !== mesh) {
+      mesh.dispose()
+    }
   }
 
   private paintedHash(tuft: PaintedGrassTuft): number {
@@ -1121,7 +1219,7 @@ export class GrassLayer {
           }
         }
         processed += 1
-        if (% 3200 === 0) {
+        if (processed % 3200 === 0) {
           await this.yieldToUi()
           if (this.shouldCancelRenderRebuild(revision)) return
         }
@@ -1147,7 +1245,7 @@ export class GrassLayer {
           }
         }
         processed += 1
-        if (% 3200 === 0) {
+        if (processed % 3200 === 0) {
           await this.yieldToUi()
           if (this.shouldCancelRenderRebuild(revision)) return
         }
@@ -1156,20 +1254,12 @@ export class GrassLayer {
 
     if (this.shouldCancelRenderRebuild(revision)) return
 
-    // As malhas novas ficam fora da cena enquanto são preenchidas. A grama atual
-    // continua visível até todos os anéis novos estarem prontos para a troca.
+    // Alterna dois conjuntos de buffers: o atual permanece visível enquanto o
+    // conjunto de reserva é preenchido. Reutilizar os buffers reduz alocações na GPU.
     const stagedBands = this.renderBands.map((band, bandIndex) => {
       const procedural = proceduralBuckets[bandIndex]!
-      const capacity = this.nextInstanceCapacity(procedural.length)
-      const mesh = this.createInstancedMesh(
-        band.geometry,
-        band.material,
-        capacity,
-        `GrassDistanceRing-${band.name}`,
-      )
-      mesh.visible = false
-
-      const modelMeshes: THREE.InstancedMesh[] = []
+      const staged = this.acquireStagedBandMesh(band, procedural.length)
+      const modelMeshes: Array<THREE.InstancedMesh | undefined> = []
       const modelCapacities: number[] = []
       if (bandIndex < 2) {
         for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
@@ -1178,20 +1268,23 @@ export class GrassLayer {
             modelCapacities[partIndex] = 0
             continue
           }
-          const modelCapacity = this.nextInstanceCapacity(records.length)
-          const modelMesh = this.createModelInstancedMesh(this.modelParts[partIndex]!, modelCapacity, band.name)
-          modelMesh.visible = false
-          modelMeshes[partIndex] = modelMesh
-          modelCapacities[partIndex] = modelCapacity
+          const model = this.acquireStagedModelMesh(band, partIndex, records.length)
+          modelMeshes[partIndex] = model.mesh
+          modelCapacities[partIndex] = model.capacity
         }
       }
-      return { mesh, capacity, modelMeshes, modelCapacities }
+      return { mesh: staged.mesh, capacity: staged.capacity, modelMeshes, modelCapacities }
     })
 
     const discardStagedBands = (): void => {
-      for (const staged of stagedBands) {
-        staged.mesh.dispose()
-        for (const modelMesh of staged.modelMeshes) modelMesh?.dispose()
+      for (let bandIndex = 0; bandIndex < stagedBands.length; bandIndex += 1) {
+        const band = this.renderBands[bandIndex]!
+        const staged = stagedBands[bandIndex]!
+        this.storeSpareBandMesh(band, staged.mesh, staged.capacity)
+        for (let partIndex = 0; partIndex < staged.modelMeshes.length; partIndex += 1) {
+          const mesh = staged.modelMeshes[partIndex]
+          if (mesh) this.storeSpareModelMesh(band, partIndex, mesh, staged.modelCapacities[partIndex] ?? 0)
+        }
       }
     }
 
@@ -1246,15 +1339,17 @@ export class GrassLayer {
     }
 
     // A substituição acontece sem ceder o controle ao renderer: ele nunca vê o vazio.
+    // Os buffers antigos viram o conjunto de reserva para a próxima reconstrução.
     for (let bandIndex = 0; bandIndex < this.renderBands.length; bandIndex += 1) {
       const band = this.renderBands[bandIndex]!
       const staged = stagedBands[bandIndex]!
-      band.mesh.removeFromParent()
-      band.mesh.dispose()
-      for (const oldModelMesh of band.modelMeshes) {
-        if (!oldModelMesh) continue
-        oldModelMesh.removeFromParent()
-        oldModelMesh.dispose()
+
+      this.storeSpareBandMesh(band, band.mesh, band.capacity)
+      for (let partIndex = 0; partIndex < band.modelMeshes.length; partIndex += 1) {
+        const oldModelMesh = band.modelMeshes[partIndex]
+        if (oldModelMesh) {
+          this.storeSpareModelMesh(band, partIndex, oldModelMesh, band.modelCapacities[partIndex] ?? 0)
+        }
       }
 
       band.mesh = staged.mesh
@@ -1604,9 +1699,23 @@ export class GrassLayer {
     this.lastOcclusionRebuildCameraPosition = null
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
-      for (const mesh of band.modelMeshes) mesh?.removeFromParent()
+      band.mesh.dispose()
+      for (const mesh of band.modelMeshes) {
+        mesh?.removeFromParent()
+        mesh?.dispose()
+      }
+      band.spareMesh?.removeFromParent()
+      band.spareMesh?.dispose()
+      for (const mesh of band.spareModelMeshes) {
+        mesh?.removeFromParent()
+        mesh?.dispose()
+      }
       band.modelMeshes.length = 0
       band.modelCapacities.length = 0
+      band.spareMesh = null
+      band.spareCapacity = 0
+      band.spareModelMeshes.length = 0
+      band.spareModelCapacities.length = 0
     }
     for (const part of this.modelParts) part.geometry.dispose()
     for (const material of this.modelMaterials) material.dispose()
