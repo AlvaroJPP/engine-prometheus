@@ -362,6 +362,9 @@ export class ModelOcclusionSystem {
       const chunkMesh = new THREE.Mesh(chunkGeometry, mesh.material)
       chunkMesh.name = `__occlusion_chunk_${chunkIndex}`
       chunkMesh.userData.occlusionGeneratedChunk = true
+      // Compatível com os filtros existentes da hierarquia e de regras visuais.
+      // A camada pai conserva o nome/path original para preservar regras salvas.
+      chunkMesh.userData.generatedOcclusionCluster = true
       chunkMesh.castShadow = mesh.castShadow
       chunkMesh.receiveShadow = mesh.receiveShadow
       chunkMesh.renderOrder = mesh.renderOrder
@@ -399,6 +402,11 @@ export class ModelOcclusionSystem {
     }
   }
 
+  /** Aguarda o lote atual de pré-processamento espacial terminar. */
+  async waitForPreparation(): Promise<void> {
+    await this.preparationQueue
+  }
+
   private buildBoundsTreeIfNeeded(geometry: THREE.BufferGeometry): Promise<boolean> {
     const typedGeometry = geometry as GeometryWithBoundsTree
     if (typedGeometry.boundsTree) return Promise.resolve(true)
@@ -433,7 +441,12 @@ export class ModelOcclusionSystem {
       return true
     } catch (error) {
       if (this.disposed) return false
-      console.warn('[ModelOcclusion] BVH em worker indisponível; tentando preparação local.', error)
+      console.warn('[ModelOcclusion] BVH em worker indisponível; avaliando fallback local.', error)
+      const position = geometry.getAttribute('position')
+      const triangleCount = Math.floor((geometry.index?.count ?? position?.count ?? 0) / 3)
+      // Em uma malha muito grande, construir a árvore na thread principal pode
+      // congelar o editor. É melhor manter o raycast normal do que travar a UI.
+      if (triangleCount > 16_000) return false
       try {
         typedGeometry.boundsTree = new MeshBVH(geometry, {
           strategy: CENTER,
