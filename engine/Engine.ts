@@ -277,16 +277,21 @@ export class Engine {
     this.viewport.setRenderStatsListener(listener)
   }
 
-  /** Configura o limite de renderização, resolução e distâncias de LOD. */
+  /** Configura limite de quadros, resolução, LOD de modelos e densidade da grama. */
   setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
     this.viewport.setPerformancePreset(preset)
     this.modelLod.setPreset(preset)
+    this.world.terrain.grass.setPerformancePreset(preset)
+    this.viewport.invalidate()
   }
 
   /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
+    const preset = enabled ? 'economy' : 'quality'
     this.viewport.setPerformanceMode(enabled)
-    this.modelLod.setPreset(enabled ? 'economy' : 'quality')
+    this.modelLod.setPreset(preset)
+    this.world.terrain.grass.setPerformancePreset(preset)
+    this.viewport.invalidate()
   }
 
   /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
