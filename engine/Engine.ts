@@ -139,6 +139,24 @@ export class Engine {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
         if (!mixer) continue
         mixer.update(dt)
+        const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
+        if (mountedTransition === 'dismount') {
+          const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+          const transitionAction = actions?.dismount
+          if (!transitionAction?.isRunning()) {
+            object.mesh.userData.importAnimationTransition = undefined
+            const idle = actions?.idle
+            if (idle) {
+              idle.setLoop(THREE.LoopRepeat, Infinity)
+              idle.clampWhenFinished = false
+              idle.reset().fadeIn(0.15).play()
+              for (const action of Object.values(actions)) {
+                if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
+              }
+              object.mesh.userData.importAnimationState = 'idle'
+            }
+          }
+        }
         const previousPoseVersion = object.mesh.userData.colliderPoseVersion
         object.mesh.userData.colliderPoseVersion =
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
@@ -387,7 +405,10 @@ export class Engine {
       const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
       if (event.code === interactionKey) {
         this.avatar.dismount()
-        if (packageInstance) this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
+        if (packageInstance) {
+          this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
+          this.logic.triggerKeyPressed(event.code, packageInstance.ownerObjectId)
+        }
         this.activeMountPackageId = null
         event.preventDefault()
         return
@@ -416,6 +437,9 @@ export class Engine {
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
+        // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
+        // ao objeto; o pacote não substitui o sistema de eventos existente.
+        this.logic.triggerKeyPressed(event.code, candidate.instance.ownerObjectId)
         event.preventDefault()
         return
       }
@@ -710,15 +734,19 @@ export class Engine {
           animationActions.idle = animationMixer.clipAction(idleClip)
         }
       }
+      // Se o usuário atribuiu papéis no preview, respeite "Não usar":
+      // clipes de montar/desmontar nunca devem tocar em loop fora da ação.
       const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run
-        ?? animationActions.mount ?? animationActions.dismount
-        ?? animationMixer.clipAction(animationClips[0]!)
-      initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
-      console.info('[Engine] Animações do componente:', {
-        name,
-        initialClip: initialAction.getClip().name || '(primeira animação do modelo)',
-        availableClips: animationClips.map((clip) => clip.name),
-      })
+        ?? (!explicitRoles ? animationMixer.clipAction(animationClips[0]!) : undefined)
+      if (initialAction) {
+        initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
+        console.info('[Engine] Animações do componente:', {
+          name,
+          initialClip: initialAction.getClip().name || '(primeira animação do modelo)',
+          availableClips: animationClips.map((clip) => clip.name),
+          mappedRoles: explicitRoles ?? 'automático por nome',
+        })
+      }
     }
 
     // A caixa de seleção usa as dimensões do modelo e compartilha sua raiz editável.
