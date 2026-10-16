@@ -67,9 +67,9 @@ const emit = defineEmits<{
       :title="props.performanceMode === 'quality'
         ? 'Modo qualidade: alvo de 60 FPS. Clique para equilibrado.'
         : props.performanceMode === 'balanced'
-          ? 'Modo equilibrado: alvo de 45 FPS e grama menos densa à distância. Clique para econômico.'
+          ? 'Modo equilibrado: alvo de 45 FPS, alcance menor e grama menos densa. Clique para econômico.'
           : props.performanceMode === 'economy'
-            ? 'Modo econômico: alvo de 30 FPS, resolução reduzida e grama distante bem menos densa. Clique para automático.'
+            ? 'Modo econômico: alvo de 30 FPS, alcance e densidade da grama reduzidos. Clique para automático.'
             : 'Modo automático: ajusta resolução, distância/densidade da grama e LOD dos modelos conforme FPS e triângulos. Clique para qualidade.'"
     >{{ props.performanceMode === 'quality' ? '⚡ Qualidade' : props.performanceMode === 'balanced' ? '⚡ Equilibrado' : props.performanceMode === 'economy' ? '⚡ Econômico' : '⚡ Auto' }}</button>
   </nav>
