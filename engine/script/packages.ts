@@ -6,7 +6,7 @@ export type PackageJsonValue =
   | { [key: string]: PackageJsonValue }
 
 export type MountMovementState = 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right'
-export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right' | 'run_stop' | 'mount' | 'dismount'
+export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right' | 'run_stop' | 'jump' | 'mount' | 'dismount'
 
 /** Regra visual declarativa: controla a visibilidade de um nó do GLB a partir de uma variável. */
 export interface MountModelStateRule {
