@@ -515,7 +515,8 @@ export class CollisionSystem {
         const movingShape = this.buildShape(moving)
         if (!movingShape) continue
         const movingBounds = this.getShapeBounds(moving, movingShape)
-        if (!movingBounds.intersectsBox(obstacleBounds.clone().expandByVector(movingHalfSize))) continue
+        // Não rejeite pela pose final: o caminho varrido pode atravessar o
+        // obstáculo mesmo quando o objeto termina além dele.
 
         const size = movingBounds.getSize(new THREE.Vector3())
         const smallestExtent = Math.max(0.05, Math.min(size.x || Infinity, size.y || Infinity, size.z || Infinity))
