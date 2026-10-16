@@ -706,8 +706,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
     const messages: Record<PerformancePreset, string> = {
       quality: 'Modo qualidade: alvo de 60 FPS, grama densa e resolução padrão.',
-      balanced: 'Modo equilibrado: alvo de 45 FPS, grama menos densa à distância e resolução em 85%.',
-      economy: 'Modo econômico: alvo de 30 FPS, grama distante bem menos densa e resolução em 75%.',
+      balanced: 'Modo equilibrado: alvo de 45 FPS, grama menos densa e alcance menor, com resolução em 85%.',
+      economy: 'Modo econômico: alvo de 30 FPS, alcance e densidade da grama reduzidos, com resolução em 75%.',
       auto: 'Modo automático: começa no econômico e ajusta a qualidade conforme FPS e triângulos.',
     }
     say(messages[performanceMode.value])
