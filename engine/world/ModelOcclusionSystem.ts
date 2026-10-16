@@ -6,6 +6,7 @@ const CAMERA_MOVE_THRESHOLD_SQ = 0.05 * 0.05
 const CAMERA_ROTATION_DOT_THRESHOLD = 0.00001
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
+const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
 
 const OCCLUSION_ANCHORS = [
@@ -376,15 +377,17 @@ export class ModelOcclusionSystem {
   ): boolean {
     this.rayDirection.copy(target).sub(origin)
     const distance = this.rayDirection.length()
-    if (distance <= MIN_TARGET_DISTANCE + margin) return false
+    if (distance <= MIN_TARGET_DISTANCE) return false
 
-    const maxDistance = distance - margin
     this.rayDirection.multiplyScalar(1 / distance)
     this.raycaster.set(origin, this.rayDirection)
     this.raycaster.near = 0.05
-    this.raycaster.far = maxDistance
+    // Self-occlusion can use a smaller margin because neighboring parts of one
+    // model are commonly close together. External occluders keep the conservative
+    // entry/stay margin used by the original system.
+    this.raycaster.far = distance - Math.min(margin, SELF_OCCLUSION_MARGIN)
 
-    const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
+    const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number; maxDistance: number }> = []
     // isPointOccluded só é chamado para alvos de modelos importados estáticos.
     // Permitir outros nós da mesma raiz habilita oclusão entre submalhas do GLB;
     // a própria malha-alvo continua excluída abaixo.
@@ -396,6 +399,8 @@ export class ModelOcclusionSystem {
       // A oclusão entre nós da mesma raiz só vale para modelos importados estáticos;
       // cada malha-alvo permanece excluída para que ela nunca oculte a si própria.
       if (sameRoot && !allowSelfOcclusion) continue
+      const maxDistance = distance - (sameRoot ? SELF_OCCLUSION_MARGIN : margin)
+      if (maxDistance <= MIN_TARGET_DISTANCE) continue
 
       if (!sameRoot) {
         // Um objeto que contém a câmera não serve de bloqueador: isso evita que
@@ -419,7 +424,7 @@ export class ModelOcclusionSystem {
         const meshEntry = this.raycaster.ray.intersectBox(candidate.bounds, this.boundsHit)
         if (!meshEntry) continue
         const entryDistance = meshEntry.distanceTo(origin)
-        if (entryDistance < maxDistance) candidates.push({ mesh: candidate.mesh, entryDistance })
+        if (entryDistance < maxDistance) candidates.push({ mesh: candidate.mesh, entryDistance, maxDistance })
       }
     }
 
@@ -428,13 +433,14 @@ export class ModelOcclusionSystem {
     // Raycast nas caixas mais próximas primeiro. Depois de encontrar um bloqueio,
     // os candidatos cujos bounds começam atrás dele não precisam testar triângulos.
     candidates.sort((left, right) => left.entryDistance - right.entryDistance)
-    let nearestHitDistance = maxDistance
+    let nearestHitDistance = Number.POSITIVE_INFINITY
     for (const candidate of candidates) {
       if (candidate.entryDistance >= nearestHitDistance) break
+      this.raycaster.far = candidate.maxDistance
       const hit = this.raycaster.intersectObject(candidate.mesh, false)[0]
-      if (hit && hit.distance < nearestHitDistance) nearestHitDistance = hit.distance
+      if (hit && hit.distance < candidate.maxDistance) nearestHitDistance = hit.distance
     }
-    return nearestHitDistance < maxDistance
+    return Number.isFinite(nearestHitDistance)
   }
 
   dispose(): void {
