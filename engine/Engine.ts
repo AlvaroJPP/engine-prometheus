@@ -157,7 +157,7 @@ export class Engine {
 
   /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
   getEntity(id: string): Entity | null { return this.world.getEntity(id) }
-  /** Lista todas as entidades colocadas no mundo, incluindo futuras entidades como montarias. */
+  /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
   listRules(): LogicRule[] { return this.logic.list() }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
@@ -345,7 +345,7 @@ export class Engine {
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
 
-    // A montaria só ocorre quando uma regra salva do Visual Script é disparada.
+    // Dispara os gatilhos de tecla definidos nas regras do projeto.
     const executed = this.logic.triggerKeyPressed(event.code)
     if (executed) event.preventDefault()
   }
