@@ -15,7 +15,8 @@ const GRASS_MIDDLE_DISTANCE = 42
 const GRASS_VIEW_DISTANCE = 72
 const GRASS_MIDDLE_STRIDE = 2
 const GRASS_FAR_STRIDE = 4
-const GRASS_RING_REBUILD_DISTANCE = 0.4
+const GRASS_RING_REBUILD_DISTANCE = 1.5
+const GRASS_REBUILD_COALESCE_MS = 45
 const PAINTED_GRASS_SPACING = 0.17
 // Buckets maiores evitam criar um Map e um array para quase cada tufo em mapas densos.
 const PAINTED_GRASS_BUCKET_SIZE = 1
@@ -1065,7 +1066,11 @@ export class GrassLayer {
   private async processQueuedDistanceRingRebuilds(): Promise<void> {
     try {
       while (this.pendingRingCenter && !this.disposed && !this.loadingPainted) {
+        // Aguarda um intervalo curto para condensar os movimentos rápidos em um único rebuild.
+        await new Promise<void>((resolve) => window.setTimeout(resolve, GRASS_REBUILD_COALESCE_MS))
+        if (this.disposed || this.loadingPainted) break
         const center = this.pendingRingCenter
+        if (!center) continue
         this.pendingRingCenter = null
         await this.rebuildDistanceRings(center, this.renderRebuildRevision)
       }
@@ -1090,8 +1095,15 @@ export class GrassLayer {
       this.modelParts.map(() => [] as GrassInstance[]),
     )
     let processed = 0
+    let processedChunks = 0
 
     for (const chunk of this.chunks) {
+      processedChunks += 1
+      // Os testes de oclusão também cedem o controle à interface em lotes pequenos.
+      if (occlusionData && processedChunks % 4 === 0) {
+        await this.yieldToUi()
+        if (this.shouldCancelRenderRebuild(revision)) return
+      }
       if (
         occlusionData
         && (chunk.procedural.length > 0 || chunk.painted.length > 0)
@@ -1109,7 +1121,7 @@ export class GrassLayer {
           }
         }
         processed += 1
-        if (processed % 1600 === 0) {
+        if (% 3200 === 0) {
           await this.yieldToUi()
           if (this.shouldCancelRenderRebuild(revision)) return
         }
@@ -1135,7 +1147,7 @@ export class GrassLayer {
           }
         }
         processed += 1
-        if (processed % 1600 === 0) {
+        if (% 3200 === 0) {
           await this.yieldToUi()
           if (this.shouldCancelRenderRebuild(revision)) return
         }
