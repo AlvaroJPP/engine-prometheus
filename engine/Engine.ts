@@ -18,6 +18,7 @@ import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
+import { partitionLargeStaticMeshes } from './world/model/StaticModelPartitioner'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
@@ -748,6 +749,15 @@ export class Engine {
     // Removê-lo antes de calcular os limites evita misturar transformações de pais externos.
     model.removeFromParent()
     model.updateMatrixWorld(true)
+    // Divide só as malhas opacas grandes de modelos sem clips, para permitir
+    // oclusão por região sem alterar rigs, morph targets ou animações.
+    const occlusionRegions = importedAnimations.length === 0
+      ? partitionLargeStaticMeshes(model)
+      : 0
+    if (occlusionRegions > 0) {
+      console.info('[Engine] Malha estática particionada para oclusão:', { name, regions: occlusionRegions })
+      model.updateMatrixWorld(true)
+    }
     const bounds = new THREE.Box3().setFromObject(model)
     if (bounds.isEmpty()) throw new Error('O modelo importado não possui geometria visível.')
 
@@ -762,6 +772,9 @@ export class Engine {
     let meshCount = 0
     let triangleCount = 0
     const importedMeshes: THREE.Mesh[] = []
+    // Mantém materiais independentes entre modelos importados, mas evita criar
+    // um clone de material por bloco da mesma geometria particionada.
+    const clonedMaterials = new Map<THREE.Material, THREE.Material>()
     model.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return
       importedMeshes.push(child)
@@ -770,10 +783,10 @@ export class Engine {
       child.visible = true
       child.castShadow = false
       child.receiveShadow = false
-      // Assets GLB podem trazer bounding spheres incorretas ou muito pequenas.
-      // Desativar frustum culling evita que a malha desapareça após ser movida
-      // do preview para a cena principal, sem afetar a caixa de seleção.
-      child.frustumCulled = false
+      // Malhas GLB originais mantêm a proteção contra bounds incorretos do preview.
+      // Só os blocos gerados habilitam frustum culling, pois seus bounds foram
+      // recalculados sobre os vértices de cada região espacial.
+      child.frustumCulled = child.userData.generatedOcclusionCluster === true
       const geometries = child.geometry
       if (!geometries.boundingSphere) geometries.computeBoundingSphere()
       if (!geometries.boundingBox) geometries.computeBoundingBox()
@@ -782,9 +795,14 @@ export class Engine {
         ? geometries.index.count / 3
         : position.count / 3
       const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material]
-      // Cada objeto importado recebe materiais próprios: alterar a cor de uma
-      // árvore não deve modificar as outras árvores que compartilham materiais no GLB.
-      const materials = sourceMaterials.map((material) => material.clone())
+      const materials = sourceMaterials.map((material) => {
+        let clone = clonedMaterials.get(material)
+        if (!clone) {
+          clone = material.clone()
+          clonedMaterials.set(material, clone)
+        }
+        return clone
+      })
       child.material = Array.isArray(child.material) ? materials : (materials[0] ?? child.material)
       for (const material of materials) {
         // Preserve os valores PBR do glTF e garanta que mapas de cor sejam lidos
@@ -940,7 +958,7 @@ export class Engine {
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.visible = true
-        child.frustumCulled = false
+        child.frustumCulled = child.userData.generatedOcclusionCluster === true
       }
     })
     root.frustumCulled = false
@@ -1080,7 +1098,12 @@ export class Engine {
       return count
     }
     root.traverse(node => {
-      if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
+      if (
+        node === root
+        || node.userData.editorOverlay === true
+        || node.userData.generatedOcclusionCluster === true
+        || node.name === 'collider-debug-wireframe'
+      ) return
       const meshCount = countMeshes(node)
       if (meshCount === 0) return
       result.push({
@@ -1127,7 +1150,12 @@ export class Engine {
     this.modelOcclusion.restoreObjectVisibility(root)
     this.mountModelStateSignatures.set(instance.id, signature)
     root.traverse(node => {
-      if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
+      if (
+        node === root
+        || node.userData.editorOverlay === true
+        || node.userData.generatedOcclusionCluster === true
+        || node.name === 'collider-debug-wireframe'
+      ) return
       const path = this.importedModelNodePath(root, node)
       const state = evaluated.find(item => item.rule.nodePath === path)
       const baseVisible = node.userData.mountModelStateBaseVisible
