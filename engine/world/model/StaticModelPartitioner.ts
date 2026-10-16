@@ -105,7 +105,6 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
 
     if (buckets.size < 2) continue
 
-    const originalChildren = [...mesh.children]
     const clusterMeshes: THREE.Mesh[] = []
     let clusterIndex = 0
     for (const bucket of buckets.values()) {
@@ -171,8 +170,6 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     mesh.userData.occlusionPartitionContainer = true
     mesh.userData.modelOcclusionCandidate = false
     mesh.userData.modelOcclusionBaseVisible = mesh.visible
-    for (const child of originalChildren) mesh.remove(child)
-    for (const child of originalChildren) mesh.add(child)
     for (const cluster of clusterMeshes) mesh.add(cluster)
     createdRegions += clusterMeshes.length
 
