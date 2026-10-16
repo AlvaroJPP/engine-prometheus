@@ -20,6 +20,12 @@ export interface TerrainInfo {
 }
 
 const BACKGROUND = 0x12151c
+const TERRAIN_FOG_CORNERS = [
+  { x: -50, z: -50 },
+  { x: -50, z: 50 },
+  { x: 50, z: -50 },
+  { x: 50, z: 50 },
+] as const
 
 export class World {
   readonly scene = new THREE.Scene()
@@ -564,11 +570,9 @@ export class World {
   /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
   updateFogForCamera(cameraPosition: THREE.Vector3): void {
     let farthestCorner = 0
-    for (const x of [-50, 50]) {
-      for (const z of [-50, 50]) {
-        this.fogCorner.set(x, this.terrain.heightAt(x, z), z)
-        farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
-      }
+    for (const corner of TERRAIN_FOG_CORNERS) {
+      this.fogCorner.set(corner.x, this.terrain.heightAt(corner.x, corner.z), corner.z)
+      farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
     }
 
     const effectiveDistance = this.grassRenderDistance === null
