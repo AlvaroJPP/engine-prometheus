@@ -371,11 +371,9 @@ export class Engine {
       created.mesh.updateMatrixWorld(true)
       this.world.notifyChanged(created.id) 
       this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
-      // Após posicionar o componente, devolve o controle ao editor e seleciona
-      // a raiz editável. Deixar a ferramenta Construir ativa impedia selecionar
-      // o modelo recém-colocado para mover, girar ou redimensionar.
-      this.state.tool = 'select'
-      this.transformControls.enabled = true
+      // Mantém a ferramenta Construir ativa para permitir colocar várias cópias
+      // em sequência. O objeto recém-criado continua selecionado; o usuário pode
+      // mudar para Selecionar quando quiser mover, girar ou redimensionar.
       this.world.select(created.id)
       this.transformControls.attach(created.mesh)
       this.emitTool()
