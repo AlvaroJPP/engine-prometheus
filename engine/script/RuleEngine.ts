@@ -14,22 +14,13 @@ type ScriptApi = {
   rotate: (objectId: string, degrees: number) => void
   setVisible: (objectId: string, visible: boolean) => void
   setColor: (objectId: string, color: string | number) => void
-  mount: () => void
-  dismount: () => void
-  toggleMount: () => void
 }
 
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
-  private mountActionHandler: ((action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void) | null = null
-
   constructor(world: World) {
     this.world = world
-  }
-
-  setMountActionHandler(handler: (action: 'mount' | 'dismount' | 'toggle', objectId?: string) => void): void {
-    this.mountActionHandler = handler
   }
 
   exportData(): LogicEventsFile {
@@ -185,8 +176,7 @@ export class RuleEngine {
   private run(rule: LogicRule, eventObjectId?: string, conditionsAlreadyChecked = false): boolean {
     const scopeId = rule.ownerObjectId ?? eventObjectId ?? (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined)
     if (!conditionsAlreadyChecked && !this.conditionsMatch(rule, scopeId)) return false
-    const sourceObjectId = rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : undefined
-    for (const action of rule.actions) this.apply(action, eventObjectId, sourceObjectId)
+    for (const action of rule.actions) this.apply(action, eventObjectId)
     return true
   }
 
@@ -261,17 +251,13 @@ export class RuleEngine {
         if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0xffffff) throw new Error('Cor inválida. Use hexadecimal como #0000FF ou um número entre 0 e 16777215.')
         this.world.update(objectId, { color: parsed })
       },
-      // Ações de montaria disponíveis também nos scripts do Visual Script.
-      mount: () => this.mountActionHandler?.('mount', eventObjectId ?? scopeId),
-      dismount: () => this.mountActionHandler?.('dismount', eventObjectId ?? scopeId),
-      toggleMount: () => this.mountActionHandler?.('toggle', eventObjectId ?? scopeId),
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
     const run = new Function('api', 'vars', 'world', 'console', '"use strict";\n' + source) as (apiArg: ScriptApi, varsArg: Record<string, boolean | number | string>, worldArg: World, consoleArg: Console) => void
     run(api, vars, this.world, console)
   }
 
-  private apply(action: RuleAction, eventObjectId?: string, sourceObjectId?: string): void {
+  private apply(action: RuleAction, eventObjectId?: string): void {
     // Cada evento pertence a um único objeto. Reutilizações são cópias independentes
     // que o editor remapeia para o objeto de destino ao importar.
     switch (action.type) {
@@ -287,9 +273,6 @@ export class RuleEngine {
         break
       }
       case 'set_visible': this.world.update(action.objectId, { visible: action.visible }); break
-      case 'mount_entity': this.mountActionHandler?.('mount', eventObjectId ?? sourceObjectId); break
-      case 'dismount_entity': this.mountActionHandler?.('dismount', eventObjectId ?? sourceObjectId); break
-      case 'toggle_entity_mount': this.mountActionHandler?.('toggle', eventObjectId ?? sourceObjectId); break
       case 'set_variable': this.setVariable(action.name, action.value, action.scope === 'global' ? null : action.objectId ?? eventObjectId); break
       case 'script':
         try { this.executeScript(action.code, eventObjectId) }
