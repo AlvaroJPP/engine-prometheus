@@ -313,7 +313,14 @@ export class World {
       // a abertura do projeto. Criar e descartar linhas para cada GLB custa CPU
       // e memória mesmo quando o usuário não quer visualizar o wireframe.
       m.traverse((child) => {
-        if (!(child instanceof THREE.Mesh) || child.userData.editorOverlay === true) return
+        // Modelos importados usam a raiz Mesh apenas como proxy invisível para
+        // seleção/transformação. Desenhar o wireframe dessa caixa cria linhas
+        // retas ao redor do cavalo em vez de seguir a geometria real do GLB.
+        if (
+          !(child instanceof THREE.Mesh)
+          || child.userData.editorOverlay === true
+          || (child === m && m.userData.importedModel === true)
+        ) return
         let overlay = child.getObjectByName('polygon-wireframe') as THREE.LineSegments | undefined
         if (!overlay && wireframeVisible) {
           const edges = new THREE.WireframeGeometry(child.geometry)
