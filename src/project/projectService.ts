@@ -111,6 +111,10 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
 }
 
 async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: ProjectProgress, percent = 10): Promise<string> {
+  // Sem arquivos referenciados externamente, evitamos parse + stringify + parse
+  // da cena completa — caro em projetos com centenas de milhares de tufos de grama.
+  if (!rawText.includes('asset://')) return rawText
+
   let scene: SceneFile
   try {
     scene = JSON.parse(rawText) as SceneFile
