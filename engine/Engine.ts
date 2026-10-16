@@ -487,7 +487,10 @@ export class Engine {
         // A tentativa de interação é um gatilho próprio do pacote; as regras
         // podem avaliar variáveis/condições antes da ação Montar.
         this.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
-        if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
+        // Uma regra do gatilho Interagir pode alterar velocidade, tecla ou assento;
+        // recalcule a configuração depois de executar essas ações.
+        const currentSettings = getMountPackageSettings(candidate.instance)
+        if (!this.avatar.mount(candidate.object.mesh, currentSettings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.lastMountMovementState = this.avatar.getMountedMovementState()
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
