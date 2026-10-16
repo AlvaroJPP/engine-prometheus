@@ -1,6 +1,8 @@
 import type { ObjectInfo } from '../model/object/GameObject'
 import type { World } from '../world/World'
 import { EMPTY_LOGIC } from './types'
+import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages'
+import type { BehaviorPackageInstance, PackageScalar } from './packages'
 import type { LogicEventsFile, LogicRule, RuleAction } from './types'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
@@ -29,6 +31,7 @@ export class RuleEngine {
 
   load(data?: LogicEventsFile): void {
     this.data = data ? structuredClone(data) : structuredClone(EMPTY_LOGIC)
+    this.data.packages ??= []
     for (const rule of this.data.events) {
       rule.lastInside = false
       // Migra projetos antigos para uma regra pertencente a um único objeto.
@@ -40,6 +43,53 @@ export class RuleEngine {
 
   replace(data: LogicEventsFile): void { this.load(data) }
   list(): LogicRule[] { return structuredClone(this.data.events) }
+  /** Lista instâncias instaladas; cada pacote guarda seu próprio estado e configuração. */
+  listPackages(ownerObjectId?: string): BehaviorPackageInstance[] {
+    const packages = this.data.packages ?? []
+    const filtered = ownerObjectId
+      ? packages.filter(instance => instance.ownerObjectId === ownerObjectId)
+      : packages
+    return structuredClone(filtered)
+  }
+
+  /** Instala uma cópia independente de uma definição no objeto selecionado. */
+  installPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance {
+    if (!this.world.get(ownerObjectId)) throw new Error('O objeto escolhido para o pacote não existe mais.')
+    if (!getBehaviorPackageDefinition(packageId)) throw new Error(`Pacote de comportamento desconhecido: "${packageId}".`)
+    this.data.packages ??= []
+    const installed = this.data.packages.find(item =>
+      item.ownerObjectId === ownerObjectId && item.packageId === packageId,
+    )
+    if (installed) return structuredClone(installed)
+
+    const instance = createBehaviorPackageInstance(packageId, ownerObjectId)
+    this.data.packages.push(instance)
+    return structuredClone(instance)
+  }
+
+  /** Atualiza somente os campos configuráveis, sem substituir identidade/proprietário. */
+  updatePackage(
+    id: string,
+    patch: Partial<Pick<BehaviorPackageInstance, 'enabled' | 'variables' | 'config'>>,
+  ): void {
+    const instance = (this.data.packages ?? []).find(item => item.id === id)
+    if (!instance) return
+    const plain = JSON.parse(JSON.stringify(patch)) as typeof patch
+    if (typeof plain.enabled === 'boolean') instance.enabled = plain.enabled
+    if (plain.variables) instance.variables = { ...instance.variables, ...plain.variables }
+    if (plain.config) instance.config = { ...instance.config, ...plain.config }
+  }
+
+  setPackageVariable(id: string, name: string, value: PackageScalar): void {
+    const instance = (this.data.packages ?? []).find(item => item.id === id)
+    if (!instance || !name.trim()) return
+    instance.variables[name] = value
+  }
+
+  removePackage(id: string): void {
+    this.data.packages = (this.data.packages ?? []).filter(instance => instance.id !== id)
+  }
+
   variables(objectId?: string | null): Record<string, boolean | number | string> {
     return objectId ? { ...(this.data.objectVariables?.[objectId] ?? {}) } : { ...this.data.variables }
   }
@@ -76,6 +126,7 @@ export class RuleEngine {
 
   removeObjectVariables(objectId: string): void {
     if (this.data.objectVariables) delete this.data.objectVariables[objectId]
+    this.data.packages = (this.data.packages ?? []).filter(instance => instance.ownerObjectId !== objectId)
   }
   upsert(rule: LogicRule): void {
     const i = this.data.events.findIndex((r) => r.id === rule.id)
