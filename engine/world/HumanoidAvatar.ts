@@ -428,11 +428,21 @@ export class HumanoidAvatar {
     const halfWidth = Math.max(0.45, bounds.getSize(new THREE.Vector3()).x * 0.5)
     const side = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion).setY(0).normalize()
     if (side.lengthSq() < 1e-8) side.set(1, 0, 0)
+    const dismountDistance = halfWidth + PLAYER_RADIUS + 0.4
+    const forward = new THREE.Vector3(0, 0, 1)
+      .applyQuaternion(root.quaternion)
+      .setY(0)
+      .normalize()
+    if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1)
     const candidates = [
-      root.position.clone().addScaledVector(side, halfWidth + PLAYER_RADIUS + 0.4),
-      root.position.clone().addScaledVector(side, -(halfWidth + PLAYER_RADIUS + 0.4)),
-      root.position.clone().add(new THREE.Vector3(0, 0, halfWidth + PLAYER_RADIUS + 0.4)),
-      root.position.clone().add(new THREE.Vector3(0, 0, -(halfWidth + PLAYER_RADIUS + 0.4))),
+      root.position.clone().addScaledVector(side, dismountDistance),
+      root.position.clone().addScaledVector(side, -dismountDistance),
+      root.position.clone().addScaledVector(forward, dismountDistance),
+      root.position.clone().addScaledVector(forward, -dismountDistance),
+      root.position.clone().addScaledVector(side, dismountDistance * 0.72).addScaledVector(forward, dismountDistance * 0.72),
+      root.position.clone().addScaledVector(side, dismountDistance * 0.72).addScaledVector(forward, -dismountDistance * 0.72),
+      root.position.clone().addScaledVector(side, -dismountDistance * 0.72).addScaledVector(forward, dismountDistance * 0.72),
+      root.position.clone().addScaledVector(side, -dismountDistance * 0.72).addScaledVector(forward, -dismountDistance * 0.72),
     ]
 
     this.mountedRoot = null
@@ -447,24 +457,58 @@ export class HumanoidAvatar {
     this.pressed.clear()
     let placed = false
 
+    const mountFeetY = bounds.min.y
+    let placedSupportY: number | null = null
     for (const candidate of candidates) {
       const x = THREE.MathUtils.clamp(candidate.x, -49, 49)
       const z = THREE.MathUtils.clamp(candidate.z, -49, 49)
-      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      const supportY = this.findDismountSupportY(x, z, mountFeetY, root)
+      if (supportY === null) continue
+
+      // Se o candidato está além da borda, não teleporta o jogador para o chão
+      // vários metros abaixo: deixa-o sair lateralmente e cair com a gravidade.
+      const hasNearbyFloor = supportY >= mountFeetY - 0.65
+      this.mesh.position.set(x, (hasNearbyFloor ? supportY : mountFeetY) + 0.025, z)
       this.mesh.updateMatrixWorld(true)
       if (!this.collidesWithObjects()) {
         placed = true
+        placedSupportY = hasNearbyFloor ? supportY : null
         break
       }
     }
+
+    // Em plataformas estreitas, tenta pontos laterais adicionais antes de usar
+    // um fallback, evitando colocar o avatar sob a plataforma por erro de altura.
     if (!placed) {
-      const x = THREE.MathUtils.clamp(root.position.x + halfWidth + PLAYER_RADIUS + 0.5, -49, 49)
+      const radius = dismountDistance + 0.45
+      for (let index = 0; index < 12; index += 1) {
+        const angle = (Math.PI * 2 * index) / 12
+        const x = THREE.MathUtils.clamp(root.position.x + Math.cos(angle) * radius, -49, 49)
+        const z = THREE.MathUtils.clamp(root.position.z + Math.sin(angle) * radius, -49, 49)
+        const supportY = this.findDismountSupportY(x, z, mountFeetY, root)
+        if (supportY === null) continue
+        const hasNearbyFloor = supportY >= mountFeetY - 0.65
+        this.mesh.position.set(x, (hasNearbyFloor ? supportY : mountFeetY) + 0.025, z)
+        this.mesh.updateMatrixWorld(true)
+        if (!this.collidesWithObjects()) {
+          placed = true
+          placedSupportY = hasNearbyFloor ? supportY : null
+          break
+        }
+      }
+    }
+
+    if (!placed) {
+      // Último recurso: mantém a altura da montaria e permite que a física
+      // resolva uma eventual queda. Não posiciona o jogador diretamente sob ela.
+      const x = THREE.MathUtils.clamp(root.position.x + dismountDistance, -49, 49)
       const z = THREE.MathUtils.clamp(root.position.z, -49, 49)
-      this.mesh.position.set(x, this.world.terrain.heightAt(x, z), z)
+      this.mesh.position.set(x, mountFeetY + 0.025, z)
       this.mesh.updateMatrixWorld(true)
+      placedSupportY = null
     }
     this.verticalVelocity = 0
-    this.grounded = true
+    this.grounded = placedSupportY !== null
     this.activeCollisions.clear()
     this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + 1, this.mesh.position.z)
     this.playAnimation('idle')
@@ -483,6 +527,68 @@ export class HumanoidAvatar {
     this.mesh.position.copy(seat)
     this.mesh.updateMatrixWorld(true)
     this.cameraTarget.set(seat.x, seat.y + 0.9, seat.z)
+  }
+
+  /**
+   * Obtém a superfície caminhável diretamente sob um ponto de desmontagem.
+   * A altura do terreno é apenas um fallback; plataformas, rampas e objetos
+   * elevados têm prioridade quando existe piso sob o candidato.
+   */
+  private findDismountSupportY(
+    x: number,
+    z: number,
+    referenceFeetY: number,
+    ignoredRoot: THREE.Mesh,
+  ): number | null {
+    const terrainY = this.world.terrain.heightAt(x, z)
+    let supportY: number | null = terrainY
+    const originY = Math.max(referenceFeetY + PLAYER_HEIGHT + 2, terrainY + PLAYER_HEIGHT + 2)
+    const lowestAllowedY = terrainY - 0.15
+    const candidates = this.world.list().filter(object =>
+      object.mesh !== ignoredRoot &&
+      object.mesh.visible &&
+      object.mesh.userData.colliderType !== 'none',
+    )
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(x, originY, z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      Math.max(1, originY - lowestAllowedY),
+    )
+    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    const normalMatrix = new THREE.Matrix3()
+
+    for (const hit of hits) {
+      if (!hit.face) continue
+      const owner = candidates.find(object =>
+        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+      )
+      if (!owner) continue
+      if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+      const normal = hit.face.normal.clone()
+        .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+        .normalize()
+      if (normal.y < 0.45) continue
+      if (hit.point.y > referenceFeetY + 0.45 || hit.point.y < lowestAllowedY) continue
+
+      if (supportY === null || hit.point.y > supportY) supportY = hit.point.y
+      break
+    }
+
+    // Primitivas com colisor configurado também têm uma face superior válida
+    // mesmo que o raycast visual não retorne uma interseção utilizável.
+    for (const object of candidates) {
+      if (object.mesh.userData.importedModel === true) continue
+      const rotated = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
+      if (rotated) continue
+      const box = getColliderBounds(object.mesh)
+      if (!box || x < box.min.x || x > box.max.x || z < box.min.z || z > box.max.z) continue
+      const surfaceY = box.max.y
+      if (surfaceY > referenceFeetY + 0.45 || surfaceY < lowestAllowedY) continue
+      supportY = supportY === null ? surfaceY : Math.max(supportY, surfaceY)
+    }
+
+    return supportY
   }
 
   private playMountAnimation(root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
@@ -590,6 +696,7 @@ export class HumanoidAvatar {
         const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
         const count = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
         let lastSafe = origin
+        let lastSafeY = root.position.y
 
         for (let step = 1; step <= count; step += 1) {
           root.position[axis] = THREE.MathUtils.clamp(origin + delta * step / count, -49, 49)
@@ -609,6 +716,7 @@ export class HumanoidAvatar {
 
           if (!this.mountedCollidesWithObjects(root)) {
             lastSafe = root.position[axis]
+            lastSafeY = root.position.y
             feetY = this.getMountedBounds(root).min.y
             continue
           }
@@ -623,6 +731,7 @@ export class HumanoidAvatar {
             root.updateWorldMatrix(true, true)
             if (!this.mountedCollidesWithObjects(root)) {
               lastSafe = root.position[axis]
+              lastSafeY = root.position.y
               feetY = this.getMountedBounds(root).min.y
               continue
             }
@@ -632,6 +741,7 @@ export class HumanoidAvatar {
 
           // Para no último ponto livre, preservando o movimento pelo outro eixo.
           root.position[axis] = lastSafe
+          root.position.y = lastSafeY
           root.updateWorldMatrix(true, true)
           break
         }
@@ -946,26 +1056,26 @@ export class HumanoidAvatar {
    * Isso permite apoiar a parte dianteira numa rampa antes que o centro chegue
    * nela, evitando que a caixa grande da montaria fique presa na parede inicial.
    */
-  private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
-    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
+  /**
+   * Amostra a superfície sob vários pontos da pegada da montaria.
+   * Faces inclinadas são agrupadas separadamente para que o ponto mais baixo
+   * da pegada acompanhe a descida da rampa em vez de manter o corpo suspenso
+   * na altura do lado mais alto.
+   */
+  private sampleMountedSupportSurfaces(
+    root: THREE.Mesh,
+    bounds: THREE.Box3,
+    maxFlatDrop: number,
+    maxSlopeDrop: number,
+    maxRise: number,
+    originY: number,
+  ): { flat: number[]; inclined: number[]; terrain: number[] } {
     const feetY = bounds.min.y
-    let supportY = terrainY
     const size = bounds.getSize(new THREE.Vector3())
-    const originY = Math.max(bounds.max.y + 1, feetY + size.y + 1, terrainY + size.y + 2)
-    const raycaster = new THREE.Raycaster()
-    raycaster.ray.direction.set(0, -1, 0)
-    raycaster.near = 0
-    raycaster.far = Math.max(2, originY - Math.min(feetY, terrainY) + 1)
-    const candidates = this.world.list().filter(object =>
-      object.mesh !== root &&
-      object.mesh.visible &&
-      object.mesh.userData.colliderType !== 'none',
-    )
-    const objects = candidates.map(object => object.mesh)
-    const insetX = size.x * 0.34
-    const insetZ = size.z * 0.34
     const centerX = (bounds.min.x + bounds.max.x) * 0.5
     const centerZ = (bounds.min.z + bounds.max.z) * 0.5
+    const insetX = Math.max(0.05, size.x * 0.3)
+    const insetZ = Math.max(0.05, size.z * 0.3)
     const probes: Array<[number, number]> = [
       [centerX, centerZ],
       [centerX - insetX, centerZ],
@@ -978,48 +1088,114 @@ export class HumanoidAvatar {
       [centerX + insetX, centerZ + insetZ],
     ]
 
+    const flat: number[] = []
+    const inclined: number[] = []
+    const terrain: number[] = []
+
+    for (const [x, z] of probes) {
+      const terrainY = this.world.terrain.heightAt(x, z)
+      const terrainRise = terrainY - feetY
+      if (terrainRise <= maxRise && terrainRise >= -maxFlatDrop) terrain.push(terrainY)
+    }
+
+    const minProbeX = centerX - insetX
+    const maxProbeX = centerX + insetX
+    const minProbeZ = centerZ - insetZ
+    const maxProbeZ = centerZ + insetZ
+    const candidates = this.world.list().filter(object => {
+      if (object.mesh === root || !object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
+      object.mesh.updateWorldMatrix(true, true)
+      const box = getColliderBounds(object.mesh) ?? new THREE.Box3().setFromObject(object.mesh)
+      return box.max.x >= minProbeX - 0.02 && box.min.x <= maxProbeX + 0.02 &&
+        box.max.z >= minProbeZ - 0.02 && box.min.z <= maxProbeZ + 0.02 &&
+        box.max.y >= feetY - maxSlopeDrop && box.min.y <= originY
+    })
+    if (candidates.length === 0) return { flat, inclined, terrain }
+
+    const raycaster = new THREE.Raycaster()
+    raycaster.ray.direction.set(0, -1, 0)
+    raycaster.near = 0
+    raycaster.far = Math.max(1, originY - (feetY - maxSlopeDrop))
+    const objects = candidates.map(object => object.mesh)
+    const normalMatrix = new THREE.Matrix3()
+
     for (const [x, z] of probes) {
       raycaster.ray.origin.set(x, originY, z)
       const hits = raycaster.intersectObjects(objects, true)
+
       for (const hit of hits) {
         if (!hit.face) continue
         const owner = candidates.find(object =>
           object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
         )
         if (!owner) continue
-        // A raiz do modelo importado é um proxy; só a superfície visual é válida.
+        // A raiz de um modelo importado é apenas o proxy do editor.
         if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+
         const normal = hit.face.normal.clone()
-          .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+          .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
           .normalize()
-        if (normal.y < 0.45) continue
+        if (normal.y < 0.12) continue
 
         const surfaceY = hit.point.y
         const rise = surfaceY - feetY
-        if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
-        supportY = Math.max(supportY, surfaceY)
-        // O raycast está ordenado por distância: não usa superfícies abaixo
-        // de uma face de apoio válida no mesmo ponto.
+        if (rise > maxRise) continue
+
+        const isInclinedSurface = normal.y < 0.9995
+        if (rise < -maxFlatDrop && !(isInclinedSurface && rise >= -maxSlopeDrop)) continue
+
+        if (isInclinedSurface) inclined.push(surfaceY)
+        else flat.push(surfaceY)
+        // A primeira superfície caminhável é a mais alta neste ponto.
         break
       }
     }
 
-    // Caixas sem rotação também podem sustentar a montaria. Rampas usam
-    // os triângulos superiores reais, evitando apoiar no AABB superdimensionado.
-    for (const object of candidates) {
-      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
-      if (rotatedRamp) continue
-      const box = getColliderBounds(object.mesh)
-      if (!box) continue
-      const horizontalOverlap = bounds.max.x > box.min.x && bounds.min.x < box.max.x &&
-        bounds.max.z > box.min.z && bounds.min.z < box.max.z
-      if (!horizontalOverlap) continue
-      const surfaceY = box.max.y
-      const rise = surfaceY - feetY
-      if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
-      supportY = Math.max(supportY, surfaceY)
+    return { flat, inclined, terrain }
+  }
+
+  private chooseMountedSupportSurface(
+    surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
+    feetY: number,
+    maxRise: number,
+    followGroundedMovement = false,
+  ): number | null {
+    // Durante a caminhada, se dois níveis baixos estão sob a pegada, acompanha
+    // o mais baixo para descer degraus; ao aterrissar após um salto, prioriza
+    // o mais alto para não atravessar uma plataforma.
+    const nearFlat = surfaces.flat.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
+    if (nearFlat.length > 0) {
+      return followGroundedMovement ? Math.min(...nearFlat) : Math.max(...nearFlat)
     }
-    return supportY
+
+    // Em rampas, alinha-se ao lado mais baixo da pegada. Isso evita que as
+    // patas no lado descendente fiquem suspensas por causa do lado mais alto.
+    if (surfaces.inclined.length > 0) return Math.min(...surfaces.inclined)
+    if (surfaces.flat.length > 0) return Math.max(...surfaces.flat)
+
+    if (surfaces.terrain.length > 0) {
+      const terrainMin = Math.min(...surfaces.terrain)
+      const terrainMax = Math.max(...surfaces.terrain)
+      if (terrainMax - terrainMin > 0.12) return terrainMin
+      const nearTerrain = surfaces.terrain.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
+      if (nearTerrain.length > 0) return Math.max(...nearTerrain)
+      return terrainMax
+    }
+    return null
+  }
+
+  private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
+    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
+    const feetY = bounds.min.y
+    const size = bounds.getSize(new THREE.Vector3())
+    const maxRise = 0.55
+    const maxFlatDrop = Math.max(0.75, size.y * 0.35)
+    const maxSlopeDrop = Math.max(1.25, size.y * 0.4)
+    const originY = Math.max(bounds.max.y + 1, feetY + size.y + 1, terrainY + size.y + 2)
+    const surfaces = this.sampleMountedSupportSurfaces(
+      root, bounds, maxFlatDrop, maxSlopeDrop, maxRise, originY,
+    )
+    return this.chooseMountedSupportSurface(surfaces, feetY, maxRise) ?? terrainY
   }
 
   /**
@@ -1091,56 +1267,18 @@ export class HumanoidAvatar {
     const feetY = bounds.min.y
     const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const maxRise = Math.max(0.16, horizontalStep * 3.5)
-    const maxDrop = Math.max(0.28, horizontalStep * 4)
-    // Busca abaixo do cavalo o suficiente para encontrar o piso durante a descida,
-    // mas só permite "grudar" longe da posição antiga se a face for realmente inclinada.
-    const slopeSnapDown = Math.max(1.25, maxDrop)
-    const originY = Math.max(bounds.max.y + 0.25, feetY + maxRise + 0.25)
-    const candidates = this.world.list().filter(object => {
-      if (object.mesh === root || !object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
-      object.mesh.updateWorldMatrix(true, true)
-      const box = getColliderBounds(object.mesh) ?? new THREE.Box3().setFromObject(object.mesh)
-      return box.min.x <= root.position.x + 0.02 && box.max.x >= root.position.x - 0.02 &&
-        box.min.z <= root.position.z + 0.02 && box.max.z >= root.position.z - 0.02 &&
-        box.max.y >= feetY - slopeSnapDown && box.min.y <= originY
-    })
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(root.position.x, originY, root.position.z),
-      new THREE.Vector3(0, -1, 0),
-      0,
-      Math.max(1, originY - (feetY - slopeSnapDown)),
+    const maxFlatDrop = Math.max(0.28, horizontalStep * 4)
+    const maxSlopeDrop = Math.max(1.25, maxFlatDrop)
+    const size = bounds.getSize(new THREE.Vector3())
+    const originY = Math.max(bounds.max.y + 0.25, feetY + size.y + 0.25, feetY + maxRise + 0.25)
+    const surfaces = this.sampleMountedSupportSurfaces(
+      root, bounds, maxFlatDrop, maxSlopeDrop, maxRise, originY,
     )
-    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
-    let supportY = terrainY
-    let hasTerrainSupport = terrainY - feetY >= -maxDrop && terrainY - feetY <= maxRise
-
-    for (const hit of hits) {
-      if (!hit.face) continue
-      const owner = candidates.find(object =>
-        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
-      )
-      if (!owner) continue
-      if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
-      const normal = hit.face.normal.clone()
-        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
-        .normalize()
-      if (normal.y < 0.12) continue
-
-      const rise = hit.point.y - feetY
-      if (rise > maxRise) continue
-
-      const isInclinedSurface = normal.y < 0.9995
-      // Em rampas, permite recuperar contato mesmo se o centro ficou acima da face
-      // por mais de um subpasso. Superfícies planas mais baixas continuam sendo queda.
-      if (rise < -maxDrop && !(isInclinedSurface && rise >= -slopeSnapDown)) continue
-
-      if (!hasTerrainSupport || hit.point.y > supportY) supportY = hit.point.y
-      hasTerrainSupport = true
-      break
-    }
+    const supportY = this.chooseMountedSupportSurface(surfaces, feetY, maxRise, true)
+    if (supportY === null) return false
 
     const riseFromFeet = supportY - feetY
-    if (!hasTerrainSupport || riseFromFeet < -slopeSnapDown || riseFromFeet > maxRise) return false
+    if (riseFromFeet < -maxSlopeDrop || riseFromFeet > maxRise) return false
 
     root.position.y = supportY + bottomOffset
     root.updateMatrixWorld(true, true)
