@@ -137,23 +137,35 @@ export class ModelOcclusionSystem {
     const hasEligibleTarget = modelRoots.some(targetRoot =>
       targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
     )
-    // As subdivisões de um único modelo não podem ocluir umas às outras neste
-    // passe. Exija um bloqueador de outra raiz antes de gastar tempo com raycasts.
-    const hasPotentialOccluder = modelRoots.some(targetRoot =>
-      occluderRoots.some(sourceRoot =>
-        sourceRoot.root !== targetRoot.root && sourceRoot.meshes.some(candidate => candidate.opaque),
-      ),
-    )
+    // Um modelo pode ocluir as próprias regiões espaciais, desde que o alvo
+    // tenha sido particionado. Para malhas não particionadas, evitamos autoculling
+    // para que superfícies largas não ocultem partes do mesmo componente por engano.
+    const hasPotentialOccluder = modelRoots.some((targetRoot) => {
+      const eligibleTargets = targetRoot.meshes.filter((target) => this.isEligibleTarget(target, targetRoot.root))
+      if (eligibleTargets.length === 0) return false
+
+      return occluderRoots.some((sourceRoot) => {
+        if (sourceRoot.root !== targetRoot.root) {
+          return sourceRoot.meshes.some((candidate) => candidate.opaque)
+        }
+        const partitionedTargets = eligibleTargets.filter(
+          (target) => target.mesh.userData.generatedOcclusionCluster === true,
+        )
+        return partitionedTargets.some((target) =>
+          sourceRoot.meshes.some((candidate) => candidate.opaque && candidate.mesh !== target.mesh),
+        )
+      })
+    })
     if (!hasPotentialOccluder || !hasEligibleTarget) return previousCulled.size > 0
 
     const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const targetRoot of modelRoots) {
-      // Não culle uma instância por submalha quando a câmera está dentro do volume
-      // aproximado do próprio modelo; interiores devem continuar visíveis.
-      if (targetRoot.bounds.containsPoint(this.cameraPosition)) continue
-
       for (const target of targetRoot.meshes) {
         if (!this.isEligibleTarget(target, targetRoot.root)) continue
+        // Nunca oculte o próprio volume que contém a câmera. Usar o AABB do
+        // modelo inteiro era demasiado conservador em castelos/edifícios ocos:
+        // a câmera ficava dentro do AABB global e desativava toda a oclusão.
+        if (target.bounds.containsPoint(this.cameraPosition)) continue
         // Malhas fora do volume visível já são ignoradas pelo renderer; não
         // gaste raios de oclusão nelas durante esta avaliação.
         if (!this.frustum.intersectsBox(target.bounds)) continue
@@ -375,18 +387,32 @@ export class ModelOcclusionSystem {
     this.raycaster.far = maxDistance
 
     const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
+    const allowSelfOcclusion = targetRoot === roots.find((root) => root.root === targetRoot)?.root
+      && targetMesh.userData.generatedOcclusionCluster === true
+
     for (const source of roots) {
-      if (source.root === targetRoot || source.animated || source.meshes.length === 0) continue
-      // Não considerar como obstáculo a geometria que contém a câmera; em interiores
-      // isso evita que a face traseira de uma parede esconda o mundo inteiro.
-      if (source.bounds.containsPoint(origin)) continue
-      const rootEntry = this.raycaster.ray.intersectBox(source.bounds, this.boundsHit)
-      if (!rootEntry) continue
-      const rootEntryDistance = rootEntry.distanceTo(origin)
-      if (rootEntryDistance >= maxDistance) continue
+      const sameRoot = source.root === targetRoot
+      if (source.animated || source.meshes.length === 0) continue
+      // O autoculling só é permitido em regiões criadas pelo particionador; uma
+      // malha glTF comum não deve desaparecer por causa de outro nó do mesmo asset.
+      if (sameRoot && !allowSelfOcclusion) continue
+
+      if (!sameRoot) {
+        // Um objeto que contém a câmera não serve de bloqueador: isso evita que
+        // a face traseira de uma parede esconda o mundo visto de dentro.
+        if (source.bounds.containsPoint(origin)) continue
+        const rootEntry = this.raycaster.ray.intersectBox(source.bounds, this.boundsHit)
+        if (!rootEntry) continue
+        const rootEntryDistance = rootEntry.distanceTo(origin)
+        if (rootEntryDistance >= maxDistance) continue
+      }
 
       for (const candidate of source.meshes) {
         if (candidate.mesh === targetMesh || !candidate.opaque) continue
+        // Para autoculling, usar também o volume de cada malha (e não o AABB
+        // global do castelo) impede que regiões atrás da câmera funcionem como
+        // bloqueadores fantasmas.
+        if (candidate.bounds.containsPoint(origin)) continue
         const meshEntry = this.raycaster.ray.intersectBox(candidate.bounds, this.boundsHit)
         if (!meshEntry) continue
         const entryDistance = meshEntry.distanceTo(origin)
