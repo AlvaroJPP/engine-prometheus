@@ -600,7 +600,7 @@ export class HumanoidAvatar {
 
           // Como o player, a montaria pode subir degraus baixos; faces laterais
           // bloqueiam, enquanto a face superior pode virar uma nova superfície de apoio.
-          const stepSurface = this.findMountedStepUpSurface(root, feetY)
+          const stepSurface = this.findMountedStepUpSurface(root, feetY, axis, Math.sign(delta))
           if (stepSurface !== null) {
             const previousY = root.position.y
             const bounds = this.getMountedBounds(root)
@@ -722,6 +722,10 @@ export class HumanoidAvatar {
       obstacle.updateWorldMatrix(true, true)
 
       const configuredCollider = obstacle.userData.colliderType
+      const isTiltedRamp = Math.abs(obstacle.rotation.x) > 0.02 || Math.abs(obstacle.rotation.z) > 0.02
+      const obstacleBounds = isTiltedRamp ? getColliderBounds(obstacle) : null
+      const nearRamp = obstacleBounds !== null && mountBounds.intersectsBox(obstacleBounds)
+      const rampSurfaceUnderMount = isTiltedRamp && nearRamp && this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
       if (
         obstacle.userData.importedModel === true &&
         configuredCollider !== undefined &&
@@ -770,9 +774,11 @@ export class HumanoidAvatar {
           triangle.set(a, b, c)
           triangle.getNormal(normal).normalize()
 
-          // Modelos importados automáticos usam a malha integral, como o player.
-          // Em primitivas, faces de topo são piso; não devem bloquear o movimento horizontal.
+          // Faces de topo não bloqueiam o movimento. Numa rampa inclinada, as faces
+          // laterais do prisma também deixam de bloquear quando já existe uma
+          // superfície caminhável sob a área ocupada pelo cavalo.
           if (obstacle.userData.importedModel !== true && normal.y >= 0.45) continue
+          if (rampSurfaceUnderMount && Math.abs(normal.y) < 0.45) continue
           if (mountBounds.intersectsTriangle(triangle)) return true
         }
       }
@@ -854,81 +860,135 @@ export class HumanoidAvatar {
     return false
   }
 
-  /** Detecta degraus alcançáveis sobre superfícies reais, sem subir pela lateral de modelos importados. */
-  private findMountedStepUpSurface(root: THREE.Mesh, feetY: number): number | null {
+  /**
+   * Detecta uma superfície alcançável na borda dianteira do colisor.
+   * Consultar somente o centro falha em rampas compridas: a lateral da rampa
+   * colide com a montaria antes de o centro chegar à superfície inclinada.
+   */
+  private findMountedStepUpSurface(
+    root: THREE.Mesh,
+    feetY: number,
+    axis: 'x' | 'z',
+    direction: number,
+  ): number | null {
     const bounds = this.getMountedBounds(root)
-    const height = Math.max(0.5, bounds.getSize(new THREE.Vector3()).y)
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(root.position.x, feetY + height + 0.65, root.position.z),
-      new THREE.Vector3(0, -1, 0),
-      0,
-      height + 1.15,
-    )
+    const size = bounds.getSize(new THREE.Vector3())
+    const height = Math.max(0.5, size.y)
+    const sign = direction < 0 ? -1 : 1
+    const leading = axis === 'x'
+      ? (sign > 0 ? bounds.max.x : bounds.min.x)
+      : (sign > 0 ? bounds.max.z : bounds.min.z)
+    const lateralCenter = axis === 'x'
+      ? (bounds.min.z + bounds.max.z) * 0.5
+      : (bounds.min.x + bounds.max.x) * 0.5
+    const lateralHalf = (axis === 'x' ? size.z : size.x) * 0.34
+    const lateralSamples = [lateralCenter - lateralHalf, lateralCenter, lateralCenter + lateralHalf]
     const candidates = this.world.list().filter(object =>
       object.mesh !== root &&
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
-    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    const originY = feetY + height + 0.65
+    const raycaster = new THREE.Raycaster()
+    raycaster.ray.direction.set(0, -1, 0)
+    let bestSurface: number | null = null
 
-    for (const hit of hits) {
-      if (!hit.face) continue
-      const owner = candidates.find(object =>
-        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
-      )
-      if (!owner || owner.mesh.userData.importedModel === true) continue
-      const normal = hit.face.normal.clone()
-        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
-        .normalize()
-      if (normal.y < 0.45) continue
+    for (const lateral of lateralSamples) {
+      const probe = axis === 'x'
+        ? new THREE.Vector3(leading + sign * 0.04, originY, lateral)
+        : new THREE.Vector3(lateral, originY, leading + sign * 0.04)
+      raycaster.ray.origin.copy(probe)
+      raycaster.near = 0
+      raycaster.far = height + 1.15
+      const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
 
-      const rise = hit.point.y - feetY
-      if (rise >= -0.12 && rise <= 0.5) return hit.point.y
+      for (const hit of hits) {
+        if (!hit.face) continue
+        const owner = candidates.find(object =>
+          object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+        )
+        if (!owner || owner.mesh.userData.importedModel === true) continue
+        const normal = hit.face.normal.clone()
+          .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+          .normalize()
+        if (normal.y < 0.45) continue
+
+        const rise = hit.point.y - feetY
+        if (rise < -0.12 || rise > 0.5) continue
+        if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
+        // Hits come sorted from nearest to farthest; only the uppermost valid
+        // support at this probe is relevant.
+        break
+      }
     }
-    return null
+    return bestSurface
   }
 
-  /** Obtém o piso válido sob a montaria: terreno, plataformas ou superfícies inclinadas. */
+  /**
+   * Obtém o piso sob toda a pegada da montaria, não apenas sob o centro.
+   * Isso permite apoiar a parte dianteira numa rampa antes que o centro chegue
+   * nela, evitando que a caixa grande da montaria fique presa na parede inicial.
+   */
   private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
     const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const feetY = bounds.min.y
     let supportY = terrainY
     const size = bounds.getSize(new THREE.Vector3())
     const originY = Math.max(bounds.max.y + 1, feetY + size.y + 1, terrainY + size.y + 2)
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(root.position.x, originY, root.position.z),
-      new THREE.Vector3(0, -1, 0),
-      0,
-      Math.max(2, originY - Math.min(feetY, terrainY) + 1),
-    )
+    const raycaster = new THREE.Raycaster()
+    raycaster.ray.direction.set(0, -1, 0)
+    raycaster.near = 0
+    raycaster.far = Math.max(2, originY - Math.min(feetY, terrainY) + 1)
     const candidates = this.world.list().filter(object =>
       object.mesh !== root &&
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
-    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    const objects = candidates.map(object => object.mesh)
+    const insetX = size.x * 0.34
+    const insetZ = size.z * 0.34
+    const centerX = (bounds.min.x + bounds.max.x) * 0.5
+    const centerZ = (bounds.min.z + bounds.max.z) * 0.5
+    const probes: Array<[number, number]> = [
+      [centerX, centerZ],
+      [centerX - insetX, centerZ],
+      [centerX + insetX, centerZ],
+      [centerX, centerZ - insetZ],
+      [centerX, centerZ + insetZ],
+      [centerX - insetX, centerZ - insetZ],
+      [centerX - insetX, centerZ + insetZ],
+      [centerX + insetX, centerZ - insetZ],
+      [centerX + insetX, centerZ + insetZ],
+    ]
 
-    for (const hit of hits) {
-      if (!hit.face) continue
-      const owner = candidates.find(object =>
-        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
-      )
-      if (!owner) continue
-      // A raiz do modelo importado é um proxy; a superfície precisa vir do GLB.
-      if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
-      const normal = hit.face.normal.clone()
-        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
-        .normalize()
-      if (normal.y < 0.45) continue
+    for (const [x, z] of probes) {
+      raycaster.ray.origin.set(x, originY, z)
+      const hits = raycaster.intersectObjects(objects, true)
+      for (const hit of hits) {
+        if (!hit.face) continue
+        const owner = candidates.find(object =>
+          object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+        )
+        if (!owner) continue
+        // A raiz do modelo importado é um proxy; só a superfície visual é válida.
+        if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+        const normal = hit.face.normal.clone()
+          .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+          .normalize()
+        if (normal.y < 0.45) continue
 
-      const surfaceY = hit.point.y
-      const rise = surfaceY - feetY
-      if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
-      supportY = Math.max(supportY, surfaceY)
-      break
+        const surfaceY = hit.point.y
+        const rise = surfaceY - feetY
+        if (surfaceY < terrainY - 0.08 || rise < -0.75 || rise > 0.5) continue
+        supportY = Math.max(supportY, surfaceY)
+        // O raycast está ordenado por distância: não usa superfícies abaixo
+        // de uma face de apoio válida no mesmo ponto.
+        break
+      }
     }
 
-    // O mesmo fallback de aterrissagem do player: caixas simples também podem sustentar o corpo.
+    // Caixas sem rotação também podem sustentar a montaria. Rampas usam
+    // os triângulos superiores reais, evitando apoiar no AABB superdimensionado.
     for (const object of candidates) {
       const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
       if (rotatedRamp) continue
@@ -945,6 +1005,51 @@ export class HumanoidAvatar {
     return supportY
   }
 
+  /**
+   * Confirma que uma rampa inclinada tem uma face superior caminhável logo sob
+   * a área da montaria. Só então as faces laterais daquele prisma deixam de ser
+   * consideradas paredes; lados expostos continuam bloqueando normalmente.
+   */
+  private hasWalkableRampSurfaceBelow(obstacle: THREE.Mesh, mountBounds: THREE.Box3): boolean {
+    obstacle.updateWorldMatrix(true, true)
+    const size = mountBounds.getSize(new THREE.Vector3())
+    const centerX = (mountBounds.min.x + mountBounds.max.x) * 0.5
+    const centerZ = (mountBounds.min.z + mountBounds.max.z) * 0.5
+    const insetX = size.x * 0.38
+    const insetZ = size.z * 0.38
+    const probes: Array<[number, number]> = [
+      [centerX, centerZ],
+      [centerX - insetX, centerZ],
+      [centerX + insetX, centerZ],
+      [centerX, centerZ - insetZ],
+      [centerX, centerZ + insetZ],
+      [centerX - insetX, centerZ - insetZ],
+      [centerX - insetX, centerZ + insetZ],
+      [centerX + insetX, centerZ - insetZ],
+      [centerX + insetX, centerZ + insetZ],
+    ]
+    const originY = mountBounds.max.y + 0.5
+    const lowestAllowedY = mountBounds.min.y - 0.35
+    const raycaster = new THREE.Raycaster()
+    raycaster.ray.direction.set(0, -1, 0)
+    raycaster.near = 0
+    raycaster.far = Math.max(1, originY - lowestAllowedY)
+
+    for (const [x, z] of probes) {
+      raycaster.ray.origin.set(x, originY, z)
+      const hits = raycaster.intersectObject(obstacle, true)
+      for (const hit of hits) {
+        if (!hit.face) continue
+        const normal = hit.face.normal.clone()
+          .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+          .normalize()
+        if (normal.y < 0.45 || normal.y > 0.9995) continue
+        if (hit.point.y < lowestAllowedY || hit.point.y > mountBounds.max.y + 0.05) continue
+        return true
+      }
+    }
+    return false
+  }
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
