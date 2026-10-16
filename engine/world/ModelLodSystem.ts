@@ -57,8 +57,11 @@ export class ModelLodSystem {
   private preset: ModelLodPreset = 'quality'
   private dirty = true
   private disposed = false
+  private readonly onChanged: () => void
 
-  constructor(private readonly onChanged: () => void) {}
+  constructor(onChanged: () => void) {
+    this.onChanged = onChanged
+  }
 
   setPreset(preset: ModelLodPreset): void {
     if (this.preset === preset) return
