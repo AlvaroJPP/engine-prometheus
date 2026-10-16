@@ -211,6 +211,11 @@ export class Engine {
     return this.world.events
   }
 
+  /** Liga um observador à taxa de quadros real do viewport. */
+  setFpsListener(listener: ((fps: number) => void) | null): void {
+    this.viewport.setFpsListener(listener)
+  }
+
   /** Ativa renderização em menor resolução para aliviar a GPU em cenas pesadas. */
   setPerformanceMode(enabled: boolean): void {
     this.viewport.setPerformanceMode(enabled)

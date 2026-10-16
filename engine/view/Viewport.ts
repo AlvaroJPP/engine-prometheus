@@ -7,6 +7,7 @@ export class Viewport {
   private onResize: (aspect: number) => void
   private frame = 0
   private performanceMode = false
+  private fpsListener: ((fps: number) => void) | null = null
 
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
     this.canvas = canvas
@@ -44,15 +45,31 @@ export class Viewport {
     this.onResize(w / h)
   }
 
+  /** Recebe as amostras de FPS do viewport sem criar outro loop de animação. */
+  setFpsListener(listener: ((fps: number) => void) | null): void {
+    this.fpsListener = listener
+  }
+
   /** Chama frame(dt) a cada quadro; dt em segundos. */
   start(frame: (dt: number) => void): void {
     let last = performance.now()
+    let fpsWindowStart = last
+    let fpsFrameCount = 0
     const loop = (now: number) => {
       // Agenda o próximo quadro antes de executar o motor. Uma exceção isolada
       // não deve encerrar permanentemente a renderização do editor.
       this.frame = requestAnimationFrame(loop)
       const dt = Math.min((now - last) / 1000, 0.1)
       last = now
+      if (this.fpsListener) {
+        fpsFrameCount += 1
+        const fpsElapsed = now - fpsWindowStart
+        if (fpsElapsed >= 500) {
+          this.fpsListener(Math.round((fpsFrameCount * 1000) / fpsElapsed))
+          fpsFrameCount = 0
+          fpsWindowStart = now
+        }
+      }
       try {
         frame(dt)
       } catch (error) {
@@ -65,6 +82,7 @@ export class Viewport {
   dispose(): void {
     cancelAnimationFrame(this.frame)
     this.observer.disconnect()
+    this.fpsListener = null
     this.renderer.dispose()
   }
 }
