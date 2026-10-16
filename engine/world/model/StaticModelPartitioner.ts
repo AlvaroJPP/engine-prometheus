@@ -28,11 +28,6 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     if (node instanceof THREE.Mesh) meshes.push(node)
   })
 
-  const geometryUsage = new Map<THREE.BufferGeometry, number>()
-  for (const mesh of meshes) {
-    geometryUsage.set(mesh.geometry, (geometryUsage.get(mesh.geometry) ?? 0) + 1)
-  }
-
   let createdRegions = 0
   for (const mesh of meshes) {
     if (mesh.parent === null && mesh !== root) continue
@@ -181,9 +176,7 @@ export function partitionLargeStaticMeshes(root: THREE.Object3D): number {
     for (const cluster of clusterMeshes) mesh.add(cluster)
     createdRegions += clusterMeshes.length
 
-    // A geometria fonte pode ser compartilhada por outros nós/instâncias ou
-    // ainda estar em uso pela prévia; não a descartamos aqui por segurança.
-    void geometryUsage.get(geometry)
+    // A geometria fonte pode estar compartilhada com a prévia; não a descartamos aqui.
   }
 
   return createdRegions
