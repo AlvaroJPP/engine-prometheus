@@ -809,6 +809,10 @@ export class GrassLayer {
     mesh.removeFromParent()
     mesh.visible = false
     mesh.count = 0
+    if (band.spareMesh === mesh) {
+      band.spareCapacity = Math.max(band.spareCapacity, capacity)
+      return
+    }
     if (!band.spareMesh || capacity > band.spareCapacity) {
       band.spareMesh?.dispose()
       band.spareMesh = mesh
@@ -829,6 +833,10 @@ export class GrassLayer {
     mesh.count = 0
     const current = band.spareModelMeshes[partIndex]
     const currentCapacity = band.spareModelCapacities[partIndex] ?? 0
+    if (current === mesh) {
+      band.spareModelCapacities[partIndex] = Math.max(currentCapacity, capacity)
+      return
+    }
     if (!current || capacity > currentCapacity) {
       current?.dispose()
       band.spareModelMeshes[partIndex] = mesh
