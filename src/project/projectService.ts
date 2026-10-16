@@ -14,14 +14,6 @@ export async function projectExistsIn(dir: string): Promise<boolean> {
   return invoke<boolean>('project_exists', { dir })
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  const chunkSize = 0x8000
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
-}
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string; extension: string } {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/.exec(dataUrl)
