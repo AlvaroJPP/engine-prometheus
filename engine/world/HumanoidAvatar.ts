@@ -1069,7 +1069,7 @@ export class HumanoidAvatar {
     maxSlopeDrop: number,
     maxRise: number,
     originY: number,
-  ): { flat: number[]; inclined: number[] } {
+  ): { flat: number[]; inclined: number[]; terrain: number[] } {
     const feetY = bounds.min.y
     const size = bounds.getSize(new THREE.Vector3())
     const centerX = (bounds.min.x + bounds.max.x) * 0.5
@@ -1090,23 +1090,12 @@ export class HumanoidAvatar {
 
     const flat: number[] = []
     const inclined: number[] = []
-    const terrainSupports: number[] = []
+    const terrain: number[] = []
 
     for (const [x, z] of probes) {
       const terrainY = this.world.terrain.heightAt(x, z)
       const terrainRise = terrainY - feetY
-      if (terrainRise <= maxRise && terrainRise >= -maxFlatDrop) {
-        terrainSupports.push(terrainY)
-      }
-    }
-
-    if (terrainSupports.length > 0) {
-      const terrainMin = Math.min(...terrainSupports)
-      const terrainMax = Math.max(...terrainSupports)
-      // Terreno com variação real é tratado como uma inclinação: alinhar a
-      // montaria ao lado mais baixo evita levantar as patas em uma descida.
-      if (terrainMax - terrainMin > 0.12) inclined.push(...terrainSupports)
-      else flat.push(terrainMax)
+      if (terrainRise <= maxRise && terrainRise >= -maxFlatDrop) terrain.push(terrainY)
     }
 
     const minProbeX = centerX - insetX
@@ -1121,7 +1110,7 @@ export class HumanoidAvatar {
         box.max.z >= minProbeZ - 0.02 && box.min.z <= maxProbeZ + 0.02 &&
         box.max.y >= feetY - maxSlopeDrop && box.min.y <= originY
     })
-    if (candidates.length === 0) return { flat, inclined }
+    if (candidates.length === 0) return { flat, inclined, terrain }
 
     const raycaster = new THREE.Raycaster()
     raycaster.ray.direction.set(0, -1, 0)
@@ -1162,19 +1151,31 @@ export class HumanoidAvatar {
       }
     }
 
-    return { flat, inclined }
+    return { flat, inclined, terrain }
   }
 
   private chooseMountedSupportSurface(
-    surfaces: { flat: number[]; inclined: number[] },
+    surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
     feetY: number,
     maxRise: number,
   ): number | null {
+    // Um piso plano próximo sustenta a montaria até ela realmente sair da borda.
     const nearFlat = surfaces.flat.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
     if (nearFlat.length > 0) return Math.max(...nearFlat)
 
+    // Em rampas, alinha-se ao lado mais baixo da pegada. Isso evita que as
+    // patas no lado descendente fiquem suspensas por causa do lado mais alto.
     if (surfaces.inclined.length > 0) return Math.min(...surfaces.inclined)
     if (surfaces.flat.length > 0) return Math.max(...surfaces.flat)
+
+    if (surfaces.terrain.length > 0) {
+      const terrainMin = Math.min(...surfaces.terrain)
+      const terrainMax = Math.max(...surfaces.terrain)
+      if (terrainMax - terrainMin > 0.12) return terrainMin
+      const nearTerrain = surfaces.terrain.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
+      if (nearTerrain.length > 0) return Math.max(...nearTerrain)
+      return terrainMax
+    }
     return null
   }
 
