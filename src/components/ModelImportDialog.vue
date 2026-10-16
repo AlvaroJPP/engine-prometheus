@@ -50,7 +50,7 @@ const previewAnimations = computed(() => (model.value?.userData.importAnimations
 const selectedAnimationRole = computed<AnimationRole>(() => animationRoles.value[String(previewAnimationIndex.value)] ?? 'ignore')
 
 function guessedAnimationRole(name: string): AnimationRole {
-  const normalized = name.toLowerCase().replace(/[\\s._-]+/g, '')
+  const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
   if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
   if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
   if (/gallop|canter|sprint|running|run/.test(normalized)) return 'run'
