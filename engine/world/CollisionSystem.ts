@@ -494,26 +494,28 @@ export class CollisionSystem {
       const distance = previous.distanceTo(target)
       if (distance < 1e-5) continue
 
+      const initialMovingShape = this.buildShape(moving)
+      if (!initialMovingShape) continue
+      const movingBoundsAtStart = this.getShapeBounds(moving, initialMovingShape)
+      const movingHalfSize = movingBoundsAtStart.getSize(new THREE.Vector3()).multiplyScalar(0.5)
+      const sweptBounds = new THREE.Box3().setFromPoints([previous, target]).expandByVector(movingHalfSize)
+
       for (const obstacle of objects) {
         if (obstacle.id === moving.id) continue
         // Plataformas formam o cenário. Deixá-las colidir com CCD entre si
         // impede sobreposição controlada e pode criar uma fresta na junção.
         if (this.isPlatformPair(moving, obstacle)) continue
-        // O CCD trata cada par contra a pose atual do outro corpo; a resolução
-        // iterativa SAT posterior trata os contatos entre múltiplos corpos.
+        // Teste espacial barato antes de construir a forma convexa do obstáculo.
+        // Isso evita varrer vértices dos modelos distantes a cada corpo dinâmico.
+        if (!sweptBounds.intersectsBox(this.getBroadphaseWorldBounds(obstacle))) continue
+
         const obstacleShape = this.buildShape(obstacle)
         if (!obstacleShape) continue
         const obstacleBounds = this.getShapeBounds(obstacle, obstacleShape)
         const movingShape = this.buildShape(moving)
         if (!movingShape) continue
         const movingBounds = this.getShapeBounds(moving, movingShape)
-        const expanded = obstacleBounds.clone().expandByVector(
-          movingBounds.getSize(new THREE.Vector3()).multiplyScalar(0.5),
-        )
-        if (!expanded.containsPoint(previous) && !expanded.containsPoint(target)) {
-          const swept = new THREE.Box3().setFromPoints([previous, target])
-          if (!swept.intersectsBox(expanded)) continue
-        }
+        if (!movingBounds.intersectsBox(obstacleBounds.clone().expandByVector(movingHalfSize))) continue
 
         const size = movingBounds.getSize(new THREE.Vector3())
         const smallestExtent = Math.max(0.05, Math.min(size.x || Infinity, size.y || Infinity, size.z || Infinity))
@@ -607,6 +609,32 @@ export class CollisionSystem {
       bounds,
     })
     return shape
+  }
+
+  private getBroadphaseWorldBounds(object: GameObject): THREE.Box3 {
+    const bounds = getRootBounds(object.mesh)
+    const sizeData = object.mesh.userData.colliderSize
+    const offsetData = object.mesh.userData.colliderOffset
+    if (
+      !Array.isArray(sizeData)
+      || sizeData.length !== 3
+      || !sizeData.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))
+    ) {
+      return bounds
+    }
+
+    const offset = Array.isArray(offsetData) && offsetData.length === 3
+      ? offsetData.map((value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : 0)
+      : [0, 0, 0]
+    const localSize = new THREE.Vector3(
+      Math.max(0.05, sizeData[0]),
+      Math.max(0.05, sizeData[1]),
+      Math.max(0.05, sizeData[2]),
+    )
+    const localCenter = new THREE.Vector3(offset[0], offset[1], offset[2])
+    const customColliderBounds = new THREE.Box3().setFromCenterAndSize(localCenter, localSize)
+    customColliderBounds.applyMatrix4(object.mesh.matrixWorld)
+    return bounds.union(customColliderBounds)
   }
 
   private buildBroadphasePairs(objects: readonly GameObject[]): Array<[GameObject, GameObject]> {
