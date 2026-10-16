@@ -134,16 +134,17 @@ export class ModelOcclusionSystem {
       && !root.bounds.isEmpty()
       && root.meshes.some(mesh => mesh.opaque)
     )
-    const opaqueMeshCount = occluderRoots.reduce(
-      (total, sourceRoot) => total + sourceRoot.meshes.filter(candidate => candidate.opaque).length,
-      0,
-    )
     const hasEligibleTarget = modelRoots.some(targetRoot =>
       targetRoot.meshes.some(target => this.isEligibleTarget(target, targetRoot.root)),
     )
-    // Basta haver ao menos duas malhas opacas e um alvo elegível: a busca
-    // quadrática/cúbica anterior repetia uma varredura completa antes dos raios.
-    if (opaqueMeshCount < 2 || !hasEligibleTarget) return previousCulled.size > 0
+    // As subdivisões de um único modelo não podem ocluir umas às outras neste
+    // passe. Exija um bloqueador de outra raiz antes de gastar tempo com raycasts.
+    const hasPotentialOccluder = modelRoots.some(targetRoot =>
+      occluderRoots.some(sourceRoot =>
+        sourceRoot.root !== targetRoot.root && sourceRoot.meshes.some(candidate => candidate.opaque),
+      ),
+    )
+    if (!hasPotentialOccluder || !hasEligibleTarget) return previousCulled.size > 0
 
     const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const targetRoot of modelRoots) {
