@@ -166,6 +166,10 @@ export class Engine {
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
       }
       this.collisions.update()
+      if (this.activeMountPackageId) {
+        const currentMount = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
+        if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
+      }
       this.avatar.update(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
       const mountedMovementState = this.avatar.getMountedMovementState()
@@ -487,16 +491,18 @@ export class Engine {
         // A tentativa de interação é um gatilho próprio do pacote; as regras
         // podem avaliar variáveis/condições antes da ação Montar.
         this.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
-        // Uma regra do gatilho Interagir pode alterar velocidade, tecla ou assento;
-        // recalcule a configuração depois de executar essas ações.
-        const currentSettings = getMountPackageSettings(candidate.instance)
+        // A regra Interagir pode mudar variáveis do pacote. Consulte a instância
+        // atual, não a cópia retornada por listPackages antes do disparo.
+        const currentInstance = this.logic.listPackages().find(instance => instance.id === candidate.instance.id)
+        if (!currentInstance?.enabled || !candidate.object.mesh.visible) continue
+        const currentSettings = getMountPackageSettings(currentInstance)
         if (!this.avatar.mount(candidate.object.mesh, currentSettings)) continue
-        this.activeMountPackageId = candidate.instance.id
+        this.activeMountPackageId = currentInstance.id
         this.lastMountMovementState = this.avatar.getMountedMovementState()
-        this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
-        this.logic.setPackageVariable(candidate.instance.id, 'movementState', this.lastMountMovementState ?? 'idle')
-        this.notifyBehaviorPackageChanged(candidate.instance.ownerObjectId)
-        this.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'mounted')
+        this.logic.setPackageVariable(currentInstance.id, 'mounted', true)
+        this.logic.setPackageVariable(currentInstance.id, 'movementState', this.lastMountMovementState ?? 'idle')
+        this.notifyBehaviorPackageChanged(currentInstance.ownerObjectId)
+        this.triggerBehaviorPackageEvent(currentInstance.ownerObjectId, currentInstance.packageId, 'mounted')
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
         this.logic.triggerKeyPressed(event.code)
