@@ -205,10 +205,27 @@ export class HumanoidAvatar {
       direction.normalize().multiplyScalar(speed * step)
       const oldX = this.mesh.position.x
       const oldZ = this.mesh.position.z
+      const oldFeetY = this.mesh.position.y
       this.mesh.position.x = THREE.MathUtils.clamp(oldX + direction.x, -49, 49)
-      if (this.collidesWithObjects()) this.mesh.position.x = oldX
+      if (this.collidesWithObjects()) {
+        const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, oldZ, oldFeetY) : null
+        if (stepUp !== null) {
+          this.mesh.position.y = stepUp
+          this.verticalVelocity = 0
+        } else {
+          this.mesh.position.x = oldX
+        }
+      }
       this.mesh.position.z = THREE.MathUtils.clamp(oldZ + direction.z, -49, 49)
-      if (this.collidesWithObjects()) this.mesh.position.z = oldZ
+      if (this.collidesWithObjects()) {
+        const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, this.mesh.position.y) : null
+        if (stepUp !== null) {
+          this.mesh.position.y = stepUp
+          this.verticalVelocity = 0
+        } else {
+          this.mesh.position.z = oldZ
+        }
+      }
       this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
     }
 
@@ -645,6 +662,41 @@ export class HumanoidAvatar {
       }
     }
     return false
+  }
+
+  /**
+   * Permite subir suavemente em plataformas baixas durante a caminhada.
+   * Sem isso, o teste lateral bloqueia o personagem na borda vertical da
+   * primeira plataforma e ele nunca chega à superfície superior da rampa.
+   */
+  private findStepUpSurface(x: number, z: number, feetY: number): number | null {
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(x, feetY + PLAYER_HEIGHT + 0.65, z),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      PLAYER_HEIGHT + 1.15,
+    )
+    const candidates = this.world.list().filter((object) =>
+      object.mesh.visible && object.mesh.userData.colliderType !== 'none',
+    )
+    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    for (const hit of hits) {
+      if (!hit.face) continue
+      const root = candidates.find(object =>
+        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+      )
+      if (!root) continue
+      if (root.mesh.userData.importedModel === true && hit.object === root.mesh) continue
+      const normal = hit.face.normal.clone()
+        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+        .normalize()
+      if (normal.y < 0.45) continue
+      const rise = hit.point.y - feetY
+      // Só permite subir um degrau alcançável; não teleporta o jogador para
+      // plataformas altas nem usa a face inferior/lateral como piso.
+      if (rise >= -0.12 && rise <= 0.5) return hit.point.y
+    }
+    return null
   }
 
   private findObjectLanding(oldY: number, nextY: number): number | null {
