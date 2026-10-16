@@ -189,6 +189,9 @@ export class GrassLayer {
   private readonly white = new THREE.Color(0xffffff)
   private disposed = false
   private readonly painted: PaintedGrassTuft[] = []
+  // Evita consultar o heightfield de cada tufo sempre que os anéis se movem.
+  private paintedModelCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
+  private paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
   private lastCameraPosition: THREE.Vector3 | null = null
   private renderDirty = true
   private readonly windUniforms = {
@@ -757,13 +760,16 @@ export class GrassLayer {
   }
 
   private paintedModelInstance(tuft: PaintedGrassTuft): GrassInstance {
+    const cached = this.paintedModelCache.get(tuft)
+    if (cached) return cached
+
     const [x, z, scale] = tuft
     const random = this.randomForPainted(tuft)
     const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
     const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
     // As cores salvas continuam disponíveis para projetos antigos, mas não se
     // aplicam ao modelo importado: materiais, mapas e tons do GLB são originais.
-    return {
+    const instance: GrassInstance = {
       x,
       y: this.field.sample(x, z) + 0.004,
       z,
@@ -774,6 +780,8 @@ export class GrassLayer {
       rotationZ: THREE.MathUtils.clamp(slopeX * 0.13, -0.24, 0.24),
       color: this.color.getHex(),
     }
+    this.paintedModelCache.set(tuft, instance)
+    return instance
   }
 
   private paintCellKey(x: number, z: number): string {
@@ -940,6 +948,9 @@ export class GrassLayer {
   }
 
   private paintedInstance(tuft: PaintedGrassTuft): GrassInstance {
+    const cached = this.paintedFallbackCache.get(tuft)
+    if (cached) return cached
+
     const [x, z, scale, color] = tuft
     // A pose de cada tufo pintado fica determinística para não mudar ao trocar de LOD.
     let state = (
@@ -955,7 +966,7 @@ export class GrassLayer {
       value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
       return ((value ^ (value >>> 14)) >>> 0) / 4294967296
     }
-    return {
+    const instance: GrassInstance = {
       x,
       y: this.field.sample(x, z) + 0.008,
       z,
@@ -966,6 +977,8 @@ export class GrassLayer {
       rotationZ: 0,
       color,
     }
+    this.paintedFallbackCache.set(tuft, instance)
+    return instance
   }
 
   private requestRenderRebuild(): void {
@@ -977,6 +990,8 @@ export class GrassLayer {
 
   /** Regenera as manchas de grama procedural respeitando a nova altura do terreno. */
   refresh(): void {
+    this.paintedModelCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
+    this.paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
     for (const chunk of this.chunks) chunk.procedural.length = 0
 
     let state = (this.field.seed >>> 0) || 0x6d2b79f5
