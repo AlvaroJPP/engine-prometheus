@@ -22,13 +22,25 @@ const PAINTED_GRASS_SPACING = 0.17
 const PAINTED_GRASS_BUCKET_SIZE = 1
 const PAINTED_GRASS_PER_AREA = 12
 const PAINTED_GRASS_MODEL_HEIGHT = 0.55
-// Oclusão conservadora por chunk: todos os pontos precisam estar bloqueados
-// pelo mesmo objeto sólido antes de remover a vegetação do conjunto de instâncias.
+// A oclusão é conservadora: uma área só some quando todas as amostras
+// estão bloqueadas pelo mesmo objeto. Áreas parcialmente cobertas são subdivididas.
 const GRASS_OCCLUSION_ENTER_MARGIN = 1.25
 const GRASS_OCCLUSION_STAY_MARGIN = 0.35
-const GRASS_OCCLUSION_RELEASE_MISSES = 2
+const GRASS_OCCLUSION_SUBDIVISIONS = 4
+const GRASS_OCCLUSION_CELL_SIZE = CHUNK_SIZE / GRASS_OCCLUSION_SUBDIVISIONS
+const GRASS_OCCLUSION_CELLS_PER_AXIS = Math.ceil((WORLD_HALF * 2) / GRASS_OCCLUSION_CELL_SIZE)
 const GRASS_OCCLUSION_SAMPLE_OFFSETS = [0.15, 0.5, 0.85] as const
 const GRASS_OCCLUSION_SAMPLE_HEIGHTS = [0.08, 0.62] as const
+const GRASS_OCCLUSION_COARSE_SAMPLE_POINTS = [
+  { x: 0.15, z: 0.15 },
+  { x: 0.85, z: 0.15 },
+  { x: 0.5, z: 0.5 },
+  { x: 0.15, z: 0.85 },
+  { x: 0.85, z: 0.85 },
+] as const
+const GRASS_OCCLUSION_FINE_SAMPLE_POINTS = GRASS_OCCLUSION_SAMPLE_OFFSETS.flatMap((x) =>
+  GRASS_OCCLUSION_SAMPLE_OFFSETS.map((z) => ({ x, z })),
+)
 const GRASS_MODEL_URL = grassModelUrl
 
 export type PaintedGrassTuft = [x: number, z: number, scale: number, color: number]
@@ -238,6 +250,8 @@ export class GrassLayer {
   private cachedOcclusionData: GrassOcclusionData | null = null
   private occlusionDataDirty = true
   private readonly occludedChunks = new Map<GrassChunk, THREE.Object3D>()
+  /** Oclusão fina para zonas parcialmente cobertas de um chunk de 10x10. */
+  private readonly occludedCells = new Map<number, THREE.Object3D>()
   private readonly occlusionRaycaster = new THREE.Raycaster()
   private readonly occlusionBoundsHit = new THREE.Vector3()
   private readonly occlusionDirection = new THREE.Vector3()
@@ -1080,10 +1094,77 @@ export class GrassLayer {
     return data.ownerByMesh.get(nearestHit.object as THREE.Mesh) ?? null
   }
 
+  private grassOcclusionCellKey(column: number, row: number): number {
+    const safeColumn = THREE.MathUtils.clamp(column, 0, GRASS_OCCLUSION_CELLS_PER_AXIS - 1)
+    const safeRow = THREE.MathUtils.clamp(row, 0, GRASS_OCCLUSION_CELLS_PER_AXIS - 1)
+    return safeRow * GRASS_OCCLUSION_CELLS_PER_AXIS + safeColumn
+  }
+
+  private grassOcclusionCellKeyAt(x: number, z: number): number {
+    const column = Math.floor((x + WORLD_HALF) / GRASS_OCCLUSION_CELL_SIZE)
+    const row = Math.floor((z + WORLD_HALF) / GRASS_OCCLUSION_CELL_SIZE)
+    return this.grassOcclusionCellKey(column, row)
+  }
+
+  private clearOcclusionCellsForChunk(chunk: GrassChunk): void {
+    const baseColumn = chunk.column * GRASS_OCCLUSION_SUBDIVISIONS
+    const baseRow = chunk.row * GRASS_OCCLUSION_SUBDIVISIONS
+    for (let row = 0; row < GRASS_OCCLUSION_SUBDIVISIONS; row += 1) {
+      for (let column = 0; column < GRASS_OCCLUSION_SUBDIVISIONS; column += 1) {
+        this.occludedCells.delete(this.grassOcclusionCellKey(baseColumn + column, baseRow + row))
+      }
+    }
+  }
+
+  private isGrassCellOccluded(x: number, z: number): boolean {
+    return this.occludedCells.has(this.grassOcclusionCellKeyAt(x, z))
+  }
+
+  private sampleOcclusionRegion(
+    minX: number,
+    minZ: number,
+    maxX: number,
+    maxZ: number,
+    cameraPosition: THREE.Vector3,
+    data: GrassOcclusionData,
+    samplePoints: readonly { x: number; z: number }[],
+    margin: number,
+  ): { hits: number; fullyBlockedOwner: THREE.Object3D | null } {
+    let hits = 0
+    let firstOwner: THREE.Object3D | null = null
+    let allHitsSameOwner = true
+    const sampleCount = samplePoints.length * GRASS_OCCLUSION_SAMPLE_HEIGHTS.length
+
+    for (const sample of samplePoints) {
+      const x = minX + (maxX - minX) * sample.x
+      const z = minZ + (maxZ - minZ) * sample.z
+      const groundY = this.field.sample(x, z)
+
+      for (const height of GRASS_OCCLUSION_SAMPLE_HEIGHTS) {
+        this.occlusionTarget.set(x, groundY + height, z)
+        const owner = this.findOccluderForTarget(cameraPosition, this.occlusionTarget, data, margin)
+        if (!owner) {
+          allHitsSameOwner = false
+          continue
+        }
+
+        hits += 1
+        if (!firstOwner) firstOwner = owner
+        else if (owner !== firstOwner) allHitsSameOwner = false
+      }
+    }
+
+    return {
+      hits,
+      fullyBlockedOwner: hits === sampleCount && allHitsSameOwner ? firstOwner : null,
+    }
+  }
+
   /**
-   * Um chunk de 10x10 só entra em oclusão se 18 amostras (grade 3x3, base e ponta)
-   * estiverem atrás do mesmo objeto sólido. O estado anterior tem uma pequena
-   * tolerância para evitar piscar quando a câmera passa pela borda do bloqueador.
+   * Primeiro avalia o chunk completo com amostras distribuídas. Se ele estiver
+   * totalmente atrás de um só bloqueador, confirma com uma grade mais densa.
+   * Quando há cobertura parcial, subdivide em células de 2,5 x 2,5 para ocultar
+   * só a parte realmente bloqueada, sem apagar a grama que contorna paredes.
    */
   private isChunkOccluded(
     chunk: GrassChunk,
@@ -1103,48 +1184,94 @@ export class GrassLayer {
       && renderCenter.x <= maxX
       && renderCenter.z >= minZ
       && renderCenter.z <= maxZ
+
     if (cameraInsideChunk || centerInsideChunk) {
       this.occludedChunks.delete(chunk)
+      this.clearOcclusionCellsForChunk(chunk)
       return false
     }
 
     const previousOwner = this.occludedChunks.get(chunk) ?? null
     const margin = previousOwner ? GRASS_OCCLUSION_STAY_MARGIN : GRASS_OCCLUSION_ENTER_MARGIN
-    let candidateOwner = previousOwner
-    let misses = 0
+    const coarse = this.sampleOcclusionRegion(
+      minX,
+      minZ,
+      maxX,
+      maxZ,
+      cameraPosition,
+      data,
+      GRASS_OCCLUSION_COARSE_SAMPLE_POINTS,
+      margin,
+    )
 
-    for (const offsetX of GRASS_OCCLUSION_SAMPLE_OFFSETS) {
-      for (const offsetZ of GRASS_OCCLUSION_SAMPLE_OFFSETS) {
-        const x = minX + CHUNK_SIZE * offsetX
-        const z = minZ + CHUNK_SIZE * offsetZ
-        const groundY = this.field.sample(x, z)
-        for (const height of GRASS_OCCLUSION_SAMPLE_HEIGHTS) {
-          this.occlusionTarget.set(x, groundY + height, z)
-          const owner = this.findOccluderForTarget(cameraPosition, this.occlusionTarget, data, margin)
-          if (!owner || (candidateOwner && owner !== candidateOwner)) {
-            if (!previousOwner) return false
-            misses += 1
-            if (misses > GRASS_OCCLUSION_RELEASE_MISSES) {
-              this.occludedChunks.delete(chunk)
-              return false
-            }
-          } else {
-            candidateOwner ??= owner
-          }
-        }
+    if (coarse.fullyBlockedOwner) {
+      // A confirmação densa impede que uma parede estreita esconda um chunk
+      // inteiro só porque alguns pontos espaçados por acaso ficaram bloqueados.
+      const detailed = this.sampleOcclusionRegion(
+        minX,
+        minZ,
+        maxX,
+        maxZ,
+        cameraPosition,
+        data,
+        GRASS_OCCLUSION_FINE_SAMPLE_POINTS,
+        margin,
+      )
+      if (detailed.fullyBlockedOwner) {
+        this.occludedChunks.set(chunk, detailed.fullyBlockedOwner)
+        this.clearOcclusionCellsForChunk(chunk)
+        return true
       }
     }
 
-    if (previousOwner) {
-      if (misses <= GRASS_OCCLUSION_RELEASE_MISSES) return true
-      this.occludedChunks.delete(chunk)
+    this.occludedChunks.delete(chunk)
+    if (coarse.hits === 0) {
+      this.clearOcclusionCellsForChunk(chunk)
       return false
     }
-    if (candidateOwner && misses === 0) {
-      this.occludedChunks.set(chunk, candidateOwner)
-      return true
-    }
+
+    // Cobertura parcial: avalia cada célula independentemente. A margem menor
+    // para células já ocultas reduz oscilações visuais junto às bordas.
+    this.refineChunkOcclusion(chunk, minX, minZ, cameraPosition, data)
     return false
+  }
+
+  private refineChunkOcclusion(
+    chunk: GrassChunk,
+    chunkMinX: number,
+    chunkMinZ: number,
+    cameraPosition: THREE.Vector3,
+    data: GrassOcclusionData,
+  ): void {
+    const baseColumn = chunk.column * GRASS_OCCLUSION_SUBDIVISIONS
+    const baseRow = chunk.row * GRASS_OCCLUSION_SUBDIVISIONS
+
+    for (let row = 0; row < GRASS_OCCLUSION_SUBDIVISIONS; row += 1) {
+      for (let column = 0; column < GRASS_OCCLUSION_SUBDIVISIONS; column += 1) {
+        const cellColumn = baseColumn + column
+        const cellRow = baseRow + row
+        const key = this.grassOcclusionCellKey(cellColumn, cellRow)
+        const previousOwner = this.occludedCells.get(key) ?? null
+        const margin = previousOwner ? GRASS_OCCLUSION_STAY_MARGIN : GRASS_OCCLUSION_ENTER_MARGIN
+        const minX = chunkMinX + column * GRASS_OCCLUSION_CELL_SIZE
+        const minZ = chunkMinZ + row * GRASS_OCCLUSION_CELL_SIZE
+        const maxX = minX + GRASS_OCCLUSION_CELL_SIZE
+        const maxZ = minZ + GRASS_OCCLUSION_CELL_SIZE
+        const sample = this.sampleOcclusionRegion(
+          minX,
+          minZ,
+          maxX,
+          maxZ,
+          cameraPosition,
+          data,
+          GRASS_OCCLUSION_FINE_SAMPLE_POINTS,
+          margin,
+        )
+
+        if (sample.fullyBlockedOwner) this.occludedCells.set(key, sample.fullyBlockedOwner)
+        else this.occludedCells.delete(key)
+      }
+    }
   }
 
   /** Invalida a seleção de chunks ocultos após mover/adicionar/remover objetos. */
