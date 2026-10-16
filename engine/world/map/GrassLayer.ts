@@ -38,6 +38,12 @@ const GRASS_OCCLUSION_COARSE_SAMPLE_POINTS = [
   { x: 0.15, z: 0.85 },
   { x: 0.85, z: 0.85 },
 ] as const
+const GRASS_OCCLUSION_EDGE_SAMPLE_POINTS = [
+  { x: 0.5, z: 0.15 },
+  { x: 0.85, z: 0.5 },
+  { x: 0.5, z: 0.85 },
+  { x: 0.15, z: 0.5 },
+] as const
 const GRASS_OCCLUSION_FINE_SAMPLE_POINTS = GRASS_OCCLUSION_SAMPLE_OFFSETS.flatMap((x) =>
   GRASS_OCCLUSION_SAMPLE_OFFSETS.map((z) => ({ x, z })),
 )
@@ -1204,6 +1210,24 @@ export class GrassLayer {
       margin,
     )
 
+    // Os pontos laterais completam a grade 3x3 apenas quando as cinco
+    // amostras iniciais não detectam nenhum bloqueador. Isso mantém o caminho
+    // comum simples, mas não ignora uma parede que só cruza a borda do chunk.
+    let totalCoarseHits = coarse.hits
+    if (totalCoarseHits === 0) {
+      const edgeSamples = this.sampleOcclusionRegion(
+        minX,
+        minZ,
+        maxX,
+        maxZ,
+        cameraPosition,
+        data,
+        GRASS_OCCLUSION_EDGE_SAMPLE_POINTS,
+        margin,
+      )
+      totalCoarseHits += edgeSamples.hits
+    }
+
     if (coarse.fullyBlockedOwner) {
       // A confirmação densa impede que uma parede estreita esconda um chunk
       // inteiro só porque alguns pontos espaçados por acaso ficaram bloqueados.
@@ -1225,7 +1249,7 @@ export class GrassLayer {
     }
 
     this.occludedChunks.delete(chunk)
-    if (coarse.hits === 0) {
+    if (totalCoarseHits === 0) {
       this.clearOcclusionCellsForChunk(chunk)
       return false
     }
