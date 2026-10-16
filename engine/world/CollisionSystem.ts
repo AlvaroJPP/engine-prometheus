@@ -81,7 +81,7 @@ export class CollisionSystem {
         for (let j = i + 1; j < collidableObjects.length; j += 1) {
           const shapeA = this.buildShape(a)
           if (!shapeA) break
-          const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
+          const boundsA = this.getShapeBounds(a, shapeA)
           const b = collidableObjects[j]
           if (!b) continue
           const shapeB = this.buildShape(b)
@@ -124,13 +124,13 @@ export class CollisionSystem {
       if (!a) continue
       const shapeA = this.buildShape(a)
       if (!shapeA) continue
-      const boundsA = new THREE.Box3().setFromPoints(shapeA.vertices)
+      const boundsA = this.getShapeBounds(a, shapeA)
       for (let j = i + 1; j < collidableObjects.length; j += 1) {
         const b = collidableObjects[j]
         if (!b) continue
         const shapeB = this.buildShape(b)
         if (!shapeB) continue
-        if (!boundsA.intersectsBox(new THREE.Box3().setFromPoints(shapeB.vertices))) continue
+        if (!boundsA.intersectsBox(this.getShapeBounds(b, shapeB))) continue
         if (this.intersectObjects(a, b, shapeA, shapeB)) {
           currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
         }
@@ -429,10 +429,10 @@ export class CollisionSystem {
         // iterativa SAT posterior trata os contatos entre múltiplos corpos.
         const obstacleShape = this.buildShape(obstacle)
         if (!obstacleShape) continue
-        const obstacleBounds = new THREE.Box3().setFromPoints(obstacleShape.vertices)
+        const obstacleBounds = this.getShapeBounds(obstacle, obstacleShape)
         const movingShape = this.buildShape(moving)
         if (!movingShape) continue
-        const movingBounds = new THREE.Box3().setFromPoints(movingShape.vertices)
+        const movingBounds = this.getShapeBounds(moving, movingShape)
         const expanded = obstacleBounds.clone().expandByVector(
           movingBounds.getSize(new THREE.Vector3()).multiplyScalar(0.5),
         )
@@ -451,7 +451,7 @@ export class CollisionSystem {
           moving.mesh.updateMatrixWorld(true)
           const candidate = this.buildShape(moving)
           if (!candidate) break
-          const candidateBounds = new THREE.Box3().setFromPoints(candidate.vertices)
+          const candidateBounds = this.getShapeBounds(moving, candidate)
           if (candidateBounds.intersectsBox(obstacleBounds) && this.intersectObjects(moving, obstacle, candidate, obstacleShape)) {
             firstHit = t
             break
@@ -554,6 +554,16 @@ export class CollisionSystem {
 
     const center = new THREE.Box3().setFromPoints(vertices).getCenter(new THREE.Vector3())
     return { vertices, faceNormals, edges, center }
+  }
+
+  private getShapeBounds(object: GameObject, shape: ConvexShape): THREE.Box3 {
+    if (this.isAutomaticImportedMesh(object)) {
+      // O casco aproximado pode não conter uma ponta/orelha que ficou fora da
+      // amostragem. Use a caixa proxy do modelo como broad phase conservadora;
+      // a decisão final continua sendo feita pelos triângulos reais.
+      return getRootBounds(object.mesh).expandByScalar(0.35)
+    }
+    return new THREE.Box3().setFromPoints(shape.vertices)
   }
 
   private isAutomaticImportedMesh(object: GameObject): boolean {
