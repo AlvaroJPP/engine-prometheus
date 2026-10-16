@@ -1054,16 +1054,14 @@ export class Engine {
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
-    // Pré-processa BVHs em paralelo ao fluxo normal do editor para acelerar
-    // os raios da oclusão em modelos densos sem transferir a geometria visível.
-    void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0).catch((error) => {
-      console.warn('[Engine] Não foi possível preparar a oclusão do modelo:', root.name, error)
-    })
-    // Simplifica apenas modelos estáticos grandes; o processamento não bloqueia
-    // o carregamento do projeto e não altera a geometria original salva no GLB.
-    void this.modelLod.prepare(finalId, root, importedAnimations.length > 0).catch((error) => {
-      console.warn('[Engine] Não foi possível preparar LOD para o modelo:', root.name, error)
-    })
+    // Particiona modelos densos e prepara BVH antes de gerar LOD. Assim o
+    // simplificador trabalha nas regiões renderizáveis, não na malha já removida.
+    void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0)
+      .then(() => this.modelLod.prepare(finalId, root, importedAnimations.length > 0))
+      .then(() => this.viewport.invalidate())
+      .catch((error) => {
+        console.warn('[Engine] Não foi possível preparar otimizações do modelo:', root.name, error)
+      })
     // Ao restaurar um projeto, o ID persistido é diferente do ID temporário.
     // Selecionar o temporário deixa a raiz sem seleção válida para o gizmo.
     this.world.select(finalId)
