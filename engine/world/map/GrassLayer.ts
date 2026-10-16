@@ -705,40 +705,6 @@ export class GrassLayer {
     return capacity
   }
 
-  private ensureRenderBandCapacity(band: GrassRenderBand, required: number): void {
-    if (required <= band.capacity) return
-    const capacity = this.nextInstanceCapacity(required)
-    band.mesh.removeFromParent()
-    band.capacity = capacity
-    band.mesh = this.createInstancedMesh(
-      band.geometry,
-      band.material,
-      capacity,
-      `GrassDistanceRing-${band.name}`,
-    )
-    this.mesh.add(band.mesh)
-  }
-
-  private ensureRenderModelCapacity(
-    band: GrassRenderBand,
-    partIndex: number,
-    required: number,
-  ): void {
-    const current = band.modelMeshes[partIndex]
-    const currentCapacity = band.modelCapacities[partIndex] ?? 0
-    if (current && required <= currentCapacity) return
-    if (!current && required <= 0) return
-
-    const capacity = this.nextInstanceCapacity(required)
-    current?.removeFromParent()
-    const part = this.modelParts[partIndex]
-    if (!part) return
-    const mesh = this.createModelInstancedMesh(part, capacity, band.name)
-    band.modelMeshes[partIndex] = mesh
-    band.modelCapacities[partIndex] = capacity
-    this.mesh.add(mesh)
-  }
-
   private paintedHash(tuft: PaintedGrassTuft): number {
     const [x, z, , color] = tuft
     return (
@@ -954,44 +920,77 @@ export class GrassLayer {
     }
 
     if (this.shouldCancelRenderRebuild(revision)) return
-    // Esconde as malhas durante a atualização para evitar mostrar matrices parcialmente escritas.
-    for (const band of this.renderBands) {
-      band.mesh.visible = false
-      for (const modelMesh of band.modelMeshes) modelMesh.visible = false
+
+    // As malhas novas ficam fora da cena enquanto são preenchidas. A grama atual
+    // continua visível até todos os anéis novos estarem prontos para a troca.
+    const stagedBands = this.renderBands.map((band, bandIndex) => {
+      const procedural = proceduralBuckets[bandIndex]!
+      const capacity = this.nextInstanceCapacity(procedural.length)
+      const mesh = this.createInstancedMesh(
+        band.geometry,
+        band.material,
+        capacity,
+        `GrassDistanceRing-${band.name}`,
+      )
+      mesh.visible = false
+
+      const modelMeshes: THREE.InstancedMesh[] = []
+      const modelCapacities: number[] = []
+      if (bandIndex < 2) {
+        for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
+          const modelCapacity = this.nextInstanceCapacity(modelBuckets[bandIndex]![partIndex]!.length)
+          const modelMesh = this.createModelInstancedMesh(this.modelParts[partIndex]!, modelCapacity, band.name)
+          modelMesh.visible = false
+          modelMeshes[partIndex] = modelMesh
+          modelCapacities[partIndex] = modelCapacity
+        }
+      }
+      return { mesh, capacity, modelMeshes, modelCapacities }
+    })
+
+    const discardStagedBands = (): void => {
+      for (const staged of stagedBands) {
+        staged.mesh.dispose()
+        for (const modelMesh of staged.modelMeshes) modelMesh.dispose()
+      }
     }
 
     let written = 0
     for (let bandIndex = 0; bandIndex < this.renderBands.length; bandIndex += 1) {
-      const band = this.renderBands[bandIndex]!
+      const staged = stagedBands[bandIndex]!
       const procedural = proceduralBuckets[bandIndex]!
-      this.ensureRenderBandCapacity(band, procedural.length)
       for (let index = 0; index < procedural.length; index += 1) {
-        this.writeInstance(band.mesh, index, procedural[index]!)
+        this.writeInstance(staged.mesh, index, procedural[index]!)
         written += 1
         if (written % 6000 === 0) {
           await this.yieldToUi()
-          if (this.shouldCancelRenderRebuild(revision)) return
+          if (this.shouldCancelRenderRebuild(revision)) {
+            discardStagedBands()
+            return
+          }
         }
       }
-      band.mesh.count = procedural.length
-      band.mesh.instanceMatrix.needsUpdate = true
-      if (band.mesh.instanceColor) band.mesh.instanceColor.needsUpdate = true
-      band.mesh.visible = procedural.length > 0
+      staged.mesh.count = procedural.length
+      staged.mesh.instanceMatrix.needsUpdate = true
+      if (staged.mesh.instanceColor) staged.mesh.instanceColor.needsUpdate = true
+      staged.mesh.visible = procedural.length > 0
 
       // O pacote GLB é usado nos anéis próximos; longe dele, usamos geometria simples.
       if (bandIndex >= 2 || this.modelParts.length === 0) continue
       const byPart = modelBuckets[bandIndex]!
       for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
         const records = byPart[partIndex]!
-        this.ensureRenderModelCapacity(band, partIndex, records.length)
-        const mesh = band.modelMeshes[partIndex]
+        const mesh = staged.modelMeshes[partIndex]
         if (!mesh) continue
         for (let index = 0; index < records.length; index += 1) {
           this.writeModelInstance(mesh, index, records[index]!)
           written += 1
           if (written % 6000 === 0) {
             await this.yieldToUi()
-            if (this.shouldCancelRenderRebuild(revision)) return
+            if (this.shouldCancelRenderRebuild(revision)) {
+              discardStagedBands()
+              return
+            }
           }
         }
         mesh.count = records.length
@@ -999,6 +998,30 @@ export class GrassLayer {
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
         mesh.visible = records.length > 0
       }
+    }
+
+    if (this.shouldCancelRenderRebuild(revision)) {
+      discardStagedBands()
+      return
+    }
+
+    // A substituição acontece sem ceder o controle ao renderer: ele nunca vê o vazio.
+    for (let bandIndex = 0; bandIndex < this.renderBands.length; bandIndex += 1) {
+      const band = this.renderBands[bandIndex]!
+      const staged = stagedBands[bandIndex]!
+      band.mesh.removeFromParent()
+      band.mesh.dispose()
+      for (const oldModelMesh of band.modelMeshes) {
+        oldModelMesh.removeFromParent()
+        oldModelMesh.dispose()
+      }
+
+      band.mesh = staged.mesh
+      band.capacity = staged.capacity
+      band.modelMeshes = staged.modelMeshes
+      band.modelCapacities = staged.modelCapacities
+      this.mesh.add(band.mesh)
+      for (const modelMesh of band.modelMeshes) this.mesh.add(modelMesh)
     }
     this.renderDirty = false
   }
