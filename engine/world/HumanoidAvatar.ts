@@ -661,9 +661,24 @@ export class HumanoidAvatar {
       if (!root.visible || root.userData.colliderType === 'none') continue
       root.updateWorldMatrix(true, true)
 
-      // A raiz do modelo importado é somente o proxy invisível de seleção.
-      // A colisão do jogador usa as superfícies reais dos filhos visuais,
-      // incluindo a pose atual de modelos com ossos ou morph targets.
+      // O tipo escolhido no inspetor precisa determinar a colisão do jogador.
+      // Antes, até mesmo "box", "sphere" e "capsule" ignoravam a forma configurada
+      // aqui e continuavam consultando os triângulos visuais do modelo importado.
+      // Esses tipos simplificados usam o volume físico calculado pela raiz; apenas
+      // "auto" segue a geometria triangular real.
+      const configuredCollider = root.userData.colliderType
+      if (
+        root.userData.importedModel === true &&
+        configuredCollider !== undefined &&
+        configuredCollider !== 'auto'
+      ) {
+        const colliderBounds = getColliderBounds(root)
+        if (colliderBounds && this.hasVolumeOverlap(playerBox, colliderBounds)) return true
+        continue
+      }
+
+      // No modo automático, a raiz do modelo importado é apenas o proxy invisível
+      // de seleção. A colisão usa a superfície dos filhos visuais.
       const meshes: THREE.Mesh[] = []
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || !child.visible) return
