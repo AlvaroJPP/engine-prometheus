@@ -43,6 +43,7 @@ export class Engine {
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
   private activeMountPackageId: string | null = null
+  private lastMountMovementState: 'idle' | 'walk' | 'run' | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
@@ -166,6 +167,21 @@ export class Engine {
       }
       this.collisions.update()
       this.avatar.update(dt)
+      const mountedObjectId = this.avatar.getMountedObjectId()
+      const mountedMovementState = this.avatar.getMountedMovementState()
+      if (mountedObjectId && mountedMovementState && this.activeMountPackageId) {
+        const mountInstance = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
+        if (mountInstance && mountInstance.variables.movementState !== mountedMovementState) {
+          this.logic.setPackageVariable(mountInstance.id, 'movementState', mountedMovementState)
+          this.notifyBehaviorPackageChanged(mountInstance.ownerObjectId)
+          if (this.lastMountMovementState !== null && this.lastMountMovementState !== mountedMovementState) {
+            this.logic.triggerPackageEvent(mountedObjectId, mountInstance.packageId, 'movement_changed')
+          }
+        }
+        this.lastMountMovementState = mountedMovementState
+      } else {
+        this.lastMountMovementState = null
+      }
       this.world.updateEnvironment(dt)
       this.logic.update()
       this.orbit.update()
@@ -420,13 +436,16 @@ export class Engine {
         : undefined
       const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
       if (event.code === interactionKey) {
-        this.avatar.dismount()
+        const mountedObjectId = this.avatar.dismount()
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
+          this.logic.setPackageVariable(packageInstance.id, 'movementState', 'idle')
           this.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
+          if (mountedObjectId) this.logic.triggerPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
           this.logic.triggerKeyPressed(event.code)
         }
         this.activeMountPackageId = null
+        this.lastMountMovementState = null
         event.preventDefault()
         return
       }
@@ -453,8 +472,11 @@ export class Engine {
         if (!candidate.object) continue
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
+        this.lastMountMovementState = this.avatar.getMountedMovementState()
         this.logic.setPackageVariable(candidate.instance.id, 'mounted', true)
+        this.logic.setPackageVariable(candidate.instance.id, 'movementState', this.lastMountMovementState ?? 'idle')
         this.notifyBehaviorPackageChanged(candidate.instance.ownerObjectId)
+        this.logic.triggerPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'mounted')
         // O mesmo gatilho de tecla também pode iniciar regras comuns ligadas
         // ao objeto; o pacote não substitui o sistema de eventos existente.
         this.logic.triggerKeyPressed(event.code)
