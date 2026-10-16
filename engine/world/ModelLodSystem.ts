@@ -73,7 +73,6 @@ export class ModelLodSystem {
   /** Prepara LOD para meshes estáticas com pelo menos 12 mil triângulos. */
   async prepare(rootId: string, root: THREE.Object3D, animated: boolean): Promise<void> {
     if (this.disposed || animated || root.parent === null || this.roots.has(rootId)) return
-    if (root.userData.wireframeVisible === true) return
 
     const candidates: Array<{ mesh: THREE.Mesh; geometry: THREE.BufferGeometry; triangles: number }> = []
     root.traverse((node) => {
