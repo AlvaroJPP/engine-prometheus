@@ -64,8 +64,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const behaviorPackages = ref<BehaviorPackageInstance[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
-  const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed'>('object_clicked')
-  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
+  const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event'>('object_clicked')
+  const rulePackageId = ref('mount')
+  const rulePackageEventId = ref('mounted')
+  const rulePackageVariableName = ref('mounted')
+  const rulePackageVariableValue = ref('false')
+  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'set_package_variable' | 'script' | 'javascript'>('rotate')
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
   const ruleConditionEnabled = ref(false)
 
@@ -781,16 +785,41 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const target = selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : objects.value[0]?.id
     if (!target) { say('Crie ou selecione um objeto antes de adicionar uma regra.'); return }
     const id = createUniqueRuleId()
+    if (ruleTrigger.value === 'package_event') {
+      const installed = engine.listBehaviorPackages(target).some(instance => instance.packageId === rulePackageId.value && instance.enabled)
+      if (!installed) {
+        say('Instale e habilite o pacote escolhido neste objeto antes de criar uma regra para seus gatilhos.')
+        return
+      }
+    }
     const trigger: LogicRule['trigger'] = ruleTrigger.value === 'object_clicked'
       ? { type: 'object_clicked', objectId: target }
-      : ruleTrigger.value === 'key_pressed' ? { type: 'key_pressed', key: 'KeyE' } : { type: 'enter_area', center: [0, 1, 0], radius: 2 }
+      : ruleTrigger.value === 'key_pressed'
+        ? { type: 'key_pressed', key: 'KeyE' }
+        : ruleTrigger.value === 'package_event'
+          ? { type: 'package_event', objectId: target, packageId: rulePackageId.value, eventId: rulePackageEventId.value }
+          : { type: 'enter_area', center: [0, 1, 0], radius: 2 }
     const action: LogicRule['actions'][number] = ruleAction.value === 'rotate'
       ? { type: 'rotate', objectId: target, degrees: 45 }
       : ruleAction.value === 'move'
         ? { type: 'move', objectId: target, x: 2 }
         : ruleAction.value === 'set_visible'
           ? { type: 'set_visible', objectId: target, visible: false }
-          : ruleAction.value === 'javascript'
+          : ruleAction.value === 'set_package_variable'
+            ? {
+              type: 'set_package_variable',
+              objectId: target,
+              packageId: rulePackageId.value,
+              name: rulePackageVariableName.value.trim() || 'mounted',
+              value: rulePackageVariableValue.value.trim() === 'true'
+                ? true
+                : rulePackageVariableValue.value.trim() === 'false'
+                  ? false
+                  : rulePackageVariableValue.value.trim() !== '' && Number.isFinite(Number(rulePackageVariableValue.value.trim()))
+                    ? Number(rulePackageVariableValue.value.trim())
+                    : rulePackageVariableValue.value,
+            }
+            : ruleAction.value === 'javascript'
             ? { type: 'javascript', code: scriptCode?.trim() || "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
@@ -1090,7 +1119,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     gridVisible,
     polygonLinesVisible,
     performanceMode,
-    logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+    logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
