@@ -21,6 +21,7 @@ import { ScriptMountRuntime } from './script/ScriptMountRuntime'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
+import type { Entity } from './model/entity/Entity'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
 
@@ -143,6 +144,10 @@ export class Engine {
     this.viewport.setPerformanceMode(enabled)
   }
 
+  /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
+  getEntity(id: string): Entity | null { return this.world.getEntity(id) }
+  /** Lista todas as entidades colocadas no mundo, incluindo futuras entidades como montarias. */
+  listEntities(): Entity[] { return this.world.listEntities() }
   listRules(): LogicRule[] { return this.logic.list() }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
