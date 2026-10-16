@@ -129,10 +129,7 @@ export class Engine {
     })
     this.viewport.start((dt) => {
       this.input.update(dt)
-      // Durante o arrasto do gizmo, não deixe o resolvedor de colisões reposicionar
-      // o objeto a cada frame e desfazer a transformação do usuário. A colisão
-      // volta a ser resolvida assim que o usuário soltar o gizmo.
-      if (!this.transformControls.dragging) this.collisions.update()
+      this.collisions.update()
       // Os mixers pertencem à raiz de cada objeto importado; assim uma árvore
       // pode animar-se independentemente das outras e a remoção libera a raiz.
       for (const object of this.world.list()) {
