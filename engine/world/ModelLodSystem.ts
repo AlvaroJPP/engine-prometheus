@@ -24,8 +24,8 @@ type RootLodState = {
   entries: MeshLodEntry[]
 }
 
-const MIN_TRIANGLES_FOR_LOD = 12_000
-const MIN_SIMPLIFIER_VERTICES = 5_000
+const MIN_TRIANGLES_FOR_LOD = 4_000
+const MIN_SIMPLIFIER_VERTICES = 1_500
 
 const PRESET_DISTANCES: Record<ModelLodPreset, { medium: number; low: number; radiusScale: number }> = {
   quality: { medium: 24, low: 48, radiusScale: 28 },
@@ -79,18 +79,26 @@ export class ModelLodSystem {
     root.traverse((node) => {
       if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh) return
       if (node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
-      if (Array.isArray(node.material) || node.geometry.groups.length > 0) return
-      if (node.geometry.drawRange.count !== Infinity) return
+      const geometry = node.geometry
+      const positions = geometry.getAttribute('position')
+      if (!positions || geometry.drawRange.count !== Infinity) return
+      const elementCount = geometry.index?.count ?? positions.count
+      const singleFullGroup = geometry.groups.length === 1
+        && geometry.groups[0]!.start === 0
+        && geometry.groups[0]!.count >= elementCount
+      if (geometry.groups.length > 1 || (geometry.groups.length === 1 && !singleFullGroup)) return
+      if (Array.isArray(node.material) && (!singleFullGroup || !node.material[geometry.groups[0]!.materialIndex])) return
       if (node.geometry.getAttribute('skinIndex') || node.geometry.getAttribute('skinWeight')) return
       if (hasMorphTargets(node.geometry)) return
 
-      const material = node.material
-      if (material.transparent || material.opacity < 0.98 || material.alphaTest > 0.01) return
+      const materialList = Array.isArray(node.material) ? node.material : [node.material]
+      if (materialList.some(material =>
+        material.transparent || material.opacity < 0.98 || material.alphaTest > 0.01
+      )) return
 
-      const triangles = triangleCount(node.geometry)
-      const positions = node.geometry.getAttribute('position')
-      if (!positions || triangles < MIN_TRIANGLES_FOR_LOD || positions.count < MIN_SIMPLIFIER_VERTICES) return
-      candidates.push({ mesh: node, geometry: node.geometry, triangles })
+      const triangles = triangleCount(geometry)
+      if (triangles < MIN_TRIANGLES_FOR_LOD || positions.count < MIN_SIMPLIFIER_VERTICES) return
+      candidates.push({ mesh: node, geometry, triangles })
     })
     if (candidates.length === 0) return
 
@@ -108,7 +116,12 @@ export class ModelLodSystem {
 
       try {
         const variants = await variantsPromise
-        if (!variants || this.disposed || root.parent === null) continue
+        if (!variants) continue
+        if (this.disposed || root.parent === null) {
+          variants.medium.dispose()
+          variants.low.dispose()
+          break
+        }
         if (candidate.geometry.boundingSphere === null) candidate.geometry.computeBoundingSphere()
         const originalSphere = candidate.geometry.boundingSphere?.clone() ?? new THREE.Sphere()
         entries.push({
@@ -173,9 +186,16 @@ export class ModelLodSystem {
 
       const originalBox = original.boundingBox ?? (original.computeBoundingBox(), original.boundingBox)
       const originalSphere = original.boundingSphere ?? (original.computeBoundingSphere(), original.boundingSphere)
+      const originalGroup = original.groups.length === 1 ? original.groups[0] : undefined
       for (const simplified of [medium, low]) {
         simplified.computeBoundingBox()
         simplified.computeBoundingSphere()
+        // O simplificador não conserva groups; um único group que cobre toda a malha
+        // pode ser reconstruído com segurança para preservar materiais de um GLB.
+        if (originalGroup && simplified.index) {
+          simplified.clearGroups()
+          simplified.addGroup(0, simplified.index.count, originalGroup.materialIndex)
+        }
         // Preservar limites originais evita popping no culling perto da borda da tela.
         if (originalBox) simplified.boundingBox = originalBox.clone()
         if (originalSphere) simplified.boundingSphere = originalSphere.clone()
