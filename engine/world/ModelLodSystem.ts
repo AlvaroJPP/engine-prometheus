@@ -28,9 +28,9 @@ const MIN_TRIANGLES_FOR_LOD = 4_000
 const MIN_SIMPLIFIER_VERTICES = 1_500
 
 const PRESET_DISTANCES: Record<ModelLodPreset, { medium: number; low: number; radiusScale: number }> = {
-  quality: { medium: 24, low: 48, radiusScale: 28 },
-  balanced: { medium: 18, low: 36, radiusScale: 22 },
-  economy: { medium: 12, low: 24, radiusScale: 16 },
+  quality: { medium: 24, low: 48, radiusScale: 4 },
+  balanced: { medium: 18, low: 36, radiusScale: 3 },
+  economy: { medium: 12, low: 24, radiusScale: 2 },
 }
 
 function triangleCount(geometry: THREE.BufferGeometry): number {
