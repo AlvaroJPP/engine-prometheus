@@ -15,6 +15,51 @@ const GRASS_MIDDLE_DISTANCE = 42
 const GRASS_VIEW_DISTANCE = 72
 const GRASS_MIDDLE_STRIDE = 2
 const GRASS_FAR_STRIDE = 4
+
+export type GrassPerformancePreset = 'quality' | 'balanced' | 'economy'
+
+/**
+ * Menos grama distante costuma reduzir muito mais triângulos do que reduzir a
+ * resolução da tela. Modos leves reduzem o alcance efetivo, a área em alta densidade
+ * e a amostragem dos anéis distantes sem alterar os dados de grama pintada.
+ */
+const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
+  nearDistance: number
+  middleDistance: number
+  viewDistance: number
+  viewScale: number
+  nearStride: number
+  middleStride: number
+  farStride: number
+}> = {
+  quality: {
+    nearDistance: GRASS_NEAR_DISTANCE,
+    middleDistance: GRASS_MIDDLE_DISTANCE,
+    viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 1,
+    nearStride: 1,
+    middleStride: GRASS_MIDDLE_STRIDE,
+    farStride: GRASS_FAR_STRIDE,
+  },
+  balanced: {
+    nearDistance: 15,
+    middleDistance: 32,
+    viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 0.82,
+    nearStride: 1,
+    middleStride: 3,
+    farStride: 6,
+  },
+  economy: {
+    nearDistance: 10,
+    middleDistance: 20,
+    viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 0.55,
+    nearStride: 1,
+    middleStride: 4,
+    farStride: 8,
+  },
+}
 const GRASS_RING_REBUILD_DISTANCE = 1.5
 const GRASS_REBUILD_COALESCE_MS = 45
 const PAINTED_GRASS_SPACING = 0.17
@@ -245,6 +290,8 @@ export class GrassLayer {
   private paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
   private lastRingCenter: THREE.Vector3 | null = null
   private renderDirty = true
+  private configuredRenderDistance: number | null = GRASS_VIEW_DISTANCE
+  private performancePreset: GrassPerformancePreset = 'quality'
   private loadingPainted = false
   private renderRebuildInProgress = false
   private pendingRingCenter: THREE.Vector3 | null = null
@@ -1794,27 +1841,59 @@ export class GrassLayer {
   }
 
   /**
+   * Altera a densidade visual sem modificar os dados pintados no projeto.
+   * O ajuste só afeta as malhas renderizadas; salvar/reabrir conserva a grama original.
+   */
+  setPerformancePreset(preset: GrassPerformancePreset): void {
+    if (this.performancePreset === preset) return
+    this.performancePreset = preset
+    this.applyRenderSettings()
+  }
+
+  /**
    * Configura o raio máximo de renderização. null significa renderizar todo o mapa.
-   * Os limites entre anéis são proporcionais ao alcance, mantendo o detalhe perto
-   * e reduzindo a densidade/complexidade progressivamente mais longe.
+   * O preset altera densidade e detalhe local sem sobrescrever a preferência de alcance.
    */
   setRenderDistance(distance: number | null): void {
     if (distance !== null && !Number.isFinite(distance)) return
+    this.configuredRenderDistance = distance === null
+      ? null
+      : THREE.MathUtils.clamp(distance, 10, 5000)
+    this.applyRenderSettings()
+  }
 
-    if (distance === null) {
-      this.renderBands[0]!.maxDistance = GRASS_NEAR_DISTANCE
-      this.renderBands[1]!.maxDistance = GRASS_MIDDLE_DISTANCE
+  private applyRenderSettings(): void {
+    const settings = GRASS_PERFORMANCE_PRESETS[this.performancePreset]
+    this.renderBands[0]!.stride = settings.nearStride
+    this.renderBands[1]!.stride = settings.middleStride
+    this.renderBands[2]!.stride = settings.farStride
+
+    if (this.configuredRenderDistance === null) {
+      this.renderBands[0]!.maxDistance = settings.nearDistance
+      this.renderBands[1]!.maxDistance = settings.middleDistance
       this.renderBands[2]!.maxDistance = Number.POSITIVE_INFINITY
     } else {
-      const safeDistance = THREE.MathUtils.clamp(distance, 10, 5000)
-      this.renderBands[0]!.maxDistance = safeDistance * (GRASS_NEAR_DISTANCE / GRASS_VIEW_DISTANCE)
-      this.renderBands[1]!.maxDistance = safeDistance * (GRASS_MIDDLE_DISTANCE / GRASS_VIEW_DISTANCE)
-      this.renderBands[2]!.maxDistance = safeDistance
+      const safeDistance = this.configuredRenderDistance
+      const effectiveDistance = safeDistance * settings.viewScale
+      this.renderBands[0]!.maxDistance = Math.min(
+        safeDistance * (settings.nearDistance / settings.viewDistance),
+        effectiveDistance,
+      )
+      this.renderBands[1]!.maxDistance = Math.min(
+        safeDistance * (settings.middleDistance / settings.viewDistance),
+        effectiveDistance,
+      )
+      this.renderBands[2]!.maxDistance = effectiveDistance
     }
 
-    // A atualização é aplicada no próximo frame, evitando reconstruções repetidas
-    // enquanto o controle deslizante está sendo arrastado.
+    // Um único rebuild na próxima atualização junta mudanças de alcance e densidade.
     this.renderDirty = true
+  }
+
+  /** Alcance efetivo aplicado pelo preset; null significa renderizar até a borda do mapa. */
+  getEffectiveRenderDistance(): number | null {
+    const distance = this.renderBands[2]?.maxDistance
+    return distance !== undefined && Number.isFinite(distance) ? distance : null
   }
 
   /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */

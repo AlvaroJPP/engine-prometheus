@@ -580,9 +580,13 @@ export class World {
       farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
     }
 
-    const effectiveDistance = this.grassRenderDistance === null
+    const configuredDistance = this.grassRenderDistance === null
       ? farthestCorner
       : Math.min(this.grassRenderDistance, farthestCorner)
+    const presetDistance = this.terrain.grass.getEffectiveRenderDistance()
+    const effectiveDistance = presetDistance === null
+      ? configuredDistance
+      : Math.min(configuredDistance, presetDistance, farthestCorner)
     this.updateGrassFogDistance(Math.max(10, effectiveDistance))
   }
 

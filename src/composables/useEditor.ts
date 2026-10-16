@@ -24,7 +24,8 @@ import {
   saveProjectTo,
 } from '@/project/projectService'
 
-type PerformancePreset = 'quality' | 'balanced' | 'economy'
+type PerformancePreset = 'quality' | 'balanced' | 'economy' | 'auto'
+type AppliedPerformancePreset = Exclude<PerformancePreset, 'auto'>
 type RenderStats = {
   fps: number
   drawCalls: number
@@ -98,6 +99,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleConditionEnabled = ref(false)
 
   let engine: Engine | null = null
+  let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
+  let autoPerformanceHealthySamples = 0
   let runtimeMode = false
   let statusTimer = 0
   let environmentSyncTimer = 0
@@ -295,7 +298,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function loadPerformanceSettings() {
     try {
       const saved = window.localStorage.getItem(PERFORMANCE_SETTINGS_KEY)
-      if (saved === 'quality' || saved === 'balanced' || saved === 'economy') {
+      if (saved === 'quality' || saved === 'balanced' || saved === 'economy' || saved === 'auto') {
         performanceMode.value = saved
       }
     } catch (error) {
@@ -309,6 +312,47 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     } catch (error) {
       console.warn('[EditorSettings] Não foi possível salvar o modo de desempenho.', error)
     }
+  }
+
+  function updateAutoPerformancePreset(stats: RenderStats) {
+    if (performanceMode.value !== 'auto' || !engine) return
+
+    const current = appliedPerformancePreset
+    let next = current
+    if (stats.fps <= 18 || stats.triangles >= 4_000_000) {
+      next = 'economy'
+      autoPerformanceHealthySamples = 0
+    } else if (current === 'quality') {
+      if (stats.fps < 38 || stats.triangles >= 2_800_000) next = 'balanced'
+      autoPerformanceHealthySamples = 0
+    } else if (current === 'balanced') {
+      if (stats.fps < 23 || stats.triangles >= 4_000_000) {
+        next = 'economy'
+        autoPerformanceHealthySamples = 0
+      } else if (stats.fps >= 52 && stats.triangles < 1_500_000) {
+        autoPerformanceHealthySamples += 1
+        if (autoPerformanceHealthySamples >= 4) next = 'quality'
+      } else {
+        autoPerformanceHealthySamples = 0
+      }
+    } else if (stats.fps >= 48 && stats.triangles < 2_000_000) {
+      // Só recupera qualidade depois de várias janelas saudáveis para evitar oscilações.
+      autoPerformanceHealthySamples += 1
+      if (autoPerformanceHealthySamples >= 4) next = 'balanced'
+    } else {
+      autoPerformanceHealthySamples = 0
+    }
+
+    if (next === current) return
+    appliedPerformancePreset = next
+    autoPerformanceHealthySamples = 0
+    engine.setPerformancePreset(next)
+    const labels: Record<AppliedPerformancePreset, string> = {
+      quality: 'qualidade',
+      balanced: 'equilibrado',
+      economy: 'econômico',
+    }
+    say(`Modo automático ajustou a renderização para ${labels[next]} (${stats.fps} FPS, ${(stats.triangles / 1000).toFixed(0)} mil triângulos).`)
   }
 
   const GRASS_RENDER_SETTINGS_KEY = 'engine-prometheus.grass-render-settings'
@@ -428,10 +472,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     loadPerformanceSettings()
     const e = new Engine(canvas.value)
     engine = e
-    e.setPerformancePreset(performanceMode.value)
+    appliedPerformancePreset = performanceMode.value === 'auto' ? 'economy' : performanceMode.value
+    e.setPerformancePreset(appliedPerformancePreset)
     e.setRenderStatsListener((value) => {
       fps.value = value.fps
       renderStats.value = value
+      updateAutoPerformancePreset(value)
     })
     loadGrassRenderSettings()
     e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
@@ -644,16 +690,25 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function togglePerformanceMode() {
     if (!engine) return
-    const presets: PerformancePreset[] = ['quality', 'balanced', 'economy']
+    const presets: PerformancePreset[] = ['quality', 'balanced', 'economy', 'auto']
     const currentIndex = presets.indexOf(performanceMode.value)
     performanceMode.value = presets[(currentIndex + 1) % presets.length] ?? 'quality'
-    engine.setPerformancePreset(performanceMode.value)
+    autoPerformanceHealthySamples = 0
+
+    if (performanceMode.value === 'auto') {
+      appliedPerformancePreset = 'economy'
+      engine.setPerformancePreset('economy')
+    } else {
+      appliedPerformancePreset = performanceMode.value
+      engine.setPerformancePreset(appliedPerformancePreset)
+    }
     persistPerformanceSettings()
 
     const messages: Record<PerformancePreset, string> = {
-      quality: 'Modo qualidade: alvo de 60 FPS e resolução padrão.',
-      balanced: 'Modo equilibrado: alvo de 45 FPS e resolução interna reduzida.',
-      economy: 'Modo econômico: alvo de 30 FPS e resolução interna em 75%.',
+      quality: 'Modo qualidade: alvo de 60 FPS, grama densa e resolução padrão.',
+      balanced: 'Modo equilibrado: alvo de 45 FPS, grama menos densa e alcance menor, com resolução em 85%.',
+      economy: 'Modo econômico: alvo de 30 FPS, alcance e densidade da grama reduzidos, com resolução em 75%.',
+      auto: 'Modo automático: começa no econômico e ajusta a qualidade conforme FPS e triângulos.',
     }
     say(messages[performanceMode.value])
   }
