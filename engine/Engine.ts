@@ -716,7 +716,7 @@ export class Engine {
     if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
       animationClips.forEach((clip, index) => {
-        const normalizedName = clip.name.toLowerCase().replace(/[\\s._-]+/g, '')
+        const normalizedName = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
         const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
           : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
             : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
