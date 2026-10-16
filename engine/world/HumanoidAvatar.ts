@@ -204,31 +204,54 @@ export class HumanoidAvatar {
         -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
       )
       direction.normalize().multiplyScalar(speed * step)
-      const oldX = this.mesh.position.x
-      const oldZ = this.mesh.position.z
       const oldFeetY = this.mesh.position.y
-      this.mesh.position.x = THREE.MathUtils.clamp(oldX + direction.x, -49, 49)
-      if (this.collidesWithObjects()) {
-        const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, oldZ, oldFeetY) : null
-        if (stepUp !== null) {
-          this.mesh.position.y = stepUp
-          horizontalStepY = stepUp
-          this.verticalVelocity = 0
-        } else {
-          this.mesh.position.x = oldX
+
+      // Faça a varredura horizontal em incrementos pequenos. Um único teste no
+      // ponto final pode saltar uma perna ou uma face low-poly quando o quadro
+      // chega lento; a varredura mantém contato com as superfícies reais.
+      const moveAxis = (axis: 'x' | 'z', delta: number): void => {
+        if (Math.abs(delta) < 1e-8) return
+        const origin = this.mesh.position[axis]
+        const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
+        const steps = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
+        let lastSafe = origin
+
+        for (let index = 1; index <= steps; index += 1) {
+          const coordinate = THREE.MathUtils.clamp(
+            origin + delta * index / steps,
+            -49,
+            49,
+          )
+          this.mesh.position[axis] = coordinate
+
+          if (!this.collidesWithObjects()) {
+            lastSafe = coordinate
+            continue
+          }
+
+          const stepUp = wasGrounded
+            ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, oldFeetY)
+            : null
+          if (stepUp !== null) {
+            const previousY = this.mesh.position.y
+            this.mesh.position.y = stepUp
+            if (!this.collidesWithObjects()) {
+              horizontalStepY = stepUp
+              this.verticalVelocity = 0
+              lastSafe = coordinate
+              continue
+            }
+            this.mesh.position.y = previousY
+          }
+
+          // Para no último ponto livre, sem reverter o outro eixo nem teleportar.
+          this.mesh.position[axis] = lastSafe
+          break
         }
       }
-      this.mesh.position.z = THREE.MathUtils.clamp(oldZ + direction.z, -49, 49)
-      if (this.collidesWithObjects()) {
-        const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, this.mesh.position.y) : null
-        if (stepUp !== null) {
-          this.mesh.position.y = stepUp
-          horizontalStepY = stepUp
-          this.verticalVelocity = 0
-        } else {
-          this.mesh.position.z = oldZ
-        }
-      }
+
+      moveAxis('x', direction.x)
+      moveAxis('z', direction.z)
       this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
     }
 
