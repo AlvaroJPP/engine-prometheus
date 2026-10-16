@@ -32,6 +32,7 @@ export class PointerController {
   private state: EditorState
   private isGizmoDragging: () => boolean
   private onBuildAt: ((x: number, y: number, z: number) => boolean) | undefined
+  private onRuntimeObjectClick: ((id: string) => void) | undefined
   private runtimeMode = false
   private raycaster = new THREE.Raycaster()
   private pointer = new THREE.Vector2()
@@ -56,6 +57,7 @@ export class PointerController {
     this.state = state
     this.isGizmoDragging = isGizmoDragging
     this.onBuildAt = onBuildAt
+    this.onRuntimeObjectClick = onRuntimeObjectClick
     this.ring.rotation.x = -Math.PI / 2
     this.ring.renderOrder = 10
     this.ring.visible = false
@@ -162,7 +164,7 @@ export class PointerController {
         const id = hit ? this.objectIdFromHit(hit.object) : null
         if (id) {
           e.preventDefault()
-          onRuntimeObjectClick?.(id)
+          this.onRuntimeObjectClick?.(id)
           return
         }
       }
