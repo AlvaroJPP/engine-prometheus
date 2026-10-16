@@ -45,7 +45,7 @@ const {
   performanceMode,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
-  logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+  logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
   installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
   createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
@@ -191,7 +191,7 @@ const graphObjectFilter = ref<'selected' | 'all'>('all')
 const graphObjectSearch = ref('')
 function ownerOfRule(rule: LogicRule): string | undefined {
   return rule.ownerObjectId ??
-    (rule.trigger.type === 'object_clicked'
+    (rule.trigger.type === 'object_clicked' || rule.trigger.type === 'package_event'
       ? rule.trigger.objectId
       : (rule.actions.find(action => 'objectId' in action) as Extract<LogicRule['actions'][number], { objectId: string }> | undefined)?.objectId)
 }
@@ -487,6 +487,23 @@ function returnToEdit() {
 }
 const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
 const selectedObjectPackages = computed(() => behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedId.value))
+const selectedRulePackageDefinition = computed(() => getBehaviorPackageDefinition(rulePackageId.value))
+const selectedRulePackageVariables = computed(() => selectedObjectPackages.value.find(instance => instance.packageId === rulePackageId.value)?.variables ?? {})
+
+watch(rulePackageId, (packageId) => {
+  const definition = getBehaviorPackageDefinition(packageId)
+  if (!definition) return
+  if (!definition.triggers.some(trigger => trigger.id === rulePackageEventId.value)) {
+    rulePackageEventId.value = definition.triggers[0]?.id ?? ''
+  }
+  if (!definition.variables.some(variable => variable.name === rulePackageVariableName.value)) {
+    rulePackageVariableName.value = definition.variables[0]?.name ?? ''
+  }
+}, { immediate: true })
+
+function onRulePackageChange(packageId: string) {
+  rulePackageId.value = packageId
+}
 const installedPackageDefinitions = computed(() => selectedObjectPackages.value.flatMap(instance => {
   const definition = getBehaviorPackageDefinition(instance.packageId)
   return definition ? [{ instance, definition }] : []
