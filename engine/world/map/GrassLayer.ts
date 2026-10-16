@@ -60,8 +60,14 @@ const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
     farStride: 8,
   },
 }
-const GRASS_RING_REBUILD_DISTANCE = 1.5
-const GRASS_REBUILD_COALESCE_MS = 45
+// A geometria da grama é agrupada por anéis globais. Evite reconstruí-los
+// a cada movimento curto da câmera: um rebuild percorre todos os tufos ativos.
+const GRASS_RING_REBUILD_DISTANCE = 3
+const GRASS_REBUILD_COALESCE_MS = 85
+const MIN_GRASS_RING_REBUILD_INTERVAL_MS = 280
+// Os raycasts de oclusão são mais caros que a simples redistribuição dos anéis.
+// A posição do jogador/câmera pode mudar várias vezes antes de recalcular a oclusão.
+const GRASS_OCCLUSION_RECHECK_INTERVAL_MS = 400
 const PAINTED_GRASS_SPACING = 0.17
 // Buckets maiores evitam criar um Map e um array para quase cada tufo em mapas densos.
 const PAINTED_GRASS_BUCKET_SIZE = 1
@@ -295,9 +301,14 @@ export class GrassLayer {
   private loadingPainted = false
   private renderRebuildInProgress = false
   private pendingRingCenter: THREE.Vector3 | null = null
+  private lastRingRebuildStartedAt = 0
   private renderRebuildRevision = 0
   private lastOcclusionCameraPosition: THREE.Vector3 | null = null
   private lastOcclusionRebuildCameraPosition: THREE.Vector3 | null = null
+  private lastGrassOcclusionEvaluationAt = 0
+  private readonly lastGrassOcclusionEvaluationPosition = new THREE.Vector3()
+  private hasGrassOcclusionEvaluationPosition = false
+  private grassOcclusionNeedsEvaluation = true
   private lastOcclusionRoots: readonly THREE.Object3D[] = []
   private cachedOcclusionRoots: readonly THREE.Object3D[] | null = null
   private cachedOcclusionData: GrassOcclusionData | null = null
@@ -1348,6 +1359,7 @@ export class GrassLayer {
   /** Invalida a seleção de chunks ocultos após mover/adicionar/remover objetos. */
   invalidateOcclusion(): void {
     this.occlusionDataDirty = true
+    this.grassOcclusionNeedsEvaluation = true
     this.renderDirty = true
   }
 
@@ -1372,12 +1384,25 @@ export class GrassLayer {
   private async processQueuedDistanceRingRebuilds(): Promise<void> {
     try {
       while (this.pendingRingCenter && !this.disposed && !this.loadingPainted) {
-        // Aguarda um intervalo curto para condensar os movimentos rápidos em um único rebuild.
+        // Consolida movimentos rápidos e limita a frequência de builds enquanto
+        // o usuário orbita a câmera. O centro é lido depois da espera, portanto
+        // usa sempre a posição mais recente, sem enfileirar cada evento do mouse.
         await new Promise<void>((resolve) => window.setTimeout(resolve, GRASS_REBUILD_COALESCE_MS))
         if (this.disposed || this.loadingPainted) break
+
+        const elapsed = performance.now() - this.lastRingRebuildStartedAt
+        const remaining = this.lastRingRebuildStartedAt > 0
+          ? MIN_GRASS_RING_REBUILD_INTERVAL_MS - elapsed
+          : 0
+        if (remaining > 0) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, remaining))
+          if (this.disposed || this.loadingPainted) break
+        }
+
         const center = this.pendingRingCenter
         if (!center) continue
         this.pendingRingCenter = null
+        this.lastRingRebuildStartedAt = performance.now()
         await this.rebuildDistanceRings(center, this.renderRebuildRevision)
       }
     } catch (error) {
@@ -1395,31 +1420,77 @@ export class GrassLayer {
   private async rebuildDistanceRings(center: THREE.Vector3, revision: number): Promise<void> {
     const cameraOrigin = this.lastOcclusionCameraPosition?.clone() ?? center.clone()
     const occlusionData = this.getOcclusionData(this.lastOcclusionRoots)
+    const occlusionNow = performance.now()
+    const occlusionCameraMoved = !this.hasGrassOcclusionEvaluationPosition
+      || this.lastGrassOcclusionEvaluationPosition.distanceToSquared(cameraOrigin) >= 0.5 * 0.5
+    const shouldEvaluateGrassOcclusion = !!occlusionData && (
+      this.grassOcclusionNeedsEvaluation
+      || !this.hasGrassOcclusionEvaluationPosition
+      || (occlusionCameraMoved
+        && occlusionNow - this.lastGrassOcclusionEvaluationAt >= GRASS_OCCLUSION_RECHECK_INTERVAL_MS)
+    )
+    if (shouldEvaluateGrassOcclusion) {
+      this.grassOcclusionNeedsEvaluation = false
+      this.lastGrassOcclusionEvaluationAt = occlusionNow
+      this.lastGrassOcclusionEvaluationPosition.copy(cameraOrigin)
+      this.hasGrassOcclusionEvaluationPosition = true
+    }
     if (!occlusionData) {
       this.occludedChunks.clear()
       this.occludedCells.clear()
+      this.grassOcclusionNeedsEvaluation = false
     }
+
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
     const modelBuckets = this.renderBands.map(() =>
       this.modelParts.map(() => [] as GrassInstance[]),
     )
+    const maxRenderDistance = this.renderBands[2]?.maxDistance ?? Number.POSITIVE_INFINITY
+    const paddedRenderDistance = Number.isFinite(maxRenderDistance) ? maxRenderDistance + 1.0 : Number.POSITIVE_INFINITY
+    const paddedRenderDistanceSquared = paddedRenderDistance * paddedRenderDistance
     let processed = 0
     let processedChunks = 0
 
     for (const chunk of this.chunks) {
       processedChunks += 1
-      // Os testes de oclusão também cedem o controle à interface em lotes pequenos.
+      const hasGrass = chunk.procedural.length > 0 || chunk.painted.length > 0
+      if (!hasGrass) {
+        if (occlusionData) {
+          this.occludedChunks.delete(chunk)
+          this.clearOcclusionCellsForChunk(chunk)
+        }
+        continue
+      }
+
+      // Não faça raycasts nem percorra cada tufo em chunks que ficam inteiros
+      // fora do alcance de renderização atual.
+      if (Number.isFinite(paddedRenderDistance)) {
+        const minX = -WORLD_HALF + chunk.column * CHUNK_SIZE
+        const minZ = -WORLD_HALF + chunk.row * CHUNK_SIZE
+        const maxX = minX + CHUNK_SIZE
+        const maxZ = minZ + CHUNK_SIZE
+        const dx = Math.max(minX - center.x, 0, center.x - maxX)
+        const dz = Math.max(minZ - center.z, 0, center.z - maxZ)
+        if (dx * dx + dz * dz > paddedRenderDistanceSquared) {
+          if (occlusionData) {
+            this.occludedChunks.delete(chunk)
+            this.clearOcclusionCellsForChunk(chunk)
+          }
+          continue
+        }
+      }
+
+      // Os raycasts são distribuídos no tempo. Entre as avaliações, reaproveite
+      // a decisão anterior por chunk/célula em vez de reclassificar todo o mapa.
       if (occlusionData && processedChunks % 4 === 0) {
         await this.yieldToUi()
         if (this.shouldCancelRenderRebuild(revision)) return
       }
       if (occlusionData) {
-        if (chunk.procedural.length === 0 && chunk.painted.length === 0) {
-          this.occludedChunks.delete(chunk)
-          this.clearOcclusionCellsForChunk(chunk)
-          continue
-        }
-        if (this.isChunkOccluded(chunk, cameraOrigin, center, occlusionData)) {
+        const chunkOccluded = shouldEvaluateGrassOcclusion
+          ? this.isChunkOccluded(chunk, cameraOrigin, center, occlusionData)
+          : this.occludedChunks.has(chunk)
+        if (chunkOccluded) {
           // Nenhum tufo desse chunk será incluído nas malhas GPU desta reconstrução.
           continue
         }
@@ -1914,6 +1985,7 @@ export class GrassLayer {
     if (this.lastOcclusionRoots !== occluderRoots) {
       this.lastOcclusionRoots = occluderRoots
       this.occlusionDataDirty = true
+      this.grassOcclusionNeedsEvaluation = true
       this.renderDirty = true
     }
 
@@ -1949,6 +2021,9 @@ export class GrassLayer {
     this.lastOcclusionRoots = []
     this.lastOcclusionCameraPosition = null
     this.lastOcclusionRebuildCameraPosition = null
+    this.lastGrassOcclusionEvaluationAt = 0
+    this.hasGrassOcclusionEvaluationPosition = false
+    this.grassOcclusionNeedsEvaluation = true
     for (const band of this.renderBands) {
       band.mesh.removeFromParent()
       band.mesh.dispose()
