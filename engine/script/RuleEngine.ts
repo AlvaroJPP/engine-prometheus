@@ -34,7 +34,7 @@ export class RuleEngine {
       // Migra projetos antigos para uma regra pertencente a um único objeto.
       rule.ownerObjectId ??= rule.trigger.type === 'object_clicked'
         ? rule.trigger.objectId
-        : rule.actions.find((action) => 'objectId' in action)?.objectId
+        : (rule.actions.find((action) => 'objectId' in action) as Extract<RuleAction, { objectId: string }> | undefined)?.objectId
     }
   }
 
