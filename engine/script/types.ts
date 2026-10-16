@@ -1,3 +1,5 @@
+import type { BehaviorPackageInstance } from './packages'
+
 export type RuleTrigger =
   | { type: 'object_clicked'; objectId: string }
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
@@ -34,6 +36,8 @@ export interface LogicEventsFile {
   /** Variáveis isoladas por GameObject, indexadas pelo ID do objeto. */
   objectVariables?: Record<string, Record<string, boolean | number | string>>
   events: LogicRule[]
+  /** Instâncias de pacotes de comportamento vinculadas aos objetos da cena. */
+  packages?: BehaviorPackageInstance[]
 }
 
-export const EMPTY_LOGIC: LogicEventsFile = { formatVersion: 1, variables: {}, events: [] }
+export const EMPTY_LOGIC: LogicEventsFile = { formatVersion: 1, variables: {}, events: [], packages: [] }
