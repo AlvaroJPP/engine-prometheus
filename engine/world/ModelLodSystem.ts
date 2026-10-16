@@ -257,7 +257,7 @@ export class ModelLodSystem {
     entry.mesh.updateWorldMatrix(true, false)
     this.temporaryCenter.copy(entry.originalSphere.center).applyMatrix4(entry.mesh.matrixWorld)
     entry.mesh.getWorldScale(this.temporaryScale)
-    const worldRadius = Math.max(0.1, entry.originalSphere.radius * this.temporaryScale.maxComponent())
+    const worldRadius = Math.max(0.1, entry.originalSphere.radius * Math.max(Math.abs(this.temporaryScale.x), Math.abs(this.temporaryScale.y), Math.abs(this.temporaryScale.z)))
     const mediumDistance = Math.max(distances.medium, worldRadius * distances.radiusScale)
     const lowDistance = Math.max(distances.low, worldRadius * distances.radiusScale * 2)
     const distanceSquared = this.temporaryCenter.distanceToSquared(cameraPosition)
