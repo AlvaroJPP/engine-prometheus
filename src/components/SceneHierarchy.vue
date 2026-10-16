@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import type { ObjectInfo, TerrainInfo } from '@engine'
 
-interface ComponentEntry { id: string; name: string; height: number; colliderType: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize: [number, number, number]; colliderOffset: [number, number, number]; createdAt: number }
+interface ComponentEntry { id: string; name: string; kind?: 'object' | 'entity'; height: number; colliderType: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize: [number, number, number]; colliderOffset: [number, number, number]; createdAt: number }
 const activeTab = ref<'hierarchy' | 'components'>('hierarchy')
 
 defineProps<{
