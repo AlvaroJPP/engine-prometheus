@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
-import type { MountPackageSettings, AnimationRole } from '../script/packages'
+import type { MountPackageSettings, AnimationRole, MountMovementState } from '../script/packages'
 
 const PLAYER_ID = 'player'
 const WALK_SPEED = 4.2
@@ -99,7 +99,7 @@ export class HumanoidAvatar {
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
-  private mountedMovementState: 'idle' | 'walk' | 'run' = 'idle'
+  private mountedMovementState: MountMovementState = 'idle'
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -347,7 +347,7 @@ export class HumanoidAvatar {
     return typeof id === 'string' ? id : null
   }
 
-  getMountedMovementState(): 'idle' | 'walk' | 'run' | null {
+  getMountedMovementState(): MountMovementState | null {
     return this.mountedRoot ? this.mountedMovementState : null
   }
 
@@ -360,6 +360,7 @@ export class HumanoidAvatar {
       speed: settings.speed,
       runMultiplier: settings.runMultiplier,
       interactionRadius: settings.interactionRadius,
+      modelStates: settings.modelStates.map(rule => ({ ...rule })),
     }
   }
 
@@ -377,6 +378,7 @@ export class HumanoidAvatar {
       speed: settings.speed,
       runMultiplier: settings.runMultiplier,
       interactionRadius: settings.interactionRadius,
+      modelStates: settings.modelStates.map(rule => ({ ...rule })),
     }
     this.visualRoot.visible = false
     root.updateWorldMatrix(true, true)
@@ -473,16 +475,28 @@ export class HumanoidAvatar {
     if (!actions) return
     const transition = root.userData.importAnimationTransition as AnimationRole | undefined
     const transitionAction = transition ? actions[transition] : undefined
-    if (!oneShot && transitionAction?.isRunning()) return
+    // A transição de parar a corrida pode ser interrompida caso o jogador volte a mover-se,
+    // mas idle não deve cancelar a própria animação de parada antes que ela termine.
+    if (!oneShot && transitionAction?.isRunning() && (transition !== 'run_stop' || role === 'idle')) return
 
-    const next = actions[role]
-      ?? (role === 'run' ? actions.walk : undefined)
-      ?? (role === 'walk' || role === 'run' ? actions.idle : undefined)
-      ?? (role === 'idle' ? actions.walk ?? actions.run : undefined)
+    const locomotionFallbacks: Partial<Record<AnimationRole, AnimationRole[]>> = {
+      walk: ['idle'],
+      run: ['walk', 'idle'],
+      walk_diagonal_left: ['walk', 'idle'],
+      walk_diagonal_right: ['walk', 'idle'],
+      run_diagonal_left: ['walk_diagonal_left', 'run', 'walk', 'idle'],
+      run_diagonal_right: ['walk_diagonal_right', 'run', 'walk', 'idle'],
+      idle: ['walk', 'run'],
+    }
+    const candidates: AnimationRole[] = ['mount', 'dismount', 'run_stop'].includes(role)
+      ? [role]
+      : [role, ...(locomotionFallbacks[role] ?? [])]
+    const nextRole = candidates.find(candidate => actions[candidate])
+    const next = nextRole ? actions[nextRole] : undefined
     if (!next) {
-      if (oneShot && role === 'dismount') {
+      if (oneShot && ['dismount', 'mount', 'run_stop'].includes(role)) {
         root.userData.importAnimationTransition = undefined
-        const idle = actions.idle ?? actions.walk ?? actions.run
+        const idle = actions.idle ?? actions.walk ?? actions.run ?? actions.walk_diagonal_left ?? actions.walk_diagonal_right
         if (idle) {
           idle.setLoop(THREE.LoopRepeat, Infinity)
           idle.clampWhenFinished = false
@@ -492,7 +506,9 @@ export class HumanoidAvatar {
           for (const action of Object.values(actions)) {
             if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
           }
-          root.userData.importAnimationState = idle === actions.idle ? 'idle' : idle === actions.walk ? 'walk' : 'run'
+          root.userData.importAnimationState = idle === actions.idle ? 'idle'
+            : idle === actions.walk ? 'walk' : idle === actions.run ? 'run'
+              : idle === actions.walk_diagonal_left ? 'walk_diagonal_left' : 'walk_diagonal_right'
         } else {
           const currentRole = root.userData.importAnimationState as AnimationRole | undefined
           const current = currentRole ? actions[currentRole] : undefined
@@ -538,7 +554,7 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
-    let state: 'idle' | 'walk' | 'run' = 'idle'
+    let state: MountMovementState = 'idle'
     if (length > 0) {
       const direction = new THREE.Vector3(
         sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
@@ -588,7 +604,13 @@ export class HumanoidAvatar {
       moveAxis('x', direction.x)
       moveAxis('z', direction.z)
       root.rotation.y = Math.atan2(direction.x, direction.z)
-      state = running ? 'run' : 'walk'
+      if (forwardInput !== 0 && sideInput !== 0) {
+        state = running
+          ? (sideInput < 0 ? 'run_diagonal_left' : 'run_diagonal_right')
+          : (sideInput < 0 ? 'walk_diagonal_left' : 'walk_diagonal_right')
+      } else {
+        state = running ? 'run' : 'walk'
+      }
     }
 
     const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
@@ -596,8 +618,13 @@ export class HumanoidAvatar {
     root.position.y = this.world.terrain.heightAt(root.position.x, root.position.z) + halfHeight
     root.updateMatrixWorld(true)
     this.placeAvatarAtMountSeat()
+    const previousState = this.mountedMovementState
     this.mountedMovementState = state
-    this.playMountAnimation(root, state)
+    if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
+      this.playMountAnimation(root, 'run_stop', true)
+    } else {
+      this.playMountAnimation(root, state)
+    }
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
     this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
