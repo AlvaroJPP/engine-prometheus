@@ -229,9 +229,19 @@ export class GrassLayer {
           '  vec2 grassFromPlayer = vec2(grassWorldX - uGrassPlayerPosition.x, grassWorldZ - uGrassPlayerPosition.z);',
           '  float grassPlayerDistance = length(grassFromPlayer);',
           '  float grassPlayerInfluence = 1.0 - smoothstep(0.15, uGrassInteractionRadius, grassPlayerDistance);',
-          '  vec2 grassPush = normalize(grassFromPlayer + vec2(0.0001));',
-          '  transformed.x += grassPush.x * grassPlayerInfluence * 0.62 * grassBend;',
-          '  transformed.z += grassPush.y * grassPlayerInfluence * 0.62 * grassBend;',
+          '  vec2 grassPushWorld = normalize(grassFromPlayer + vec2(0.0001));',
+          '#ifdef USE_INSTANCING',
+          '  vec3 grassLocalAxisX = normalize(instanceMatrix[0].xyz);',
+          '  vec3 grassLocalAxisZ = normalize(instanceMatrix[2].xyz);',
+          '  vec3 grassPushDirection = vec3(grassPushWorld.x, 0.0, grassPushWorld.y);',
+          '  float grassPushX = dot(grassPushDirection, grassLocalAxisX);',
+          '  float grassPushZ = dot(grassPushDirection, grassLocalAxisZ);',
+          '#else',
+          '  float grassPushX = grassPushWorld.x;',
+          '  float grassPushZ = grassPushWorld.y;',
+          '#endif',
+          '  transformed.x += grassPushX * grassPlayerInfluence * 0.62 * grassBend;',
+          '  transformed.z += grassPushZ * grassPlayerInfluence * 0.62 * grassBend;',
           '  transformed.y -= grassPlayerInfluence * 0.16 * grassBend;',
         ].join('\n'),
       )
@@ -382,9 +392,7 @@ export class GrassLayer {
       value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
       return ((value ^ (value >>> 14)) >>> 0) / 4294967296
     }
-    const palettes = [
-      [0x31591b, 0x3e7021, 0x4b7b27, 0x294c16, 0x608a30, 0x78983a],
-    ][0]!
+    const palettes = [0x31591b, 0x3e7021, 0x4b7b27, 0x294c16, 0x608a30, 0x78983a]
 
     // As manchas quebram a regularidade de uma malha uniforme; os instantes continuam instanciados.
     const clusters = Array.from({ length: 420 }, () => ({
