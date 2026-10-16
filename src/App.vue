@@ -561,6 +561,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
   for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl']) {
     delete exportRoot.userData[key]
   }
+  let savedComponentId: string | null = null
   try {
     const exporter = new GLTFExporter()
     const result = await exporter.parseAsync(exportRoot, { binary: true, animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [] })
@@ -582,8 +583,9 @@ async function handleModelImport(payload: { name: string; model: import('three')
       createdAt: Date.now(),
     }
     await saveComponentAsset(component)
+    savedComponentId = id
     await refreshSavedComponents()
-    status.value = 'Componente "' + component.name + '" salvo. Abra a aba Componentes e clique nele para inserir cópias.'
+    status.value = 'Componente "' + component.name + '" salvo. Preparando para construir no mundo…'
   } catch (error) {
     status.value = 'Não foi possível salvar o componente: ' + (error instanceof Error ? error.message : String(error))
   } finally {
@@ -592,6 +594,10 @@ async function handleModelImport(payload: { name: string; model: import('three')
     // A importação passa a ser dona da biblioteca; a prévia já foi encerrada.
     disposeComponentSource(payload.model)
   }
+
+  // Seleciona exatamente o componente recém-importado para a próxima colocação.
+  // Sem isso, o motor mantém pendingBuildComponent apontando para o modelo anterior.
+  if (savedComponentId) await placeSavedComponent(savedComponentId)
 }
 
 async function placeSavedComponent(id: string) {
