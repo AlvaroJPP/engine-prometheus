@@ -59,6 +59,22 @@ export class ModelOcclusionSystem {
   }
 
   /**
+   * Libera a visibilidade de um modelo antes de um sistema de comportamento
+   * aplicar um estado explícito de mostrar/ocultar em algum de seus nós.
+   */
+  restoreObjectVisibility(root: THREE.Object3D): void {
+    for (const [mesh, visibleBeforeCull] of this.culledMeshes) {
+      let current: THREE.Object3D | null = mesh
+      while (current && current !== root) current = current.parent
+      if (current === root) {
+        mesh.visible = visibleBeforeCull
+        this.culledMeshes.delete(mesh)
+      }
+    }
+    this.dirty = true
+  }
+
+  /**
    * Avalia submalhas dos modelos importados quando a câmera ou a cena mudam.
    * Retorna true somente se o conjunto final de submalhas ocultas foi alterado.
    */
@@ -227,7 +243,14 @@ export class ModelOcclusionSystem {
       if (current === root) break
       current = current.parent
     }
-    return true
+
+    // Não ocultar um nó pai que também carregue descendentes controlados por
+    // regras visuais, mesmo que o pai não seja o nó diretamente configurado.
+    let hasManagedDescendant = false
+    target.mesh.traverse((node) => {
+      if (typeof node.userData.mountModelStateBaseVisible === 'boolean') hasManagedDescendant = true
+    })
+    return !hasManagedDescendant
   }
 
   /** Escolhe vértices reais próximos a pontos distribuídos no volume local. */
@@ -268,7 +291,10 @@ export class ModelOcclusionSystem {
     const uniqueIndices = new Set(bestIndices.filter(index => index >= 0))
     const samples: THREE.Vector3[] = []
     for (const index of uniqueIndices) {
-      samples.push(new THREE.Vector3().fromBufferAttribute(position, index))
+      const sample = new THREE.Vector3().fromBufferAttribute(position, index)
+      if (samples.every(existing => existing.distanceToSquared(sample) > 1e-10)) {
+        samples.push(sample)
+      }
     }
     this.localSamples.set(geometry, samples)
     return samples
