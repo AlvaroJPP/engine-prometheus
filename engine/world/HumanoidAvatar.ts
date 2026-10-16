@@ -701,6 +701,10 @@ export class HumanoidAvatar {
             .applyMatrix4(mesh.matrixWorld)
         }
         const deformedBounds = new THREE.Box3().setFromPoints(worldVertices)
+        // A consulta de distância abaixo usa o raio físico do jogador em torno
+        // do eixo central; ampliar o bound evita descartar esses contatos antes
+        // que o teste de proximidade de triângulos possa executá-los.
+        deformedBounds.expandByScalar(PLAYER_RADIUS * 1.05)
         if (!playerBox.intersectsBox(deformedBounds)) continue
 
         const index = geometry.getIndex()
