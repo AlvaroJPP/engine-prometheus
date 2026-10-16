@@ -491,19 +491,19 @@ async function parseFile(file: File) {
         // Preserve metadata from the original glTF JSON so we can distinguish
         // an embedded image from a texture actually assigned to baseColorTexture.
         gltf.scene.userData.importGltfMetadata = {
-          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index) => ({
+          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
             index,
             name: image.name ?? '',
             mimeType: image.mimeType ?? '',
             uri: image.uri ?? '',
             bufferView: image.bufferView ?? null,
           })),
-          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index) => ({
+          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
             index,
             name: texture.name ?? '',
             source: texture.source ?? null,
           })),
-          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index) => ({
+          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
             index,
             name: material.name ?? '',
             baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
@@ -512,7 +512,7 @@ async function parseFile(file: File) {
             emissiveTexture: material.emissiveTexture?.index ?? null,
             baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
           })),
-          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index) => ({
+          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
             index,
             name: clip.name ?? '',
             channels: clip.channels?.length ?? 0,
@@ -563,13 +563,13 @@ async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
     loader.parse(bytes, '', (gltf) => {
       gltf.scene.userData.importAnimations = gltf.animations ?? []
       gltf.scene.userData.importGltfMetadata = {
-        images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index) => ({
+        images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
           index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
         })),
-        textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index) => ({
+        textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
           index, name: texture.name ?? '', source: texture.source ?? null,
         })),
-        materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index) => ({
+        materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
           index, name: material.name ?? '',
           baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
           normalTexture: material.normalTexture?.index ?? null,
@@ -577,7 +577,7 @@ async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
           emissiveTexture: material.emissiveTexture?.index ?? null,
           baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
         })),
-        animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index) => ({
+        animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
           index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
         })),
       }
@@ -610,13 +610,13 @@ async function importBlendZip() {
       loader.parse(jsonText, '', (gltf) => {
         gltf.scene.userData.importAnimations = gltf.animations ?? []
         gltf.scene.userData.importGltfMetadata = {
-          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index) => ({
+          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
             index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
           })),
-          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index) => ({
+          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
             index, name: texture.name ?? '', source: texture.source ?? null,
           })),
-          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index) => ({
+          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
             index, name: material.name ?? '',
             baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
             normalTexture: material.normalTexture?.index ?? null,
@@ -624,7 +624,7 @@ async function importBlendZip() {
             emissiveTexture: material.emissiveTexture?.index ?? null,
             baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
           })),
-          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index) => ({
+          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
             index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
           })),
         }
@@ -800,7 +800,7 @@ onBeforeUnmount(disposePreview)
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
             <p class="model-panel-hint">Selecione uma parte para enquadrá-la na prévia. Você também pode ocultar, isolar ou remover partes.</p>
             <div v-if="previewParts.length" class="model-preview-parts">
-              <div v-for="(part, index) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
+              <div v-for="(part, index: number) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
                 <button class="model-preview-part-select" :title="`Selecionar ${part.name}`" @click="selectPreviewPart(part)">
                   <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
                   <span class="model-tree-cube">◇</span>
@@ -830,7 +830,7 @@ onBeforeUnmount(disposePreview)
             <div v-if="model && previewAnimations.length" class="preview-animation-controls">
               <label>ANIMAÇÃO
                 <select :value="previewAnimationIndex" @change="selectPreviewAnimation(Number(($event.target as HTMLSelectElement).value))">
-                  <option v-for="(clip, index) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
+                  <option v-for="(clip, index: number) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
                 </select>
               </label>
               <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
