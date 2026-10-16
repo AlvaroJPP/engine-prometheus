@@ -86,7 +86,7 @@ export class CollisionSystem {
           if (!b) continue
           const shapeB = this.buildShape(b)
           if (!shapeB) continue
-          const boundsB = new THREE.Box3().setFromPoints(shapeB.vertices)
+          const boundsB = this.getShapeBounds(b, shapeB)
           if (!boundsA.intersectsBox(boundsB)) continue
 
           const contact = this.intersectObjects(a, b, shapeA, shapeB)
@@ -182,10 +182,9 @@ export class CollisionSystem {
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
     if (type === 'auto' && (object.mesh.userData.importedModel === true || (!manualSize && offset.every(value => Math.abs(value) < 1e-9))) ) {
-      // Modelos importados têm uma caixa invisível na raiz para seleção e transformação.
-      // Usar sourceGeometry aqui transforma todo modelo num paralelepípedo e ignora sua malha real.
-      // Como o resolvedor SAT exige formas convexas, geramos um casco convexo das malhas visuais
-      // em coordenadas locais da raiz, em vez de usar a caixa proxy.
+      // A raiz do modelo importado é uma caixa proxy invisível para seleção e transformação.
+      // Mantemos um casco convexo reduzido para broadphase e pares modelo-modelo; quando
+      // um modelo automático encontra um corpo convexo, a decisão final usa os triângulos reais.
       if (object.mesh.userData.importedModel === true) {
         object.mesh.updateWorldMatrix(true, true)
         const inverseRoot = object.mesh.matrixWorld.clone().invert()
