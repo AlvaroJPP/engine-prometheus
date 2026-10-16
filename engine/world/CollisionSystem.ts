@@ -630,7 +630,9 @@ export class CollisionSystem {
       }
     }
     return pairs
-  }  private buildShapeFromGeometry(object: GameObject, geometry: THREE.BufferGeometry | null): ConvexShape | null {
+  }
+
+  private buildShapeFromGeometry(object: GameObject, geometry: THREE.BufferGeometry | null): ConvexShape | null {
     const mesh = object.mesh
     if (!geometry) return null
     const position = geometry.getAttribute('position')
