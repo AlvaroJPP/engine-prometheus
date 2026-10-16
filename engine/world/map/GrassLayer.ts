@@ -876,6 +876,7 @@ export class GrassLayer {
 
   private queueDistanceRingRebuild(center: THREE.Vector3): void {
     if (this.disposed || this.loadingPainted) return
+    this.renderDirty = false
     this.pendingRingCenter = center.clone()
     if (this.renderRebuildInProgress) return
 
