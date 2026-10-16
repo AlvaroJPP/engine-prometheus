@@ -711,6 +711,7 @@ export class Engine {
     const idleClip = animationClips.find((clip) => /idle|stand|rest|breath|neutral/i.test(clip.name))
       ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
+    let fallbackAnimationAction: THREE.AnimationAction | undefined
     const animationActions: Partial<Record<'idle' | 'walk' | 'run' | 'mount' | 'dismount', THREE.AnimationAction>> = {}
     if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
@@ -740,6 +741,7 @@ export class Engine {
         ?? (!explicitRoles ? animationMixer.clipAction(animationClips[0]!) : undefined)
       if (initialAction) {
         initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
+        if (!Object.values(animationActions).includes(initialAction)) fallbackAnimationAction = initialAction
         console.info('[Engine] Animações do componente:', {
           name,
           initialClip: initialAction.getClip().name || '(primeira animação do modelo)',
@@ -781,6 +783,7 @@ export class Engine {
     if (animationMixer) {
       root.userData.importAnimationMixer = animationMixer
       root.userData.importAnimationActions = animationActions
+      root.userData.importAnimationFallbackAction = fallbackAnimationAction
       root.userData.importAnimationState = animationActions.idle ? 'idle'
         : animationActions.walk ? 'walk' : animationActions.run ? 'run' : ''
     }
