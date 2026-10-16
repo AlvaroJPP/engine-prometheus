@@ -12,6 +12,7 @@ import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
 import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 
@@ -556,7 +557,9 @@ async function handleModelImport(payload: { name: string; model: import('three')
   if (componentBusy.value) return
   componentBusy.value = true
   status.value = 'Salvando modelo na biblioteca de componentes…'
-  const exportRoot = payload.model.clone(true)
+  // Object3D.clone(true) não reconecta corretamente os bones de SkinnedMesh.
+  // SkeletonUtils.clone preserva o esqueleto ao serializar modelos animados como cavalos.
+  const exportRoot = cloneSkinnedModel(payload.model)
   exportRoot.userData = { ...exportRoot.userData }
   for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl']) {
     delete exportRoot.userData[key]
