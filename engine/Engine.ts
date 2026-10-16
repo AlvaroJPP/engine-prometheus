@@ -21,6 +21,7 @@ import { ScriptMountRuntime } from './script/ScriptMountRuntime'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
+import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
@@ -703,9 +704,18 @@ export class Engine {
       root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
     }
     root.userData.importedModel = true
-    root.userData.sceneKind = model.userData.sceneKind === 'entity' ? 'entity' : 'object'
-    root.userData.componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : undefined
-    root.userData.componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
+    const componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : null
+    const componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
+    if (model.userData.sceneKind === 'entity') {
+      // A entidade usa a raiz editável do World; o GLB permanece como filho visual.
+      // Assim, entidades importadas recebem o mesmo ID, gizmo, colisor e persistência
+      // dos demais elementos, sem qualquer regra específica para cavalos ou espécies.
+      markEntity(root, { componentId, componentLogic })
+    } else {
+      root.userData.sceneKind = 'object'
+      root.userData.componentId = componentId ?? undefined
+      root.userData.componentLogic = componentLogic
+    }
     root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
     root.userData.importedModelHeight = height
     if (restoreData) {
