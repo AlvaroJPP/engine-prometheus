@@ -70,7 +70,7 @@ export class ModelLodSystem {
     this.dirty = true
   }
 
-  /** Prepara LOD para meshes estáticas com pelo menos 12 mil triângulos. */
+  /** Prepara LOD para malhas estáticas densas sem bloquear o loop da interface. */
   async prepare(rootId: string, root: THREE.Object3D, animated: boolean): Promise<void> {
     if (this.disposed || animated || root.parent === null || this.roots.has(rootId)) return
 
