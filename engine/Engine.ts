@@ -17,7 +17,6 @@ import { clamp, snap } from './lib/math'
 import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
-import { ScriptMountRuntime } from './script/ScriptMountRuntime'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -36,7 +35,6 @@ export class Engine {
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
-  private mountRuntime: ScriptMountRuntime
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -47,8 +45,6 @@ export class Engine {
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
-    this.mountRuntime = new ScriptMountRuntime(this.world, this.avatar, this.orbit.target, () => this.orbit.yaw)
-    this.logic.setMountActionHandler((action, objectId) => this.mountRuntime.executeAction(action, objectId))
     window.addEventListener('keydown', this.onRuleKeyDown)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
@@ -142,7 +138,6 @@ export class Engine {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
         mixer?.update(dt)
       }
-      this.mountRuntime.update(dt)
       this.avatar.update(dt)
       this.world.updateEnvironment(dt)
       this.logic.update()
@@ -250,7 +245,6 @@ export class Engine {
       }
       this.avatar.mesh.visible = true
       this.avatar.setEnabled(true)
-      this.mountRuntime.setRuntimeMode(true, this.avatar.mesh.position)
       this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
       this.orbit.distance = 10
       this.input.setRuntimeMode(true)
@@ -259,7 +253,6 @@ export class Engine {
       return
     }
 
-    this.mountRuntime.setRuntimeMode(false)
     this.input.setRuntimeMode(false)
     this.avatar.setEnabled(false)
     this.avatar.mesh.visible = false
@@ -639,8 +632,7 @@ export class Engine {
       })
     }
 
-    // A caixa invisível usa exatamente o mesmo centro e as mesmas dimensões
-    // da malha centralizada; o gizmo e os cliques passam a acompanhar o cavalo.
+    // A caixa de seleção usa as dimensões do modelo e compartilha sua raiz editável.
     const proxyGeometry = new THREE.BoxGeometry(
       Math.max(finalSize.x, 0.05),
       Math.max(height, 0.05),
@@ -723,8 +715,7 @@ export class Engine {
     const componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
     if (model.userData.sceneKind === 'entity') {
       // A entidade usa a raiz editável do World; o GLB permanece como filho visual.
-      // Assim, entidades importadas recebem o mesmo ID, gizmo, colisor e persistência
-      // dos demais elementos, sem qualquer regra específica para cavalos ou espécies.
+      // Entidades importadas compartilham o mesmo ID, gizmo, colisor e persistência.
       markEntity(root, { componentId, componentLogic })
     } else {
       root.userData.sceneKind = 'object'
@@ -922,16 +913,7 @@ export class Engine {
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
         model.userData.componentId = data.componentId
-        // Migra projetos antigos a partir do comportamento salvo, não do nome do modelo.
-        const hasSavedEntityBehavior = bundle.logic.events.some(rule =>
-          (rule.ownerObjectId === data.id ||
-            (rule.trigger.type === 'object_clicked' && rule.trigger.objectId === data.id)) &&
-          rule.actions.some(action =>
-            action.type === 'javascript' &&
-            /\bapi\.(mount|dismount|toggleMount)\s*\(/.test(action.code),
-          ),
-        )
-        model.userData.sceneKind = data.sceneKind === 'entity' || hasSavedEntityBehavior ? 'entity' : 'object'
+        model.userData.sceneKind = data.sceneKind === 'entity' ? 'entity' : 'object'
         model.userData.importedModelData = data.importedModelData
         model.userData.importColliderType = data.colliderType ?? 'box'
         model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
@@ -957,7 +939,6 @@ export class Engine {
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
-    this.mountRuntime.dispose()
     this.avatar.dispose()
     this.collisions.clear()
     this.transformControls.dispose()
