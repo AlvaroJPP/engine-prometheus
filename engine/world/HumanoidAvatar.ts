@@ -674,19 +674,26 @@ export class HumanoidAvatar {
           triangle.set(a, b, c)
           triangle.getNormal(normal).normalize()
 
-          // Faces superiores são piso; no teste vertical, somente faces inferiores
-          // podem bloquear o salto. Nos testes horizontais, faces superiores são ignoradas.
-          if (blockCeilings) {
-            if (normal.y > -0.45) continue
-          } else if (normal.y >= 0.45) {
-            continue
-          }
-          // Nos modelos importados, testa o volume inteiro do jogador contra
-          // cada triângulo visual. O teste baseado apenas no centro deixa o corpo
-          // atravessar faces laterais quando o centro ainda está distante do polígono.
           if (root.userData.importedModel === true) {
+            // A colisão de modelos importados deve seguir a superfície visual,
+            // não uma caixa/hull aproximada. Não confie no sinal da normal do GLB:
+            // alguns modelos têm triângulos com winding invertido. Para bloquear
+            // movimento horizontal, usa a orientação geométrica (normal vertical
+            // ou inclinada é piso/teto; faces laterais bloqueiam dos dois lados).
+            if (blockCeilings) {
+              if (Math.abs(normal.y) < 0.45 || normal.y > 0.45) continue
+            } else if (Math.abs(normal.y) >= 0.7) {
+              continue
+            }
             if (playerBox.intersectsTriangle(triangle)) return true
           } else {
+            // Para primitivas e plataformas, preservar o tratamento de piso,
+            // rampa e teto já existente.
+            if (blockCeilings) {
+              if (normal.y > -0.45) continue
+            } else if (normal.y >= 0.45) {
+              continue
+            }
             triangle.closestPointToPoint(center, closest)
             if (center.distanceToSquared(closest) < radiusSq) return true
           }
