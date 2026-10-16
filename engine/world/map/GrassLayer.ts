@@ -27,6 +27,7 @@ const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
   nearDistance: number
   middleDistance: number
   viewDistance: number
+  viewScale: number
   nearStride: number
   middleStride: number
   farStride: number
@@ -35,6 +36,7 @@ const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
     nearDistance: GRASS_NEAR_DISTANCE,
     middleDistance: GRASS_MIDDLE_DISTANCE,
     viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 1,
     nearStride: 1,
     middleStride: GRASS_MIDDLE_STRIDE,
     farStride: GRASS_FAR_STRIDE,
@@ -43,6 +45,7 @@ const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
     nearDistance: 15,
     middleDistance: 32,
     viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 0.82,
     nearStride: 1,
     middleStride: 3,
     farStride: 6,
@@ -51,6 +54,7 @@ const GRASS_PERFORMANCE_PRESETS: Record<GrassPerformancePreset, {
     nearDistance: 10,
     middleDistance: 20,
     viewDistance: GRASS_VIEW_DISTANCE,
+    viewScale: 0.55,
     nearStride: 1,
     middleStride: 4,
     farStride: 8,
@@ -1870,13 +1874,26 @@ export class GrassLayer {
       this.renderBands[2]!.maxDistance = Number.POSITIVE_INFINITY
     } else {
       const safeDistance = this.configuredRenderDistance
-      this.renderBands[0]!.maxDistance = safeDistance * (settings.nearDistance / settings.viewDistance)
-      this.renderBands[1]!.maxDistance = safeDistance * (settings.middleDistance / settings.viewDistance)
-      this.renderBands[2]!.maxDistance = safeDistance
+      const effectiveDistance = safeDistance * settings.viewScale
+      this.renderBands[0]!.maxDistance = Math.min(
+        safeDistance * (settings.nearDistance / settings.viewDistance),
+        effectiveDistance,
+      )
+      this.renderBands[1]!.maxDistance = Math.min(
+        safeDistance * (settings.middleDistance / settings.viewDistance),
+        effectiveDistance,
+      )
+      this.renderBands[2]!.maxDistance = effectiveDistance
     }
 
     // Um único rebuild na próxima atualização junta mudanças de alcance e densidade.
     this.renderDirty = true
+  }
+
+  /** Alcance efetivo aplicado pelo preset; null significa renderizar até a borda do mapa. */
+  getEffectiveRenderDistance(): number | null {
+    const distance = this.renderBands[2]?.maxDistance
+    return distance !== undefined && Number.isFinite(distance) ? distance : null
   }
 
   /** A qualidade é decidida pela distância individual ao jogador (ou à câmera no editor). */
