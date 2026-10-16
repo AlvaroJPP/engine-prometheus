@@ -63,7 +63,9 @@ export class CollisionSystem {
     const objects = this.world.list().filter(object => object.mesh.visible)
     // Modelos importados usam a caixa proxy por padrão; quando necessário, o usuário
     // pode escolher um colisor simplificado no inspetor para maior estabilidade.
-    this.keepObjectsAboveTerrain(objects)
+    // A montaria já resolve seu piso e movimento no HumanoidAvatar; não a reposicione
+    // com a gravidade/ajuste genérico do mundo durante a navegação em rampas.
+    this.keepObjectsAboveTerrain(objects.filter(object => object.mesh.userData.mountCollisionManaged !== true))
     const collidableObjects = objects.filter(object => this.colliderType(object) !== 'none')
     const previousPairs = this.activePairs
     const currentPairs = new Map<string, CollisionPair>()
@@ -92,6 +94,10 @@ export class CollisionSystem {
           const contact = this.intersectObjects(a, b, shapeA, shapeB)
           if (!contact) continue
           currentPairs.set(this.pairKey(a.id, b.id), { a: a.id, b: b.id })
+
+          // O objeto montado continua participando da detecção de contato, mas não
+          // pode ser empurrado pelo solver SAT. O HumanoidAvatar controla sua pose.
+          if (a.mesh.userData.mountCollisionManaged === true || b.mesh.userData.mountCollisionManaged === true) continue
 
           const inverseA = this.inverseMass(a)
           const inverseB = this.inverseMass(b)
@@ -415,7 +421,7 @@ export class CollisionSystem {
 
   private resolveContinuousCollisions(objects: GameObject[]): void {
     for (const moving of objects) {
-      if (this.inverseMass(moving) <= 0) continue
+      if (moving.mesh.userData.mountCollisionManaged === true || this.inverseMass(moving) <= 0) continue
       const previous = this.previousPositions.get(moving.id)
       if (!previous) continue
       const target = moving.mesh.position.clone()
