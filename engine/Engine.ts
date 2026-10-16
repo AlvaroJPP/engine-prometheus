@@ -1377,12 +1377,14 @@ export class Engine {
 
     // Pré-compila shaders após restaurar os modelos e texturas do projeto. Isso
     // desloca parte do custo do primeiro quadro para a etapa de carregamento.
-    report('Preparando shaders e recursos gráficos…', 97)
+    report('Pré-processando geometria e visibilidade…', 96)
+    await this.modelOcclusion.waitForPreparation()
     for (const object of this.world.list()) {
       if (object.mesh.userData.importedModel === true) {
         this.modelOcclusion.restoreObjectVisibility(object.mesh)
       }
     }
+    report('Preparando shaders e recursos gráficos…', 98)
     await this.viewport.precompile(this.world.scene, this.orbit.camera)
     report('Mundo carregado.', 100)
   }
