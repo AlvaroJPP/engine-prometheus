@@ -563,13 +563,13 @@ async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
     loader.parse(bytes, '', (gltf) => {
       gltf.scene.userData.importAnimations = gltf.animations ?? []
       gltf.scene.userData.importGltfMetadata = {
-        images: (gltf.parser.json.images ?? []).map((image, index) => ({
+        images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index) => ({
           index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
         })),
-        textures: (gltf.parser.json.textures ?? []).map((texture, index) => ({
+        textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index) => ({
           index, name: texture.name ?? '', source: texture.source ?? null,
         })),
-        materials: (gltf.parser.json.materials ?? []).map((material, index) => ({
+        materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index) => ({
           index, name: material.name ?? '',
           baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
           normalTexture: material.normalTexture?.index ?? null,
@@ -577,7 +577,7 @@ async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
           emissiveTexture: material.emissiveTexture?.index ?? null,
           baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
         })),
-        animations: (gltf.parser.json.animations ?? []).map((clip, index) => ({
+        animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index) => ({
           index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
         })),
       }
