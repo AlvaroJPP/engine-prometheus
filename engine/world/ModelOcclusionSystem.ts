@@ -130,7 +130,7 @@ export class ModelOcclusionSystem {
 
         for (const sample of samples) {
           this.targetPoint.copy(sample).applyMatrix4(target.mesh.matrixWorld)
-          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, targetRoot.root, target.mesh, occluderRoots, margin)) {
+          if (!this.isPointOccluded(this.cameraPosition, this.targetPoint, target.mesh, occluderRoots, margin)) {
             fullyOccluded = false
             break
           }
@@ -317,7 +317,6 @@ export class ModelOcclusionSystem {
   private isPointOccluded(
     origin: THREE.Vector3,
     target: THREE.Vector3,
-    targetRoot: THREE.Object3D,
     targetMesh: THREE.Mesh,
     roots: readonly PreparedRoot[],
     margin: number,
