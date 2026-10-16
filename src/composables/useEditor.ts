@@ -63,7 +63,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed'>('object_clicked')
-  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript' | 'mount_entity' | 'dismount_entity' | 'toggle_entity_mount'>('rotate')
+  const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript'>('rotate')
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
   const ruleConditionEnabled = ref(false)
 
@@ -789,13 +789,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
             ? { type: 'javascript', code: scriptCode?.trim() || "// Cole seu JavaScript aqui\napi.set('has_key', true)" }
             : ruleAction.value === 'script'
               ? { type: 'script', code: 'set has_key = true' }
-              : ruleAction.value === 'mount_entity'
-                ? { type: 'mount_entity' }
-                : ruleAction.value === 'dismount_entity'
-                  ? { type: 'dismount_entity' }
-                  : ruleAction.value === 'toggle_entity_mount'
-                    ? { type: 'toggle_entity_mount' }
-                    : { type: 'set_variable', name: 'has_key', value: true }
+              : { type: 'set_variable', name: 'has_key', value: true }
     const rule: LogicRule = { ownerObjectId: target, id, name: eventName?.trim() || `Evento ${logicRules.value.length + 1}`, enabled: true, trigger, conditions: ruleConditionEnabled.value ? [condition ?? { type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [], actions: [action] }
     engine.upsertRule(rule)
     refresh()
