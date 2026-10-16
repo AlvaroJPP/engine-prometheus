@@ -161,23 +161,44 @@ export class ModelOcclusionSystem {
   private async partitionLargeMeshes(root: THREE.Object3D): Promise<void> {
     const candidates: THREE.Mesh[] = []
     root.traverse((node) => {
-      if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh) return
+      if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh || node instanceof THREE.InstancedMesh) return
       if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
       const geometry = node.geometry
       if (Object.values(geometry.morphAttributes).some((attributes) => attributes.length > 0)) return
-      if (geometry.drawRange.count !== Infinity) return
+      // A partição precisa cobrir exatamente a faixa desenhada, sem omitir nem
+      // duplicar grupos/materiales de geometrias glTF especiais.
+      if (geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity) return
       const position = geometry.getAttribute('position')
       if (!position || position.isInterleavedBufferAttribute) return
-      if (Object.values(geometry.attributes).some((attribute) =>
-        (attribute as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute === true
-      )) return
+      if (Object.values(geometry.attributes).some((attribute) => {
+        const candidate = attribute as THREE.BufferAttribute & {
+          isInterleavedBufferAttribute?: boolean
+          isInstancedBufferAttribute?: boolean
+        }
+        return candidate.isInterleavedBufferAttribute === true || candidate.isInstancedBufferAttribute === true
+      })) return
 
       const elementCount = geometry.index?.count ?? position.count
       const triangleCount = Math.floor(elementCount / 3)
       if (triangleCount < MIN_TRIANGLES_FOR_PARTITION) return
       if (elementCount % 3 !== 0) return
-      if (Array.isArray(node.material) && geometry.groups.length === 0) return
       if (geometry.groups.some(group => group.start % 3 !== 0 || group.count % 3 !== 0)) return
+      if (Array.isArray(node.material)) {
+        if (geometry.groups.length === 0) return
+        const orderedGroups = [...geometry.groups].sort((a, b) => a.start - b.start)
+        let coveredUntil = 0
+        for (const group of orderedGroups) {
+          if (
+            group.start !== coveredUntil
+            || group.count <= 0
+            || group.start + group.count > elementCount
+            || group.materialIndex < 0
+            || group.materialIndex >= node.material.length
+          ) return
+          coveredUntil = group.start + group.count
+        }
+        if (coveredUntil !== elementCount) return
+      }
       candidates.push(node)
     })
 
