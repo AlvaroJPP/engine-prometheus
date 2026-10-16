@@ -12,3 +12,5 @@ export type { EngineEvents } from './world/events/types'
 
 export { RuleEngine } from './script/RuleEngine'
 export type { LogicEventsFile, LogicRule, RuleTrigger, RuleCondition, RuleAction } from './script/types'
+
+export * from './script/packages'
