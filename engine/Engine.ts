@@ -205,7 +205,7 @@ export class Engine {
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
         this.world.grassOcclusionRoots(),
       )
-      this.viewport.renderer.render(this.world.scene, this.orbit.camera)
+      this.viewport.render(this.world.scene, this.orbit.camera)
     })
   }
 
@@ -218,7 +218,12 @@ export class Engine {
     this.viewport.setFpsListener(listener)
   }
 
-  /** Ativa renderização em menor resolução para aliviar a GPU em cenas pesadas. */
+  /** Configura o limite de renderização e a resolução interna do viewport. */
+  setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
+    this.viewport.setPerformancePreset(preset)
+  }
+
+  /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
     this.viewport.setPerformanceMode(enabled)
   }
