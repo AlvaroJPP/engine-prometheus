@@ -194,7 +194,6 @@ export class HumanoidAvatar {
     const oldY = this.mesh.position.y
     const wasGrounded = this.grounded
     let nextY = oldY + this.verticalVelocity * step
-    const terrainY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
 
     // Movimento relativo à orientação horizontal da câmera.
     if (length > 0) {
