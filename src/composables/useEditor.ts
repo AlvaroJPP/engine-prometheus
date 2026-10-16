@@ -298,7 +298,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function loadPerformanceSettings() {
     try {
       const saved = window.localStorage.getItem(PERFORMANCE_SETTINGS_KEY)
-      if (saved === 'quality' || saved === 'balanced' || saved === 'economy') {
+      if (saved === 'quality' || saved === 'balanced' || saved === 'economy' || saved === 'auto') {
         performanceMode.value = saved
       }
     } catch (error) {
