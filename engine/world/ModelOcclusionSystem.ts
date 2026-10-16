@@ -393,8 +393,8 @@ export class ModelOcclusionSystem {
     for (const source of roots) {
       const sameRoot = source.root === targetRoot
       if (source.animated || source.meshes.length === 0) continue
-      // O autoculling só é permitido em regiões criadas pelo particionador; uma
-      // malha glTF comum não deve desaparecer por causa de outro nó do mesmo asset.
+      // A oclusão entre nós da mesma raiz só vale para modelos importados estáticos;
+      // cada malha-alvo permanece excluída para que ela nunca oculte a si própria.
       if (sameRoot && !allowSelfOcclusion) continue
 
       if (!sameRoot) {
