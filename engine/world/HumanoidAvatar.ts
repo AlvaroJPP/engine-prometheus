@@ -634,6 +634,16 @@ export class HumanoidAvatar {
       if (!root.visible || root.userData.colliderType === 'none') continue
       root.updateWorldMatrix(true, true)
 
+      // Modelos importados (incluindo entidades como animais) têm uma raiz proxy
+      // invisível e um colisor simplificado configurável. Usar os triângulos visuais
+      // aqui deixa espaços entre pernas/partes do modelo e permite atravessá-lo.
+      // Para esses modelos, a colisão do jogador usa o volume físico da raiz.
+      if (root.userData.importedModel === true) {
+        const colliderBounds = getColliderBounds(root)
+        if (colliderBounds && playerBox.intersectsBox(colliderBounds)) return true
+        continue
+      }
+
       const meshes: THREE.Mesh[] = []
       root.traverse((child) => {
         if (!(child instanceof THREE.Mesh) || !child.visible) return
