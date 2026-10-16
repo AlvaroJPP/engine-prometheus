@@ -11,6 +11,8 @@ export interface SavedComponent {
   colliderType: SavedComponentCollider
   colliderSize: [number, number, number]
   colliderOffset: [number, number, number]
+  /** Papéis atribuídos aos clipes no preview, indexados pelo índice da animação. */
+  animationRoles?: Record<string, import('@engine').AnimationRole>
   bytes: ArrayBuffer
   createdAt: number
 }
