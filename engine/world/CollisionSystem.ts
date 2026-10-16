@@ -635,6 +635,10 @@ export class CollisionSystem {
     const overlapsOnAxis = (direction: THREE.Vector3): boolean => {
       if (direction.lengthSq() <= AXIS_EPSILON_SQ) return true
       direction.normalize()
+      // O eixo normal do triângulo é tratado separadamente com a profundidade
+      // do plano. Repeti-lo aqui sempre produziria projeção triangular de largura
+      // zero e rejeitaria contatos válidos com faces alinhadas.
+      if (Math.abs(direction.dot(triangleNormal)) >= 0.9999) return true
       const triangleProjection = projectTriangle(direction)
       const shapeProjection = this.project(shape.vertices, direction)
       const overlap = Math.min(triangleProjection.max, shapeProjection.max) -
