@@ -153,7 +153,11 @@ export class ModelOcclusionSystem {
           (target) => target.mesh.userData.generatedOcclusionCluster === true,
         )
         return partitionedTargets.some((target) =>
-          sourceRoot.meshes.some((candidate) => candidate.opaque && candidate.mesh !== target.mesh),
+          sourceRoot.meshes.some((candidate) =>
+            candidate.opaque
+            && candidate.mesh !== target.mesh
+            && candidate.mesh.userData.generatedOcclusionCluster === true,
+          ),
         )
       })
     })
