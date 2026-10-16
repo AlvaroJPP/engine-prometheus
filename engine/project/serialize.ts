@@ -37,6 +37,9 @@ export function buildBundle(
       sceneKind: m.userData.sceneKind === 'entity' ? 'entity' : 'object',
       importedModelData: typeof m.userData.importedModelData === 'string' ? m.userData.importedModelData : undefined,
       importedModelHeight: typeof m.userData.importedModelHeight === 'number' ? m.userData.importedModelHeight : undefined,
+      importAnimationRoles: m.userData.importAnimationRoles && typeof m.userData.importAnimationRoles === 'object'
+        ? { ...m.userData.importAnimationRoles } as Record<string, import('../script/packages').AnimationRole>
+        : undefined,
       color: typeof m.userData.baseColor === 'number' ? m.userData.baseColor : ((Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial).color.getHex(),
       texturePreset: m.userData.texturePreset === 'grass' || m.userData.texturePreset === 'stone' || m.userData.texturePreset === 'brick' || m.userData.texturePreset === 'wood' || m.userData.texturePreset === 'sand' || m.userData.texturePreset === 'metal' ? m.userData.texturePreset : 'none',
       textureRepeat: typeof m.userData.textureRepeat === 'number' ? m.userData.textureRepeat : 2,
@@ -103,5 +106,6 @@ export function objectFromData(d: SceneObjectData): GameObject {
   object.mesh.userData.sceneKind = d.sceneKind === 'entity' ? 'entity' : 'object'
   object.mesh.userData.componentId = d.componentId
   object.mesh.userData.importedModelHeight = d.importedModelHeight
+  object.mesh.userData.importAnimationRoles = d.importAnimationRoles ? { ...d.importAnimationRoles } : undefined
   return object
 }
