@@ -32,6 +32,8 @@ export class World {
   private readonly fogDawnColor = new THREE.Color(0xe58b67)
   private readonly fogDayColor = new THREE.Color(0x87b9e8)
   private readonly horizonColor = new THREE.Color()
+  private readonly fogCorner = new THREE.Vector3()
+  private grassRenderDistance: number | null = 72
   private grassOcclusionRootsCache: THREE.Object3D[] | null = null
   private selectedId: string | null = null
   private gridVisible = true
@@ -554,19 +556,31 @@ export class World {
   /** Alinha o limite de neblina ao alcance da grama para esconder seu corte distante. */
   setGrassRenderDistance(distance: number | null): void {
     if (distance !== null && !Number.isFinite(distance)) return
+    this.grassRenderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
     this.terrain.grass.setRenderDistance(distance)
-    this.updateGrassFogDistance(distance)
+    this.updateGrassFogDistance(72)
   }
 
-  private updateGrassFogDistance(distance: number | null): void {
-    // O mapa tem 100×100 unidades; a diagonal cobre a maior distância entre cantos.
-    const maximumWorldDistance = Math.SQRT2 * 100
-    const requestedDistance = distance === null
-      ? maximumWorldDistance
-      : THREE.MathUtils.clamp(distance, 10, 5000)
-    const effectiveDistance = Math.min(requestedDistance, maximumWorldDistance)
-    this.worldFog.near = effectiveDistance * 0.56
-    this.worldFog.far = Math.max(this.worldFog.near + 1, effectiveDistance * 0.94)
+  /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
+  updateFogForCamera(cameraPosition: THREE.Vector3): void {
+    let farthestCorner = 0
+    for (const x of [-50, 50]) {
+      for (const z of [-50, 50]) {
+        this.fogCorner.set(x, this.terrain.heightAt(x, z), z)
+        farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
+      }
+    }
+
+    const effectiveDistance = this.grassRenderDistance === null
+      ? farthestCorner
+      : Math.min(this.grassRenderDistance, farthestCorner)
+    this.updateGrassFogDistance(Math.max(10, effectiveDistance))
+  }
+
+  private updateGrassFogDistance(distance: number): void {
+    // A neblina começa antes do fim do alcance e termina pouco antes do corte.
+    this.worldFog.near = distance * 0.70
+    this.worldFog.far = Math.max(this.worldFog.near + 1, distance * 0.98)
   }
 
   terrainInfo(): TerrainInfo {
