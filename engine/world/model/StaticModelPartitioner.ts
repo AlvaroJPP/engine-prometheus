@@ -228,32 +228,18 @@ function isSafeToPartitionMaterial(material: THREE.Material): boolean {
 }
 
 function readAttributeComponent(attribute: AttributeLike, index: number, component: number): number {
-  const dynamicAttribute = attribute as AttributeLike & {
+  // BufferAttribute e InterleavedBufferAttribute já denormalizam em getComponent/getX.
+  // Converter novamente pelo tipo do TypedArray dividia cores/UVs duas vezes,
+  // clareando ou escurecendo incorretamente os GLBs com atributos compactados.
+  const readable = attribute as AttributeLike & {
     getComponent?: (index: number, component: number) => number
-    data?: { array: unknown }
-    array?: unknown
   }
-  let value = 0
-  if (typeof dynamicAttribute.getComponent === 'function') {
-    value = dynamicAttribute.getComponent(index, component)
-  } else {
-    switch (component) {
-      case 0: value = attribute.getX(index); break
-      case 1: value = attribute.getY(index); break
-      case 2: value = attribute.getZ(index); break
-      case 3: value = attribute.getW(index); break
-    }
+  if (typeof readable.getComponent === 'function') return readable.getComponent(index, component)
+  switch (component) {
+    case 0: return attribute.getX(index)
+    case 1: return attribute.getY(index)
+    case 2: return attribute.getZ(index)
+    case 3: return attribute.getW(index)
+    default: return 0
   }
-
-  if (!attribute.normalized) return value
-  const sourceArray = attribute instanceof THREE.InterleavedBufferAttribute
-    ? dynamicAttribute.data?.array
-    : dynamicAttribute.array
-  if (sourceArray instanceof Uint8Array || sourceArray instanceof Uint8ClampedArray) return value / 255
-  if (sourceArray instanceof Int8Array) return Math.max(value / 127, -1)
-  if (sourceArray instanceof Uint16Array) return value / 65535
-  if (sourceArray instanceof Int16Array) return Math.max(value / 32767, -1)
-  if (sourceArray instanceof Uint32Array) return value / 4294967295
-  if (sourceArray instanceof Int32Array) return Math.max(value / 2147483647, -1)
-  return value
 }
