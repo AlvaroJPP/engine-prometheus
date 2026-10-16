@@ -45,12 +45,29 @@ export class Engine {
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
+  private readonly viewportInvalidationOffs: Array<() => void> = []
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
+    this.viewportInvalidationOffs.push(
+      this.events.on('renderInvalidated', () => this.viewport.invalidate()),
+      this.events.on('objectAdded', () => this.viewport.invalidate()),
+      this.events.on('objectRemoved', () => this.viewport.invalidate()),
+      this.events.on('objectRenamed', () => this.viewport.invalidate()),
+      this.events.on('objectChanged', () => this.viewport.invalidate()),
+      this.events.on('behaviorPackageChanged', () => this.viewport.invalidate()),
+      this.events.on('objectClicked', () => this.viewport.invalidate()),
+      this.events.on('collisionStarted', () => this.viewport.invalidate()),
+      this.events.on('collisionEnded', () => this.viewport.invalidate()),
+      this.events.on('selectionChanged', () => this.viewport.invalidate()),
+      this.events.on('terrainChanged', () => this.viewport.invalidate()),
+      this.events.on('worldReset', () => this.viewport.invalidate()),
+      this.events.on('toolChanged', () => this.viewport.invalidate()),
+      this.events.on('cameraChanged', () => this.viewport.invalidate()),
+    )
     window.addEventListener('keydown', this.onRuleKeyDown)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
@@ -205,7 +222,15 @@ export class Engine {
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
         this.world.grassOcclusionRoots(),
       )
-      this.viewport.render(this.world.scene, this.orbit.camera)
+      const environment = this.world.getEnvironment()
+      const hasRunningModelAnimation = this.world.list().some((object) => {
+        const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+        const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+        return Object.values(actions ?? {}).some(action => action?.isRunning())
+          || fallbackAction?.isRunning() === true
+      })
+      const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation
+      this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
   }
 
@@ -1115,6 +1140,7 @@ export class Engine {
   /** Configura alcance radial da grama; null renderiza todo o mapa. */
   setGrassRenderDistance(distance: number | null): void {
     this.world.setGrassRenderDistance(distance)
+    this.viewport.invalidate()
   }
 
   setGridVisible(visible: boolean): void {
@@ -1123,6 +1149,7 @@ export class Engine {
 
   setColliderDebugVisible(visible: boolean): void {
     this.collisions.setDebugVisible(visible)
+    this.viewport.invalidate()
   }
 
   isColliderDebugVisible(): boolean {
@@ -1261,6 +1288,8 @@ export class Engine {
     this.avatar.dispose()
     this.collisions.clear()
     this.transformControls.dispose()
+    for (const off of this.viewportInvalidationOffs) off()
+    this.viewportInvalidationOffs.length = 0
     this.viewport.dispose()
   }
 }
