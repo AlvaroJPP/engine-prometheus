@@ -3,7 +3,7 @@ import type { ToolMode, TransformMode } from '../../EditorState'
 
 export interface EngineEvents {
   /** Solicita um quadro novo para mudanças visuais assíncronas ou diretas. */
-  renderInvalidated: Record<string, never>
+  renderInvalidated: undefined
   objectAdded: { id: string }
   objectRemoved: { id: string }
   objectRenamed: { id: string; name: string }
