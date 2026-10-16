@@ -392,7 +392,15 @@ export class GrassLayer {
       value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
       return ((value ^ (value >>> 14)) >>> 0) / 4294967296
     }
-    const palettes = [0x31591b, 0x3e7021, 0x4b7b27, 0x294c16, 0x608a30, 0x78983a]
+    const palettes = [
+      [0.16, 0.34, 0.065],
+      [0.21, 0.42, 0.075],
+      [0.29, 0.48, 0.105],
+      [0.11, 0.27, 0.045],
+      [0.35, 0.45, 0.12],
+      [0.18, 0.38, 0.075],
+      [0.26, 0.37, 0.08],
+    ] as const
 
     // As manchas quebram a regularidade de uma malha uniforme; os instantes continuam instanciados.
     const clusters = Array.from({ length: 420 }, () => ({
@@ -412,10 +420,9 @@ export class GrassLayer {
       const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
       const bladeHeight = 0.48 + random() * 0.68
       const width = 0.62 + random() * 0.56
-      const palette = palettes[Math.floor(random() * palettes.length)]!
+      const palette = palettes[Math.floor(random() * palettes.length)] ?? palettes[0]
       const variation = 0.82 + random() * 0.32
-      this.color.setHex(palette)
-      this.color.multiplyScalar(variation)
+      this.color.setRGB(palette[0] * variation, palette[1] * variation, palette[2] * variation)
 
       const instance: GrassInstance = {
         x,
