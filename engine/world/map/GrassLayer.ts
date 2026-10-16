@@ -4,14 +4,18 @@ import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.glb?url'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
 const GRASS_COUNT = 7200
-const PAINTED_CAPACITY = 16000
 const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
+// Os chunks mantêm apenas os dados espaciais. A renderização usa malhas globais
+// agrupadas por anéis concêntricos de distância da câmera.
 const CHUNK_SIZE = 20
 const CHUNKS_PER_AXIS = (WORLD_HALF * 2) / CHUNK_SIZE
-const GRASS_LOD_DISTANCE = 32
+const GRASS_NEAR_DISTANCE = 18
+const GRASS_MIDDLE_DISTANCE = 42
 const GRASS_VIEW_DISTANCE = 72
-const LOD_STRIDE = 3
+const GRASS_MIDDLE_STRIDE = 2
+const GRASS_FAR_STRIDE = 4
+const GRASS_RING_REBUILD_DISTANCE = 0.4
 const PAINTED_GRASS_SPACING = 0.17
 const PAINTED_GRASS_PER_AREA = 12
 const PAINTED_GRASS_MODEL_HEIGHT = 0.55
@@ -40,16 +44,22 @@ interface GrassModelPart {
 interface GrassChunk {
   column: number
   row: number
-  centerX: number
-  centerZ: number
   procedural: GrassInstance[]
   painted: PaintedGrassTuft[]
+}
+
+type GrassBandName = 'near' | 'middle' | 'far'
+
+interface GrassRenderBand {
+  name: GrassBandName
+  maxDistance: number
+  stride: number
+  geometry: THREE.BufferGeometry
+  material: THREE.MeshStandardMaterial
+  mesh: THREE.InstancedMesh
   capacity: number
-  nearMesh: THREE.InstancedMesh
-  farMesh: THREE.InstancedMesh
-  modelNearMeshes: THREE.InstancedMesh[]
-  modelFarMeshes: THREE.InstancedMesh[]
-  modelCapacity: number
+  modelMeshes: THREE.InstancedMesh[]
+  modelCapacities: number[]
 }
 
 /** Gera um tufo de folhas em malha compartilhada. A versão distante usa bem menos polígonos. */
@@ -169,6 +179,7 @@ export class GrassLayer {
   private readonly highMaterial: THREE.MeshStandardMaterial
   private readonly lowMaterial: THREE.MeshStandardMaterial
   private readonly chunks: GrassChunk[] = []
+  private readonly renderBands: GrassRenderBand[]
   private readonly modelParts: GrassModelPart[] = []
   private readonly modelMaterials = new Set<THREE.Material>()
   private readonly modelTextures = new Set<THREE.Texture>()
@@ -178,6 +189,8 @@ export class GrassLayer {
   private readonly white = new THREE.Color(0xffffff)
   private disposed = false
   private readonly painted: PaintedGrassTuft[] = []
+  private lastCameraPosition: THREE.Vector3 | null = null
+  private renderDirty = true
   private readonly windUniforms = {
     uGrassTime: { value: 0 },
     uGrassWindStrength: { value: 0.11 },
@@ -195,11 +208,16 @@ export class GrassLayer {
     this.installWindShader(this.highMaterial)
     this.installWindShader(this.lowMaterial)
 
+    this.renderBands = [
+      this.createRenderBand('near', GRASS_NEAR_DISTANCE, 1, this.geometry, this.highMaterial),
+      this.createRenderBand('middle', GRASS_MIDDLE_DISTANCE, GRASS_MIDDLE_STRIDE, this.lowDetailGeometry, this.lowMaterial),
+      this.createRenderBand('far', GRASS_VIEW_DISTANCE, GRASS_FAR_STRIDE, this.lowDetailGeometry, this.lowMaterial),
+    ]
+    for (const band of this.renderBands) this.mesh.add(band.mesh)
+
     for (let row = 0; row < CHUNKS_PER_AXIS; row += 1) {
       for (let column = 0; column < CHUNKS_PER_AXIS; column += 1) {
-        const chunk = this.createChunk(column, row)
-        this.chunks.push(chunk)
-        this.mesh.add(chunk.nearMesh, chunk.farMesh)
+        this.chunks.push(this.createChunk(column, row))
       }
     }
     this.refresh()
@@ -406,7 +424,7 @@ export class GrassLayer {
           const parts = this.buildGrassModelParts(gltf.scene)
           if (parts.length === 0) throw new Error('O GLB não contém a malha de grama esperada.')
           this.modelParts.push(...parts)
-          for (const chunk of this.chunks) this.rebuildChunk(chunk)
+          this.requestRenderRebuild()
           console.info('[GrassLayer] Modelo GLB pronto para pintura:', {
             source: GRASS_MODEL_URL,
             targetMesh: 'Grass_main_fresh_Grass_Mat_0',
@@ -633,21 +651,38 @@ export class GrassLayer {
     return parts
   }
 
+  private createRenderBand(
+    name: GrassBandName,
+    maxDistance: number,
+    stride: number,
+    geometry: THREE.BufferGeometry,
+    material: THREE.MeshStandardMaterial,
+  ): GrassRenderBand {
+    const capacity = 64
+    return {
+      name,
+      maxDistance,
+      stride,
+      geometry,
+      material,
+      mesh: this.createInstancedMesh(geometry, material, capacity, `GrassDistanceRing-${name}`),
+      capacity,
+      modelMeshes: [],
+      modelCapacities: [],
+    }
+  }
+
   private createModelInstancedMesh(
     part: GrassModelPart,
     capacity: number,
-    lowDetail: boolean,
+    bandName: GrassBandName,
   ): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(
-      part.geometry,
-      part.material,
-      Math.max(1, lowDetail ? Math.ceil(capacity / LOD_STRIDE) : capacity),
-    )
+    const mesh = new THREE.InstancedMesh(part.geometry, part.material, Math.max(1, capacity))
     mesh.count = 0
-    mesh.name = lowDetail ? 'PaintedGrassModelLOD' : 'PaintedGrassModel'
+    mesh.name = `PaintedGrassModel-${bandName}`
     mesh.castShadow = false
     mesh.receiveShadow = false
-    mesh.frustumCulled = true
+    mesh.frustumCulled = false
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     mesh.onBeforeRender = () => {
       this.windUniforms.uGrassTime.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001
@@ -655,36 +690,44 @@ export class GrassLayer {
     return mesh
   }
 
-  private clearPaintedModelMeshes(chunk: GrassChunk): void {
-    for (const mesh of chunk.modelNearMeshes) mesh.removeFromParent()
-    for (const mesh of chunk.modelFarMeshes) mesh.removeFromParent()
-    chunk.modelNearMeshes.length = 0
-    chunk.modelFarMeshes.length = 0
-    chunk.modelCapacity = 0
+  private nextInstanceCapacity(required: number): number {
+    let capacity = 64
+    while (capacity < required) capacity *= 2
+    return capacity
   }
 
-  private ensurePaintedModelCapacity(chunk: GrassChunk, required: number): void {
-    if (this.modelParts.length === 0 || required <= 0) {
-      this.clearPaintedModelMeshes(chunk)
-      return
-    }
-    if (
-      chunk.modelCapacity >= required &&
-      chunk.modelNearMeshes.length === this.modelParts.length &&
-      chunk.modelFarMeshes.length === this.modelParts.length
-    ) return
+  private ensureRenderBandCapacity(band: GrassRenderBand, required: number): void {
+    if (required <= band.capacity) return
+    const capacity = this.nextInstanceCapacity(required)
+    band.mesh.removeFromParent()
+    band.capacity = capacity
+    band.mesh = this.createInstancedMesh(
+      band.geometry,
+      band.material,
+      capacity,
+      `GrassDistanceRing-${band.name}`,
+    )
+    this.mesh.add(band.mesh)
+  }
 
-    this.clearPaintedModelMeshes(chunk)
-    let capacity = 32
-    while (capacity < required) capacity *= 2
-    chunk.modelCapacity = capacity
-    for (const part of this.modelParts) {
-      const near = this.createModelInstancedMesh(part, capacity, false)
-      const far = this.createModelInstancedMesh(part, capacity, true)
-      chunk.modelNearMeshes.push(near)
-      chunk.modelFarMeshes.push(far)
-      this.mesh.add(near, far)
-    }
+  private ensureRenderModelCapacity(
+    band: GrassRenderBand,
+    partIndex: number,
+    required: number,
+  ): void {
+    const current = band.modelMeshes[partIndex]
+    const currentCapacity = band.modelCapacities[partIndex] ?? 0
+    if (current && required <= currentCapacity) return
+    if (!current && required <= 0) return
+
+    const capacity = this.nextInstanceCapacity(required)
+    current?.removeFromParent()
+    const part = this.modelParts[partIndex]
+    if (!part) return
+    const mesh = this.createModelInstancedMesh(part, capacity, band.name)
+    band.modelMeshes[partIndex] = mesh
+    band.modelCapacities[partIndex] = capacity
+    this.mesh.add(mesh)
   }
 
   private paintedHash(tuft: PaintedGrassTuft): number {
@@ -733,45 +776,6 @@ export class GrassLayer {
     }
   }
 
-  private rebuildPaintedModelMeshes(chunk: GrassChunk): void {
-    if (this.modelParts.length === 0 || chunk.painted.length === 0) {
-      this.clearPaintedModelMeshes(chunk)
-      return
-    }
-
-    this.ensurePaintedModelCapacity(chunk, chunk.painted.length)
-    const records = chunk.painted.map((tuft) => ({
-      variant: this.paintedVariant(tuft),
-      instance: this.paintedModelInstance(tuft),
-    }))
-
-    for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
-      const part = this.modelParts[partIndex]!
-      const near = chunk.modelNearMeshes[partIndex]!
-      const far = chunk.modelFarMeshes[partIndex]!
-      let nearIndex = 0
-      let farIndex = 0
-
-      for (let i = 0; i < records.length; i += 1) {
-        const record = records[i]!
-        if (record.variant !== part.variantIndex) continue
-        this.writeModelInstance(near, nearIndex++, record.instance)
-        if (i % LOD_STRIDE === 0) this.writeModelInstance(far, farIndex++, record.instance)
-      }
-
-      near.count = nearIndex
-      far.count = farIndex
-      near.instanceMatrix.needsUpdate = true
-      far.instanceMatrix.needsUpdate = true
-      if (near.instanceColor) near.instanceColor.needsUpdate = true
-      if (far.instanceColor) far.instanceColor.needsUpdate = true
-      near.computeBoundingSphere()
-      far.computeBoundingSphere()
-      near.visible = false
-      far.visible = false
-    }
-  }
-
   private paintCellKey(x: number, z: number): string {
     return `${Math.floor(x / PAINTED_GRASS_SPACING)},${Math.floor(z / PAINTED_GRASS_SPACING)}`
   }
@@ -805,40 +809,21 @@ export class GrassLayer {
   }
 
   private createChunk(column: number, row: number): GrassChunk {
-    const capacity = 64
-    const nearMesh = this.createInstancedMesh(this.geometry, this.highMaterial, capacity)
-    const farMesh = this.createInstancedMesh(
-      this.lowDetailGeometry,
-      this.lowMaterial,
-      Math.ceil(capacity / LOD_STRIDE),
-    )
-    return {
-      column,
-      row,
-      centerX: -WORLD_HALF + (column + 0.5) * CHUNK_SIZE,
-      centerZ: -WORLD_HALF + (row + 0.5) * CHUNK_SIZE,
-      procedural: [],
-      painted: [],
-      capacity,
-      nearMesh,
-      farMesh,
-      modelNearMeshes: [],
-      modelFarMeshes: [],
-      modelCapacity: 0,
-    }
+    return { column, row, procedural: [], painted: [] }
   }
 
   private createInstancedMesh(
     geometry: THREE.BufferGeometry,
     material: THREE.MeshStandardMaterial,
     capacity: number,
+    name = 'GrassDistanceRing',
   ): THREE.InstancedMesh {
-    const mesh = new THREE.InstancedMesh(geometry, material, capacity)
+    const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, capacity))
     mesh.count = 0
-    mesh.name = 'GrassChunk'
+    mesh.name = name
     mesh.castShadow = false
     mesh.receiveShadow = false
-    mesh.frustumCulled = true
+    mesh.frustumCulled = false
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     mesh.onBeforeRender = () => {
       this.windUniforms.uGrassTime.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001
@@ -852,21 +837,86 @@ export class GrassLayer {
     return this.chunks[row * CHUNKS_PER_AXIS + column]!
   }
 
-  private ensureCapacity(chunk: GrassChunk, required: number): void {
-    if (required <= chunk.capacity) return
-    let capacity = chunk.capacity
-    while (capacity < required) capacity = Math.max(64, capacity * 2)
+  private distanceBandIndex(x: number, z: number, center: THREE.Vector3): number {
+    const distance = Math.hypot(x - center.x, z - center.z)
+    for (let index = 0; index < this.renderBands.length; index += 1) {
+      if (distance <= this.renderBands[index]!.maxDistance) return index
+    }
+    return -1
+  }
 
-    chunk.nearMesh.removeFromParent()
-    chunk.farMesh.removeFromParent()
-    chunk.capacity = capacity
-    chunk.nearMesh = this.createInstancedMesh(this.geometry, this.highMaterial, capacity)
-    chunk.farMesh = this.createInstancedMesh(
-      this.lowDetailGeometry,
-      this.lowMaterial,
-      Math.ceil(capacity / LOD_STRIDE),
+  private spatialHash(x: number, z: number): number {
+    return (
+      Math.imul(Math.round((x + WORLD_HALF) * 10000), 73856093) ^
+      Math.imul(Math.round((z + WORLD_HALF) * 10000), 19349663)
+    ) >>> 0
+  }
+
+  private rebuildDistanceRings(center: THREE.Vector3): void {
+    const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
+    const modelBuckets = this.renderBands.map(() =>
+      this.modelParts.map(() => [] as GrassInstance[]),
     )
-    this.mesh.add(chunk.nearMesh, chunk.farMesh)
+
+    for (const chunk of this.chunks) {
+      for (const instance of chunk.procedural) {
+        const bandIndex = this.distanceBandIndex(instance.x, instance.z, center)
+        if (bandIndex < 0) continue
+        const band = this.renderBands[bandIndex]!
+        if (this.spatialHash(instance.x, instance.z) % band.stride !== 0) continue
+        proceduralBuckets[bandIndex]!.push(instance)
+      }
+
+      for (const tuft of chunk.painted) {
+        const bandIndex = this.distanceBandIndex(tuft[0], tuft[1], center)
+        if (bandIndex < 0) continue
+        const band = this.renderBands[bandIndex]!
+        if (this.paintedHash(tuft) % band.stride !== 0) continue
+
+        if (this.modelParts.length > 0 && bandIndex < 2) {
+          const variant = this.paintedVariant(tuft)
+          const instance = this.paintedModelInstance(tuft)
+          for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
+            if (this.modelParts[partIndex]!.variantIndex === variant) {
+              modelBuckets[bandIndex]![partIndex]!.push(instance)
+            }
+          }
+        } else {
+          // O anel distante usa a malha procedural de baixo custo em vez do GLB
+          // completo, reduzindo polígonos além de diminuir a densidade.
+          proceduralBuckets[bandIndex]!.push(this.paintedInstance(tuft))
+        }
+      }
+    }
+
+    for (let bandIndex = 0; bandIndex < this.renderBands.length; bandIndex += 1) {
+      const band = this.renderBands[bandIndex]!
+      const procedural = proceduralBuckets[bandIndex]!
+      this.ensureRenderBandCapacity(band, procedural.length)
+      for (let index = 0; index < procedural.length; index += 1) {
+        this.writeInstance(band.mesh, index, procedural[index]!)
+      }
+      band.mesh.count = procedural.length
+      band.mesh.instanceMatrix.needsUpdate = true
+      if (band.mesh.instanceColor) band.mesh.instanceColor.needsUpdate = true
+      band.mesh.visible = procedural.length > 0
+
+      if (bandIndex >= 2 || this.modelParts.length === 0) continue
+      const byPart = modelBuckets[bandIndex]!
+      for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
+        const records = byPart[partIndex]!
+        this.ensureRenderModelCapacity(band, partIndex, records.length)
+        const mesh = band.modelMeshes[partIndex]
+        if (!mesh) continue
+        for (let index = 0; index < records.length; index += 1) {
+          this.writeModelInstance(mesh, index, records[index]!)
+        }
+        mesh.count = records.length
+        mesh.instanceMatrix.needsUpdate = true
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+        mesh.visible = records.length > 0
+      }
+    }
   }
 
   private writeInstance(mesh: THREE.InstancedMesh, index: number, instance: GrassInstance): void {
@@ -918,40 +968,11 @@ export class GrassLayer {
     }
   }
 
-  private rebuildChunk(chunk: GrassChunk): void {
-    // A malha gerada continua para a vegetação procedural e serve de fallback
-    // caso o GLB esteja indisponível. Com o modelo carregado, a pintura usa meshes próprios.
-    const useModelPaint = this.modelParts.length > 0
-    const total = chunk.procedural.length + (useModelPaint ? 0 : chunk.painted.length)
-    this.ensureCapacity(chunk, Math.max(1, total))
-    let index = 0
-    let lowIndex = 0
-
-    const write = (instance: GrassInstance): void => {
-      this.writeInstance(chunk.nearMesh, index, instance)
-      if (index % LOD_STRIDE === 0) {
-        this.writeInstance(chunk.farMesh, lowIndex, instance)
-        lowIndex += 1
-      }
-      index += 1
-    }
-
-    for (const instance of chunk.procedural) write(instance)
-    if (!useModelPaint) {
-      for (const tuft of chunk.painted) write(this.paintedInstance(tuft))
-    }
-
-    chunk.nearMesh.count = total
-    chunk.farMesh.count = lowIndex
-    chunk.nearMesh.instanceMatrix.needsUpdate = true
-    chunk.farMesh.instanceMatrix.needsUpdate = true
-    if (chunk.nearMesh.instanceColor) chunk.nearMesh.instanceColor.needsUpdate = true
-    if (chunk.farMesh.instanceColor) chunk.farMesh.instanceColor.needsUpdate = true
-    chunk.nearMesh.computeBoundingSphere()
-    chunk.farMesh.computeBoundingSphere()
-    chunk.nearMesh.visible = false
-    chunk.farMesh.visible = false
-    this.rebuildPaintedModelMeshes(chunk)
+  private requestRenderRebuild(): void {
+    this.renderDirty = true
+    if (!this.lastCameraPosition || this.disposed) return
+    this.rebuildDistanceRings(this.lastCameraPosition)
+    this.renderDirty = false
   }
 
   /** Regenera as manchas de grama procedural respeitando a nova altura do terreno. */
@@ -1013,29 +1034,22 @@ export class GrassLayer {
       this.chunkFor(x, z).procedural.push(instance)
     }
 
-    for (const chunk of this.chunks) this.rebuildChunk(chunk)
+    this.requestRenderRebuild()
   }
 
   /** Pinta tufos no pincel atual. Retorna quantos foram adicionados. */
   paint(x: number, z: number, radius: number, density = 1): number {
-    const available = PAINTED_CAPACITY - this.painted.length
-    if (available <= 0 || !Number.isFinite(radius) || radius <= 0) return 0
+    if (!Number.isFinite(radius) || radius <= 0) return 0
 
     const area = Math.PI * radius * radius
     const safeDensity = Number.isFinite(density) ? Math.max(0.1, density) : 1
-    const requested = Math.min(
-      available,
-      Math.max(1, Math.round(area * PAINTED_GRASS_PER_AREA * safeDensity)),
-    )
+    // Sem limite global: cada chamada adiciona o que a área e o espaçamento permitirem.
+    const requested = Math.max(1, Math.round(area * PAINTED_GRASS_PER_AREA * safeDensity))
     const palette = [0x8db66a, 0x9bc17a, 0x7fa55b, 0xa7c987, 0x72964e, 0xb1c98a]
-    const touched = new Set<GrassChunk>()
     let added = 0
-    // A grade espacial evita acumular milhares de cópias no mesmo ponto quando
-    // o pincel fica parado; pontos novos preenchem os espaços vazios ao redor.
-    const maxAttempts = Math.min(6000, requested * 6)
+    const maxAttempts = requested * 8
 
     for (let attempt = 0; attempt < maxAttempts && added < requested; attempt += 1) {
-      if (this.painted.length >= PAINTED_CAPACITY) break
       const angle = this.random() * Math.PI * 2
       const distance = Math.sqrt(this.random()) * radius
       const px = THREE.MathUtils.clamp(x + Math.cos(angle) * distance, -WORLD_HALF, WORLD_HALF)
@@ -1047,38 +1061,30 @@ export class GrassLayer {
       const tuft: PaintedGrassTuft = [px, pz, scale, color]
       this.painted.push(tuft)
       this.registerPaintedBucket(tuft)
-      const chunk = this.chunkFor(px, pz)
-      chunk.painted.push(tuft)
-      touched.add(chunk)
+      this.chunkFor(px, pz).painted.push(tuft)
       added += 1
     }
 
-    for (const chunk of touched) this.rebuildChunk(chunk)
+    if (added > 0) this.requestRenderRebuild()
     return added
   }
 
   /** Remove tufos pintados dentro do raio sem afetar a grama procedural. */
   erase(x: number, z: number, radius: number): number {
     const radiusSquared = radius * radius
-    const removedTufts = new Set<PaintedGrassTuft>()
-    for (const tuft of this.painted) {
-      if ((tuft[0] - x) ** 2 + (tuft[1] - z) ** 2 <= radiusSquared) {
-        removedTufts.add(tuft)
-      }
-    }
-    if (removedTufts.size === 0) return 0
+    const survivors = this.painted.filter((tuft) =>
+      (tuft[0] - x) ** 2 + (tuft[1] - z) ** 2 > radiusSquared,
+    )
+    const removedCount = this.painted.length - survivors.length
+    if (removedCount === 0) return 0
 
-    const survivors = this.painted.filter(tuft => !removedTufts.has(tuft))
     this.painted.length = 0
-    for (const tuft of survivors) this.painted.push(tuft)
+    this.painted.push(...survivors)
+    for (const chunk of this.chunks) chunk.painted.length = 0
+    for (const tuft of this.painted) this.chunkFor(tuft[0], tuft[1]).painted.push(tuft)
     this.rebuildPaintedBuckets()
-
-    for (const chunk of this.chunks) {
-      if (!chunk.painted.some(tuft => removedTufts.has(tuft))) continue
-      chunk.painted = chunk.painted.filter(tuft => !removedTufts.has(tuft))
-      this.rebuildChunk(chunk)
-    }
-    return removedTufts.size
+    this.requestRenderRebuild()
+    return removedCount
   }
 
   exportPainted(): PaintedGrassTuft[] {
@@ -1090,7 +1096,8 @@ export class GrassLayer {
     this.paintedBuckets.clear()
     for (const chunk of this.chunks) chunk.painted.length = 0
 
-    for (const tuft of tufts.slice(0, PAINTED_CAPACITY)) {
+    // Projetos salvos não são truncados por um teto artificial de quantidade.
+    for (const tuft of tufts) {
       if (tuft.length !== 4 || !tuft.every(Number.isFinite)) continue
       const sanitized: PaintedGrassTuft = [
         THREE.MathUtils.clamp(tuft[0], -WORLD_HALF, WORLD_HALF),
@@ -1102,26 +1109,24 @@ export class GrassLayer {
       this.registerPaintedBucket(sanitized)
       this.chunkFor(sanitized[0], sanitized[1]).painted.push(sanitized)
     }
-    for (const chunk of this.chunks) this.rebuildChunk(chunk)
+    this.requestRenderRebuild()
   }
 
-  /** Atualiza culling por distância/LOD e a interação da grama com o jogador durante a execução. */
+  /** A qualidade é decidida por distância individual, não pelo centro de um chunk. */
   updateVisibility(cameraPosition: THREE.Vector3, playerPosition: THREE.Vector3 | null = null): void {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
     else this.windUniforms.uGrassPlayerPosition.value.set(100000, 0, 100000)
 
-    for (const chunk of this.chunks) {
-      const centerDistance = Math.hypot(chunk.centerX - cameraPosition.x, chunk.centerZ - cameraPosition.z)
-      const nearestDistance = Math.max(0, centerDistance - CHUNK_SIZE * Math.SQRT1_2)
-      const inRange = nearestDistance <= GRASS_VIEW_DISTANCE
-      chunk.nearMesh.visible = inRange && nearestDistance <= GRASS_LOD_DISTANCE && chunk.nearMesh.count > 0
-      chunk.farMesh.visible = inRange && nearestDistance > GRASS_LOD_DISTANCE && chunk.farMesh.count > 0
-      for (const mesh of chunk.modelNearMeshes) {
-        mesh.visible = inRange && nearestDistance <= GRASS_LOD_DISTANCE && mesh.count > 0
-      }
-      for (const mesh of chunk.modelFarMeshes) {
-        mesh.visible = inRange && nearestDistance > GRASS_LOD_DISTANCE && mesh.count > 0
-      }
+    const cameraMoved = !this.lastCameraPosition ||
+      Math.hypot(
+        cameraPosition.x - this.lastCameraPosition.x,
+        cameraPosition.z - this.lastCameraPosition.z,
+      ) >= GRASS_RING_REBUILD_DISTANCE
+
+    if (cameraMoved) this.lastCameraPosition = cameraPosition.clone()
+    if (cameraMoved || this.renderDirty) {
+      this.rebuildDistanceRings(this.lastCameraPosition ?? cameraPosition)
+      this.renderDirty = false
     }
   }
 
@@ -1135,10 +1140,11 @@ export class GrassLayer {
 
   dispose(): void {
     this.disposed = true
-    for (const chunk of this.chunks) {
-      chunk.nearMesh.removeFromParent()
-      chunk.farMesh.removeFromParent()
-      this.clearPaintedModelMeshes(chunk)
+    for (const band of this.renderBands) {
+      band.mesh.removeFromParent()
+      for (const mesh of band.modelMeshes) mesh.removeFromParent()
+      band.modelMeshes.length = 0
+      band.modelCapacities.length = 0
     }
     for (const part of this.modelParts) part.geometry.dispose()
     for (const material of this.modelMaterials) material.dispose()
@@ -1155,5 +1161,6 @@ export class GrassLayer {
     this.highMaterial.dispose()
     this.lowMaterial.dispose()
     this.mesh.clear()
+  }
   }
 }
