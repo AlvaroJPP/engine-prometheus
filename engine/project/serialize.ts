@@ -78,7 +78,7 @@ export function buildBundle(
 }
 
 export function objectFromData(d: SceneObjectData): GameObject {
-  return createPrimitive(d.type, {
+  const object = createPrimitive(d.type, {
     id: d.id,
     name: d.name,
     color: d.color,
@@ -97,4 +97,11 @@ export function objectFromData(d: SceneObjectData): GameObject {
     colliderSize: d.colliderSize,
     colliderOffset: d.colliderOffset ?? [0, 0, 0],
   })
+
+  // sceneKind é metadado semântico, independente de o visual ser primitivo ou GLB.
+  // Isso evita que entidades não importadas voltem como objetos comuns ao reabrir.
+  object.mesh.userData.sceneKind = d.sceneKind === 'entity' ? 'entity' : 'object'
+  object.mesh.userData.componentId = d.componentId
+  object.mesh.userData.importedModelHeight = d.importedModelHeight
+  return object
 }
