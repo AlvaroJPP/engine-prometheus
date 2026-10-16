@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { newId } from '../../lib/id'
-import type { FaceTextureData, FaceTextureMap, ObjectType, TextureFace, Vec3 } from '../../project/format'
+import type { FaceTextureMap, ObjectType, TextureFace, Vec3 } from '../../project/format'
 import { PRIMITIVE_DEFS } from './defs'
 import type { GameObject } from './GameObject'
 
