@@ -13,7 +13,7 @@ const props = defineProps<{
   graphOpen: boolean
   gridVisible: boolean
   polygonLinesVisible: boolean
-  performanceMode: 'quality' | 'balanced' | 'economy'
+  performanceMode: 'quality' | 'balanced' | 'economy' | 'auto'
 }>()
 
 const emit = defineEmits<{
@@ -68,7 +68,9 @@ const emit = defineEmits<{
         ? 'Modo qualidade: alvo de 60 FPS. Clique para equilibrado.'
         : props.performanceMode === 'balanced'
           ? 'Modo equilibrado: alvo de 45 FPS e grama menos densa à distância. Clique para econômico.'
-          : 'Modo econômico: alvo de 30 FPS, resolução reduzida e grama distante bem menos densa. Clique para qualidade.'"
-    >{{ props.performanceMode === 'quality' ? '⚡ Qualidade' : props.performanceMode === 'balanced' ? '⚡ Equilibrado' : '⚡ Econômico' }}</button>
+          : props.performanceMode === 'economy'
+            ? 'Modo econômico: alvo de 30 FPS, resolução reduzida e grama distante bem menos densa. Clique para automático.'
+            : 'Modo automático: ajusta resolução, distância/densidade da grama e LOD dos modelos conforme FPS e triângulos. Clique para qualidade.'"
+    >{{ props.performanceMode === 'quality' ? '⚡ Qualidade' : props.performanceMode === 'balanced' ? '⚡ Equilibrado' : props.performanceMode === 'economy' ? '⚡ Econômico' : '⚡ Auto' }}</button>
   </nav>
 </template>
