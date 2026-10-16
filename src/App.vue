@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
-import { ENGINE_VERSION, TERRAIN_ID, markEntity } from '@engine'
-import type { ToolMode, TransformMode, LogicRule } from '@engine'
+import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
+import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
@@ -18,7 +18,7 @@ import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
-const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes'>('transform')
+const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
@@ -45,7 +45,8 @@ const {
   performanceMode,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
-  logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+  logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
+  installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
   createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
   setTool,
@@ -485,6 +486,52 @@ function returnToEdit() {
   status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
 }
 const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
+const selectedObjectPackages = computed(() => behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedId.value))
+const installedPackageDefinitions = computed(() => selectedObjectPackages.value.flatMap(instance => {
+  const definition = getBehaviorPackageDefinition(instance.packageId)
+  return definition ? [{ instance, definition }] : []
+}))
+const availableBehaviorPackages = computed(() => BEHAVIOR_PACKAGE_DEFINITIONS.filter(definition =>
+  !selectedObjectPackages.value.some(instance => instance.packageId === definition.id),
+))
+
+function onPackageVariableChange(instance: BehaviorPackageInstance, variable: BehaviorPackageDefinition['variables'][number], event: Event) {
+  const target = event.target as HTMLInputElement | HTMLSelectElement
+  let value: PackageScalar
+  if (variable.type === 'boolean') {
+    value = (target as HTMLInputElement).checked
+  } else if (variable.type === 'number') {
+    const raw = target.value.trim().replace(',', '.')
+    const parsed = Number(raw)
+    if (raw === '' || !Number.isFinite(parsed)) return
+    value = Math.max(variable.min ?? Number.NEGATIVE_INFINITY, Math.min(variable.max ?? Number.POSITIVE_INFINITY, parsed))
+  } else {
+    value = target.value
+  }
+  updateBehaviorPackage(instance.id, { variables: { [variable.name]: value } })
+}
+
+function onPackageConfigChange(instance: BehaviorPackageInstance, name: string, value: PackageJsonValue) {
+  updateBehaviorPackage(instance.id, { config: { [name]: value } })
+}
+
+function onPackageSeatOffsetChange(instance: BehaviorPackageInstance, axis: 0 | 1 | 2, event: Event) {
+  const target = event.target as HTMLInputElement
+  const parsed = Number(target.value.trim().replace(',', '.'))
+  if (!Number.isFinite(parsed)) return
+  const raw = instance.config.seatOffset
+  const offset: [number, number, number] = Array.isArray(raw) && raw.length === 3
+    ? [Number(raw[0]) || 0, Number(raw[1]) || 0, Number(raw[2]) || 0]
+    : [0, 0.55, 0]
+  offset[axis] = Math.max(-10, Math.min(10, parsed))
+  onPackageConfigChange(instance, 'seatOffset', offset)
+}
+
+function addBehaviorPackage(packageId: string) {
+  const instanceId = installBehaviorPackage(packageId)
+  if (instanceId) inspectorTab.value = 'packages'
+}
+
 function openObjectRule(rule: LogicRule) {
   graphSelection.value = {
     ruleId: rule.id,
@@ -779,6 +826,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <button :class="{ active: inspectorTab === 'color' }" title="Cor e material" @click="inspectorTab = 'color'"><span>◉</span><small>Cor</small></button>
           <button :class="{ active: inspectorTab === 'variables' }" title="Identidade e variáveis" @click="inspectorTab = 'variables'"><span>{ }</span><small>Variáveis</small></button>
           <button :class="{ active: inspectorTab === 'nodes' }" title="Nós e eventos do objeto" @click="inspectorTab = 'nodes'"><span>⌘</span><small>Nós</small></button>
+          <button :class="{ active: inspectorTab === 'packages' }" title="Pacotes de comportamento" @click="inspectorTab = 'packages'"><span>▣</span><small>Pacotes</small></button>
         </nav>
 
         <div class="scroll">
@@ -830,9 +878,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </section>
 
           <section v-if="inspectorMode === 'object' && selected">
-            <h4>{{ inspectorTab === 'variables' ? 'Identidade e variáveis' : 'Eventos e regras' }}</h4>
+            <h4>{{ inspectorTab === 'variables' ? 'Identidade e variáveis' : inspectorTab === 'packages' ? 'Pacotes de comportamento' : 'Eventos e regras' }}</h4>
             <p v-if="inspectorTab === 'variables'" class="muted">Dados e valores pertencentes exclusivamente a este objeto.</p>
             <p v-else-if="inspectorTab === 'nodes'" class="muted">Eventos associados a este objeto. A lista mostra apenas regras vinculadas a ele.</p>
+            <p v-else-if="inspectorTab === 'packages'" class="muted">Instale comportamentos reutilizáveis que acrescentam variáveis, gatilhos, condições e ações ao objeto.</p>
             <template v-if="inspectorTab === 'variables'">
             <div class="object-meta">
               <div><span>ID</span><code>{{ selected.id }}</code><button class="meta-copy" title="Copiar ID" @click="copyObjectId(selected.id)">⧉</button></div>
@@ -1053,6 +1102,66 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 </div>
               </div>
 
+
+              </template>
+              <template v-if="inspectorTab === 'packages'">
+                <div class="unity-component">
+                  <div class="unity-component-head"><span class="component-icon script-icon">▣</span><strong>Comportamentos instalados</strong><span class="component-count">{{ selectedObjectPackages.length }}</span></div>
+                  <div class="unity-component-body">
+                    <div v-if="!installedPackageDefinitions.length" class="package-empty">
+                      <strong>Nenhum pacote instalado</strong>
+                      <p class="muted">Os pacotes adicionam comportamentos sem exigir regras manuais específicas para cada objeto.</p>
+                    </div>
+                    <article v-for="entry in installedPackageDefinitions" :key="entry.instance.id" class="behavior-package-card">
+                      <div class="behavior-package-header">
+                        <div><strong>{{ entry.definition.name }}</strong><p class="muted">{{ entry.definition.description }}</p></div>
+                        <button class="variable-delete" :aria-label="'Remover pacote ' + entry.definition.name" title="Remover pacote" @click="removeBehaviorPackage(entry.instance.id)">×</button>
+                      </div>
+                      <label class="checkline"><input type="checkbox" :checked="entry.instance.enabled" @change="updateBehaviorPackage(entry.instance.id, { enabled: ($event.target as HTMLInputElement).checked })" /> Pacote habilitado</label>
+
+                      <div class="component-caption">VARIÁVEIS</div>
+                      <div v-for="variable in entry.definition.variables" :key="variable.name" class="package-variable">
+                        <label v-if="variable.type === 'boolean'" class="checkline">
+                          <input type="checkbox" :checked="entry.instance.variables[variable.name] === true" :disabled="variable.readOnly === true" @change="onPackageVariableChange(entry.instance, variable, $event)" />
+                          {{ variable.label }}
+                        </label>
+                        <label v-else class="field">{{ variable.label }}
+                          <input :type="variable.type === 'number' ? 'number' : 'text'" :value="String(entry.instance.variables[variable.name] ?? variable.defaultValue)" :min="variable.min" :max="variable.max" :step="variable.step" :disabled="variable.readOnly === true" @change="onPackageVariableChange(entry.instance, variable, $event)" />
+                        </label>
+                        <p class="component-note">{{ variable.description }}</p>
+                      </div>
+
+                      <template v-if="entry.instance.packageId === 'mount'">
+                        <div class="component-caption">CONFIGURAÇÃO DA MONTARIA</div>
+                        <label class="field">Tecla para montar / desmontar
+                          <select :value="String(entry.instance.config.interactionKey ?? 'KeyE')" @change="onPackageConfigChange(entry.instance, 'interactionKey', ($event.target as HTMLSelectElement).value)">
+                            <option value="KeyE">E</option><option value="KeyF">F</option><option value="KeyR">R</option><option value="KeyQ">Q</option><option value="KeyG">G</option>
+                          </select>
+                        </label>
+                        <div class="component-caption">POSIÇÃO DO JOGADOR SOBRE A MONTARIA</div>
+                        <div class="grid3">
+                          <label class="field">Offset X<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[0]) : 0" @change="onPackageSeatOffsetChange(entry.instance, 0, $event)" /></label>
+                          <label class="field">Offset Y<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[1]) : 0.55" @change="onPackageSeatOffsetChange(entry.instance, 1, $event)" /></label>
+                          <label class="field">Offset Z<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[2]) : 0" @change="onPackageSeatOffsetChange(entry.instance, 2, $event)" /></label>
+                        </div>
+                      </template>
+
+                      <div class="component-caption">GATILHOS</div>
+                      <div class="package-slot-list"><div v-for="trigger in entry.definition.triggers" :key="trigger.id"><strong>{{ trigger.label }}</strong><small>{{ trigger.description }}</small></div></div>
+                      <div class="component-caption">CONDIÇÕES</div>
+                      <div class="package-slot-list"><div v-for="condition in entry.definition.conditions" :key="condition.id"><strong>{{ condition.label }}</strong><small>{{ condition.description }}</small></div></div>
+                      <div class="component-caption">AÇÕES</div>
+                      <div class="package-slot-list"><div v-for="action in entry.definition.actions" :key="action.id"><strong>{{ action.label }}</strong><small>{{ action.description }}</small></div></div>
+                    </article>
+
+                    <div class="component-caption">ADICIONAR PACOTE</div>
+                    <button v-for="definition in availableBehaviorPackages" :key="definition.id" class="ghost full add-component-btn" @click="addBehaviorPackage(definition.id)">
+                      + {{ definition.name }}
+                      <span class="muted">{{ definition.description }}</span>
+                    </button>
+                    <p v-if="!availableBehaviorPackages.length" class="component-note">Todos os pacotes disponíveis já estão instalados neste objeto.</p>
+                  </div>
+                </div>
               </template>
               <button v-if="inspectorTab === 'transform' || inspectorTab === 'nodes'" class="danger" @click="removeSelected">Excluir GameObject (Del)</button>
             </template>
