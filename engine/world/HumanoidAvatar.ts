@@ -11,6 +11,16 @@ const GRAVITY = 18
 const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
 
+type MountedSupportSurfaces = {
+  flat: number[]
+  inclined: number[]
+  terrain: number[]
+  /** Superfície válida diretamente sob o centro da montaria. */
+  centerSupport: number | null
+  /** Terreno válido diretamente sob o centro, quando não há objeto sob ele. */
+  centerTerrain: number | null
+}
+
 /** Bounds do colisor físico, independentes da malha visual importada. */
 function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
   const type = mesh.userData.colliderType
@@ -947,16 +957,19 @@ export class HumanoidAvatar {
       const isInclinedObject =
         Math.abs(obstacle.rotation.x) > 0.02 ||
         Math.abs(obstacle.rotation.z) > 0.02
-      const rampSurfaceUnderMount = nearRamp && isInclinedObject &&
+      const walkableRampUnderMount = nearRamp && isInclinedObject &&
         obstacle.userData.importedModel !== true &&
         this.hasWalkableRampSurfaceBelow(obstacle, mountBounds)
+      const walkablePlatformUnderMount = nearRamp && !isInclinedObject &&
+        obstacle.userData.importedModel !== true &&
+        this.hasWalkableFlatSurfaceNearMount(obstacle, mountBounds)
 
-      // Se encontramos a face caminhável da própria rampa sob a montaria, não
-      // devemos testar a caixa inteira da rampa como obstáculo lateral. Em rampas
-      // espessas, a face inferior também cruza o AABB horizontal do cavalo e faz
-      // o algoritmo reverter cada passo durante a descida. O suporte vertical
-      // continua sendo calculado por raycast no followMountedSurfaceAtStep().
-      if (rampSurfaceUnderMount) continue
+      // Se a montaria já tem uma superfície caminhável sob a pegada, a lateral
+      // ou a parte inferior desse mesmo piso não deve bloqueá-la na emenda.
+      // Isso vale para rampas espessas e para plataformas planas conectadas.
+      // Paredes altas continuam bloqueando porque não há topo caminhável na
+      // altura da montaria sob a área de apoio.
+      if (walkableRampUnderMount || walkablePlatformUnderMount) continue
 
       if (
         obstacle.userData.importedModel === true &&
@@ -1172,7 +1185,7 @@ export class HumanoidAvatar {
     maxSlopeDrop: number,
     maxRise: number,
     originY: number,
-  ): { flat: number[]; inclined: number[]; terrain: number[] } {
+  ): MountedSupportSurfaces {
     const feetY = bounds.min.y
     const size = bounds.getSize(new THREE.Vector3())
     const centerX = (bounds.min.x + bounds.max.x) * 0.5
@@ -1194,11 +1207,16 @@ export class HumanoidAvatar {
     const flat: number[] = []
     const inclined: number[] = []
     const terrain: number[] = []
+    let centerSupport: number | null = null
+    let centerTerrain: number | null = null
 
-    for (const [x, z] of probes) {
+    for (const [probeIndex, [x, z]] of probes.entries()) {
       const terrainY = this.world.terrain.heightAt(x, z)
       const terrainRise = terrainY - feetY
-      if (terrainRise <= maxRise && terrainRise >= -maxFlatDrop) terrain.push(terrainY)
+      if (terrainRise <= maxRise && terrainRise >= -maxFlatDrop) {
+        terrain.push(terrainY)
+        if (probeIndex === 0) centerTerrain = terrainY
+      }
     }
 
     const minProbeX = centerX - insetX
@@ -1213,7 +1231,7 @@ export class HumanoidAvatar {
         box.max.z >= minProbeZ - 0.02 && box.min.z <= maxProbeZ + 0.02 &&
         box.max.y >= feetY - maxSlopeDrop && box.min.y <= originY
     })
-    if (candidates.length === 0) return { flat, inclined, terrain }
+    if (candidates.length === 0) return { flat, inclined, terrain, centerSupport, centerTerrain }
 
     const raycaster = new THREE.Raycaster()
     raycaster.ray.direction.set(0, -1, 0)
@@ -1222,7 +1240,7 @@ export class HumanoidAvatar {
     const objects = candidates.map(object => object.mesh)
     const normalMatrix = new THREE.Matrix3()
 
-    for (const [x, z] of probes) {
+    for (const [probeIndex, [x, z]] of probes.entries()) {
       raycaster.ray.origin.set(x, originY, z)
       const hits = raycaster.intersectObjects(objects, true)
 
@@ -1257,24 +1275,33 @@ export class HumanoidAvatar {
 
         if (isInclinedSurface) inclined.push(surfaceY)
         else flat.push(surfaceY)
+        if (probeIndex === 0) centerSupport = surfaceY
         // Hits vêm ordenados por distância; a primeira superfície caminhável
         // neste ponto é a face de apoio relevante.
         break
       }
     }
 
-    return { flat, inclined, terrain }
+    return { flat, inclined, terrain, centerSupport, centerTerrain }
   }
 
   private chooseMountedSupportSurface(
-    surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
+    surfaces: MountedSupportSurfaces,
     feetY: number,
     maxRise: number,
     followGroundedMovement = false,
   ): number | null {
-    // Durante a caminhada, se dois níveis baixos estão sob a pegada, acompanha
-    // o mais baixo para descer degraus; ao aterrissar após um salto, prioriza
-    // o mais alto para não atravessar uma plataforma.
+    // Em movimento, a superfície sob o centro determina se a montaria ainda
+    // está na plataforma ou já entrou na rampa. Amostras periféricas podem
+    // alcançar o objeto vizinho na junção e manter a montaria presa em outro nível.
+    if (followGroundedMovement) {
+      if (surfaces.centerSupport !== null) return surfaces.centerSupport
+      if (surfaces.centerTerrain !== null) return surfaces.centerTerrain
+    }
+
+    // Durante a caminhada, se não há apoio central, permite usar os pontos da
+    // pegada para atravessar pequenas emendas; ao aterrissar após um salto,
+    // prioriza a superfície mais alta para não atravessar uma plataforma.
     const nearFlat = surfaces.flat.filter(y => y >= feetY - 0.28 && y <= feetY + maxRise)
     if (nearFlat.length > 0) {
       return followGroundedMovement ? Math.min(...nearFlat) : Math.max(...nearFlat)
@@ -1360,6 +1387,70 @@ export class HumanoidAvatar {
         // Distingue a face superior de laterais inclinadas pela rotação do objeto.
         if (topAlignment < 0.45 || normal.y < 0.02 || normal.y > 0.99999) continue
         if (hit.point.y < lowestAllowedY || hit.point.y > mountBounds.max.y + 0.05) continue
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Detecta o topo de uma plataforma plana conectado ao nível atual da montaria.
+   * A lateral do mesmo bloco pode cruzar o AABB da montaria durante a transição
+   * entre uma rampa e o piso plano, apesar de a face superior ser caminhável.
+   * Só ignora essa plataforma quando o topo está próximo da altura dos pés e
+   * existe uma amostra real do topo sob a pegada; paredes mais altas seguem sólidas.
+   */
+  private hasWalkableFlatSurfaceNearMount(
+    obstacle: THREE.Mesh,
+    mountBounds: THREE.Box3,
+  ): boolean {
+    obstacle.updateWorldMatrix(true, true)
+    const size = mountBounds.getSize(new THREE.Vector3())
+    const centerX = (mountBounds.min.x + mountBounds.max.x) * 0.5
+    const centerZ = (mountBounds.min.z + mountBounds.max.z) * 0.5
+    const insetX = size.x * 0.38
+    const insetZ = size.z * 0.38
+    const probes: Array<[number, number]> = [
+      [centerX, centerZ],
+      [centerX - insetX, centerZ],
+      [centerX + insetX, centerZ],
+      [centerX, centerZ - insetZ],
+      [centerX, centerZ + insetZ],
+      [centerX - insetX, centerZ - insetZ],
+      [centerX - insetX, centerZ + insetZ],
+      [centerX + insetX, centerZ - insetZ],
+      [centerX + insetX, centerZ + insetZ],
+    ]
+
+    // Tolera a diferença de altura ao longo do comprimento do cavalo sobre a
+    // rampa, mas não permite ignorar uma parede cujo topo esteja muito acima.
+    const transitionTolerance = Math.max(
+      0.28,
+      Math.min(0.45, Math.max(size.x, size.z) * 0.25),
+    )
+    const feetY = mountBounds.min.y
+    const originY = mountBounds.max.y + 0.25
+    const lowestAllowedY = feetY - transitionTolerance
+    const highestAllowedY = feetY + transitionTolerance
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(centerX, originY, centerZ),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      Math.max(1, originY - lowestAllowedY),
+    )
+    const normalMatrix = new THREE.Matrix3()
+
+    for (const [x, z] of probes) {
+      raycaster.ray.origin.set(x, originY, z)
+      const hits = raycaster.intersectObject(obstacle, true)
+      for (const hit of hits) {
+        if (!hit.face) continue
+        const normal = hit.face.normal.clone()
+          .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+          .normalize()
+        // Esta exceção é só para um piso plano; rampas são tratadas separadamente.
+        if (normal.y < 0.9995) continue
+        if (hit.point.y < lowestAllowedY || hit.point.y > highestAllowedY) continue
         return true
       }
     }
