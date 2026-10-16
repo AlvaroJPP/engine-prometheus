@@ -154,10 +154,19 @@ export class Engine {
       // Atualize animações antes dos testes físicos para usar a pose exibida
       // no quadro atual. A versão invalida o wireframe automático do modelo
       // quando ossos ou morph targets mudam.
+      let hasRunningModelAnimation = false
       for (const object of this.world.list()) {
         const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
         if (!mixer) continue
         mixer.update(dt)
+        const animationActions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+        const fallbackAnimationAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+        if (
+          Object.values(animationActions ?? {}).some(action => action?.isRunning())
+          || fallbackAnimationAction?.isRunning() === true
+        ) {
+          hasRunningModelAnimation = true
+        }
         const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
         if (mountedTransition && ['mount', 'dismount', 'run_stop', 'jump'].includes(mountedTransition)) {
           const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
@@ -223,12 +232,6 @@ export class Engine {
         this.world.grassOcclusionRoots(),
       )
       const environment = this.world.getEnvironment()
-      const hasRunningModelAnimation = this.world.list().some((object) => {
-        const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-        const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-        return Object.values(actions ?? {}).some(action => action?.isRunning())
-          || fallbackAction?.isRunning() === true
-      })
       const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation
       this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
