@@ -206,11 +206,13 @@ export class HumanoidAvatar {
       const oldX = this.mesh.position.x
       const oldZ = this.mesh.position.z
       const oldFeetY = this.mesh.position.y
+      let horizontalStepY: number | null = null
       this.mesh.position.x = THREE.MathUtils.clamp(oldX + direction.x, -49, 49)
       if (this.collidesWithObjects()) {
         const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, oldZ, oldFeetY) : null
         if (stepUp !== null) {
           this.mesh.position.y = stepUp
+          horizontalStepY = stepUp
           this.verticalVelocity = 0
         } else {
           this.mesh.position.x = oldX
@@ -221,6 +223,7 @@ export class HumanoidAvatar {
         const stepUp = wasGrounded ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, this.mesh.position.y) : null
         if (stepUp !== null) {
           this.mesh.position.y = stepUp
+          horizontalStepY = stepUp
           this.verticalVelocity = 0
         } else {
           this.mesh.position.z = oldZ
@@ -229,6 +232,9 @@ export class HumanoidAvatar {
       this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
     }
 
+    // A correção de altura feita durante o movimento horizontal precisa
+    // sobreviver ao cálculo da gravidade deste mesmo quadro.
+    if (horizontalStepY !== null) nextY = Math.max(nextY, horizontalStepY)
     const newGroundY = this.world.terrain.heightAt(this.mesh.position.x, this.mesh.position.z)
     this.mesh.position.y = nextY
     this.mesh.updateMatrixWorld(true)
@@ -253,7 +259,22 @@ export class HumanoidAvatar {
       terrainDrop >= -0.08 &&
       terrainDrop <= Math.max(0.32, speed * step * 1.5)
 
-    if (nextY <= newGroundY || canFollowSlopeDown) {
+    const canLandOnObject = landing !== null &&
+      this.verticalVelocity <= 0 &&
+      landing >= newGroundY &&
+      (
+        nextY <= landing + 0.05 ||
+        (wasGrounded && length > 0 && landing >= oldY - 0.3 && landing <= oldY + 0.5)
+      )
+
+    // Plataformas/rampas têm prioridade sobre o terreno base. Caso contrário,
+    // um quadro em que nextY chega ao nível do terreno pode apagar o pouso
+    // válido numa plataforma logo acima dele.
+    if (canLandOnObject && landing !== null) {
+      this.mesh.position.y = landing
+      this.verticalVelocity = 0
+      this.grounded = true
+    } else if (nextY <= newGroundY || canFollowSlopeDown) {
       this.mesh.position.y = newGroundY
       this.verticalVelocity = 0
       this.grounded = true
