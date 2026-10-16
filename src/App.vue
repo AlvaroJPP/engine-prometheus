@@ -264,6 +264,16 @@ const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule) => {
 }))
 watch([graphNodes, graphVisibleRules, graphZoom, graphPan], measureGraphPorts, { deep: true })
 const selectedGraphRule = computed(() => logicRules.value.find(rule => rule.id === graphSelection.value?.ruleId) ?? null)
+const selectedGraphRuleOwnerObjectId = computed(() => {
+  const rule = selectedGraphRule.value
+  if (!rule) return null
+  if (rule.ownerObjectId) return rule.ownerObjectId
+  if (rule.trigger.type === 'object_clicked' || rule.trigger.type === 'package_event') return rule.trigger.objectId
+  return selectedId.value
+})
+const selectedGraphRulePackages = computed(() =>
+  behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedGraphRuleOwnerObjectId.value),
+)
 const globalConditionVariables = computed(() => Object.fromEntries(Object.entries(globalLogicVariables.value).filter(([name]) => !Object.prototype.hasOwnProperty.call(logicVariables.value, name))))
 
 // Mantém o texto do editor separado da renderização do grafo. Atualizar a regra
@@ -382,7 +392,17 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
     const firstLine = action.code.split(String.fromCharCode(10)).map(line => line.trim()).find(Boolean)
     return firstLine ? (firstLine.length > 42 ? firstLine.slice(0, 39) + '…' : firstLine) : 'Script vazio — clique para editar'
   }
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : action.type === 'set_variable' ? `Definir ${action.name} = ${String(action.value)}` : 'Executar ação'
+  return action.type === 'rotate'
+    ? `Girar ${action.degrees}°`
+    : action.type === 'move'
+      ? `Mover para X ${action.x ?? 0}`
+      : action.type === 'set_visible'
+        ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto')
+        : action.type === 'set_variable'
+          ? `Definir ${action.name} = ${String(action.value)}`
+          : action.type === 'set_package_variable'
+            ? `Pacote ${action.packageId}: ${action.name} = ${String(action.value)}`
+            : 'Executar ação'
 }
 
 function patchSelectedAction(patch: Record<string, unknown>) {
@@ -402,27 +422,79 @@ function patchSelectedCondition(patch: Record<string, unknown>) {
   const current = rule.conditions[0] ?? { type: 'variable' as const, name: 'has_key', operator: 'equals' as const, value: true }
   updateLogicRule({ ...rule, conditions: [{ ...current, ...patch } as LogicRule['conditions'][number], ...rule.conditions.slice(1)] })
 }
-function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pressed') {
+function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event') {
   const rule = selectedGraphRule.value
   if (!rule) return
-  const trigger: LogicRule['trigger'] = type === 'object_clicked'
-    ? { type, objectId: objects.value.find(o => o.id === (rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : ''))?.id ?? objects.value[0]?.id ?? '' }
-    : type === 'key_pressed' ? { type, key: rule.trigger.type === 'key_pressed' ? rule.trigger.key : 'KeyE' }
-      : { type, center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0], radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2 }
+  const ownerId = rule.ownerObjectId ??
+    (rule.trigger.type === 'object_clicked' || rule.trigger.type === 'package_event'
+      ? rule.trigger.objectId
+      : selectedId.value ?? objects.value[0]?.id ?? '')
+
+  let trigger: LogicRule['trigger']
+  if (type === 'object_clicked') {
+    const currentObjectId = rule.trigger.type === 'object_clicked' ? rule.trigger.objectId : ownerId
+    trigger = {
+      type,
+      objectId: objects.value.find(object => object.id === currentObjectId)?.id ?? objects.value[0]?.id ?? '',
+    }
+  } else if (type === 'key_pressed') {
+    trigger = { type, key: rule.trigger.type === 'key_pressed' ? rule.trigger.key : 'KeyE' }
+  } else if (type === 'package_event') {
+    const previousPackageId = rule.trigger.type === 'package_event' ? rule.trigger.packageId : undefined
+    const instance = selectedGraphRulePackages.value.find(item => item.packageId === previousPackageId)
+      ?? selectedGraphRulePackages.value[0]
+    const packageId = instance?.packageId ?? previousPackageId ?? 'mount'
+    const definition = getBehaviorPackageDefinition(packageId)
+    trigger = {
+      type,
+      objectId: ownerId,
+      packageId,
+      eventId: rule.trigger.type === 'package_event'
+        ? rule.trigger.eventId
+        : definition?.triggers[0]?.id ?? 'interact',
+    }
+  } else {
+    trigger = {
+      type,
+      center: rule.trigger.type === 'enter_area' ? [...rule.trigger.center] as [number, number, number] : [0, 1, 0],
+      radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2,
+    }
+  }
   updateLogicRule({ ...rule, trigger })
 }
-function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript') {
+
+function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'set_package_variable' | 'script' | 'javascript') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
-  const target = (old && 'objectId' in old ? old.objectId : undefined) ?? selectedId.value ?? objects.value[0]?.id ?? ''
+  const target = rule.ownerObjectId ??
+    (old && 'objectId' in old ? old.objectId : undefined) ??
+    selectedId.value ??
+    objects.value[0]?.id ??
+    ''
+  const previousPackageAction = old?.type === 'set_package_variable' ? old : undefined
+  const packageInstance = selectedGraphRulePackages.value.find(instance => instance.packageId === previousPackageAction?.packageId)
+    ?? selectedGraphRulePackages.value.find(instance => instance.enabled)
+    ?? selectedGraphRulePackages.value[0]
+  const packageId = previousPackageAction?.packageId ?? packageInstance?.packageId ?? 'mount'
+  const packageDefinition = getBehaviorPackageDefinition(packageId)
+  const variableName = previousPackageAction?.name
+    ?? packageDefinition?.variables.find(variable => !variable.readOnly)?.name
+    ?? 'speed'
+
   const action: LogicRule['actions'][number] = type === 'move'
     ? { type, objectId: target, x: 2, y: 0, z: 0 }
     : type === 'rotate'
       ? { type, objectId: target, degrees: 45 }
       : type === 'set_visible'
         ? { type, objectId: target, visible: false }
-        : type === 'set_variable' ? { type, name: 'has_key', value: true } : type === 'javascript' ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" } : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
+        : type === 'set_variable'
+          ? { type, name: 'has_key', value: true }
+          : type === 'set_package_variable'
+            ? { type, objectId: target, packageId, name: variableName, value: previousPackageAction?.value ?? 4.2 }
+            : type === 'javascript'
+              ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" }
+              : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
 function ruleValueFromInput(value: string): boolean | number | string {
