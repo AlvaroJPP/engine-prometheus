@@ -1100,6 +1100,11 @@ export class Engine {
     this.world.setTerrainVisible(visible)
   }
 
+  /** Configura alcance radial da grama; null renderiza todo o mapa. */
+  setGrassRenderDistance(distance: number | null): void {
+    this.world.terrain.grass.setRenderDistance(distance)
+  }
+
   setGridVisible(visible: boolean): void {
     this.world.setGridVisible(visible)
   }
