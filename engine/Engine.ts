@@ -199,6 +199,7 @@ export class Engine {
         if (instance.packageId === 'mount') this.applyMountModelStates(instance)
       }
       this.orbit.update()
+      this.world.updateFogForCamera(this.orbit.camera.position)
       this.world.terrain.grass.updateVisibility(
         this.orbit.camera.position,
         this.avatar.mesh.visible ? this.avatar.mesh.position : null,
