@@ -137,8 +137,12 @@ export class Viewport {
     }
 
     if (this.fpsListener) {
-      if (this.fpsWindowStart === 0) this.fpsWindowStart = now
-      this.fpsFrameCount += 1
+      if (this.fpsWindowStart === 0) {
+        this.fpsWindowStart = now
+      } else {
+        // Conta intervalos entre quadros, não inclui o primeiro quadro duas vezes.
+        this.fpsFrameCount += 1
+      }
       const elapsed = now - this.fpsWindowStart
       if (elapsed >= 500) {
         this.fpsListener(Math.round((this.fpsFrameCount * 1000) / elapsed))
