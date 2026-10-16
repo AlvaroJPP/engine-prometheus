@@ -2016,10 +2016,24 @@ input[type='range'] { accent-color: #e98524; }
 </style>
 
 <style>
-.inspector-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));flex:none;padding:5px 7px 0;gap:3px;background:#2b2b2b;border-bottom:1px solid #1a1a1a}
+.inspector-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;padding:5px 7px 0;gap:3px;background:#2b2b2b;border-bottom:1px solid #1a1a1a}
 .inspector-tabs button{min-width:0;min-height:47px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:3px 3px 0 0;background:transparent;color:#a5a5a5;cursor:pointer}
 .inspector-tabs button>span{font-size:16px;line-height:17px}.inspector-tabs button small{font-size:9px;white-space:nowrap}
 .inspector-tabs button:hover{background:#383838;color:#eee}.inspector-tabs button.active{border-color:#3b3b3b;border-bottom-color:#e98524;background:#353535;color:#f1f1f1}
+.behavior-package-card{margin:10px 0;padding:10px;border:1px solid #414141;border-radius:4px;background:#292929}
+.behavior-package-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.behavior-package-header strong{font-size:12px;color:#f0f0f0}
+.behavior-package-header p{margin:5px 0 0;font-size:10px;line-height:1.45}
+.package-variable{padding:6px 0;border-bottom:1px solid #373737}
+.package-variable:last-child{border-bottom:0}
+.package-variable .component-note{margin:3px 0 0}
+.package-slot-list{display:grid;gap:5px;margin:7px 0 12px}
+.package-slot-list>div{padding:7px 8px;border:1px solid #3c3c3c;border-radius:3px;background:#242424}
+.package-slot-list strong{display:block;font-size:10px;color:#e2e2e2}
+.package-slot-list small{display:block;margin-top:3px;color:#a5a5a5;font-size:9px;line-height:1.45}
+.package-empty{padding:12px;border:1px dashed #555;border-radius:4px}
+.package-empty strong{font-size:11px;color:#ddd}
+.package-empty p{margin:5px 0 0}
 .object-meta{margin:8px 0 14px;border:1px solid #202020;border-radius:3px;background:#252525}
 .object-meta>div{min-height:33px;display:flex;align-items:center;gap:8px;padding:6px 8px}.object-meta>div+div{border-top:1px solid #353535}
 .object-meta span{width:34px;flex:none;color:#929292;font-size:9px;font-weight:700;letter-spacing:.05em}
