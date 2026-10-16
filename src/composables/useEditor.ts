@@ -56,6 +56,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const gridVisible = ref(true)
   const polygonLinesVisible = ref(false)
   const performanceMode = ref(false)
+  const grassRenderDistance = ref(72)
+  const grassRenderAll = ref(false)
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -267,6 +269,48 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }, 7000)
   }
 
+  const GRASS_RENDER_SETTINGS_KEY = 'engine-prometheus.grass-render-settings'
+
+  function persistGrassRenderSettings() {
+    try {
+      window.localStorage.setItem(GRASS_RENDER_SETTINGS_KEY, JSON.stringify({
+        distance: grassRenderDistance.value,
+        renderAll: grassRenderAll.value,
+      }))
+    } catch (error) {
+      console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização da grama.', error)
+    }
+  }
+
+  function setGrassRenderDistance(value: number) {
+    if (!Number.isFinite(value)) return
+    grassRenderDistance.value = Math.round(Math.max(10, Math.min(5000, value)))
+    if (!grassRenderAll.value) engine?.setGrassRenderDistance(grassRenderDistance.value)
+    persistGrassRenderSettings()
+  }
+
+  function setGrassRenderAll(enabled: boolean) {
+    grassRenderAll.value = enabled
+    engine?.setGrassRenderDistance(enabled ? null : grassRenderDistance.value)
+    persistGrassRenderSettings()
+  }
+
+  function loadGrassRenderSettings() {
+    try {
+      const raw = window.localStorage.getItem(GRASS_RENDER_SETTINGS_KEY)
+      if (!raw) return
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return
+      const settings = parsed as { distance?: unknown; renderAll?: unknown }
+      if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
+        grassRenderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
+      }
+      if (typeof settings.renderAll === 'boolean') grassRenderAll.value = settings.renderAll
+    } catch (error) {
+      console.warn('[EditorSettings] Configuração de renderização da grama inválida; usando padrão.', error)
+    }
+  }
+
   // IDs de regras são únicos no projeto, inclusive ao importar ou criar eventos
   // rapidamente. UUID evita colisões entre eventos com o mesmo nome.
   function createUniqueRuleId(prefix = 'rule'): string {
@@ -341,6 +385,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!canvas.value) return
     const e = new Engine(canvas.value)
     engine = e
+    loadGrassRenderSettings()
+    e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
     offs.push(
       e.events.on('objectAdded', markDirty),
       e.events.on('objectRemoved', markDirty),
@@ -1123,6 +1169,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     gridVisible,
     polygonLinesVisible,
     performanceMode,
+    grassRenderDistance,
+    grassRenderAll,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
@@ -1148,6 +1196,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleTerrain,
     toggleGrid,
     togglePerformanceMode,
+    setGrassRenderDistance,
+    setGrassRenderAll,
     togglePolygonLines,
     removeSelected,
     onRename,
