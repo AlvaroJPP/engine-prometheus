@@ -375,6 +375,8 @@ export class HumanoidAvatar {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
+    // O controle montado passa a ser o dono exclusivo do movimento/colisão horizontal.
+    root.userData.mountCollisionManaged = true
     this.mountedStartPosition = root.position.clone()
     this.mountedStartRotation = root.rotation.clone()
     this.mountedMovementState = 'idle'
@@ -420,6 +422,7 @@ export class HumanoidAvatar {
       : false
     root.updateWorldMatrix(true, true)
     this.playMountAnimation(root, 'dismount', true)
+    root.userData.mountCollisionManaged = false
 
     const bounds = getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
     const halfWidth = Math.max(0.45, bounds.getSize(new THREE.Vector3()).x * 0.5)
