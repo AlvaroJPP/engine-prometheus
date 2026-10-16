@@ -274,6 +274,13 @@ const selectedGraphRuleOwnerObjectId = computed(() => {
 const selectedGraphRulePackages = computed(() =>
   behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedGraphRuleOwnerObjectId.value),
 )
+const selectedGraphRuleActionPackageDefinition = computed(() => {
+  const action = selectedGraphRule.value?.actions[0]
+  return action?.type === 'set_package_variable' ? getBehaviorPackageDefinition(action.packageId) : undefined
+})
+const selectedGraphRuleActionVariables = computed(() =>
+  selectedGraphRuleActionPackageDefinition.value?.variables.filter(variable => !variable.readOnly) ?? [],
+)
 const globalConditionVariables = computed(() => Object.fromEntries(Object.entries(globalLogicVariables.value).filter(([name]) => !Object.prototype.hasOwnProperty.call(logicVariables.value, name))))
 
 // Mantém o texto do editor separado da renderização do grafo. Atualizar a regra
@@ -415,6 +422,22 @@ function patchSelectedTrigger(patch: Record<string, unknown>) {
   const rule = selectedGraphRule.value
   if (!rule) return
   updateLogicRule({ ...rule, trigger: { ...rule.trigger, ...patch } as LogicRule['trigger'] })
+}
+
+function changeGraphRulePackage(packageId: string) {
+  const rule = selectedGraphRule.value
+  if (!rule || rule.trigger.type !== 'package_event') return
+  const definition = getBehaviorPackageDefinition(packageId)
+  patchSelectedTrigger({ packageId, eventId: definition?.triggers[0]?.id ?? 'interact' })
+}
+
+function changeGraphRuleActionPackage(packageId: string) {
+  const rule = selectedGraphRule.value
+  const action = rule?.actions[0]
+  if (!rule || action?.type !== 'set_package_variable') return
+  const definition = getBehaviorPackageDefinition(packageId)
+  const variable = definition?.variables.find(item => !item.readOnly)
+  patchSelectedAction({ packageId, name: variable?.name ?? '', value: variable?.defaultValue ?? false })
 }
 function patchSelectedCondition(patch: Record<string, unknown>) {
   const rule = selectedGraphRule.value
@@ -1361,7 +1384,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 <article class="graph-node trigger-list" :style="{ left: '18px', top: '43px' }">
                   <div class="node-head"><span>EVENTOS / GATILHOS</span><span>{{ group.rules.length }}</span></div>
                   <button v-for="rule in group.rules" :key="rule.id" class="event-list-row" :class="{ chosen: graphSelection?.ruleId === rule.id && graphSelection?.part === 'trigger', disabled: !rule.enabled }" @pointerdown.stop @click.stop="graphSelection = { ruleId: rule.id, part: 'trigger' }">
-                    <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ rule.trigger.type === 'object_clicked' ? 'Ao Clicar' : 'Ao Entrar na Área' }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
+                    <span class="event-row-icon">↖</span><span class="event-row-copy"><strong>{{ nodeTitle(rule, 'trigger') }}</strong><small>{{ rule.name }}</small></span><span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
                   </button>
                   <div v-if="!group.rules.length" class="event-list-empty">Nenhum evento neste objeto</div>
                 </article>
@@ -1387,10 +1410,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <label class="checkline"><input type="checkbox" :checked="selectedGraphRule.enabled" @change="toggleLogicRule(selectedGraphRule)" /> Fluxo habilitado</label>
             <template v-if="graphSelection.part === 'trigger'">
               <label class="field">Tipo de evento
-                <select :value="selectedGraphRule.trigger.type" @change="setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area' | 'key_pressed')">
+                <select :value="selectedGraphRule.trigger.type" @change="setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event')">
                   <option value="object_clicked">Ao clicar no objeto</option>
                   <option value="enter_area">Ao entrar em uma área</option>
-                  <option value="key_pressed">Ao pressionar uma tecla</option>
+                  <option value="key_pressed">Ao pressionar uma tecla</option><option value="package_event">Evento de pacote</option>
                 </select>
               </label>
               <template v-if="selectedGraphRule.trigger.type === 'key_pressed'">
@@ -1404,6 +1427,19 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     <option v-for="obj in objects" :key="obj.id" :value="obj.id">{{ obj.name }}</option>
                   </select>
                 </label>
+              </template>
+              <template v-if="selectedGraphRule.trigger.type === 'package_event'">
+                <label class="field">Pacote
+                  <select :value="selectedGraphRule.trigger.packageId" @change="changeGraphRulePackage(($event.target as HTMLSelectElement).value)">
+                    <option v-for="instance in selectedGraphRulePackages" :key="instance.id" :value="instance.packageId">{{ getBehaviorPackageDefinition(instance.packageId)?.name ?? instance.packageId }}</option>
+                  </select>
+                </label>
+                <label class="field">Gatilho do pacote
+                  <select :value="selectedGraphRule.trigger.eventId" @change="patchSelectedTrigger({ eventId: ($event.target as HTMLSelectElement).value })">
+                    <option v-for="trigger in getBehaviorPackageDefinition(selectedGraphRule.trigger.packageId)?.triggers ?? []" :key="trigger.id" :value="trigger.id">{{ trigger.label }}</option>
+                  </select>
+                </label>
+                <p v-if="!selectedGraphRulePackages.length" class="component-note">Instale um pacote neste objeto antes de usar este gatilho.</p>
               </template>
               <template v-if="selectedGraphRule.trigger.type === 'enter_area'">
                 <div class="component-caption">CENTRO DA ÁREA</div>
@@ -1441,8 +1477,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-else>
               <label class="field">Tipo de ação
-                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'script' | 'javascript')">
-                  <option value="move">Mover elemento</option><option value="rotate">Rotacionar elemento</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
+                <select :value="selectedGraphRule.actions[0]?.type ?? 'rotate'" @change="setSelectedActionType(($event.target as HTMLSelectElement).value as 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'set_package_variable' | 'script' | 'javascript')">
+                  <option value="move">Mover elemento</option><option value="rotate">Rotacionar elemento</option><option value="set_visible">Visibilidade</option><option value="set_variable">Definir variável</option><option value="set_package_variable">Definir variável de pacote</option><option value="script">Script Prometheus (comandos)</option><option value="javascript">JavaScript livre</option>
                 </select>
               </label>
               <template v-if="selectedGraphRule.actions[0] && 'objectId' in selectedGraphRule.actions[0]">
@@ -1460,6 +1496,21 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <label class="field">Z<input type="number" step="0.1" :value="selectedGraphRule.actions[0].z ?? 0" @change="patchSelectedAction({ z: Number(($event.target as HTMLInputElement).value) })" /></label>
                 </div>
               </div>
+              <template v-else-if="selectedGraphRule.actions[0]?.type === 'set_package_variable'">
+                <label class="field">Pacote alvo
+                  <select :value="selectedGraphRule.actions[0].packageId" @change="changeGraphRuleActionPackage(($event.target as HTMLSelectElement).value)">
+                    <option v-for="instance in selectedGraphRulePackages" :key="instance.id" :value="instance.packageId">{{ getBehaviorPackageDefinition(instance.packageId)?.name ?? instance.packageId }}</option>
+                  </select>
+                </label>
+                <label class="field">Variável do pacote
+                  <select :value="selectedGraphRule.actions[0].name" @change="patchSelectedAction({ name: ($event.target as HTMLSelectElement).value })">
+                    <option v-for="variable in selectedGraphRuleActionVariables" :key="variable.name" :value="variable.name">{{ variable.label }} ({{ variable.name }})</option>
+                  </select>
+                </label>
+                <label class="field">Novo valor
+                  <input :value="String(selectedGraphRule.actions[0].value)" @change="patchSelectedAction({ value: ruleValueFromInput(($event.target as HTMLInputElement).value) })" />
+                </label>
+              </template>
               <label v-else-if="selectedGraphRule.actions[0]?.type === 'rotate'" class="field">Ângulo (graus)
                 <input type="number" step="1" :value="selectedGraphRule.actions[0].degrees" @change="patchSelectedAction({ degrees: Number(($event.target as HTMLInputElement).value) })" />
               </label>
