@@ -35,7 +35,8 @@ interface PreparedRoot {
  * Oclusão conservadora de submalhas de modelos importados.
  *
  * O sistema só oculta uma submalha estática quando todos os pontos de amostra
- * sobre sua geometria são bloqueados por malhas opacas de outros objetos.
+ * sobre sua geometria são bloqueados por malhas opacas de outros objetos ou por
+ * regiões independentes geradas pelo particionador dentro do mesmo modelo.
  * Superfícies parcialmente visíveis permanecem intactas.
  */
 export class ModelOcclusionSystem {
@@ -387,8 +388,7 @@ export class ModelOcclusionSystem {
     this.raycaster.far = maxDistance
 
     const candidates: Array<{ mesh: THREE.Mesh; entryDistance: number }> = []
-    const allowSelfOcclusion = targetRoot === roots.find((root) => root.root === targetRoot)?.root
-      && targetMesh.userData.generatedOcclusionCluster === true
+    const allowSelfOcclusion = targetMesh.userData.generatedOcclusionCluster === true
 
     for (const source of roots) {
       const sameRoot = source.root === targetRoot
@@ -409,6 +409,9 @@ export class ModelOcclusionSystem {
 
       for (const candidate of source.meshes) {
         if (candidate.mesh === targetMesh || !candidate.opaque) continue
+        // Dentro da mesma raiz, só regiões particionadas podem ser bloqueadores:
+        // isso evita que um nó visual pequeno ou o proxy invisível oculte o resto.
+        if (sameRoot && candidate.mesh.userData.generatedOcclusionCluster !== true) continue
         // Para autoculling, usar também o volume de cada malha (e não o AABB
         // global do castelo) impede que regiões atrás da câmera funcionem como
         // bloqueadores fantasmas.
