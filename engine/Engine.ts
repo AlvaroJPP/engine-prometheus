@@ -783,9 +783,9 @@ export class Engine {
       child.visible = true
       child.castShadow = false
       child.receiveShadow = false
-      // Assets GLB podem trazer bounding spheres incorretas ou muito pequenas.
-      // Desativar frustum culling evita que a malha desapareça após ser movida
-      // do preview para a cena principal, sem afetar a caixa de seleção.
+      // Malhas GLB originais mantêm a proteção contra bounds incorretos do preview.
+      // Só os blocos gerados habilitam frustum culling, pois seus bounds foram
+      // recalculados sobre os vértices de cada região espacial.
       child.frustumCulled = child.userData.generatedOcclusionCluster === true
       const geometries = child.geometry
       if (!geometries.boundingSphere) geometries.computeBoundingSphere()
