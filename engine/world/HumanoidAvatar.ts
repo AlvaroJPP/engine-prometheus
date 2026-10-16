@@ -524,7 +524,12 @@ export class HumanoidAvatar {
           for (const object of this.world.list()) {
             if (object.mesh === root || !object.mesh.visible) continue
             const otherBounds = getColliderBounds(object.mesh)
-            if (otherBounds && mountBounds.intersectsBox(otherBounds)) {
+            if (!otherBounds || !mountBounds.intersectsBox(otherBounds)) continue
+            // Encostar no topo de uma plataforma não deve contar como penetração.
+            const overlapX = Math.min(mountBounds.max.x, otherBounds.max.x) - Math.max(mountBounds.min.x, otherBounds.min.x)
+            const overlapY = Math.min(mountBounds.max.y, otherBounds.max.y) - Math.max(mountBounds.min.y, otherBounds.min.y)
+            const overlapZ = Math.min(mountBounds.max.z, otherBounds.max.z) - Math.max(mountBounds.min.z, otherBounds.min.z)
+            if (overlapX > 0.02 && overlapY > 0.02 && overlapZ > 0.02) {
               blocked = true
               break
             }
