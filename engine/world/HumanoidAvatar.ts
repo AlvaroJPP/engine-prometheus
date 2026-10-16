@@ -598,7 +598,13 @@ export class HumanoidAvatar {
           // Ajusta a altura a cada subpasso, antes do teste lateral. Assim, a
           // montaria acompanha a subida gradual da rampa em vez de bater na sua face.
           if (!this.mountedAirborne) {
-            this.followMountedSurfaceAtStep(root, Math.abs(delta) / count)
+            const supported = this.followMountedSurfaceAtStep(root, Math.abs(delta) / count)
+            if (!supported) {
+              // Se a montaria saiu da borda da rampa, deixa de congelar a altura:
+              // inicia queda física em vez de continuar andando suspensa no ar.
+              this.mountedAirborne = true
+              this.mountedVerticalVelocity = 0
+            }
           }
 
           if (!this.mountedCollidesWithObjects(root)) {
@@ -681,12 +687,14 @@ export class HumanoidAvatar {
         root.updateMatrixWorld(true, true)
       }
     } else {
-      // Usa a mesma amostragem do subpasso também no fim do frame. O cálculo
-      // antigo elevava o cavalo pelo ponto mais alto de toda a pegada e filtrava
-      // rampas mais inclinadas, anulando o acompanhamento durante a subida.
+      // Mantém o contato com a rampa mesmo sem entrada de movimento; se não houver
+      // superfície próxima, começa a cair e não deixa a montaria congelada no ar.
       const beforeGroundingY = root.position.y
-      this.followMountedSurfaceAtStep(root, 0.08)
-      if (this.mountedCollidesWithObjects(root)) {
+      const supported = this.followMountedSurfaceAtStep(root, 0.08)
+      if (!supported) {
+        this.mountedAirborne = true
+        this.mountedVerticalVelocity = 0
+      } else if (this.mountedCollidesWithObjects(root)) {
         root.position.y = beforeGroundingY
         root.updateMatrixWorld(true, true)
       }
@@ -1071,13 +1079,22 @@ export class HumanoidAvatar {
    * Segue o piso sob o centro a cada subpasso de movimento. A tolerância vertical
    * acompanha inclinações contínuas sem transformar paredes em degraus.
    */
-  private followMountedSurfaceAtStep(root: THREE.Mesh, horizontalStep: number): void {
+  /**
+   * Segue o piso sob o centro a cada subpasso de movimento. A descida de uma
+   * rampa pode ficar bem abaixo da altura antiga do cavalo se o frame anterior
+   * perdeu a face inclinada; nesse caso, aceita a própria face de rampa como apoio.
+   * Retorna false apenas quando não encontra suporte alcançável, para ativar a queda.
+   */
+  private followMountedSurfaceAtStep(root: THREE.Mesh, horizontalStep: number): boolean {
     const bounds = this.getMountedBounds(root)
     const bottomOffset = root.position.y - bounds.min.y
     const feetY = bounds.min.y
     const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const maxRise = Math.max(0.16, horizontalStep * 3.5)
     const maxDrop = Math.max(0.28, horizontalStep * 4)
+    // Busca abaixo do cavalo o suficiente para encontrar o piso durante a descida,
+    // mas só permite "grudar" longe da posição antiga se a face for realmente inclinada.
+    const slopeSnapDown = Math.max(1.25, maxDrop)
     const originY = Math.max(bounds.max.y + 0.25, feetY + maxRise + 0.25)
     const candidates = this.world.list().filter(object => {
       if (object.mesh === root || !object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
@@ -1085,16 +1102,17 @@ export class HumanoidAvatar {
       const box = getColliderBounds(object.mesh) ?? new THREE.Box3().setFromObject(object.mesh)
       return box.min.x <= root.position.x + 0.02 && box.max.x >= root.position.x - 0.02 &&
         box.min.z <= root.position.z + 0.02 && box.max.z >= root.position.z - 0.02 &&
-        box.max.y >= feetY - maxDrop && box.min.y <= originY
+        box.max.y >= feetY - slopeSnapDown && box.min.y <= originY
     })
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(root.position.x, originY, root.position.z),
       new THREE.Vector3(0, -1, 0),
       0,
-      Math.max(1, originY - (feetY - maxDrop)),
+      Math.max(1, originY - (feetY - slopeSnapDown)),
     )
     const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
     let supportY = terrainY
+    let hasTerrainSupport = terrainY - feetY >= -maxDrop && terrainY - feetY <= maxRise
 
     for (const hit of hits) {
       if (!hit.face) continue
@@ -1106,18 +1124,27 @@ export class HumanoidAvatar {
       const normal = hit.face.normal.clone()
         .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
         .normalize()
-      // Normais com componente vertical positiva suportam subida/descida em rampa.
       if (normal.y < 0.12) continue
+
       const rise = hit.point.y - feetY
-      if (rise < -maxDrop || rise > maxRise) continue
-      supportY = Math.max(supportY, hit.point.y)
+      if (rise > maxRise) continue
+
+      const isInclinedSurface = normal.y < 0.9995
+      // Em rampas, permite recuperar contato mesmo se o centro ficou acima da face
+      // por mais de um subpasso. Superfícies planas mais baixas continuam sendo queda.
+      if (rise < -maxDrop && !(isInclinedSurface && rise >= -slopeSnapDown)) continue
+
+      if (!hasTerrainSupport || hit.point.y > supportY) supportY = hit.point.y
+      hasTerrainSupport = true
       break
     }
 
     const riseFromFeet = supportY - feetY
-    if (riseFromFeet < -maxDrop || riseFromFeet > maxRise) return
+    if (!hasTerrainSupport || riseFromFeet < -slopeSnapDown || riseFromFeet > maxRise) return false
+
     root.position.y = supportY + bottomOffset
     root.updateMatrixWorld(true, true)
+    return true
   }
 
   setFirstPersonMode(enabled: boolean): void {
