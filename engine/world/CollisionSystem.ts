@@ -370,12 +370,36 @@ export class CollisionSystem {
   }
 
   /**
-   * Duas plataformas são segmentos do cenário. Elas podem tocar ou se sobrepor
-   * ligeiramente para fechar a emenda entre superfícies; não devem ser afastadas
-   * pelo solver nem bloquear o reposicionamento uma da outra via CCD.
+   * Identifica uma peça de piso/rampa para tratar sua emenda com outras peças
+   * de cenário como uma junção, não como dois corpos que se empurram.
+   *
+   * Rampas no editor também podem ser feitas esticando e inclinando um cubo.
+   * Esse caso precisa do mesmo tratamento de uma plataforma inclinada; caso
+   * contrário, a subida pode funcionar e a descida bater na borda física.
    */
+  private isPlatformSeamPiece(object: GameObject): boolean {
+    if (object.type === 'platform') return true
+
+    const mesh = object.mesh
+    if (object.type !== 'cube' || mesh.userData.importedModel === true) return false
+    const inclined = Math.abs(mesh.rotation.x) > 0.02 || Math.abs(mesh.rotation.z) > 0.02
+    if (!inclined) return false
+
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
+    const localSize = mesh.geometry.boundingBox?.getSize(new THREE.Vector3())
+    if (!localSize) return false
+
+    // Cubos de tamanho comum continuam sendo obstáculos. Um cubo só conta como
+    // segmento de rampa quando foi alongado horizontalmente para formar o piso.
+    const horizontalLength = Math.max(
+      localSize.x * Math.abs(mesh.scale.x),
+      localSize.z * Math.abs(mesh.scale.z),
+    )
+    return horizontalLength >= 1.5
+  }
+
   private isPlatformPair(a: GameObject, b: GameObject): boolean {
-    return a.type === 'platform' && b.type === 'platform'
+    return this.isPlatformSeamPiece(a) && this.isPlatformSeamPiece(b)
   }
 
   /** Liga/desliga a representação wireframe dos colisores no viewport. */
