@@ -112,8 +112,8 @@ export async function loadAssetFile(file: File): Promise<THREE.Object3D> {
     }
     case 'dae': {
       const collada = new ColladaLoader().parse(new TextDecoder().decode(buffer), '')
+      if (!collada) throw new Error('Não foi possível interpretar o arquivo Collada (DAE).')
       object = collada.scene
-      object.userData.importAnimations = collada.animations ?? []
       break
     }
     case '3ds': {
