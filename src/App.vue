@@ -489,6 +489,7 @@ const selectedObjectRules = computed(() => logicRules.value.filter(rule => owner
 const selectedObjectPackages = computed(() => behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedId.value))
 const selectedRulePackageDefinition = computed(() => getBehaviorPackageDefinition(rulePackageId.value))
 const selectedRulePackageVariables = computed(() => selectedObjectPackages.value.find(instance => instance.packageId === rulePackageId.value)?.variables ?? {})
+const selectedWritablePackageVariables = computed(() => selectedRulePackageDefinition.value?.variables.filter(variable => !variable.readOnly) ?? [])
 
 watch(rulePackageId, (packageId) => {
   const definition = getBehaviorPackageDefinition(packageId)
@@ -949,16 +950,46 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </template>
             <template v-if="inspectorTab === 'nodes'">
             <label class="field">Gatilho
-              <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option><option value="key_pressed">Tecla pressionada</option></select>
+              <select v-model="ruleTrigger"><option value="object_clicked">Clicar no objeto selecionado</option><option value="enter_area">Objeto entrar na área (centro 0,1,0)</option><option value="key_pressed">Tecla pressionada</option><option value="package_event">Evento de pacote</option></select>
             </label>
+            <template v-if="ruleTrigger === 'package_event'">
+              <label class="field">Pacote instalado
+                <select :value="rulePackageId" @change="onRulePackageChange(($event.target as HTMLSelectElement).value)">
+                  <option v-for="entry in selectedObjectPackages" :key="entry.id" :value="entry.packageId">{{ getBehaviorPackageDefinition(entry.packageId)?.name ?? entry.packageId }}</option>
+                </select>
+              </label>
+              <label class="field">Gatilho do pacote
+                <select v-model="rulePackageEventId">
+                  <option v-for="trigger in selectedRulePackageDefinition?.triggers ?? []" :key="trigger.id" :value="trigger.id">{{ trigger.label }}</option>
+                </select>
+              </label>
+              <p v-if="!selectedObjectPackages.length" class="component-note">Instale primeiro um pacote na aba Pacotes deste objeto. O gatilho ficará disponível aqui.</p>
+              <p v-else class="component-note">{{ selectedRulePackageDefinition?.triggers.find(trigger => trigger.id === rulePackageEventId)?.description ?? '' }}</p>
+            </template>
             <label class="field">Ação
-              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir has_key = true</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
+              <select v-model="ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir variável global/do objeto</option><option value="set_package_variable">Definir variável de pacote</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
             </label>
+            <template v-if="ruleAction === 'set_package_variable'">
+              <label class="field">Pacote alvo
+                <select :value="rulePackageId" @change="onRulePackageChange(($event.target as HTMLSelectElement).value)">
+                  <option v-for="entry in selectedObjectPackages" :key="entry.id" :value="entry.packageId">{{ getBehaviorPackageDefinition(entry.packageId)?.name ?? entry.packageId }}</option>
+                </select>
+              </label>
+              <label class="field">Variável do pacote
+                <select v-model="rulePackageVariableName">
+                  <option v-for="variable in selectedWritablePackageVariables" :key="variable.name" :value="variable.name">{{ variable.label }} ({{ variable.name }})</option>
+                </select>
+              </label>
+              <label class="field">Novo valor
+                <input v-model="rulePackageVariableValue" placeholder="true, false, 4.2 ou texto" />
+              </label>
+              <p v-if="!selectedObjectPackages.length" class="component-note">Instale primeiro um pacote neste objeto.</p>
+            </template>
             <label class="checkline"><input v-model="ruleConditionEnabled" type="checkbox" /> Exigir condição baseada em variável</label>
             <template v-if="ruleConditionEnabled">
               <label class="field">Variável
                 <select v-model="conditionVariable">
-                  <option v-for="(value, name) in logicVariables" :key="name" :value="String(name)">{{ name }} ({{ String(value) }})</option>
+                  <option v-for="(value, name) in (ruleTrigger === 'package_event' ? selectedRulePackageVariables : logicVariables)" :key="name" :value="String(name)">{{ name }} ({{ String(value) }})</option>
                 </select>
               </label>
               <label class="field">Comparação
@@ -991,7 +1022,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <button class="ghost" :disabled="index === logicRules.length - 1" title="Descer na hierarquia (menor prioridade)" @click="moveLogicRule(rule.id, 1)">↓</button>
                   <span class="muted">{{ index + 1 }}</span>
                 </div>
-                <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : rule.trigger.type === 'key_pressed' ? `Tecla ${rule.trigger.key}` : 'Entrada na área' }}</span></label>
+                <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : rule.trigger.type === 'key_pressed' ? `Tecla ${rule.trigger.key}` : rule.trigger.type === 'package_event' ? `Pacote: ${rule.trigger.eventId}` : 'Entrada na área' }}</span></label>
                 <button class="ghost" title="Editar evento" @click="graphSelection = { ruleId: rule.id, part: 'trigger' }; graphOpen = true">Editar</button>
                 <button class="rule-delete" title="Excluir regra" @click="deleteLogicRule(rule.id)">×</button>
               </div>
