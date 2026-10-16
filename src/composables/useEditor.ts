@@ -12,7 +12,6 @@ import type {
   TransformMode,
   LogicRule,
   BehaviorPackageInstance,
-  BehaviorPackageDefinition,
   TextureFace,
   FaceTextureData,
 } from '@engine'
