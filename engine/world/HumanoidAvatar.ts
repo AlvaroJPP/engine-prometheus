@@ -625,6 +625,13 @@ export class HumanoidAvatar {
     const triangle = new THREE.Triangle()
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
+    // Amostras ao longo do eixo vertical da cápsula do jogador; ajudam a
+    // detectar contato com faces finas sem transformá-las em uma caixa grossa.
+    const playerContactPoints = [0.13, 0.39, 0.65, 0.91, 1.17, 1.43, 1.69].map(
+      height => new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + height, this.mesh.position.z),
+    )
+    const contactRadiusSq = (PLAYER_RADIUS * 1.05) ** 2
+    const triangleBounds = new THREE.Box3()
 
     const collisionRoots = this.world.list().map((object) => object.mesh)
     for (const root of collisionRoots) {
@@ -687,17 +694,25 @@ export class HumanoidAvatar {
           triangle.getNormal(normal).normalize()
 
           if (root.userData.importedModel === true) {
-            // A colisão de modelos importados deve seguir a superfície visual,
-            // não uma caixa/hull aproximada. Não confie no sinal da normal do GLB:
-            // alguns modelos têm triângulos com winding invertido. Para bloquear
-            // movimento horizontal, usa a orientação geométrica (normal vertical
-            // ou inclinada é piso/teto; faces laterais bloqueiam dos dois lados).
+            // No salto, somente faces voltadas para baixo bloqueiam a cabeça.
             if (blockCeilings) {
               if (Math.abs(normal.y) < 0.45 || normal.y > 0.45) continue
-            } else if (Math.abs(normal.y) >= 0.95) {
+              if (playerBox.intersectsTriangle(triangle)) return true
               continue
             }
+
+            // A decisão horizontal não deve filtrar normais inclinadas: modelos
+            // low-poly têm triângulos oblíquos que ainda formam paredes sólidas.
             if (playerBox.intersectsTriangle(triangle)) return true
+
+            // Complementa o teste da caixa com pontos ao longo do corpo. Isso
+            // evita atravessar faces triangulares estreitas entre passos de movimento.
+            triangleBounds.setFromPoints([a, b, c]).expandByScalar(PLAYER_RADIUS)
+            if (!triangleBounds.intersectsBox(playerBox)) continue
+            for (const sample of playerContactPoints) {
+              triangle.closestPointToPoint(sample, closest)
+              if (sample.distanceToSquared(closest) <= contactRadiusSq) return true
+            }
           } else {
             // Para primitivas e plataformas, preservar o tratamento de piso,
             // rampa e teto já existente.
