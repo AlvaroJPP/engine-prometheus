@@ -497,8 +497,8 @@ watch(rulePackageId, (packageId) => {
   if (!definition.triggers.some(trigger => trigger.id === rulePackageEventId.value)) {
     rulePackageEventId.value = definition.triggers[0]?.id ?? ''
   }
-  if (!definition.variables.some(variable => variable.name === rulePackageVariableName.value)) {
-    rulePackageVariableName.value = definition.variables[0]?.name ?? ''
+  if (!definition.variables.some(variable => variable.name === rulePackageVariableName.value && !variable.readOnly)) {
+    rulePackageVariableName.value = definition.variables.find(variable => !variable.readOnly)?.name ?? ''
   }
 }, { immediate: true })
 
