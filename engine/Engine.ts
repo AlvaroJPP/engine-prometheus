@@ -48,6 +48,7 @@ export class Engine {
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
+  private runtimeModeActive = false
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
@@ -217,7 +218,7 @@ export class Engine {
         object.mesh.userData.colliderPoseVersion =
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
       }
-      this.collisions.update()
+      this.collisions.update(this.runtimeModeActive)
       if (this.activeMountPackageId) {
         const currentMount = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
         if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
@@ -414,6 +415,7 @@ export class Engine {
   setRuntimeMode(enabled: boolean): void {
     if (enabled) {
       if (this.cameraStateBeforeRun) return
+      this.runtimeModeActive = true
       this.cameraStateBeforeRun = this.orbit.getState()
       this.orbit.setFirstPersonMode(false)
       this.avatar.setFirstPersonMode(false)
@@ -441,6 +443,7 @@ export class Engine {
       return
     }
 
+    this.runtimeModeActive = false
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
@@ -1201,6 +1204,7 @@ export class Engine {
       }
     })
     root.updateMatrixWorld(true)
+    this.collisions.invalidateObject(instance.ownerObjectId)
   }
 
 
@@ -1246,6 +1250,7 @@ export class Engine {
 
   // ---- projeto ----
   newProject(name = 'Novo Mundo'): void {
+    this.runtimeModeActive = false
     resetIds()
     this.meta = { id: uuid(), name }
     this.orbit.setFirstPersonMode(false)
@@ -1279,6 +1284,7 @@ export class Engine {
     bundle: ProjectBundle,
     onProgress?: (message: string, percent: number) => void,
   ): Promise<void> {
+    this.runtimeModeActive = false
     const report = (message: string, percent: number) => onProgress?.(message, Math.max(0, Math.min(100, percent)))
     const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
 
@@ -1365,7 +1371,7 @@ export class Engine {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.input.dispose()
     this.avatar.dispose()
-    this.collisions.clear()
+    this.collisions.dispose()
     this.modelLod.dispose()
     this.modelOcclusion.dispose()
     this.transformControls.dispose()
