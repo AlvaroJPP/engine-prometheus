@@ -1324,7 +1324,10 @@ export class GrassLayer {
   private async rebuildDistanceRings(center: THREE.Vector3, revision: number): Promise<void> {
     const cameraOrigin = this.lastOcclusionCameraPosition?.clone() ?? center.clone()
     const occlusionData = this.getOcclusionData(this.lastOcclusionRoots)
-    if (!occlusionData) this.occludedChunks.clear()
+    if (!occlusionData) {
+      this.occludedChunks.clear()
+      this.occludedCells.clear()
+    }
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
     const modelBuckets = this.renderBands.map(() =>
       this.modelParts.map(() => [] as GrassInstance[]),
@@ -1339,15 +1342,26 @@ export class GrassLayer {
         await this.yieldToUi()
         if (this.shouldCancelRenderRebuild(revision)) return
       }
-      if (
-        occlusionData
-        && (chunk.procedural.length > 0 || chunk.painted.length > 0)
-        && this.isChunkOccluded(chunk, cameraOrigin, center, occlusionData)
-      ) {
-        // Nenhum tufo desse chunk será incluído nas malhas GPU desta reconstrução.
-        continue
+      if (occlusionData) {
+        if (chunk.procedural.length === 0 && chunk.painted.length === 0) {
+          this.occludedChunks.delete(chunk)
+          this.clearOcclusionCellsForChunk(chunk)
+          continue
+        }
+        if (this.isChunkOccluded(chunk, cameraOrigin, center, occlusionData)) {
+          // Nenhum tufo desse chunk será incluído nas malhas GPU desta reconstrução.
+          continue
+        }
       }
+
       for (const instance of chunk.procedural) {
+        processed += 1
+        if (processed % 3200 === 0) {
+          await this.yieldToUi()
+          if (this.shouldCancelRenderRebuild(revision)) return
+        }
+        if (occlusionData && this.isGrassCellOccluded(instance.x, instance.z)) continue
+
         const bandIndex = this.distanceBandIndex(instance.x, instance.z, center)
         if (bandIndex >= 0) {
           const band = this.renderBands[bandIndex]!
@@ -1355,14 +1369,16 @@ export class GrassLayer {
             proceduralBuckets[bandIndex]!.push(instance)
           }
         }
+      }
+
+      for (const tuft of chunk.painted) {
         processed += 1
         if (processed % 3200 === 0) {
           await this.yieldToUi()
           if (this.shouldCancelRenderRebuild(revision)) return
         }
-      }
+        if (occlusionData && this.isGrassCellOccluded(tuft[0], tuft[1])) continue
 
-      for (const tuft of chunk.painted) {
         const bandIndex = this.distanceBandIndex(tuft[0], tuft[1], center)
         if (bandIndex >= 0) {
           const band = this.renderBands[bandIndex]!
@@ -1380,11 +1396,6 @@ export class GrassLayer {
               proceduralBuckets[bandIndex]!.push(this.paintedInstance(tuft))
             }
           }
-        }
-        processed += 1
-        if (processed % 3200 === 0) {
-          await this.yieldToUi()
-          if (this.shouldCancelRenderRebuild(revision)) return
         }
       }
     }
