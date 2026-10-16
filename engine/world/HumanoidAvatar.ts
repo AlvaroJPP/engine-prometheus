@@ -866,13 +866,13 @@ export class HumanoidAvatar {
       const previousFeetY = previousBounds.min.y
 
       root.position.y += this.mountedVerticalVelocity * dt
-      root.updateMatrixWorld(true, true)
+      root.updateWorldMatrix(true, true)
 
       // Bloqueia a subida ao atingir a parte inferior de um teto.
       if (this.mountedVerticalVelocity > 0 && this.mountedCollidesWithCeiling(root, previousRootY)) {
         root.position.y = previousRootY
         this.mountedVerticalVelocity = 0
-        root.updateMatrixWorld(true, true)
+        root.updateWorldMatrix(true, true)
       }
 
       this.mountedVerticalVelocity -= GRAVITY * dt
@@ -886,7 +886,7 @@ export class HumanoidAvatar {
         root.position.y += supportY - currentBounds.min.y
         this.mountedVerticalVelocity = 0
         this.mountedAirborne = false
-        root.updateMatrixWorld(true, true)
+        root.updateWorldMatrix(true, true)
       }
     } else {
       // Mantém o contato com a rampa mesmo sem entrada de movimento; se não houver
@@ -898,7 +898,7 @@ export class HumanoidAvatar {
         this.mountedVerticalVelocity = 0
       } else if (this.mountedCollidesWithObjects(root)) {
         root.position.y = beforeGroundingY
-        root.updateMatrixWorld(true, true)
+        root.updateWorldMatrix(true, true)
       }
     }
 
@@ -1306,7 +1306,6 @@ export class HumanoidAvatar {
   }
 
   private findMountedGroundSurface(root: THREE.Mesh, bounds: THREE.Box3): number {
-    const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
     const feetY = bounds.min.y
     const size = bounds.getSize(new THREE.Vector3())
     const maxRise = 0.55
@@ -1486,7 +1485,7 @@ export class HumanoidAvatar {
     if (riseFromFeet < -maxSlopeDrop || riseFromFeet > maxRise) return false
 
     root.position.y = supportY + bottomOffset
-    root.updateMatrixWorld(true, true)
+    root.updateWorldMatrix(true, true)
     return true
   }
 
