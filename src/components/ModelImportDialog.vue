@@ -800,7 +800,7 @@ onBeforeUnmount(disposePreview)
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
             <p class="model-panel-hint">Selecione uma parte para enquadrá-la na prévia. Você também pode ocultar, isolar ou remover partes.</p>
             <div v-if="previewParts.length" class="model-preview-parts">
-              <div v-for="(part, index: number) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
+              <div v-for="(part, index) in previewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
                 <button class="model-preview-part-select" :title="`Selecionar ${part.name}`" @click="selectPreviewPart(part)">
                   <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
                   <span class="model-tree-cube">◇</span>
@@ -830,7 +830,7 @@ onBeforeUnmount(disposePreview)
             <div v-if="model && previewAnimations.length" class="preview-animation-controls">
               <label>ANIMAÇÃO
                 <select :value="previewAnimationIndex" @change="selectPreviewAnimation(Number(($event.target as HTMLSelectElement).value))">
-                  <option v-for="(clip, index: number) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
+                  <option v-for="(clip, index) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
                 </select>
               </label>
               <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
