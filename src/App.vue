@@ -46,13 +46,12 @@ const {
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, ruleAction, ruleConditionEnabled,
-  toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+  createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
   setTool,
   setTransform,
   addPrimitive,
   addSpawnPlatform,
-  addImportedModel,
   setBuildComponentPlacement,
   addClickableCubeExample,
   cycleCamera,
@@ -66,6 +65,7 @@ const {
   toggleObjectWireframe,
   toggleTerrain,
   toggleGrid,
+  togglePolygonLines,
   togglePerformanceMode,
   removeSelected,
   onRename,
@@ -192,7 +192,7 @@ function ownerOfRule(rule: LogicRule): string | undefined {
   return rule.ownerObjectId ??
     (rule.trigger.type === 'object_clicked'
       ? rule.trigger.objectId
-      : rule.actions.find(action => 'objectId' in action)?.objectId)
+      : (rule.actions.find(action => 'objectId' in action) as Extract<LogicRule['actions'][number], { objectId: string }> | undefined)?.objectId)
 }
 const graphVisibleRules = computed(() => {
   if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
@@ -409,7 +409,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
   const rule = selectedGraphRule.value
   if (!rule) return
   const old = rule.actions[0]
-  const target = old && 'objectId' in old ? old.objectId : selectedId.value ?? objects.value[0]?.id ?? ''
+  const target = (old && 'objectId' in old ? old.objectId : undefined) ?? selectedId.value ?? objects.value[0]?.id ?? ''
   const action: LogicRule['actions'][number] = type === 'move'
     ? { type, objectId: target, x: 2, y: 0, z: 0 }
     : type === 'rotate'
@@ -1072,7 +1072,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     </div>
     <ExecutionDock :mode="executionMode" @run="runWorld" @stop="stopWorld" @edit="returnToEdit" />
     <div v-if="graphOpen" class="graph-overlay">
-      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
+      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule()">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library property-source">
           <div class="graph-object-heading">
