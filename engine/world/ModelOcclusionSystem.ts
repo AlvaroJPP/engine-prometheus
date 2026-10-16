@@ -164,9 +164,10 @@ export class ModelOcclusionSystem {
       if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh || node instanceof THREE.InstancedMesh) return
       if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
       const geometry = node.geometry
+      if (geometry.getAttribute('skinIndex') || geometry.getAttribute('skinWeight')) return
       if (Object.values(geometry.morphAttributes).some((attributes) => attributes.length > 0)) return
       // A partição precisa cobrir exatamente a faixa desenhada, sem omitir nem
-      // duplicar grupos/materiales de geometrias glTF especiais.
+      // duplicar grupos/materiais de geometrias glTF especiais.
       if (geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity) return
       const position = geometry.getAttribute('position')
       if (!position || position.isInterleavedBufferAttribute) return
