@@ -5,7 +5,18 @@ export type PackageJsonValue =
   | PackageJsonValue[]
   | { [key: string]: PackageJsonValue }
 
-export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'mount' | 'dismount'
+export type MountMovementState = 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right'
+export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right' | 'run_stop' | 'mount' | 'dismount'
+
+/** Regra visual declarativa: controla a visibilidade de um nó do GLB a partir de uma variável. */
+export interface MountModelStateRule {
+  id: string
+  nodePath: string
+  variable: string
+  operator: 'equals' | 'not_equals'
+  value: PackageScalar
+  visibleWhenMatched: boolean
+}
 
 export interface BehaviorPackageVariableDefinition {
   name: string
@@ -52,6 +63,7 @@ export interface MountPackageSettings {
   speed: number
   runMultiplier: number
   interactionRadius: number
+  modelStates: MountModelStateRule[]
 }
 
 export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
@@ -59,7 +71,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
     id: 'mount',
     version: '1.0.0',
     name: 'Montaria',
-    description: 'Permite montar em um objeto próximo, controlá-lo com WASD e alternar as animações de parado, andar e correr.',
+    description: 'Permite montar em um objeto próximo, controlar seus movimentos e mapear animações, transições e estados visuais do modelo.',
     variables: [
       {
         name: 'mounted',
@@ -74,7 +86,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
         label: 'Estado do movimento',
         type: 'string',
         defaultValue: 'idle',
-        description: 'Parado, andando ou correndo; pode ser usado como condição em regras deste pacote.',
+        description: 'Parado, andando, correndo ou deslocando-se na diagonal; pode ser usado como condição em regras deste pacote.',
         readOnly: true,
       },
       {
@@ -112,7 +124,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { id: 'interact', label: 'Interagir', description: 'Pressionar a tecla configurada próximo ao objeto.' },
       { id: 'mounted', label: 'Montou', description: 'Disparado quando o jogador começa a montar.' },
       { id: 'dismounted', label: 'Desmontou', description: 'Disparado quando o jogador sai da montaria.' },
-      { id: 'movement_changed', label: 'Movimento alterado', description: 'Parado, andando ou correndo.' },
+      { id: 'movement_changed', label: 'Movimento alterado', description: 'Parado, andando, correndo e movimentos diagonais.' },
     ],
     conditions: [
       { id: 'in_range', label: 'Jogador ao alcance', description: 'Verifica a distância horizontal até o jogador.' },
@@ -122,12 +134,13 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
     actions: [
       { id: 'mount', label: 'Montar', description: 'Vincula o jogador à montaria e transfere os controles.' },
       { id: 'dismount', label: 'Desmontar', description: 'Devolve o controle e posiciona o jogador ao lado do objeto.' },
-      { id: 'play_animation', label: 'Reproduzir animação', description: 'Executa o clipe atribuído a parado, andar, correr, montar ou desmontar.' },
+      { id: 'play_animation', label: 'Reproduzir animação', description: 'Executa o clipe atribuído a cada movimento, diagonal e transição.' },
       { id: 'set_variable', label: 'Definir variável', description: 'Altera uma variável deste pacote.' },
     ],
     defaultConfig: {
       interactionKey: 'KeyE',
       seatOffset: [0, 0.55, 0],
+      modelStates: [],
     },
   },
 ]
@@ -154,6 +167,28 @@ export function createBehaviorPackageInstance(packageId: string, ownerObjectId: 
   }
 }
 
+function readMountModelStates(value: PackageJsonValue | undefined): MountModelStateRule[] {
+  if (!Array.isArray(value)) return []
+  const result: MountModelStateRule[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const rule = item as Record<string, PackageJsonValue>
+    const scalar = rule.value
+    if (typeof rule.id !== 'string' || typeof rule.nodePath !== 'string' || !rule.nodePath.trim() ||
+        typeof rule.variable !== 'string' || !rule.variable.trim() ||
+        (typeof scalar !== 'boolean' && typeof scalar !== 'number' && typeof scalar !== 'string')) continue
+    result.push({
+      id: rule.id,
+      nodePath: rule.nodePath,
+      variable: rule.variable,
+      operator: rule.operator === 'not_equals' ? 'not_equals' : 'equals',
+      value: scalar,
+      visibleWhenMatched: rule.visibleWhenMatched !== false,
+    })
+  }
+  return result
+}
+
 export function getMountPackageSettings(instance: BehaviorPackageInstance): MountPackageSettings {
   const seatOffset = instance.config.seatOffset
   const validSeatOffset: [number, number, number] = Array.isArray(seatOffset) && seatOffset.length === 3 &&
@@ -173,5 +208,6 @@ export function getMountPackageSettings(instance: BehaviorPackageInstance): Moun
     speed: getNumber('speed', 4.2, 0.2, 20),
     runMultiplier: getNumber('runMultiplier', 1.7, 1, 3),
     interactionRadius: getNumber('interactionRadius', 2.5, 0.5, 10),
+    modelStates: readMountModelStates(instance.config.modelStates),
   }
 }

@@ -32,6 +32,7 @@ const {
   status,
   ioProgress,
   objects,
+  selectedModelNodes,
   terrain,
   selectedId,
   groupSelection,
@@ -652,6 +653,101 @@ function onPackageSeatOffsetChange(instance: BehaviorPackageInstance, axis: 0 | 
     : [0, 0.55, 0]
   offset[axis] = Math.max(-10, Math.min(10, parsed))
   onPackageConfigChange(instance, 'seatOffset', offset)
+}
+
+
+type MountModelStateDraft = {
+  id: string
+  nodePath: string
+  variable: string
+  operator: 'equals' | 'not_equals'
+  value: PackageScalar
+  visibleWhenMatched: boolean
+}
+
+function getMountModelStates(instance: BehaviorPackageInstance): MountModelStateDraft[] {
+  const raw = instance.config.modelStates
+  if (!Array.isArray(raw)) return []
+  const states: MountModelStateDraft[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const record = item as Record<string, PackageJsonValue>
+    const value = record.value
+    if (typeof record.id !== 'string' || typeof record.nodePath !== 'string' || !record.nodePath ||
+        typeof record.variable !== 'string' || !record.variable ||
+        (typeof value !== 'boolean' && typeof value !== 'number' && typeof value !== 'string')) continue
+    states.push({
+      id: record.id,
+      nodePath: record.nodePath,
+      variable: record.variable,
+      operator: record.operator === 'not_equals' ? 'not_equals' : 'equals',
+      value,
+      visibleWhenMatched: record.visibleWhenMatched !== false,
+    })
+  }
+  return states
+}
+
+function writeMountModelStates(instance: BehaviorPackageInstance, states: MountModelStateDraft[]) {
+  onPackageConfigChange(instance, 'modelStates', states.map(state => ({
+    id: state.id,
+    nodePath: state.nodePath,
+    variable: state.variable,
+    operator: state.operator,
+    value: state.value,
+    visibleWhenMatched: state.visibleWhenMatched,
+  })) as unknown as PackageJsonValue)
+}
+
+function mountStateVariableOptions(instance: BehaviorPackageInstance): Array<{ name: string; value: PackageScalar }> {
+  const options = new Map<string, PackageScalar>()
+  Object.entries(instance.variables).forEach(([name, value]) => options.set(name, value))
+  Object.entries(logicVariables.value).forEach(([name, value]) => { if (!options.has(name)) options.set(name, value) })
+  Object.entries(globalLogicVariables.value).forEach(([name, value]) => { if (!options.has(name)) options.set(name, value) })
+  return [...options.entries()].map(([name, value]) => ({ name, value }))
+}
+
+function updateMountModelState(
+  instance: BehaviorPackageInstance,
+  stateId: string,
+  patch: Partial<MountModelStateDraft>,
+) {
+  const states = getMountModelStates(instance).map(state => state.id === stateId ? { ...state, ...patch } : state)
+  writeMountModelStates(instance, states)
+}
+
+function addMountModelState(instance: BehaviorPackageInstance) {
+  const firstNode = selectedModelNodes.value[0]
+  if (!firstNode) {
+    status.value = 'Este objeto não possui partes de modelo 3D configuráveis. Importe um GLB com nós ou malhas.'
+    return
+  }
+  const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : 'mount-state-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+  const states = getMountModelStates(instance)
+  states.push({
+    id,
+    nodePath: firstNode.path,
+    variable: 'mounted',
+    operator: 'equals',
+    value: true,
+    visibleWhenMatched: true,
+  })
+  writeMountModelStates(instance, states)
+}
+
+function removeMountModelState(instance: BehaviorPackageInstance, stateId: string) {
+  writeMountModelStates(instance, getMountModelStates(instance).filter(state => state.id !== stateId))
+}
+
+function onMountModelStateValueChange(instance: BehaviorPackageInstance, stateId: string, event: Event) {
+  const raw = (event.target as HTMLInputElement).value
+  const trimmed = raw.trim()
+  const value: PackageScalar = trimmed === 'true' ? true
+    : trimmed === 'false' ? false
+      : trimmed !== '' && Number.isFinite(Number(trimmed)) ? Number(trimmed) : raw
+  updateMountModelState(instance, stateId, { value })
 }
 
 function addBehaviorPackage(packageId: string) {
@@ -1300,6 +1396,36 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                           <label class="field">Offset X<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[0]) : 0" @change="onPackageSeatOffsetChange(entry.instance, 0, $event)" /></label>
                           <label class="field">Offset Y<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[1]) : 0.55" @change="onPackageSeatOffsetChange(entry.instance, 1, $event)" /></label>
                           <label class="field">Offset Z<input type="number" step="0.05" :value="Array.isArray(entry.instance.config.seatOffset) ? Number(entry.instance.config.seatOffset[2]) : 0" @change="onPackageSeatOffsetChange(entry.instance, 2, $event)" /></label>
+                        </div>
+
+                        <div class="component-caption">ESTADOS VISUAIS DO MODELO</div>
+                        <p class="component-note">Mostre ou oculte grupos/malhas do GLB conforme uma variável. Exemplo: a parte “Cavaleiro” fica visível apenas quando <code>mounted = true</code>. A malha não é removida do arquivo.</p>
+                        <button class="ghost full add-component-btn" :disabled="selectedModelNodes.length === 0" @click="addMountModelState(entry.instance)">+ Adicionar estado visual</button>
+                        <p v-if="selectedModelNodes.length === 0" class="component-note">Nenhum nó de modelo detectado neste objeto. Importe um modelo 3D que tenha a hierarquia de partes preservada.</p>
+                        <div v-for="state in getMountModelStates(entry.instance)" :key="state.id" class="mount-model-state">
+                          <label class="field">Parte / grupo do GLB
+                            <select :value="state.nodePath" @change="updateMountModelState(entry.instance, state.id, { nodePath: ($event.target as HTMLSelectElement).value })">
+                              <option v-for="node in selectedModelNodes" :key="node.path" :value="node.path">{{ node.name }} · {{ node.meshCount }} malha(s) — {{ node.path }}</option>
+                            </select>
+                          </label>
+                          <label class="field">Variável da condição
+                            <select :value="state.variable" @change="updateMountModelState(entry.instance, state.id, { variable: ($event.target as HTMLSelectElement).value })">
+                              <option v-for="variable in mountStateVariableOptions(entry.instance)" :key="variable.name" :value="variable.name">{{ variable.name }} = {{ String(variable.value) }}</option>
+                            </select>
+                          </label>
+                          <div class="grid3">
+                            <label class="field">Comparação
+                              <select :value="state.operator" @change="updateMountModelState(entry.instance, state.id, { operator: ($event.target as HTMLSelectElement).value as 'equals' | 'not_equals' })">
+                                <option value="equals">Igual a</option>
+                                <option value="not_equals">Diferente de</option>
+                              </select>
+                            </label>
+                            <label class="field">Valor esperado
+                              <input type="text" :value="String(state.value)" @change="onMountModelStateValueChange(entry.instance, state.id, $event)" />
+                            </label>
+                          </div>
+                          <label class="checkline"><input type="checkbox" :checked="state.visibleWhenMatched" @change="updateMountModelState(entry.instance, state.id, { visibleWhenMatched: ($event.target as HTMLInputElement).checked })" /> Exibir quando a condição for verdadeira</label>
+                          <button class="variable-delete" :aria-label="'Remover estado de ' + state.nodePath" title="Remover estado visual" @click="removeMountModelState(entry.instance, state.id)">Remover estado ×</button>
                         </div>
                       </template>
 
@@ -2209,6 +2335,7 @@ input[type='range'] { accent-color: #e98524; }
 .behavior-package-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .behavior-package-header strong{font-size:12px;color:#f0f0f0}
 .behavior-package-header p{margin:5px 0 0;font-size:10px;line-height:1.45}
+.mount-model-state{display:grid;gap:7px;margin:8px 0;padding:9px;border:1px solid #414141;border-radius:4px;background:#202020}.mount-model-state select,.mount-model-state input{min-width:0}.mount-model-state .variable-delete{justify-self:end}
 .package-variable{padding:6px 0;border-bottom:1px solid #373737}
 .package-variable:last-child{border-bottom:0}
 .package-variable .component-note{margin:3px 0 0}

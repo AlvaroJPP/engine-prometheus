@@ -43,7 +43,8 @@ export class Engine {
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
   private activeMountPackageId: string | null = null
-  private lastMountMovementState: 'idle' | 'walk' | 'run' | null = null
+  private lastMountMovementState: string | null = null
+  private readonly mountModelStateSignatures = new Map<string, string>()
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
@@ -141,12 +142,14 @@ export class Engine {
         if (!mixer) continue
         mixer.update(dt)
         const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
-        if (mountedTransition === 'dismount') {
+        if (mountedTransition && ['mount', 'dismount', 'run_stop'].includes(mountedTransition)) {
           const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-          const transitionAction = actions?.dismount
+          const transitionAction = actions?.[mountedTransition]
           if (!transitionAction?.isRunning()) {
             object.mesh.userData.importAnimationTransition = undefined
-            const restingAction = actions?.idle ?? actions?.walk ?? actions?.run
+            const restingRoles: AnimationRole[] = ['idle', 'walk', 'run', 'walk_diagonal_left', 'walk_diagonal_right']
+            const restingRole = restingRoles.find(role => actions?.[role] !== undefined)
+            const restingAction = restingRole ? actions?.[restingRole] : undefined
             if (restingAction && actions) {
               restingAction.setLoop(THREE.LoopRepeat, Infinity)
               restingAction.clampWhenFinished = false
@@ -156,8 +159,12 @@ export class Engine {
               for (const action of Object.values(actions)) {
                 if (action && action !== restingAction && action.isRunning()) action.fadeOut(0.15)
               }
-              object.mesh.userData.importAnimationState = restingAction === actions.idle ? 'idle'
-                : restingAction === actions.walk ? 'walk' : 'run'
+              object.mesh.userData.importAnimationState = restingRole
+            } else {
+              transitionAction?.stop()
+              const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+              fallbackAction?.stop()
+              object.mesh.userData.importAnimationState = ''
             }
           }
         }
@@ -188,6 +195,9 @@ export class Engine {
       }
       this.world.updateEnvironment(dt)
       this.logic.update()
+      for (const instance of this.logic.listPackages()) {
+        if (instance.packageId === 'mount') this.applyMountModelStates(instance)
+      }
       this.orbit.update()
       this.viewport.renderer.render(this.world.scene, this.orbit.camera)
     })
@@ -257,8 +267,11 @@ export class Engine {
     if (instance) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
   }
   removeBehaviorPackage(id: string): void {
+    const instance = this.logic.listPackages().find(item => item.id === id)
+    if (instance?.packageId === 'mount') this.applyMountModelStates(instance, true, false)
     if (this.activeMountPackageId === id) this.dismountActiveMount()
     this.logic.removePackage(id)
+    this.mountModelStateSignatures.delete(id)
   }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
@@ -778,22 +791,26 @@ export class Engine {
       ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
     let fallbackAnimationAction: THREE.AnimationAction | undefined
-    const animationActions: Partial<Record<'idle' | 'walk' | 'run' | 'mount' | 'dismount', THREE.AnimationAction>> = {}
+    const animationActions: Partial<Record<AnimationRole, THREE.AnimationAction>> = {}
     if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
       animationClips.forEach((clip, index) => {
         const normalizedName = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
+        const isRun = /gallop|canter|sprint|running|run/.test(normalizedName)
+        const diagonal = /diagonal|diag/.test(normalizedName)
+        const left = /left|esquerda|izquierda/.test(normalizedName)
+        const right = /right|direita|derecha/.test(normalizedName)
         const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
           : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
-            : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
-              : /gallop|canter|run|sprint/.test(normalizedName) ? 'run'
-                : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
+            : /stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalizedName) ? 'run_stop'
+              : diagonal && left ? (isRun ? 'run_diagonal_left' : 'walk_diagonal_left')
+                : diagonal && right ? (isRun ? 'run_diagonal_right' : 'walk_diagonal_right')
+                  : isRun ? 'run'
+                    : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
+                      : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
         const role = explicitRoles?.[String(index)] ?? guessed
         if (role === 'ignore') return
-        if (role in { idle: true, walk: true, run: true, mount: true, dismount: true }) {
-          const key = role as 'idle' | 'walk' | 'run' | 'mount' | 'dismount'
-          if (!animationActions[key]) animationActions[key] = animationMixer!.clipAction(clip)
-        }
+        if (!animationActions[role]) animationActions[role] = animationMixer!.clipAction(clip)
       })
       if (!animationActions.idle && idleClip) {
         const idleIndex = animationClips.indexOf(idleClip)
@@ -804,7 +821,8 @@ export class Engine {
       // Se o usuário atribuiu papéis no preview, respeite "Não usar":
       // clipes de montar/desmontar nunca devem tocar em loop fora da ação.
       const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run
-        ?? (!explicitRoles && !animationActions.mount && !animationActions.dismount ? animationMixer.clipAction(animationClips[0]!) : undefined)
+        ?? animationActions.walk_diagonal_left ?? animationActions.walk_diagonal_right
+        ?? (!explicitRoles && !animationActions.mount && !animationActions.dismount && !animationActions.run_stop ? animationMixer.clipAction(animationClips[0]!) : undefined)
       if (initialAction) {
         initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
         if (!Object.values(animationActions).includes(initialAction)) fallbackAnimationAction = initialAction
@@ -987,6 +1005,79 @@ export class Engine {
   listObjects(): ObjectInfo[] {
     return this.world.info()
   }
+  /** Lista nós do GLB que contêm malhas e podem receber regras de estado visual. */
+  listImportedModelNodes(objectId: string): Array<{ path: string; name: string; meshCount: number }> {
+    const root = this.world.get(objectId)?.mesh
+    if (!root || root.children.length === 0) return []
+    const result: Array<{ path: string; name: string; meshCount: number }> = []
+    const countMeshes = (node: THREE.Object3D): number => {
+      let count = 0
+      node.traverse(child => {
+        if (child instanceof THREE.Mesh && child.userData.editorOverlay !== true && child.name !== 'collider-debug-wireframe') count += 1
+      })
+      return count
+    }
+    root.traverse(node => {
+      if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
+      const meshCount = countMeshes(node)
+      if (meshCount === 0) return
+      result.push({
+        path: this.importedModelNodePath(root, node),
+        name: node.name.trim() || node.type,
+        meshCount,
+      })
+    })
+    return result
+  }
+
+  private importedModelNodePath(root: THREE.Object3D, node: THREE.Object3D): string {
+    const segments: string[] = []
+    let current: THREE.Object3D | null = node
+    while (current && current !== root) {
+      const label = current.name.trim() || current.type
+      const parent = current.parent
+      const siblings = parent?.children.filter(sibling => (sibling.name.trim() || sibling.type) === label) ?? []
+      const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
+      segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
+      current = parent
+    }
+    return segments.join('/')
+  }
+
+  /** Aplica estados visuais do pacote sem remover nós do GLB; ao desativar uma regra, restaura a visibilidade base. */
+  private applyMountModelStates(
+    instance: BehaviorPackageInstance,
+    force = false,
+    enabled = instance.enabled,
+  ): void {
+    const root = this.world.get(instance.ownerObjectId)?.mesh
+    if (!root) return
+    const rules = enabled ? getMountPackageSettings(instance).modelStates : []
+    const evaluated = rules.map(rule => {
+      const actual = Object.prototype.hasOwnProperty.call(instance.variables, rule.variable)
+        ? instance.variables[rule.variable]
+        : this.logic.getVariable(rule.variable, instance.ownerObjectId)
+      const matched = actual !== undefined && (rule.operator === 'not_equals' ? actual !== rule.value : actual === rule.value)
+      return { rule, matched, actual }
+    })
+    const signature = JSON.stringify(evaluated.map(({ rule, matched, actual }) => ({ rule, matched, actual })))
+    if (!force && this.mountModelStateSignatures.get(instance.id) === signature) return
+    this.mountModelStateSignatures.set(instance.id, signature)
+    root.traverse(node => {
+      if (node === root || node.userData.editorOverlay === true || node.name === 'collider-debug-wireframe') return
+      const path = this.importedModelNodePath(root, node)
+      const state = evaluated.find(item => item.rule.nodePath === path)
+      const baseVisible = node.userData.mountModelStateBaseVisible
+      if (state) {
+        if (typeof baseVisible !== 'boolean') node.userData.mountModelStateBaseVisible = node.visible
+        node.visible = state.matched === state.rule.visibleWhenMatched
+      } else if (typeof baseVisible === 'boolean') {
+        node.visible = baseVisible
+      }
+    })
+    root.updateMatrixWorld(true)
+  }
+
 
   // ---- terreno ----
   terrainInfo(): TerrainInfo {
