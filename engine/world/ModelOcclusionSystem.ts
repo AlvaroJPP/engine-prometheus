@@ -20,7 +20,6 @@ interface PreparedMesh {
   mesh: THREE.Mesh
   bounds: THREE.Box3
   opaque: boolean
-  samples: THREE.Vector3[] | null
 }
 
 interface PreparedRoot {
@@ -100,7 +99,15 @@ export class ModelOcclusionSystem {
       && root.root.userData.wireframeVisible !== true
       && !root.bounds.isEmpty()
     )
-    const occluderRoots = preparedRoots.filter(root => !root.animated && !root.bounds.isEmpty())
+    const occluderRoots = preparedRoots.filter(root =>
+      !root.animated
+      && !root.bounds.isEmpty()
+      && root.meshes.some(mesh => mesh.opaque)
+    )
+    const hasExternalOccluder = modelRoots.some(targetRoot =>
+      occluderRoots.some(sourceRoot => sourceRoot.root !== targetRoot.root)
+    )
+    if (!hasExternalOccluder) return previousCulled.size > 0
 
     for (const targetRoot of modelRoots) {
       // Não culle uma instância por submalha quando a câmera está dentro do volume
@@ -182,7 +189,7 @@ export class ModelOcclusionSystem {
         const meshBounds = geometryBounds.clone().applyMatrix4(node.matrixWorld)
         if (meshBounds.isEmpty()) return
         const opaque = this.isOpaqueBlocker(node.material)
-        meshes.push({ mesh: node, bounds: meshBounds, opaque, samples: null })
+        meshes.push({ mesh: node, bounds: meshBounds, opaque })
         bounds.union(meshBounds)
       })
 
@@ -225,6 +232,7 @@ export class ModelOcclusionSystem {
         && candidate.transparent !== true
         && (candidate.opacity ?? 1) >= 0.98
         && candidate.depthWrite !== false
+        && candidate.depthTest !== false
         && candidate.colorWrite !== false
         && candidate.wireframe !== true
         && !candidate.alphaMap
