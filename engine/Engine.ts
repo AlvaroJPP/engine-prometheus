@@ -477,6 +477,9 @@ export class Engine {
 
       for (const candidate of candidates) {
         if (!candidate.object) continue
+        // A tentativa de interação é um gatilho próprio do pacote; as regras
+        // podem avaliar variáveis/condições antes da ação Montar.
+        this.logic.triggerPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
         if (!this.avatar.mount(candidate.object.mesh, candidate.settings)) continue
         this.activeMountPackageId = candidate.instance.id
         this.lastMountMovementState = this.avatar.getMountedMovementState()
