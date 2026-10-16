@@ -2,6 +2,15 @@ import * as THREE from 'three'
 
 export type PerformancePreset = 'quality' | 'balanced' | 'economy'
 
+export interface ViewportRenderStats {
+  fps: number
+  drawCalls: number
+  triangles: number
+  geometries: number
+  textures: number
+  cpuRenderMs: number
+}
+
 const FRAME_INTERVAL_MS: Record<PerformancePreset, number> = {
   quality: 1000 / 60,
   balanced: 1000 / 45,
@@ -30,6 +39,8 @@ export class Viewport {
   private fpsWindowStart = 0
   private fpsFrameCount = 0
   private fpsListener: ((fps: number) => void) | null = null
+  private renderStatsListener: ((stats: ViewportRenderStats) => void) | null = null
+  private renderTimeAccumulated = 0
   private readonly invalidateFromInput = () => this.invalidate()
 
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
@@ -98,6 +109,14 @@ export class Viewport {
     this.fpsWindowStart = 0
   }
 
+  /** Recebe métricas nativas do WebGL para comparar mudanças reais de carga gráfica. */
+  setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void {
+    this.renderStatsListener = listener
+    this.fpsFrameCount = 0
+    this.fpsWindowStart = 0
+    this.renderTimeAccumulated = 0
+  }
+
   /** Renderiza dentro do limite do preset e dorme enquanto uma cena estática não muda. */
   render(scene: THREE.Scene, camera: THREE.Camera, now = performance.now(), force = false): boolean {
     if (document.visibilityState === 'hidden') return false
@@ -116,7 +135,9 @@ export class Viewport {
     const interval = FRAME_INTERVAL_MS[this.performancePreset]
     if (this.nextRenderAt !== 0 && now + 0.25 < this.nextRenderAt) return false
 
+    const renderStartedAt = performance.now()
     this.renderer.render(scene, camera)
+    const renderDuration = performance.now() - renderStartedAt
     this.dirty = false
     this.hasRenderedCamera = true
     this.lastCameraPosition.copy(camera.position)
@@ -136,18 +157,25 @@ export class Viewport {
       }
     }
 
-    if (this.fpsListener) {
-      if (this.fpsWindowStart === 0) {
-        this.fpsWindowStart = now
-      } else {
-        // Conta intervalos entre quadros, não inclui o primeiro quadro duas vezes.
-        this.fpsFrameCount += 1
-      }
+    if (this.fpsListener || this.renderStatsListener) {
+      if (this.fpsWindowStart === 0) this.fpsWindowStart = now
+      this.fpsFrameCount += 1
+      this.renderTimeAccumulated += renderDuration
       const elapsed = now - this.fpsWindowStart
       if (elapsed >= 500) {
-        this.fpsListener(Math.round((this.fpsFrameCount * 1000) / elapsed))
+        const fps = Math.round((this.fpsFrameCount * 1000) / elapsed)
+        this.fpsListener?.(fps)
+        this.renderStatsListener?.({
+          fps,
+          drawCalls: this.renderer.info.render.calls,
+          triangles: this.renderer.info.render.triangles,
+          geometries: this.renderer.info.memory.geometries,
+          textures: this.renderer.info.memory.textures,
+          cpuRenderMs: this.renderTimeAccumulated / Math.max(1, this.fpsFrameCount),
+        })
         this.fpsFrameCount = 0
         this.fpsWindowStart = now
+        this.renderTimeAccumulated = 0
       }
     }
     return true
@@ -181,6 +209,7 @@ export class Viewport {
     window.removeEventListener('keyup', this.invalidateFromInput)
     document.removeEventListener('visibilitychange', this.invalidateFromInput)
     this.fpsListener = null
+    this.renderStatsListener = null
     this.renderer.dispose()
   }
 }
