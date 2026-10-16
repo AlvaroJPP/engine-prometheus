@@ -92,7 +92,7 @@ export class ModelOcclusionSystem {
    * continue renderizável durante o cálculo. A preparação é serializada para
    * não abrir um worker por malha ou competir com outros modelos carregados.
    */
-  prepareRoot(root: THREE.Object3D, animated: boolean): Promise<void> {
+  prepareRoot(root: THREE.Object3D, animated: boolean, sceneForResourceCleanup?: THREE.Object3D): Promise<void> {
     if (this.disposed || animated || this.rootsPrepared.has(root)) return Promise.resolve()
     if (this.rootsBeingPrepared.has(root)) return this.preparationQueue
 
@@ -105,7 +105,7 @@ export class ModelOcclusionSystem {
         // Uma malha única com dezenas de milhares de triângulos não pode ter
         // partes ocluídas separadamente. Divida apenas modelos grandes e estáticos
         // em até oito regiões espaciais, mantendo as superfícies pequenas intactas.
-        await this.partitionLargeMeshes(root)
+        await this.partitionLargeMeshes(root, sceneForResourceCleanup)
         if (this.disposed || root.parent === null) return
         root.updateWorldMatrix(true, true)
 
@@ -158,8 +158,9 @@ export class ModelOcclusionSystem {
     return this.preparationQueue
   }
 
-  private async partitionLargeMeshes(root: THREE.Object3D): Promise<void> {
+  private async partitionLargeMeshes(root: THREE.Object3D, sceneForResourceCleanup?: THREE.Object3D): Promise<void> {
     const candidates: THREE.Mesh[] = []
+    const replacedGeometries = new Set<THREE.BufferGeometry>()
     root.traverse((node) => {
       if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh || node instanceof THREE.InstancedMesh) return
       if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
@@ -209,12 +210,28 @@ export class ModelOcclusionSystem {
       if (this.disposed || root.parent === null) return
       try {
         const replacement = await this.createOcclusionPartitions(mesh)
-        if (replacement) this.replaceMeshWithPartitions(mesh, replacement)
+        if (replacement) {
+          replacedGeometries.add(mesh.geometry)
+          this.replaceMeshWithPartitions(mesh, replacement)
+        }
       } catch (error) {
         // Particionar é uma otimização, nunca um requisito para abrir o modelo.
         console.warn('[ModelOcclusion] Não foi possível dividir uma malha densa; mantendo a original.', error)
       }
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+    }
+
+    // Liberar o buffer da malha substituída evita reter VRAM após particionar.
+    // Só descarte geometrias que não estejam mais referenciadas na cena inteira:
+    // modelos duplicados podem compartilhar a mesma geometria glTF.
+    if (sceneForResourceCleanup && replacedGeometries.size > 0) {
+      const stillUsed = new Set<THREE.BufferGeometry>()
+      sceneForResourceCleanup.traverse((node) => {
+        if (node instanceof THREE.Mesh) stillUsed.add(node.geometry)
+      })
+      for (const geometry of replacedGeometries) {
+        if (!stillUsed.has(geometry)) geometry.dispose()
+      }
     }
   }
 
