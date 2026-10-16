@@ -318,11 +318,17 @@ function selectWholeModel() {
   selectedPartId.value = ''
   componentName.value = root.name.trim() || fileName.value.replace(/\.[^.]+$/, '') || 'Modelo 3D'
   const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
-  colliderSize.value = [
+  const wholeModelSize: [number, number, number] = [
     Math.max(0.05, dimensions.value[0] * scale),
     Math.max(0.05, dimensions.value[1] * scale),
     Math.max(0.05, dimensions.value[2] * scale),
   ]
+  if (colliderType.value === 'sphere') {
+    const diameter = Math.max(0.05, Math.min(...wholeModelSize))
+    colliderSize.value = [diameter, diameter, diameter]
+  } else {
+    colliderSize.value = wholeModelSize
+  }
   colliderOffset.value = [0, 0, 0]
   fitCamera(root)
   updateColliderPreview()
