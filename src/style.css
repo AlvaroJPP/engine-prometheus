@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 /* base global; os estilos do editor ficam no App.vue */
 html, body, #app { margin: 0; height: 100%; }
 body { background: #12151c; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 13px; overflow: hidden; }
@@ -12,7 +13,7 @@ body { background: #12151c; font-family: 'Inter', 'Segoe UI', system-ui, sans-se
 .grid-state { color: #a9c9ec; }
 
 /* Engine Prometheus v0.1.0 — UI redesign */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
 :root {
   --bg: #0e1013;
   --panel: #14171c;
