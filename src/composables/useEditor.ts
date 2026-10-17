@@ -667,7 +667,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
-  function setControlBindings(bindings: ModelControlBindings) {
+  function setControlBindings(bindings: ControlMapBindings) {
     playerControlBindings = { ...bindings }
     engine?.setControlBindings(playerControlBindings)
   }
