@@ -69,10 +69,12 @@ export interface EnvironmentData {
 }
 
 export interface PlayerModelData {
-  /** Nome original do arquivo escolhido pelo usuário, para exibição no editor. */
+  /** Nome do arquivo/ativo configurado no Model Workspace, para exibição no editor. */
   name: string
   /** Conteúdo binário GLB codificado em Base64 para manter o modelo junto do projeto. */
   glbData: string
+  /** Mapeamento de clipes configurado no Model Workspace, indexado pelo índice da animação. */
+  animationRoles?: Record<string, import('../script/packages').AnimationRole>
 }
 
 export interface SceneFile {
