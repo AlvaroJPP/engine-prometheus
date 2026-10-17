@@ -110,7 +110,7 @@ function showTooltip(target: TooltipTarget): void {
 
   activeTarget = target
   previousDescribedBy = target.getAttribute('aria-describedby')
-  const describedBy = new Set((previousDescribedBy ?? '').split(/\\s+/).filter(Boolean))
+  const describedBy = new Set((previousDescribedBy ?? '').split(' ').filter(Boolean))
   describedBy.add(TOOLTIP_ID)
   target.setAttribute('aria-describedby', [...describedBy].join(' '))
 }
