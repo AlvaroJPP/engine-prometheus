@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 const props = defineProps<{
   projectName: string
   dirty: boolean
@@ -10,6 +8,7 @@ const props = defineProps<{
   grassRenderDistance: number
   grassRenderAll: boolean
   executionMode: 'edit' | 'running'
+  worldFullscreen: boolean
   objects: Array<{ id: string; name: string }>
   components: Array<{ id: string; name: string }>
 }>()
@@ -27,54 +26,14 @@ const emit = defineEmits<{
   'open-control-maps': []
   'run-world': []
   'edit-world': []
+  'toggle-world-fullscreen': []
   'select-object': [id: string]
   'place-component': [id: string]
   'open-model-import': []
 }>()
 type SearchResult = { key: string; label: string; detail: string; action: 'object' | 'component' | 'save' | 'import' | 'edit' | 'run' | 'camera' | 'controls'; id?: string }
 const searchQuery = ref('')
-const isFullscreen = ref(false)
-const fullscreenBusy = ref(false)
-const fullscreenToggleTitle = computed(() => isFullscreen.value ? 'Sair da tela cheia' : 'Entrar em tela cheia')
-
-async function syncFullscreenState() {
-  if (isTauri()) {
-    try {
-      isFullscreen.value = await getCurrentWindow().isFullscreen()
-    } catch (error) {
-      console.warn('Não foi possível consultar o estado de tela cheia.', error)
-    }
-    return
-  }
-  isFullscreen.value = Boolean(document.fullscreenElement)
-}
-
-function handleFullscreenStateChange() {
-  void syncFullscreenState()
-}
-
-async function toggleFullscreen() {
-  if (fullscreenBusy.value) return
-  fullscreenBusy.value = true
-  try {
-    if (isTauri()) {
-      const appWindow = getCurrentWindow()
-      const shouldEnter = !(await appWindow.isFullscreen())
-      await appWindow.setFullscreen(shouldEnter)
-      isFullscreen.value = shouldEnter
-    } else if (document.fullscreenElement) {
-      await document.exitFullscreen()
-      isFullscreen.value = false
-    } else {
-      await document.documentElement.requestFullscreen()
-      isFullscreen.value = true
-    }
-  } catch (error) {
-    console.error('Não foi possível alternar para tela cheia.', error)
-  } finally {
-    fullscreenBusy.value = false
-  }
-}
+const fullscreenToggleTitle = computed(() => props.worldFullscreen ? 'Sair da tela cheia do mundo' : 'Expandir o mundo em tela cheia')
 const searchResults = computed<SearchResult[]>(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return []
@@ -110,19 +69,8 @@ function handleGlobalShortcut(event: KeyboardEvent) {
     document.getElementById('global-editor-search')?.focus()
   }
 }
-onMounted(() => {
-  window.addEventListener('keydown', handleGlobalShortcut)
-  window.addEventListener('resize', handleFullscreenStateChange)
-  window.addEventListener('focus', handleFullscreenStateChange)
-  document.addEventListener('fullscreenchange', handleFullscreenStateChange)
-  void syncFullscreenState()
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleGlobalShortcut)
-  window.removeEventListener('resize', handleFullscreenStateChange)
-  window.removeEventListener('focus', handleFullscreenStateChange)
-  document.removeEventListener('fullscreenchange', handleFullscreenStateChange)
-})
+onMounted(() => window.addEventListener('keydown', handleGlobalShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut))
 
 </script>
 
@@ -225,20 +173,19 @@ onBeforeUnmount(() => {
     <button
       class="topbar-fullscreen"
       type="button"
-      :class="{ active: isFullscreen }"
+      :class="{ active: worldFullscreen }"
       :title="fullscreenToggleTitle"
       :aria-label="fullscreenToggleTitle"
-      :aria-pressed="isFullscreen"
-      :disabled="fullscreenBusy"
-      @click="toggleFullscreen"
+      :aria-pressed="worldFullscreen"
+      @click="emit('toggle-world-fullscreen')"
     >
-      <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" />
       </svg>
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" />
       </svg>
-      <span>{{ isFullscreen ? 'Restaurar' : 'Tela cheia' }}</span>
+      <span>{{ worldFullscreen ? 'Voltar ao editor' : 'Tela cheia do mundo' }}</span>
     </button>
     <button class="cam" :class="{ active: firstPersonMode }" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
     <button class="cam" @click="emit('cycle-camera')">{{ cameraLabel === 'Câmera livre' ? 'Câmera livre' : cameraLabel }}</button>
