@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
-import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar } from '@engine'
+import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
+import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
+import { loadControlMapSettings, saveControlMapSettings } from '@/lib/controls/controlMapSettings'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
 import ExecutionDock from '@/components/ExecutionDock.vue'
@@ -20,6 +22,12 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
+const controlMapsOpen = ref(false)
+const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
+const activeControlMap = computed(() =>
+  controlMapSettings.value.profiles.find(profile => profile.id === controlMapSettings.value.activeProfileId)
+  ?? controlMapSettings.value.profiles[0]!,
+)
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
@@ -65,6 +73,7 @@ const {
   setBuildComponentPlacement,
   addClickableCubeExample,
   cycleCamera,
+  setControlBindings,
   setFirstPersonMode,
   setRuntimeMode,
   selectItem,
@@ -97,6 +106,14 @@ const {
   openProject,
   saveProject,
 } = useEditor(canvas)
+
+function updateControlMapSettings(settings: ControlMapSettings) {
+  controlMapSettings.value = settings
+  saveControlMapSettings(settings)
+}
+watch(activeControlMap, profile => {
+  if (profile) setControlBindings(profile.bindings)
+}, { immediate: true, deep: true })
 
 const skyFileInput = ref<HTMLInputElement | null>(null)
 const playerModelFileInput = ref<HTMLInputElement | null>(null)
@@ -178,12 +195,27 @@ function measureGraphPorts() {
   })
 }
 function onRuntimeCameraKeydown(event: KeyboardEvent) {
-  if (event.code !== 'KeyQ' || event.repeat || executionMode.value !== 'running') return
+  if (event.repeat || executionMode.value !== 'running' || controlMapsOpen.value) return
+  if (event.ctrlKey || event.metaKey || event.altKey) return
   const target = event.target as HTMLElement | null
   const tag = target?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
-  event.preventDefault()
-  toggleFirstPerson()
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return
+  const bindings = activeControlMap.value.bindings
+
+  if (event.code === bindings.toggleFirstPerson) {
+    event.preventDefault()
+    toggleFirstPerson()
+    return
+  }
+  if (event.code === bindings.cycleCamera) {
+    event.preventDefault()
+    cycleCameraView()
+    return
+  }
+  if (event.code === bindings.exitRuntime) {
+    event.preventDefault()
+    returnToEdit()
+  }
 }
 
 onMounted(() => {
@@ -583,7 +615,7 @@ function runWorld() {
   }
   setRuntimeMode(true)
   executionMode.value = 'running'
-  status.value = 'Modo Run ativo · WASD move, Shift corre, Espaço pula e mouse controla a câmera.'
+  status.value = `Modo Run ativo · mapa “${activeControlMap.value.name}”. Use Controles para personalizar as teclas.`
 }
 function stopWorld() {
   if (firstPersonMode.value) {
@@ -1013,11 +1045,20 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @grass-render-distance-change="setGrassRenderDistance"
       @grass-render-all-change="setGrassRenderAll"
       @toggle-first-person="toggleFirstPerson"
+      @open-control-maps="controlMapsOpen = true"
       @mark-dirty="markDirty"
       @new-project="newProject"
       @open-project="openProject"
       @save-project="saveProject"
       @cycle-camera="cycleCameraView"
+    />
+
+    <ControlMapsDialog
+      v-if="controlMapsOpen"
+      :open="controlMapsOpen"
+      :settings="controlMapSettings"
+      @update:open="controlMapsOpen = $event"
+      @update:settings="updateControlMapSettings"
     />
 
     <EditorToolbar
