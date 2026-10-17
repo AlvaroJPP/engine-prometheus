@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
-import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
 import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
 import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
 import type { ControlMapBindings } from '../input/ControlMaps'
@@ -24,6 +24,26 @@ const ROLL_COOLDOWN = 0.52
 // Exact triangle traversal is too expensive for dense animated GLBs during mounting.
 // Imported models over this threshold use their already-configured physical bounds.
 const MAX_EXACT_MOUNT_COLLISION_TRIANGLES = 6000
+
+const ANIMATION_FALLBACKS: Partial<Record<AnimationRole, AnimationRole[]>> = {
+  run: ['walk', 'idle'],
+  walk_slow: ['walk', 'idle'],
+  walk_backward: ['walk', 'idle'],
+  walk_left: ['walk_diagonal_left', 'walk', 'idle'],
+  walk_right: ['walk_diagonal_right', 'walk', 'idle'],
+  walk_diagonal_left: ['walk_left', 'walk', 'idle'],
+  walk_diagonal_right: ['walk_right', 'walk', 'idle'],
+  run_backward: ['run', 'walk', 'idle'],
+  run_left: ['run_diagonal_left', 'run', 'walk', 'idle'],
+  run_right: ['run_diagonal_right', 'run', 'walk', 'idle'],
+  run_diagonal_left: ['run_left', 'run', 'walk_diagonal_left', 'walk', 'idle'],
+  run_diagonal_right: ['run_right', 'run', 'walk_diagonal_right', 'walk', 'idle'],
+  crouch: ['idle'],
+  crouch_walk: ['crouch', 'walk', 'idle'],
+  prone: ['idle'],
+  prone_crawl: ['prone', 'walk', 'idle'],
+  jump: ['idle'],
+}
 
 type PlayerPosture = 'standing' | 'crouching' | 'prone'
 type PlayerManeuver = 'dodge' | 'slide' | 'roll' | null
@@ -125,6 +145,7 @@ export class HumanoidAvatar {
   private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
+  private activeOneShotAnimation: AnimationRole | null = null
   private animationTime = 0
   private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
@@ -214,15 +235,34 @@ export class HumanoidAvatar {
       this.postureBeforeSlide = this.posture
       this.setPosture(kind === 'slide' ? 'crouching' : 'prone')
     }
+    this.triggerPlayerAnimation(kind)
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const bindings = this.controlBindings()
+    const animationControls: Array<{ code: string; role: AnimationRole }> = [
+      { code: bindings.interact, role: 'interact' },
+      { code: bindings.dodge, role: 'dodge' },
+      { code: bindings.slide, role: 'slide' },
+      { code: bindings.roll, role: 'roll' },
+      { code: bindings.primaryAction, role: 'primary_action' },
+      { code: bindings.secondaryAction, role: 'secondary_action' },
+      { code: bindings.inventory, role: 'inventory' },
+      { code: bindings.useItem, role: 'use_item' },
+      { code: bindings.reload, role: 'reload' },
+      { code: bindings.ability1, role: 'ability_1' },
+      { code: bindings.ability2, role: 'ability_2' },
+      { code: bindings.ability3, role: 'ability_3' },
+      { code: bindings.ability4, role: 'ability_4' },
+      { code: bindings.emote, role: 'emote' },
+    ]
+    const mappedAnimation = animationControls.find(item => item.code === event.code)
     const movementKeys = [
       bindings.forward, bindings.backward, bindings.left, bindings.right,
       bindings.run, bindings.jump, bindings.interact,
       bindings.sprintToggle, bindings.walkToggle, bindings.crouchToggle,
       bindings.proneToggle, bindings.dodge, bindings.slide, bindings.roll,
+      ...animationControls.map(item => item.code),
     ]
     if (!movementKeys.includes(event.code)) return
 
@@ -270,6 +310,19 @@ export class HumanoidAvatar {
 
     if (event.code === bindings.jump && this.mountedRoot && !event.repeat) {
       this.mountedJumpRequested = true
+    }
+
+    if (!event.repeat && mappedAnimation) {
+      if (this.mountedRoot) {
+        const actions = this.mountedRoot.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+        // Interação em uma montaria já montada aciona a desmontagem pelo Engine;
+        // não deixe um clipe genérico de interação competir com a transição.
+        if (mappedAnimation.role !== 'interact' && actions?.[mappedAnimation.role]) {
+          this.playMountAnimation(this.mountedRoot, mappedAnimation.role, true)
+        }
+      } else if (!['dodge', 'slide', 'roll'].includes(mappedAnimation.role)) {
+        this.triggerPlayerAnimation(mappedAnimation.role)
+      }
     }
     this.pressed.add(event.code)
   }
@@ -521,7 +574,7 @@ export class HumanoidAvatar {
       this.grounded = false
     }
 
-    this.updateAvatarAnimation(step, length > 0 || this.maneuver !== null, running)
+    this.updateAvatarAnimation(step, length > 0 || this.maneuver !== null, running, forwardInput, sideInput)
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     if (this.firstPersonMode) {
@@ -823,7 +876,7 @@ export class HumanoidAvatar {
     const nextRole = candidates.find(candidate => actions[candidate])
     const next = nextRole ? actions[nextRole] : undefined
     if (!next) {
-      if (oneShot && ['dismount', 'mount', 'run_stop'].includes(role)) {
+      if (oneShot && ONE_SHOT_ANIMATION_ROLES.has(role)) {
         root.userData.importAnimationTransition = undefined
         const idle = actions.idle ?? actions.walk ?? actions.run ?? actions.walk_diagonal_left ?? actions.walk_diagonal_right
         if (idle) {
@@ -1950,17 +2003,9 @@ export class HumanoidAvatar {
       const configuredRole = animationRoles?.[String(index)]
       let key: string
       if (configuredRole !== undefined) {
-        if (configuredRole === 'idle' || configuredRole === 'walk' || configuredRole === 'run' || configuredRole === 'jump') {
-          key = configuredRole
-        } else if (configuredRole === 'walk_diagonal_left' || configuredRole === 'walk_diagonal_right') {
-          key = 'walk'
-        } else if (configuredRole === 'run_diagonal_left' || configuredRole === 'run_diagonal_right') {
-          key = 'run'
-        } else {
-          // Um clipe marcado como "Não usar" ou destinado à montaria não
-          // deve ser confundido com a locomoção de um personagem a pé.
-          return
-        }
+        if (configuredRole === 'ignore') return
+        // Conserva os papéis escolhidos no Model Workspace, inclusive postura e ações.
+        key = configuredRole
       } else {
         key = this.classifyAnimation(clip.name)
       }
@@ -1993,6 +2038,7 @@ export class HumanoidAvatar {
     this.animationActions.clear()
     this.mixer = nextMixer
     this.animationActions = nextActions
+    this.activeOneShotAnimation = null
     this.animatedBones = nextBones
     this.firstPersonHiddenBones.clear()
     for (const child of [...this.visualRoot.children]) this.disposeObject(child)
@@ -2014,24 +2060,36 @@ export class HumanoidAvatar {
     return 'other'
   }
 
-  private playAnimation(state: 'idle' | 'walk' | 'run' | 'jump'): void {
-    if (!this.mixer) return
-    if (this.activeAnimation === state) return
+  private triggerPlayerAnimation(role: AnimationRole): void {
+    if (!this.animationActions.has(role)) return
+    this.playAnimation(role, true)
+  }
 
-    const next = this.animationActions.get(state)
-      ?? (state === 'run' ? this.animationActions.get('walk') : undefined)
-      ?? this.animationActions.get('idle')
+  private playAnimation(state: string, oneShot = false): void {
+    if (!this.mixer) return
+
+    if (!oneShot && this.activeOneShotAnimation) {
+      const activeOneShot = this.animationActions.get(this.activeOneShotAnimation)
+      if (activeOneShot?.isRunning()) return
+      this.activeOneShotAnimation = null
+    }
+    if (!oneShot && this.activeAnimation === state) return
+
+    const role = state as AnimationRole
+    const nextRole = [role, ...(ANIMATION_FALLBACKS[role] ?? [])]
+      .find(candidate => this.animationActions.has(candidate))
+    const next = nextRole ? this.animationActions.get(nextRole) : undefined
 
     // Evita reiniciar o mesmo clipe a cada troca de estado (por exemplo, run -> walk
-    // quando ambos apontam para o mesmo clipe) e mistura as poses suavemente.
+    // quando os dois papéis compartilham o mesmo ativo) e mistura as poses suavemente.
     const current = this.animationActions.get(this.activeAnimation)
-    if (current && current === next) {
+    if (!oneShot && current && current === next) {
       this.activeAnimation = state
       return
     }
 
     if (next) {
-      if (state === 'jump') {
+      if (oneShot || ONE_SHOT_ANIMATION_ROLES.has(role)) {
         next.setLoop(THREE.LoopOnce, 1)
         next.clampWhenFinished = true
       } else {
@@ -2039,6 +2097,9 @@ export class HumanoidAvatar {
         next.clampWhenFinished = false
       }
       next.reset().fadeIn(0.2).play()
+      if (oneShot) this.activeOneShotAnimation = role
+    } else if (oneShot) {
+      return
     }
     for (const action of this.animationActions.values()) {
       if (action !== next && action.isRunning()) action.fadeOut(0.2)
@@ -2046,9 +2107,25 @@ export class HumanoidAvatar {
     this.activeAnimation = state
   }
 
-  private updateAvatarAnimation(dt: number, moving: boolean, running: boolean): void {
+  private getLocomotionAnimationRole(forwardInput: number, sideInput: number, running: boolean): AnimationRole {
+    if (forwardInput > 0 && Math.abs(sideInput) > 0) {
+      if (running) return sideInput < 0 ? 'run_diagonal_left' : 'run_diagonal_right'
+      return sideInput < 0 ? 'walk_diagonal_left' : 'walk_diagonal_right'
+    }
+    if (forwardInput < 0) return running ? 'run_backward' : 'walk_backward'
+    if (sideInput < 0) return running ? 'run_left' : 'walk_left'
+    if (sideInput > 0) return running ? 'run_right' : 'walk_right'
+    return running ? 'run' : 'walk'
+  }
+
+  private updateAvatarAnimation(dt: number, moving: boolean, running: boolean, forwardInput: number, sideInput: number): void {
     this.animationTime += dt * (running ? 12 : 8)
-    const state = !this.grounded ? 'jump' : moving ? (running ? 'run' : 'walk') : 'idle'
+    const state: AnimationRole = !this.grounded ? 'jump'
+      : this.posture === 'prone' ? (moving ? 'prone_crawl' : 'prone')
+        : this.posture === 'crouching' ? (moving ? 'crouch_walk' : 'crouch')
+          : !moving ? 'idle'
+            : this.walkToggled && !running ? 'walk_slow'
+              : this.getLocomotionAnimationRole(forwardInput, sideInput, running)
     this.playAnimation(state)
     this.mixer?.update(dt)
 
@@ -2063,10 +2140,9 @@ export class HumanoidAvatar {
 
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
-    const hasStateClip = this.animationActions.has(state)
-      || (state === 'run' && this.animationActions.has('walk'))
-      || this.animationActions.has('idle')
-    if (hasStateClip) return
+    const hasStateClip = [state, ...(ANIMATION_FALLBACKS[state] ?? [])]
+      .some(role => this.animationActions.has(role))
+    if (hasStateClip || this.activeOneShotAnimation) return
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
