@@ -10,6 +10,8 @@ import { DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
+import { applyRigPose, autoRigModel, captureRigPose } from '@/lib/animation/Rigging'
+import type { AutoRigPreset } from '@/lib/animation/Rigging'
 
 const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
 const emit = defineEmits<{
@@ -51,9 +53,14 @@ const modelDiagnostics = shallowRef<ModelDiagnostic[]>([])
 const diagnosticSummary = ref({ nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 })
 const previewAnimationIndex = ref(0)
 const previewPlaying = ref(true)
+const animationClipRevision = ref(0)
 const animationRoles = ref<Record<string, AnimationRole>>({})
-const previewAnimations = computed(() => (model.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [])
-type SetupTab = 'model' | 'controls' | 'animations' | 'technical'
+const previewAnimations = computed(() => {
+  const revision = animationClipRevision.value
+  void revision
+  return (model.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+})
+type SetupTab = 'model' | 'controls' | 'animations' | 'rigging' | 'technical'
 type ControlBindingAction = keyof ModelControlBindings
 const activeSetupTab = ref<SetupTab>('model')
 const controlBindings = ref<ModelControlBindings>({ ...DEFAULT_MODEL_CONTROL_BINDINGS })
@@ -62,6 +69,7 @@ const setupTabs: Array<{ id: SetupTab; label: string; description: string }> = [
   { id: 'model', label: 'Modelo', description: 'Nome, escala e colisão' },
   { id: 'controls', label: 'Controles', description: 'Teclas e comandos' },
   { id: 'animations', label: 'Animações', description: 'Mapear e testar clipes' },
+  { id: 'rigging', label: 'Rig & keyframes', description: 'Criar rig e animar ossos' },
   { id: 'technical', label: 'Avançado', description: 'Diagnóstico e texturas' },
 ]
 const controlBindingFields: Array<{ key: ControlBindingAction; label: string; description: string }> = [
@@ -156,6 +164,33 @@ const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option 
   const keyCode = activeControlMapBindings.value[bindingKey] ?? DEFAULT_CONTROL_MAPS[0]!.bindings[bindingKey]
   return { ...option, label: `${option.label} · ${formatControlKey(keyCode)}` }
 }))
+type RigPose = ReturnType<typeof captureRigPose>
+type RigKeyframe = { time: number; pose: RigPose }
+const rigPreset = ref<AutoRigPreset>('humanoid')
+const rigBones = shallowRef<THREE.Bone[]>([])
+const rigRestPose = shallowRef<RigPose>({})
+const selectedRigBoneName = ref('')
+const rigKeyframes = ref<RigKeyframe[]>([])
+const rigFrameTime = ref(0)
+const rigDuration = ref(1)
+const rigClipName = ref('Animacao personalizada')
+const rigClipRole = ref<AnimationRole>('mount')
+const rigMessage = ref('')
+const boneRotationDraft = ref({ x: 0, y: 0, z: 0 })
+const selectedRigBone = computed(() => rigBones.value.find(bone => bone.name === selectedRigBoneName.value) ?? null)
+const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
+  { value: 'humanoid', label: 'Humanoide / personagem' },
+  { value: 'quadruped', label: 'Quadrúpede / cavalo' },
+  { value: 'chain', label: 'Corrente genérica / objeto' },
+]
+watch(selectedRigBone, bone => {
+  if (!bone) return
+  boneRotationDraft.value = {
+    x: THREE.MathUtils.radToDeg(bone.rotation.x),
+    y: THREE.MathUtils.radToDeg(bone.rotation.y),
+    z: THREE.MathUtils.radToDeg(bone.rotation.z),
+  }
+})
 const filteredPreviewParts = computed(() => {
   const query = partSearch.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return previewParts.value
@@ -221,6 +256,182 @@ function setAnimationRole(index: number, role: AnimationRole) {
   if (!previewAnimations.value[index]) return
   animationRoles.value = { ...animationRoles.value, [String(index)]: role }
   if (model.value) model.value.userData.importAnimationRoles = { ...animationRoles.value }
+}
+
+let rigHelper: THREE.SkeletonHelper | null = null
+
+function removeRigHelper() {
+  if (!rigHelper) return
+  scene?.remove(rigHelper)
+  rigHelper.geometry.dispose()
+  const material = rigHelper.material
+  if (Array.isArray(material)) material.forEach(item => item.dispose())
+  else material.dispose()
+  rigHelper = null
+}
+
+function refreshRigHelper() {
+  if (!model.value || !scene || rigBones.value.length === 0) return
+  removeRigHelper()
+  rigHelper = new THREE.SkeletonHelper(model.value)
+  rigHelper.name = 'ModelWorkspaceRigHelper'
+  rigHelper.renderOrder = 999
+  rigHelper.frustumCulled = false
+  scene.add(rigHelper)
+  rigHelper.update()
+}
+
+function createRig() {
+  const root = model.value
+  if (!root || props.initialAsset || loading.value) return
+  error.value = ''
+  try {
+    previewMixer?.stopAllAction()
+    const result = autoRigModel(root, rigPreset.value)
+    rigBones.value = result.bones
+    selectedRigBoneName.value = result.bones[0]?.name ?? ''
+    rigRestPose.value = captureRigPose(result.bones)
+    rigKeyframes.value = []
+    rigFrameTime.value = 0
+    rigDuration.value = 1
+    rigMessage.value = result.message
+    root.userData.importRigPreset = result.preset
+    refreshRigHelper()
+    refreshPreviewParts()
+    refreshModelDiagnostics()
+  } catch (cause) {
+    rigMessage.value = ''
+    error.value = cause instanceof Error ? cause.message : 'Não foi possível criar o rig.'
+  }
+}
+
+function applySelectedBoneRotation() {
+  const bone = selectedRigBone.value
+  if (!bone) return
+  previewMixer?.stopAllAction()
+  bone.rotation.set(
+    THREE.MathUtils.degToRad(boneRotationDraft.value.x),
+    THREE.MathUtils.degToRad(boneRotationDraft.value.y),
+    THREE.MathUtils.degToRad(boneRotationDraft.value.z),
+    bone.rotation.order,
+  )
+  bone.updateMatrixWorld(true)
+  rigHelper?.update()
+}
+
+function resetRigPose() {
+  if (!rigBones.value.length) return
+  previewMixer?.stopAllAction()
+  applyRigPose(rigBones.value, rigRestPose.value)
+  if (selectedRigBone.value) {
+    boneRotationDraft.value = {
+      x: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.x),
+      y: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.y),
+      z: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.z),
+    }
+  }
+  rigHelper?.update()
+}
+
+function recordRigKeyframe() {
+  if (!rigBones.value.length || !model.value) return
+  if (!Number.isFinite(rigFrameTime.value) || rigFrameTime.value < 0) {
+    rigMessage.value = 'O tempo do quadro precisa ser zero ou positivo.'
+    return
+  }
+  previewMixer?.stopAllAction()
+  const time = Number(rigFrameTime.value.toFixed(3))
+  const pose = captureRigPose(rigBones.value)
+  const existing = rigKeyframes.value.findIndex(frame => Math.abs(frame.time - time) < 0.001)
+  const frame = { time, pose }
+  if (existing >= 0) {
+    rigKeyframes.value = rigKeyframes.value.map((item, index) => index === existing ? frame : item)
+  } else {
+    rigKeyframes.value = [...rigKeyframes.value, frame].sort((a, b) => a.time - b.time)
+  }
+  rigDuration.value = Math.max(rigDuration.value, time, 0.1)
+  rigMessage.value = `Pose gravada em ${time.toFixed(2)} s (${rigBones.value.length} ossos).`
+}
+
+function applyRigKeyframeAtTime() {
+  if (!rigKeyframes.value.length || !rigBones.value.length) return
+  const frame = rigKeyframes.value.reduce((best, candidate) =>
+    Math.abs(candidate.time - rigFrameTime.value) < Math.abs(best.time - rigFrameTime.value) ? candidate : best,
+  )
+  applyRigPose(rigBones.value, frame.pose)
+  if (selectedRigBone.value) {
+    boneRotationDraft.value = {
+      x: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.x),
+      y: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.y),
+      z: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.z),
+    }
+  }
+  rigHelper?.update()
+  rigMessage.value = `Pose de ${frame.time.toFixed(2)} s aplicada para edição.`
+}
+
+function clearRigKeyframesForNewClip() {
+  rigKeyframes.value = []
+  rigFrameTime.value = 0
+  rigClipName.value = `Animacao ${previewAnimations.value.length + 1}`
+  rigMessage.value = 'Linha do tempo limpa. Grave a pose inicial em 0 s e as próximas poses nos tempos desejados.'
+}
+
+function createRigAnimation() {
+  const root = model.value
+  if (!root || !rigBones.value.length || props.initialAsset) return
+  const frames = [...rigKeyframes.value].sort((a, b) => a.time - b.time)
+  if (frames.length < 2 || frames[0]!.time === frames[frames.length - 1]!.time) {
+    rigMessage.value = 'Grave pelo menos duas poses em tempos diferentes (por exemplo, 0 s e 1 s).'
+    return
+  }
+  const name = rigClipName.value.trim()
+  if (!name) {
+    rigMessage.value = 'Digite um nome para a animação.'
+    return
+  }
+  const clipFrames = frames[0]!.time > 0 ? [{ ...frames[0]!, time: 0 }, ...frames] : frames
+  const duration = Math.max(0.1, rigDuration.value, clipFrames[clipFrames.length - 1]!.time)
+  const times = clipFrames.map(frame => frame.time)
+  const tracks: THREE.KeyframeTrack[] = []
+
+  for (const bone of rigBones.value) {
+    const positions: number[] = []
+    const quaternions: number[] = []
+    const scales: number[] = []
+    for (const frame of clipFrames) {
+      const transform = frame.pose[bone.name]
+      if (!transform) continue
+      positions.push(...transform.position)
+      quaternions.push(...transform.quaternion)
+      scales.push(...transform.scale)
+    }
+    if (positions.length !== times.length * 3 || quaternions.length !== times.length * 4 || scales.length !== times.length * 3) continue
+    tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, positions))
+    tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, quaternions))
+    tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.scale`, times, scales))
+  }
+  if (!tracks.length) {
+    rigMessage.value = 'Não existem trilhas válidas para exportar. Confira o rig e grave as poses novamente.'
+    return
+  }
+
+  const clip = new THREE.AnimationClip(name, duration, tracks)
+  const clips = [...previewAnimations.value, clip]
+  const newIndex = clips.length - 1
+  const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
+  root.userData.importAnimations = clips
+  root.userData.importAnimationRoles = nextRoles
+  animationRoles.value = nextRoles
+  animationClipRevision.value += 1
+  previewAnimationIndex.value = newIndex
+  refreshModelDiagnostics()
+  selectPreviewAnimation(newIndex)
+  rigMessage.value = `Animação "${name}" criada com ${tracks.length / 3} trilhas e associada ao papel "${animationRoleBaseOptions.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
+}
+
+function setRigTime(value: number) {
+  rigFrameTime.value = Math.max(0, Number.isFinite(value) ? value : 0)
 }
 
 function normalizeControlBindings(value: unknown): ModelControlBindings {
@@ -688,6 +899,15 @@ function clearLoadedModel() {
   previewAnimationIndex.value = 0
   previewPlaying.value = true
   animationRoles.value = {}
+  removeRigHelper()
+  rigBones.value = []
+  rigRestPose.value = {}
+  selectedRigBoneName.value = ''
+  rigKeyframes.value = []
+  rigFrameTime.value = 0
+  rigDuration.value = 1
+  rigMessage.value = ''
+  animationClipRevision.value = 0
   if (model.value) {
     scene?.remove(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
@@ -872,6 +1092,14 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   refreshPreviewParts()
   refreshModelDiagnostics()
   const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
+  animationClipRevision.value += 1
+  rigBones.value = []
+  rigRestPose.value = {}
+  selectedRigBoneName.value = ''
+  rigKeyframes.value = []
+  rigFrameTime.value = 0
+  rigDuration.value = 1
+  rigMessage.value = ''
   const savedRoles = loaded.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
   const nextRoles: Record<string, AnimationRole> = {}
   ;(clips ?? []).forEach((clip, index) => {
