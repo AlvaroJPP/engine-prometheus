@@ -664,7 +664,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       say('Pare a execução antes de alterar o modelo do jogador.')
       return
     }
-    const cleanName = name.toLowerCase().endsWith('.glb') ? name : `${name || 'Jogador'}.glb`
+    const baseName = name.trim().replace(/\\.[^.]+$/, '') || 'Jogador'
+    const cleanName = `${baseName}.glb`
     try {
       say(`Aplicando ativo do Model Workspace ao jogador: ${cleanName}…`)
       await eng.setPlayerModel(bytes, cleanName, animationRoles)
