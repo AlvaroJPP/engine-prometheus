@@ -320,6 +320,11 @@ export class PointerController {
 
     switch (d.kind) {
       case 'paint':
+        // Recalcula a grama pintada apenas uma vez no fim da pincelada;
+        // durante o arrasto, o terreno é atualizado por regiões locais.
+        this.world.terrain.finishBrush()
+        this.world.notifyTerrain()
+        break
       case 'grassPaint':
         this.world.notifyTerrain()
         break
