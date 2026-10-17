@@ -93,6 +93,7 @@ export class HumanoidAvatar {
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
+  private playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
   private verticalVelocity = 0
   private grounded = true
@@ -110,9 +111,19 @@ export class HumanoidAvatar {
   private mountedVisualPivot: THREE.Object3D | null = null
   private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
   private controlBindings(): ModelControlBindings {
-    return this.mountedRoot && this.mountSettings
-      ? this.mountSettings.controlBindings
-      : DEFAULT_MODEL_CONTROL_BINDINGS
+    if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
+
+    // Um pacote que mantém os controles padrão herda o mapa selecionado pelo usuário.
+    // Se o pacote tiver teclas próprias, essas configurações específicas continuam valendo.
+    const mountBindings = this.mountSettings.controlBindings
+    const keys: (keyof ModelControlBindings)[] = ['forward', 'backward', 'left', 'right', 'run', 'jump', 'interact']
+    const usesDefaults = keys.every(key => mountBindings[key] === DEFAULT_MODEL_CONTROL_BINDINGS[key])
+    return usesDefaults ? this.playerControlBindings : mountBindings
+  }
+
+  setControlBindings(bindings: ModelControlBindings): void {
+    this.playerControlBindings = { ...bindings }
+    this.pressed.clear()
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -121,7 +132,6 @@ export class HumanoidAvatar {
     const movementKeys = [
       bindings.forward, bindings.backward, bindings.left, bindings.right,
       bindings.run, bindings.jump, bindings.interact,
-      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
     ]
     if (!movementKeys.includes(event.code)) return
 
@@ -209,8 +219,8 @@ export class HumanoidAvatar {
     if (!this.enabled) return
     const step = Math.min(dt, 0.05)
     const bindings = this.controlBindings()
-    const forwardInput = Number(this.pressed.has(bindings.forward) || this.pressed.has('ArrowUp')) - Number(this.pressed.has(bindings.backward) || this.pressed.has('ArrowDown'))
-    const sideInput = Number(this.pressed.has(bindings.right) || this.pressed.has('ArrowRight')) - Number(this.pressed.has(bindings.left) || this.pressed.has('ArrowLeft'))
+    const forwardInput = Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
+    const sideInput = Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
     const length = Math.hypot(forwardInput, sideInput)
     const running = this.pressed.has(bindings.run)
     const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
