@@ -352,6 +352,7 @@ export class World {
     if (patch.visible !== undefined) {
       m.userData.renderDistanceBaseVisible = patch.visible
       m.visible = patch.visible && m.userData.renderDistanceCulled !== true
+      this.renderDistanceDirty = true
     }
     if (transformFields) this.renderDistanceDirty = true
     if (patch.locked !== undefined) m.userData.locked = patch.locked
