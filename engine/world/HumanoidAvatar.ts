@@ -1843,14 +1843,17 @@ export class HumanoidAvatar {
   }
 
   /** Substitui o visual do jogador por um GLB escolhido no editor. */
-  async setCustomModel(data: ArrayBuffer): Promise<void> {
+  async setCustomModel(
+    data: ArrayBuffer,
+    animationRoles?: Record<string, AnimationRole>,
+  ): Promise<void> {
     if (this.disposed) throw new Error('O jogador já foi descarregado.')
     if (!(data instanceof ArrayBuffer) || data.byteLength < 20) {
       throw new Error('O arquivo do jogador não parece ser um GLB válido.')
     }
 
     const revision = ++this.modelLoadRevision
-    const installed = await this.parseAndInstallModel(data.slice(0), revision)
+    const installed = await this.parseAndInstallModel(data.slice(0), revision, animationRoles)
     if (!installed) throw new Error('O carregamento do modelo foi substituído por outra operação.')
   }
 
@@ -1891,7 +1894,7 @@ export class HumanoidAvatar {
     return this.parseAndInstallModel(archive.slice(dataStart, dataStart + compressedSize), revision)
   }
 
-  private async parseAndInstallModel(data: ArrayBuffer, revision: number): Promise<boolean> {
+  private async parseAndInstallModel(data: ArrayBuffer, revision: number, animationRoles?: Record<string, AnimationRole>): Promise<boolean> {
     const loader = new GLTFLoader()
     const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
       loader.parse(data, '', resolve, reject)
@@ -1920,10 +1923,24 @@ export class HumanoidAvatar {
 
     const nextMixer = new THREE.AnimationMixer(gltf.scene)
     const nextActions = new Map<string, THREE.AnimationAction>()
-    for (const clip of gltf.animations) {
-      const key = this.classifyAnimation(clip.name)
-      if (!nextActions.has(key)) nextActions.set(key, nextMixer.clipAction(clip))
-    }
+    gltf.animations.forEach((clip, index) => {
+      const configuredRole = animationRoles?.[String(index)]
+      let key: string
+      if (configuredRole !== undefined) {
+        if (configuredRole === 'idle' || configuredRole === 'walk' || configuredRole === 'run' || configuredRole === 'jump') {
+          key = configuredRole
+        } else if (configuredRole === 'run_stop') {
+          key = 'run'
+        } else {
+          // Um clipe marcado como "Não usar" ou destinado à montaria não
+          // deve ser confundido com a locomoção de um personagem a pé.
+          return
+        }
+      } else {
+        key = this.classifyAnimation(clip.name)
+      }
+      if (key !== 'other' && !nextActions.has(key)) nextActions.set(key, nextMixer.clipAction(clip))
+    })
 
     const nextBones: typeof this.animatedBones = []
     gltf.scene.updateMatrixWorld(true)
