@@ -16,7 +16,7 @@ import type { AutoRigPreset } from '@/lib/animation/Rigging'
 const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
 const emit = defineEmits<{
   close: []
-  import: [payload: { name: string; model: THREE.Object3D; height: number }]
+  import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string }]
   'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
 }>()
 
@@ -1022,7 +1022,7 @@ function initPreview() {
   scene = new THREE.Scene()
   scene.background = new THREE.Color('#20232a')
   camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
-  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false })
+  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, preserveDrawingBuffer: true })
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.NoToneMapping
   renderer.toneMappingExposure = 1
@@ -1396,6 +1396,41 @@ async function useAsPlayerModel() {
   }
 }
 
+function capturePreviewThumbnail(): string | undefined {
+  const source = canvas.value
+  if (!source || !renderer || !scene || !camera || source.width < 1 || source.height < 1) return undefined
+
+  // Não inclua a visualização de colisão nem as linhas de rig na imagem da biblioteca.
+  const helpers = [colliderPreview, rigHelper].filter((item): item is THREE.Object3D => item !== null)
+  const previousVisibility = helpers.map(item => item.visible)
+  try {
+    helpers.forEach(item => { item.visible = false })
+    renderer.render(scene, camera)
+
+    const size = 160
+    const thumbnail = document.createElement('canvas')
+    thumbnail.width = size
+    thumbnail.height = size
+    const context = thumbnail.getContext('2d')
+    if (!context) return undefined
+    context.fillStyle = '#20232a'
+    context.fillRect(0, 0, size, size)
+
+    const padding = 8
+    const scale = Math.min((size - padding * 2) / source.width, (size - padding * 2) / source.height)
+    const width = Math.max(1, Math.round(source.width * scale))
+    const height = Math.max(1, Math.round(source.height * scale))
+    context.drawImage(source, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height)
+    return thumbnail.toDataURL('image/webp', 0.82)
+  } catch (cause) {
+    console.warn('[ModelImportDialog] Não foi possível gerar a miniatura do modelo.', cause)
+    return undefined
+  } finally {
+    helpers.forEach((item, index) => { item.visible = previousVisibility[index] ?? true })
+    renderer?.render(scene!, camera!)
+  }
+}
+
 function confirmImport() {
   if (!model.value || !fileName.value) return
   const root = model.value
@@ -1438,12 +1473,15 @@ function confirmImport() {
   imported.userData.importAnimationRoles = { ...animationRoles.value }
   imported.userData.importControlBindings = { ...controlBindings.value }
 
+  // Capture a miniatura antes de remover o modelo da cena de pré-visualização.
+  const thumbnail = capturePreviewThumbnail()
+
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
   previewMixer = null
   scene?.remove(root)
   model.value = null
-  emit('import', { name: chosenName, model: imported, height: importedHeight })
+  emit('import', { name: chosenName, model: imported, height: importedHeight, thumbnail })
   emit('close')
 }
 
