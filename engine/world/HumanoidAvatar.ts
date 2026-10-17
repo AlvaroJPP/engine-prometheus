@@ -202,7 +202,7 @@ export class HumanoidAvatar {
     if (this.enabled && !editingText) event.preventDefault()
     if (editingText || event.metaKey || event.ctrlKey && event.code !== 'ControlLeft' && event.code !== 'ControlRight' || event.altKey && event.code !== 'AltLeft' && event.code !== 'AltRight') return
 
-    if (!event.repeat && !this.mountedRoot) {
+    if (!event.repeat) {
       if (event.code === bindings.sprintToggle) {
         this.sprintToggled = !this.sprintToggled
         if (this.sprintToggled) this.walkToggled = false
@@ -213,6 +213,9 @@ export class HumanoidAvatar {
         if (this.walkToggled) this.sprintToggled = false
         return
       }
+    }
+
+    if (!event.repeat && !this.mountedRoot) {
       if (event.code === bindings.crouchToggle) {
         if (this.maneuver !== 'slide' && this.maneuver !== 'roll') this.setPosture(this.posture === 'crouching' ? 'standing' : 'crouching')
         return
@@ -331,7 +334,7 @@ export class HumanoidAvatar {
     if (this.mountedRoot && this.mountSettings) {
       // O avatar está oculto e vinculado à montaria: os contatos físicos são
       // gerenciados pela montaria, não por uma cápsula de jogador sobreposta a ela.
-      this.updateMountedMovement(step, forwardInput, sideInput, running)
+      this.updateMountedMovement(step, forwardInput, sideInput, running, this.walkToggled && !running)
       return
     }
 
@@ -918,6 +921,7 @@ export class HumanoidAvatar {
     forwardInput: number,
     sideInput: number,
     running: boolean,
+    walkingSlow: boolean,
   ): void {
     const root = this.mountedRoot
     const settings = this.mountSettings
@@ -934,7 +938,7 @@ export class HumanoidAvatar {
         0,
         -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
       ).normalize()
-      const speed = settings.speed * (running ? settings.runMultiplier : 1)
+      const speed = settings.speed * (running ? settings.runMultiplier : walkingSlow ? 0.48 : 1)
       direction.multiplyScalar(speed * dt)
 
       const initialBounds = this.getMountedBounds(root)
@@ -1709,8 +1713,12 @@ export class HumanoidAvatar {
     this.pressed.clear()
     this.activeCollisions.clear()
     this.animationTime = 0
+    this.sprintToggled = false
+    this.walkToggled = false
     this.maneuver = null
     this.maneuverRemaining = 0
+    this.maneuverCooldown = 0
+    this.maneuverSpeed = 0
     this.dodgeRequested = false
     this.slideRequested = false
     this.rollRequested = false
