@@ -15,6 +15,8 @@ export interface SavedComponent {
   colliderOffset: [number, number, number]
   /** Papéis atribuídos aos clipes no preview, indexados pelo índice da animação. */
   animationRoles?: Record<string, import('@engine').AnimationRole>
+  /** Miniatura visual gerada pela prévia 3D do modelo importado. */
+  thumbnail?: string
   /** Teclas personalizadas que acompanham o modelo no catálogo de componentes. */
   controlBindings?: Partial<import('@engine').ModelControlBindings>
   bytes: ArrayBuffer
