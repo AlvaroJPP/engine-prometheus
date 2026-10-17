@@ -25,7 +25,7 @@ export function buildBundle(
       position: [m.position.x, m.position.y, m.position.z],
       rotation: [m.rotation.x, m.rotation.y, m.rotation.z],
       scale: [m.scale.x, m.scale.y, m.scale.z],
-      visible: typeof m.userData.renderDistanceBaseVisible === 'boolean'
+      visible: m.userData.renderDistanceCulled === true && typeof m.userData.renderDistanceBaseVisible === 'boolean'
         ? m.userData.renderDistanceBaseVisible
         : m.visible,
       locked: m.userData.locked === true,
