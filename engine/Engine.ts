@@ -267,7 +267,11 @@ export class Engine {
         if (instance.packageId === 'mount') this.applyMountModelStates(instance)
       }
       this.orbit.update()
-      this.world.updateRenderDistance(this.orbit.camera.position)
+      if (this.world.updateRenderDistance(this.orbit.camera.position)) {
+        // A distância pode reexibir submalhas escondidas pela oclusão ou ocultar
+        // bloqueadores; invalide seus caches para recalcular a visibilidade coerente.
+        this.modelOcclusion.invalidate()
+      }
       this.world.updateFogForCamera(this.orbit.camera.position)
       this.modelLod.update(this.orbit.camera.position)
       if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
