@@ -557,6 +557,7 @@ export class HumanoidAvatar {
       runMultiplier: settings.runMultiplier,
       interactionRadius: settings.interactionRadius,
       modelStates: settings.modelStates.map(rule => ({ ...rule })),
+      controlBindings: { ...settings.controlBindings },
     }
     this.visualRoot.visible = false
     root.updateWorldMatrix(true, true)
