@@ -15,14 +15,30 @@ const emit = defineEmits<{
 
 type ActionKey = keyof ControlMapBindings
 
-const actions: Array<{ key: ActionKey; label: string; group: string }> = [
+const actions: Array<{ key: ActionKey; label: string; group: ActionGroup }> = [
   { key: 'forward', label: 'Mover para frente', group: 'Movimento' },
   { key: 'backward', label: 'Mover para trás', group: 'Movimento' },
   { key: 'left', label: 'Mover para a esquerda', group: 'Movimento' },
   { key: 'right', label: 'Mover para a direita', group: 'Movimento' },
-  { key: 'run', label: 'Correr', group: 'Movimento' },
+  { key: 'run', label: 'Correr enquanto segura', group: 'Movimento' },
+  { key: 'sprintToggle', label: 'Ativar/desativar sprint', group: 'Movimento' },
+  { key: 'walkToggle', label: 'Ativar/desativar caminhada lenta', group: 'Movimento' },
   { key: 'jump', label: 'Pular', group: 'Movimento' },
+  { key: 'crouchToggle', label: 'Agachar / levantar', group: 'Postura e manobras' },
+  { key: 'proneToggle', label: 'Deitar / rastejar', group: 'Postura e manobras' },
+  { key: 'dodge', label: 'Esquiva rápida', group: 'Postura e manobras' },
+  { key: 'slide', label: 'Deslizar', group: 'Postura e manobras' },
   { key: 'interact', label: 'Interagir / montar / desmontar', group: 'Ações' },
+  { key: 'primaryAction', label: 'Ação principal (gatilho de evento)', group: 'Ações' },
+  { key: 'secondaryAction', label: 'Ação secundária (gatilho de evento)', group: 'Ações' },
+  { key: 'inventory', label: 'Inventário (gatilho de evento)', group: 'Ações' },
+  { key: 'useItem', label: 'Usar item (gatilho de evento)', group: 'Ações' },
+  { key: 'reload', label: 'Recarregar (gatilho de evento)', group: 'Ações' },
+  { key: 'ability1', label: 'Habilidade 1 (gatilho de evento)', group: 'Ações' },
+  { key: 'ability2', label: 'Habilidade 2 (gatilho de evento)', group: 'Ações' },
+  { key: 'ability3', label: 'Habilidade 3 (gatilho de evento)', group: 'Ações' },
+  { key: 'ability4', label: 'Habilidade 4 (gatilho de evento)', group: 'Ações' },
+  { key: 'emote', label: 'Emote (gatilho de evento)', group: 'Ações' },
   { key: 'toggleFirstPerson', label: 'Alternar primeira pessoa', group: 'Câmera e jogo' },
   { key: 'cycleCamera', label: 'Alternar câmera', group: 'Câmera e jogo' },
   { key: 'exitRuntime', label: 'Voltar ao editor', group: 'Câmera e jogo' },
@@ -36,7 +52,7 @@ const activeProfile = computed(() =>
 const nameDraft = ref('')
 const capturingAction = ref<ActionKey | null>(null)
 const message = ref('')
-type ActionGroup = 'Movimento' | 'Ações' | 'Câmera e jogo'
+type ActionGroup = 'Movimento' | 'Postura e manobras' | 'Ações' | 'Câmera e jogo'
 const activeGroup = ref<ActionGroup>('Movimento')
 const groupedActions = computed(() => actions.filter(action => action.group === activeGroup.value))
 
@@ -47,7 +63,7 @@ watch(() => props.settings.activeProfileId, () => {
 }, { immediate: true })
 
 function selectGroup(group: string) {
-  if (group === 'Movimento' || group === 'Ações' || group === 'Câmera e jogo') {
+  if (group === 'Movimento' || group === 'Postura e manobras' || group === 'Ações' || group === 'Câmera e jogo') {
     activeGroup.value = group
   }
 }
@@ -169,6 +185,8 @@ function keyLabel(code: string): string {
     PageDown: 'Page Down',
   }
   if (labels[code]) return labels[code]
+  if (code === 'CapsLock') return 'Caps Lock'
+  if (code === 'F10') return 'F10'
   if (/^Key[A-Z]$/.test(code)) return code.slice(3)
   if (/^Digit[0-9]$/.test(code)) return code.slice(5)
   return code
@@ -183,8 +201,8 @@ function onCaptureKey(event: KeyboardEvent) {
     message.value = 'Alteração de tecla cancelada.'
     return
   }
-  if (['MetaLeft', 'MetaRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight'].includes(event.code)) {
-    message.value = 'Escolha uma tecla individual, sem Ctrl, Alt ou tecla Windows.'
+  if (['MetaLeft', 'MetaRight'].includes(event.code) || ((event.ctrlKey || event.altKey) && !['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight'].includes(event.code))) {
+    message.value = 'Escolha uma tecla individual. Combinações com Ctrl/Alt ainda não são suportadas.'
     return
   }
 
@@ -249,7 +267,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       </div>
 
       <nav class="control-tabs" aria-label="Categorias de comandos">
-        <button v-for="group in ['Movimento', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" @click="selectGroup(group)">
+        <button v-for="group in ['Movimento', 'Postura e manobras', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" @click="selectGroup(group)">
           {{ group }}
         </button>
       </nav>
@@ -258,7 +276,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
         <div v-for="action in groupedActions" :key="action.key" class="binding-row">
           <div class="binding-label">
             <strong>{{ action.label }}</strong>
-            <small v-if="action.key === 'interact'">Usado também para interagir com pacotes de comportamento, como montarias.</small>
+            <small v-if="action.key === 'interact'">Também pode acionar pacotes de comportamento, como montarias.</small>
           </div>
           <button class="key-button" :class="{ capturing: capturingAction === action.key }" @click="startCapture(action.key)">
             {{ capturingAction === action.key ? 'Pressione uma tecla…' : keyLabel(activeProfile.bindings[action.key]) }}
@@ -270,7 +288,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       <div class="controls-message" aria-live="polite">{{ message || 'As alterações são salvas automaticamente neste computador.' }}</div>
 
       <footer class="controls-footer">
-        <span>Os mapas personalizados ficam disponíveis quando você reabrir o Engine Prometheus neste computador.</span>
+        <span>Movimentos funcionam no jogo; ações marcadas como gatilho podem ativar regras key_pressed. Inventário e combate precisam de lógica/sistemas próprios.</span>
         <button class="secondary-button" @click="restoreBindings">Restaurar teclas</button>
         <button class="primary-button" @click="close">Concluído</button>
       </footer>
