@@ -291,6 +291,7 @@ function createRig() {
     previewMixer?.stopAllAction()
     const result = autoRigModel(root, rigPreset.value)
     rigBones.value = result.bones
+    rigPreset.value = result.preset
     selectedRigBoneName.value = result.bones[0]?.name ?? ''
     rigRestPose.value = captureRigPose(result.bones)
     rigKeyframes.value = []
@@ -298,6 +299,9 @@ function createRig() {
     rigDuration.value = 1
     rigMessage.value = result.message
     root.userData.importRigPreset = result.preset
+    root.userData.importRigGenerated = result.created || (
+      result.bones.length > 0 && result.bones.every(bone => bone.userData.generatedRigBone === true)
+    )
     refreshRigHelper()
     refreshPreviewParts()
     refreshModelDiagnostics()
