@@ -2330,8 +2330,8 @@ input[type='range'] { accent-color: #e98524; }
 <style>
 /* Inspector contextual: cabeçalho enxuto e conteúdo organizado por estado de seleção. */
 .panel.right {
-  width: 292px;
-  min-width: 250px;
+  width: 204px;
+  min-width: 175px;
   background: #292929;
   border-left: 1px solid #1b1b1b;
 }
@@ -2487,13 +2487,15 @@ input[type='range'] { accent-color: #e98524; }
 }
 .panel.right .danger { margin-top: 10px; }
 @media (max-width: 1000px) {
-  .panel.right { width: 260px; min-width: 235px; }
+  .panel.right { width: 182px; min-width: 165px; }
   .inspector-heading { padding: 10px; }
+  .inspector-tabs button small { font-size: 8px; }
 }
 @media (max-width: 700px) {
-  .panel.right { width: 235px; min-width: 210px; }
+  .panel.right { width: 165px; min-width: 147px; }
   .inspector-heading { padding: 8px; }
   .inspector-object-icon { width: 28px; height: 28px; }
+  .inspector-tabs button small { font-size: 7px; }
   .panel.right .scroll > section { padding: 9px; }
 }
 </style>
