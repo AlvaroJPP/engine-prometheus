@@ -1113,7 +1113,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
         <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
-        <div class="viewport-fps" aria-label="Diagnóstico de renderização">
+        <div v-if="!modelImportOpen" class="viewport-fps" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
             <span class="fps-indicator" />
             <span>FPS</span>
