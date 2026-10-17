@@ -1429,51 +1429,63 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <div class="unity-component">
                 <div class="unity-component-head"><span class="component-icon transform-icon">↔</span><strong>Transform</strong><span class="component-menu">⋮</span></div>
                 <div class="unity-component-body">
-                  <div class="component-caption">POSIÇÃO</div>
-                  <div class="grid3">
-                    <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
+                  <div class="transform-property-row">
+                    <span class="transform-property-label">Posição</span>
+                    <div class="transform-axis-grid">
+                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
+                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
+                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
+                    </div>
                   </div>
-                  <div class="component-caption">ROTAÇÃO</div>
-                  <div class="grid3">
-                    <label class="field">X<input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
+                  <div class="transform-property-row">
+                    <span class="transform-property-label">Rotação</span>
+                    <div class="transform-axis-grid">
+                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
+                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
+                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
+                    </div>
                   </div>
-                  <div class="component-caption">ESCALA</div>
-                  <div class="grid3">
-                    <label class="field">X<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
+                  <div class="transform-property-row">
+                    <span class="transform-property-label">Escala</span>
+                    <div class="transform-axis-grid">
+                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
+                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
+                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
+                    </div>
                   </div>
                   <div class="component-caption">FÍSICA</div>
                   <label class="field">Massa (kg)
                     <input class="mono" type="number" min="0" max="1000000" step="0.1" :value="selected.mass.toFixed(2)" @change="onNumber('mass', $event)" />
                   </label>
                   <p class="component-note">Massa 0 = corpo estático. A massa distribui a correção de penetração durante colisões.</p>
-                  <label class="field">Tipo de colisor
-                    <select :value="selected.colliderType" @change="onColliderChange(selected.id, $event)">
-                      <option value="auto">Automático (malha)</option>
-                      <option value="box">Caixa (Box)</option>
-                      <option value="sphere">Esfera (Sphere)</option>
-                      <option value="capsule">Cápsula (Capsule)</option>
-                      <option value="none">Sem colisão</option>
-                    </select>
-                  </label>
-                  <p class="component-note">Caixa, esfera e cápsula usam formas simplificadas. As dimensões abaixo personalizam o colisor em unidades do mundo.</p>
-                  <button class="ghost full collider-visibility-button" :class="{ active: colliderDebugVisible }" @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar colisores no mundo' : 'Visualizar colisores no mundo' }}</button>
-                  <div class="component-caption">DIMENSÕES DO COLISOR</div>
-                  <div class="grid3 collider-grid">
-                    <label class="field">Largura X<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" /></label>
-                    <label class="field">Altura Y<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" /></label>
-                    <label class="field">Prof. Z<input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" /></label>
+                  <div class="collider-type-row">
+                    <label class="field">Tipo de colisor
+                      <select :value="selected.colliderType" @change="onColliderChange(selected.id, $event)">
+                        <option value="auto">Automático (malha)</option>
+                        <option value="box">Caixa (Box)</option>
+                        <option value="sphere">Esfera (Sphere)</option>
+                        <option value="capsule">Cápsula (Capsule)</option>
+                        <option value="none">Sem colisão</option>
+                      </select>
+                    </label>
+                    <button class="ghost collider-visibility-button" :class="{ active: colliderDebugVisible }" @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar' : 'Ver no mundo' }}</button>
                   </div>
-                  <div class="component-caption">DESLOCAMENTO DO COLISOR</div>
-                  <div class="grid3 collider-grid">
-                    <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" /></label>
-                    <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" /></label>
-                    <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.colliderOffset[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" /></label>
+                  <p class="component-note">Caixa, esfera e cápsula usam formas simplificadas. As dimensões abaixo personalizam o colisor em unidades do mundo.</p>
+<div class="transform-property-row collider-vector-row">
+                    <span class="transform-property-label">Tamanho</span>
+                    <div class="transform-axis-grid">
+                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" /></label>
+                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 1, $event)" /></label>
+                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" /></label>
+                    </div>
+                  </div>
+                  <div class="transform-property-row collider-vector-row">
+                    <span class="transform-property-label">Deslocar</span>
+                    <div class="transform-axis-grid">
+                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="0.1" :value="selected.colliderOffset[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" /></label>
+                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" step="0.1" :value="selected.colliderOffset[1].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 1, $event)" /></label>
+                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" step="0.1" :value="selected.colliderOffset[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 2, $event)" /></label>
+                    </div>
                   </div>
                   <p class="component-note">Ajustar dimensões ativa um colisor personalizado em caixa quando o tipo está em Automático. O deslocamento reposiciona a forma sem mover a malha visual.</p>
                   <p class="component-note">Transformação sincronizada com o gizmo 3D do viewport.</p>
@@ -3766,5 +3778,94 @@ button:disabled { cursor: not-allowed; }
   .model-import-launch { top:12px !important; right:12px !important; }
   .viewport-fps { top:100px !important; right:12px !important; }
   .quick-add-popover { width:min(240px, calc(100vw - 220px)); }
+}
+</style>
+
+
+
+<style>
+/* Compact axis rows to match the supplied inspector reference. */
+.panel.right .scroll .transform-property-row {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:0;
+  margin:7px 0;
+}
+.panel.right .scroll .transform-property-label {
+  flex:0 0 63px;
+  color:#9aa6b6;
+  font-size:10px;
+}
+.panel.right .scroll .transform-axis-grid {
+  display:grid;
+  flex:1;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  min-width:0;
+}
+.panel.right .scroll .axis-value {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  min-height:32px;
+  margin:0;
+  padding:0 6px;
+  border:1px solid #2f3744;
+  border-radius:5px;
+  background:#10141a;
+  cursor:text;
+  font-size:10px;
+  font-weight:700;
+}
+.panel.right .scroll .axis-value:focus-within {
+  border-color:#8a641c;
+  box-shadow:0 0 0 2px #f5a52412;
+}
+.panel.right .scroll .axis-value > span { flex:none; }
+.panel.right .scroll .axis-value.axis-x > span { color:#ff7777; }
+.panel.right .scroll .axis-value.axis-y > span { color:#6bdc91; }
+.panel.right .scroll .axis-value.axis-z > span { color:#76aaff; }
+.panel.right .scroll .axis-value input {
+  flex:1;
+  width:100%;
+  min-width:0;
+  height:29px;
+  min-height:29px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  outline:0;
+  background:transparent;
+  color:#e5eaf1;
+  text-align:right;
+  font:10px 'IBM Plex Mono',monospace;
+}
+.panel.right .scroll .axis-value input:focus {
+  outline:none;
+  box-shadow:none;
+}
+.panel.right .scroll .collider-type-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 100px;
+  align-items:end;
+  gap:7px;
+}
+.panel.right .scroll .collider-type-row .field { min-width:0; margin-bottom:9px; }
+.panel.right .scroll .collider-type-row .collider-visibility-button {
+  min-height:32px;
+  margin-bottom:9px;
+  padding-inline:7px;
+  white-space:nowrap;
+  font-size:10px;
+}
+@media (max-width: 1180px) {
+  .panel.right .scroll .transform-property-row { gap:5px; }
+  .panel.right .scroll .transform-property-label { flex-basis:54px; font-size:9px; }
+  .panel.right .scroll .transform-axis-grid { gap:3px; }
+  .panel.right .scroll .axis-value { gap:3px; padding-inline:4px; }
+  .panel.right .scroll .axis-value input { font-size:9px; }
 }
 </style>
