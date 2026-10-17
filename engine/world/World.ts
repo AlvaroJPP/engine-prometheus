@@ -41,6 +41,7 @@ export class World {
   private readonly fogCorner = new THREE.Vector3()
   private renderDistance: number | null = 72
   private renderDistanceDirty = true
+  private readonly dirtyRenderDistanceObjectIds = new Set<string>()
   private hasRenderDistanceCameraPosition = false
   private readonly lastRenderDistanceCameraPosition = new THREE.Vector3()
   private readonly renderDistanceCenter = new THREE.Vector3()
@@ -263,6 +264,7 @@ export class World {
     if (this.selectedId === id) this.select(null)
     this.dispose(obj)
     this.objects.delete(id)
+    this.dirtyRenderDistanceObjectIds.delete(id)
     this.invalidateGrassOcclusionRoots()
     this.events.emit('objectRemoved', { id })
   }
@@ -352,9 +354,9 @@ export class World {
     if (patch.visible !== undefined) {
       m.userData.renderDistanceBaseVisible = patch.visible
       m.visible = patch.visible && m.userData.renderDistanceCulled !== true
-      this.renderDistanceDirty = true
+      this.dirtyRenderDistanceObjectIds.add(id)
     }
-    if (transformFields) this.renderDistanceDirty = true
+    if (transformFields) this.dirtyRenderDistanceObjectIds.add(id)
     if (patch.locked !== undefined) m.userData.locked = patch.locked
     const wireframeVisible = patch.wireframeVisible
     if (wireframeVisible !== undefined) {
@@ -450,7 +452,7 @@ export class World {
 
   /** Avisa a interface que um objeto foi alterado por arrasto no viewport. */
   notifyChanged(id: string): void {
-    this.renderDistanceDirty = true
+    this.dirtyRenderDistanceObjectIds.add(id)
     this.terrain.grass.invalidateOcclusion()
     this.events.emit('objectChanged', { id })
   }
@@ -628,18 +630,26 @@ export class World {
     return this.renderDistanceCenter.distanceToSquared(this.lastRenderDistanceCameraPosition) > threshold * threshold
   }
 
-  /** Atualiza o culling quando a câmera muda de região, objetos se movem ou a opção muda. */
+  /** Atualiza o culling ao mudar a câmera; movimentos isolados só recalculam o objeto afetado. */
   updateRenderDistance(cameraPosition: THREE.Vector3): void {
     const cameraMoved = !this.hasRenderDistanceCameraPosition
       || this.lastRenderDistanceCameraPosition.distanceToSquared(cameraPosition) >= 0.25
-    if (!this.renderDistanceDirty && !cameraMoved) return
+    const updateAll = this.renderDistanceDirty || cameraMoved
+    if (!updateAll && this.dirtyRenderDistanceObjectIds.size === 0) return
 
     this.lastRenderDistanceCameraPosition.copy(cameraPosition)
     this.hasRenderDistanceCameraPosition = true
-    this.renderDistanceDirty = false
-    let changed = false
+    if (updateAll) this.renderDistanceDirty = false
 
-    for (const object of this.objects.values()) {
+    const objectsToUpdate: GameObject[] = updateAll
+      ? [...this.objects.values()]
+      : [...this.dirtyRenderDistanceObjectIds]
+          .map((id) => this.objects.get(id))
+          .filter((object): object is GameObject => object !== undefined)
+    this.dirtyRenderDistanceObjectIds.clear()
+
+    let changed = false
+    for (const object of objectsToUpdate) {
       const mesh = object.mesh
       const wasCulled = mesh.userData.renderDistanceCulled === true
 
