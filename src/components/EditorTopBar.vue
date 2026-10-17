@@ -195,6 +195,22 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .render-settings-everything small { color:#9aa1ae; font-size:10px; line-height:1.45; }
 .render-settings-note { margin-bottom:0; }
 .render-settings-popover input:disabled { opacity:.5; cursor:not-allowed; }
-@media(max-width:1200px) { .brand-copy,.subtitle { display:none; } .global-search { max-width:260px; } }
-@media(max-width:900px) { .global-search-wrap { display:none; } .project { display:none; } }
+@media(max-width:1200px) {
+  .brand-copy,.subtitle { display:none; }
+  .global-search { max-width:260px; }
+}
+@media(max-width:900px) {
+  .project { display:none; }
+  .global-search-wrap { display:block; flex:1 1 170px; width:auto; max-width:300px; min-width:130px; }
+  .topbar-spacer { display:none; }
+  .global-search kbd { display:none; }
+  .cam { padding-inline:7px; }
+}
+@media(max-width:760px) {
+  .global-search-wrap { display:none; }
+  .mode-segment { display:none; }
+  .render-settings-trigger { gap:4px; padding-inline:7px; }
+  .render-settings-icon { display:none; }
+  .cam { padding-inline:7px; font-size:10px; }
+}
 </style>
