@@ -4169,3 +4169,41 @@ button:disabled { cursor: not-allowed; }
   }
 }
 </style>
+
+
+<style>
+/* Reduz a barra de ferramentas em 30%, preservando os controles e o scroll. */
+.toolbar {
+  box-sizing: border-box;
+  width: 29px !important;
+  min-width: 29px !important;
+  padding: 3.5px !important;
+  gap: 3.5px !important;
+  height: calc(((100dvh - 96px) / 2) * 0.7) !important;
+  max-height: calc(((100dvh - 96px) / 2) * 0.7) !important;
+}
+.toolbar-group { gap: 2px !important; }
+.toolbar .tool {
+  width: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  height: 22px !important;
+}
+.toolbar .tool-ico { font-size: 12px !important; }
+.toolbar-separator { margin-block: 1px !important; }
+@media (max-width: 760px) {
+  .toolbar {
+    width: 29px !important;
+    min-width: 29px !important;
+    height: calc(((100dvh - 92px) / 2) * 0.7) !important;
+    max-height: calc(((100dvh - 92px) / 2) * 0.7) !important;
+    padding: 3px !important;
+  }
+  .toolbar .tool {
+    width: 22px !important;
+    min-width: 22px !important;
+    min-height: 22px !important;
+    height: 22px !important;
+  }
+}
+</style>
