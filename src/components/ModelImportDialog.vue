@@ -353,11 +353,8 @@ function recordRigKeyframe() {
   rigMessage.value = `Pose gravada em ${time.toFixed(2)} s (${rigBones.value.length} ossos).`
 }
 
-function applyRigKeyframeAtTime() {
-  if (!rigKeyframes.value.length || !rigBones.value.length) return
-  const frame = rigKeyframes.value.reduce((best, candidate) =>
-    Math.abs(candidate.time - rigFrameTime.value) < Math.abs(best.time - rigFrameTime.value) ? candidate : best,
-  )
+function applyRigFrame(frame: RigKeyframe) {
+  rigFrameTime.value = frame.time
   applyRigPose(rigBones.value, frame.pose)
   if (selectedRigBone.value) {
     boneRotationDraft.value = {
@@ -368,6 +365,14 @@ function applyRigKeyframeAtTime() {
   }
   rigHelper?.update()
   rigMessage.value = `Pose de ${frame.time.toFixed(2)} s aplicada para edição.`
+}
+
+function applyRigKeyframeAtTime() {
+  if (!rigKeyframes.value.length || !rigBones.value.length) return
+  const frame = rigKeyframes.value.reduce((best, candidate) =>
+    Math.abs(candidate.time - rigFrameTime.value) < Math.abs(best.time - rigFrameTime.value) ? candidate : best,
+  )
+  applyRigFrame(frame)
 }
 
 function clearRigKeyframesForNewClip() {
@@ -1537,6 +1542,76 @@ onBeforeUnmount(() => {
             <p class="model-control-note">As funções acompanham o mapa de controles ativo: movimento, caminhada lenta, postura, esquiva, rolamento, interação e ações de inventário/itens/habilidades. A tecla atual aparece ao lado do papel. Câmera e sair do jogo não acionam animações do personagem.</p>
           </section>
 
+          <section v-if="activeSetupTab === 'rigging'" class="model-panel-section model-rigging-section">
+            <div class="model-panel-heading"><span>04</span> RIGGING E ANIMAÇÃO POR OSSOS <b>{{ rigBones.length }}</b></div>
+            <p class="model-panel-hint">Crie um esqueleto para modelos estáticos ou use os ossos de um modelo que já seja rigado. Depois ajuste a pose dos ossos e grave quadros-chave em tempos diferentes.</p>
+            <label class="model-rigging-field">Modelo de rig
+              <select v-model="rigPreset" :disabled="!model || !!props.initialAsset || loading">
+                <option v-for="option in rigPresetOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+            </label>
+            <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || loading" @click="createRig">
+              {{ rigBones.length ? 'Recriar / detectar rig' : 'Criar rig automático' }}
+            </button>
+            <p class="model-control-note">Quadrúpede pressupõe a cabeça voltada para +Z. O rig automático e os pesos de vértices são um ponto de partida: modelos complexos podem exigir ajustes ou um rig preparado externamente.</p>
+
+            <template v-if="rigBones.length">
+              <div class="model-rigging-summary">
+                <span><small>OSSOS</small><strong>{{ rigBones.length }}</strong></span>
+                <span><small>QUADROS</small><strong>{{ rigKeyframes.length }}</strong></span>
+                <span><small>CLIPES</small><strong>{{ previewAnimations.length }}</strong></span>
+              </div>
+
+              <label class="model-rigging-field">Osso selecionado
+                <select v-model="selectedRigBoneName">
+                  <option v-for="bone in rigBones" :key="bone.uuid" :value="bone.name">{{ bone.name }}</option>
+                </select>
+              </label>
+              <div v-if="selectedRigBone" class="model-rigging-rotation">
+                <div class="model-rigging-subtitle">ROTAÇÃO LOCAL · GRAUS</div>
+                <label>X<input v-model.number="boneRotationDraft.x" type="number" step="5" @change="applySelectedBoneRotation" /></label>
+                <label>Y<input v-model.number="boneRotationDraft.y" type="number" step="5" @change="applySelectedBoneRotation" /></label>
+                <label>Z<input v-model.number="boneRotationDraft.z" type="number" step="5" @change="applySelectedBoneRotation" /></label>
+              </div>
+              <button type="button" class="model-rigging-secondary" @click="resetRigPose">Restaurar pose inicial</button>
+              <div class="model-rigging-separator"></div>
+
+              <div class="model-rigging-subtitle">LINHA DO TEMPO</div>
+              <label class="model-rigging-field">Tempo do quadro (segundos)
+                <input :value="rigFrameTime" type="number" min="0" max="120" step="0.1" @change="setRigTime(Number(($event.target as HTMLInputElement).value))" />
+              </label>
+              <label class="model-rigging-field">Duração do clipe (segundos)
+                <input v-model.number="rigDuration" type="number" min="0.1" max="120" step="0.1" />
+              </label>
+              <button type="button" class="model-rigging-primary" @click="recordRigKeyframe">＋ Gravar pose neste tempo</button>
+              <div v-if="rigKeyframes.length" class="model-rigging-frames">
+                <button v-for="frame in rigKeyframes" :key="frame.time" type="button" @click="applyRigFrame(frame)" :class="{ active: Math.abs(rigFrameTime - frame.time) < 0.001 }">
+                  <strong>{{ frame.time.toFixed(2) }} s</strong><span>Aplicar pose</span>
+                </button>
+              </div>
+              <p class="model-control-note">Exemplo: grave uma pose em 0 s, gire os ossos, mude para 0,5 s e grave outra. O motor interpola entre as poses.</p>
+
+              <div class="model-rigging-separator"></div>
+              <div class="model-rigging-subtitle">SALVAR COMO NOVA ANIMAÇÃO</div>
+              <label class="model-rigging-field">Nome
+                <input v-model.trim="rigClipName" maxlength="80" placeholder="Ex.: Montar cavalo" />
+              </label>
+              <label class="model-rigging-field">Papel no jogo
+                <select v-model="rigClipRole">
+                  <option v-for="role in animationRoleBaseOptions.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
+                </select>
+              </label>
+              <button type="button" class="model-rigging-primary" :disabled="rigKeyframes.length < 2 || !!props.initialAsset" @click="createRigAnimation">Criar clipe de animação</button>
+              <button type="button" class="model-rigging-secondary" @click="clearRigKeyframesForNewClip">Nova animação / limpar quadros</button>
+              <p class="model-control-note">Para sincronizar a montagem, crie um clipe com o papel “Montar / subir” no jogador e outro com o mesmo papel no cavalo. O pacote Montaria dispara os dois quando o jogador monta.</p>
+              <p v-if="rigMessage" class="model-rigging-status">{{ rigMessage }}</p>
+            </template>
+            <div v-else class="model-setup-empty">
+              <strong>Nenhum rig carregado</strong>
+              <small>Escolha Humanoide, Quadrúpede ou Corrente genérica e crie o rig. Se o modelo já tiver um esqueleto glTF, a ferramenta detectará os ossos existentes.</small>
+            </div>
+          </section>
+
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
             <div class="model-panel-heading"><span>04</span> NOME DO COMPONENTE</div>
             <label class="model-component-name-field">Nome na biblioteca
@@ -1694,6 +1769,7 @@ onBeforeUnmount(() => {
 .model-file-input{display:none}.model-file-dropzone{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;padding:13px 10px;border:1px dashed #4a505c;border-radius:5px;background:#20242b;color:#d9dde5;text-align:left;cursor:pointer}.model-file-dropzone:hover{border-color:#b98255;background:#29251f}.model-file-dropzone:disabled{opacity:.5;cursor:wait}.model-dropzone-icon{display:grid;place-items:center;width:28px;height:28px;border:1px solid #66503c;border-radius:4px;background:#33271e;color:#e1aa78;font-size:19px}.model-file-dropzone strong{font-size:10px}.model-file-dropzone small{color:#929aa7;font-size:9px}.model-dropzone-formats{color:#b7bdc8;font-size:8px;line-height:1.5}.model-hierarchy-section{padding-top:14px}.model-preview-parts{display:flex;flex-direction:column;gap:3px;max-height:none;overflow:visible}.model-preview-part{display:flex;align-items:center;gap:2px;min-width:0;padding:3px;border:1px solid transparent;border-radius:3px;background:transparent}.model-preview-part:hover{background:#252930}.model-preview-part.is-selected{border-color:#805b3d;background:#34291f}.model-preview-part-select{display:flex;align-items:center;gap:5px;flex:1;min-width:0;padding:4px 2px;border:0;background:transparent;color:#d5dae3;text-align:left;cursor:pointer}.model-preview-part-index{color:#727c8b;font:8px ui-monospace,monospace}.model-tree-cube{color:#d4a171;font-size:12px}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#cfd4de;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-select small{flex:none;color:#8d96a5;font-size:8px}.model-preview-part-eye,.model-preview-part-solo{width:20px;height:21px;flex:none;border:1px solid #3b414b;border-radius:3px;background:#262a31;color:#b8c0cc;font-size:9px;cursor:pointer}.model-preview-part-solo.active{border-color:#ba8759;color:#f3c79f}.model-preview-part-delete{width:19px;height:21px;flex:none;border:1px solid transparent;border-radius:3px;background:transparent;color:#a77c78;font-size:15px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{border-color:#6a3936;background:#3c2525;color:#ffb7ad}.model-preview-show-all{width:100%;margin-top:8px;padding:7px;border:1px solid #3c424d;border-radius:3px;background:#272b33;color:#c5cbd5;font-size:9px;cursor:pointer}.model-hierarchy-empty{display:flex;flex-direction:column;align-items:center;padding:24px 10px;text-align:center;color:#697382}.model-hierarchy-empty>span{font-size:25px;color:#4d5664}.model-hierarchy-empty p{margin:8px 0 4px;color:#aab1bd;font-size:10px}.model-hierarchy-empty small{font-size:9px;line-height:1.5}
 .model-import-center-panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:#13151a}.model-viewport-topline,.model-viewport-statusbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:31px;padding:0 12px;background:#1b1e24;color:#87909e;font:8px ui-monospace,monospace;letter-spacing:.07em}.model-viewport-topline{border-bottom:1px solid #2b3038}.model-viewport-topline span:first-child,.model-viewport-statusbar span:first-child{display:flex;align-items:center;gap:7px}.model-viewport-topline i,.model-viewport-statusbar i{width:5px;height:5px;border-radius:50%;background:#bd8a60}.model-viewport-statusbar{border-top:1px solid #2b3038;letter-spacing:0}.model-viewport-statusbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.model-viewport-statusbar span:last-child{color:#8d96a4}.model-viewport-statusbar b{color:#555e6b}
 .model-import-preview{position:relative;flex:1;min-height:280px;overflow:hidden;background-color:#171a20;background-image:radial-gradient(#343943 0.7px,transparent .7px);background-size:18px 18px}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:280px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:#171a20b8;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:53px;height:53px;border:1px solid #555d6b;border-radius:9px;background:#22262e;color:#d7a06d;font-size:30px}.model-import-empty strong{font-size:14px;font-weight:600;color:#e1e4ea}.model-import-empty small{color:#929aa8;font-size:10px}.model-import-empty .model-import-primary{margin-top:4px}.preview-animation-controls{position:absolute;top:10px;right:10px;display:flex;align-items:flex-end;gap:6px;padding:7px;border:1px solid #414752;border-radius:4px;background:#1b1e24ed}.preview-animation-controls label{display:flex;flex-direction:column;gap:4px;color:#d4a171;font:8px ui-monospace,monospace;letter-spacing:.06em}.preview-animation-controls select{max-width:210px;padding:6px;border:1px solid #414752;border-radius:3px;background:#252932;color:#e0e4eb;font-size:9px}.preview-animation-controls button{padding:6px 8px;border:1px solid #9b704d;border-radius:3px;background:#493526;color:#ffe0c3;font-size:9px;cursor:pointer}.preview-animation-empty{position:absolute;top:10px;right:10px;padding:7px;border:1px solid #414752;border-radius:4px;background:#1b1e24ed;color:#aeb5c1;font-size:9px}.preview-badge{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #414752;border-radius:3px;background:#1b1e24e8;color:#c2c9d4;font:8px ui-monospace,monospace;letter-spacing:.1em;pointer-events:none}.model-live-dot{width:5px;height:5px;border-radius:50%;background:#82bd9c}.preview-dimensions{position:absolute;bottom:35px;left:12px;padding:7px 9px;border:1px solid #414752;border-radius:3px;background:#1b1e24ed;color:#e0e4eb;font:9px ui-monospace,monospace;pointer-events:none}.preview-dimensions b{color:#606a78}.preview-dimensions small{margin-left:4px;color:#8d96a4;font-size:8px}.model-viewport-controls{position:absolute;right:10px;bottom:10px;display:flex;gap:10px;color:#7e8795;font:7px ui-monospace,monospace;pointer-events:none}.model-import-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#13151aeb;color:#e2e5ec;font-size:12px}.model-import-loading small{color:#8f98a6;font-size:9px}.model-loading-spinner{width:25px;height:25px;border:2px solid #414752;border-top-color:#d4a171;border-radius:50%;animation:model-import-spin .8s linear infinite}@keyframes model-import-spin{to{transform:rotate(360deg)}}
+.model-rigging-field{display:flex;flex-direction:column;gap:5px;margin-top:9px;color:#aeb6c4;font-size:10px}.model-rigging-field input,.model-rigging-field select{width:100%;box-sizing:border-box;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;padding:8px;font:10px Inter,ui-sans-serif,system-ui,sans-serif}.model-rigging-primary,.model-rigging-secondary{width:100%;margin-top:8px;padding:8px;border:1px solid #9b704d;border-radius:4px;background:#493526;color:#ffe0c3;font-size:10px;font-weight:650;cursor:pointer}.model-rigging-secondary{border-color:#424752;background:#252932;color:#d1d5dd}.model-rigging-primary:disabled,.model-rigging-secondary:disabled{opacity:.45;cursor:not-allowed}.model-rigging-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:11px}.model-rigging-summary span{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid #343943;border-radius:4px;background:#202329}.model-rigging-summary small{color:#8f98a6;font-size:8px}.model-rigging-summary strong{color:#e2ad7c;font:600 14px ui-monospace,monospace}.model-rigging-rotation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.model-rigging-subtitle{grid-column:1/-1;margin-top:8px;color:#c69b75;font-size:9px;font-weight:750;letter-spacing:.08em}.model-rigging-rotation label{display:flex;flex-direction:column;gap:4px;color:#aeb6c4;font-size:9px}.model-rigging-rotation input{min-width:0;width:100%;box-sizing:border-box;padding:7px 4px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:10px ui-monospace,monospace}.model-rigging-frames{display:flex;flex-direction:column;gap:4px;margin-top:8px}.model-rigging-frames button{display:flex;justify-content:space-between;gap:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#202329;color:#d1d5dd;font-size:9px;cursor:pointer}.model-rigging-frames button.active{border-color:#9b704d;background:#34291f}.model-rigging-frames span{color:#999fac}.model-rigging-separator{height:1px;margin:13px 0;background:#30343c}.model-rigging-status{padding:8px;border:1px solid #4d4538;border-radius:4px;background:#28251f;color:#e2c7a9;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
 .model-import-right-panel .model-panel-section{padding:15px 13px}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c4cad4;font-size:10px}.model-height-label strong{color:#e2ad7c;font:600 15px ui-monospace,monospace}.model-height-label strong small{font-size:9px;color:#9a8068}.model-height-slider{width:100%;margin:17px 0 13px;accent-color:#cb925e;cursor:pointer}.model-height-slider:disabled{opacity:.4}.model-height-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.model-height-presets button{padding:7px 2px;border:1px solid #3c424c;border-radius:3px;background:#252931;color:#b9c0cb;font-size:9px;cursor:pointer}.model-height-presets button.active{border-color:#9b704d;background:#3a2c22;color:#f2c79f}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:15px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:7px;padding:8px 5px;border:1px solid #343943;border-radius:3px;background:#202329;min-width:0}.model-import-dimensions small{font-size:7px;color:#8c95a3;letter-spacing:.04em}.model-import-dimensions strong{overflow:hidden;font:600 11px ui-monospace,monospace;color:#e0e4eb;text-overflow:ellipsis}.model-asset-info-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #2b3038;color:#8f98a6;font-size:9px}.model-asset-info-row:last-child{border-bottom:0}.model-asset-info-row strong{max-width:65%;overflow:hidden;color:#cbd1db;font-size:9px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}.model-import-error{margin:10px;padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5;overflow-wrap:anywhere}.model-import-tip{margin:0 13px 14px;color:#7f8997;font-size:9px;line-height:1.6}
 .model-diagnostics{margin:0;border:1px solid #343943;border-radius:4px;background:#202329;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.06em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}.model-texture-repair p{margin:7px 0;color:#929aa8;font-size:9px;line-height:1.5}.model-texture-repair-item{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-texture-repair-item label{color:#dce0e8;font-size:9px}.model-texture-repair-item select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:10px}.model-texture-repair-item button{padding:7px;border:1px solid #a66e3d;border-radius:4px;background:#3d3025;color:#ffd2a3;font-size:10px;cursor:pointer}.model-texture-repair-item button:disabled{opacity:.45;cursor:wait}.model-texture-repair-message{display:block;margin-top:8px;color:#d9b58f;font-size:9px;line-height:1.5}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}
 .model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;padding:9px 16px;border-top:1px solid #343944;background:#1d2026;color:#969eac;font-size:10px}.model-footer-state{display:flex;align-items:center;gap:8px}.model-footer-actions{display:flex;gap:8px}.model-import-primary,.model-import-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border-radius:4px;font-size:10px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:hover:not(:disabled){background:#e0ad7d}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}.model-import-secondary:hover{background:#333842}
