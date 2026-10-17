@@ -702,7 +702,7 @@ export class Engine {
           return { instance, object, settings, distance }
         })
         .filter(candidate =>
-          candidate.object && this.world.isObjectVisible(candidate.object) &&
+          candidate.object !== undefined && this.world.isObjectVisible(candidate.object) &&
           (event.code === this.playerControlBindings.interact || (candidate.settings.interactionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact && event.code === candidate.settings.interactionKey)) &&
           candidate.distance <= candidate.settings.interactionRadius,
         )
