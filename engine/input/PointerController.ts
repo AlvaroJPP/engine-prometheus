@@ -123,7 +123,9 @@ export class PointerController {
 
   private terrainHit(): THREE.Intersection | undefined {
     if (!this.world.terrain.mesh.visible) return undefined
-    return this.raycaster.intersectObject(this.world.terrain.mesh)[0]
+    // O heightfield atravessa apenas as células tocadas pelo raio; não precisa
+    // esperar o BVH em worker nem testar toda a malha durante o primeiro traço.
+    return this.world.terrain.intersectRay(this.raycaster)
   }
 
   /**
