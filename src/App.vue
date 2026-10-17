@@ -1047,6 +1047,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :first-person-mode="firstPersonMode"
       :grass-render-distance="grassRenderDistance"
       :grass-render-all="grassRenderAll"
+      :execution-mode="executionMode"
+      @run-world="runWorld"
+      @edit-world="returnToEdit"
       @grass-render-distance-change="setGrassRenderDistance"
       @grass-render-all-change="setGrassRenderAll"
       @toggle-first-person="toggleFirstPerson"
@@ -1832,15 +1835,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 
 <style>
 :root {
-  --bg: #12151c;
-  --panel: #161a22;
-  --panel-2: #1a1f29;
-  --line: #242a35;
-  --text: #d6dae3;
-  --muted: #8a93a6;
-  --accent: #c5533f;
-  --accent-dark: #a4443a;
-  --green: #5bd08a;
+  --bg: #0e1013;
+  --panel: #14171c;
+  --panel-2: #181c23;
+  --line: #252a33;
+  --text: #e6e8ec;
+  --muted: #9aa1ae;
+  --accent: #f5a524;
+  --accent-dark: #8a5a0a;
+  --green: #3fb950;
   --warn: #e0b04a;
 }
 
