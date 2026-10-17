@@ -7,6 +7,7 @@ interface ComponentEntry {
   name: string
   kind?: 'object' | 'entity'
   group?: string
+  thumbnail?: string
   height: number
   colliderType: 'box' | 'sphere' | 'capsule' | 'none'
   colliderSize: [number, number, number]
@@ -275,7 +276,7 @@ const emit = defineEmits<{
                 <button class="saved-component-rename-cancel" title="Cancelar edição" aria-label="Cancelar edição" @click="cancelComponentRename">×</button>
               </div>
               <template v-else>
-                <span class="saved-component-art" :class="{ entity: component.kind === 'entity' }" aria-hidden="true"><span>{{ component.kind === 'entity' ? '♟' : '▧' }}</span></span>
+                <span class="saved-component-art" :class="{ entity: component.kind === 'entity', 'has-thumbnail': !!component.thumbnail }" aria-hidden="true"><img v-if="component.thumbnail" :src="component.thumbnail" alt="" loading="lazy" /><span v-else>{{ component.kind === 'entity' ? '♟' : '▧' }}</span></span>
                 <div class="saved-component-copy">
                   <strong :title="component.name">{{ component.name }}</strong>
                   <small>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : 'Caixa' }}</small>
@@ -770,5 +771,18 @@ const emit = defineEmits<{
   .panel.left .saved-component-art { width: 26px; height: 29px; }
   .panel.left .saved-component-insert { min-width: 43px; font-size: 9px; }
   .panel.left .saved-component-copy small { font-size: 8px; }
+}
+.panel.left .saved-component-art.has-thumbnail {
+  border-color: #3b4655;
+  background: #20232a;
+  color: transparent;
+}
+.panel.left .saved-component-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 2px;
+  box-sizing: border-box;
 }
 </style>
