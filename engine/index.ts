@@ -1,4 +1,6 @@
 export { Engine } from './Engine'
+export { DEFAULT_CONTROL_MAPS, createDefaultControlMapSettings } from './input/ControlMaps'
+export type { ControlMapBindings, ControlMapProfile, ControlMapSettings } from './input/ControlMaps'
 export { parseProject, parseScene, parseSceneObject, ProjectFormatError } from './project/validate'
 export { ENGINE_VERSION, MAIN_SCENE_PATH } from './project/format'
 export { TERRAIN_ID } from './world/map/TerrainMesh'
