@@ -153,7 +153,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </summary>
       <div class="render-settings-popover">
         <div class="render-settings-heading">Renderização geral</div>
-        <p class="render-settings-description">Defina a distância máxima de modelos, objetos e grama a partir da câmera do editor.</p>
+        <p class="render-settings-description">Defina a distância máxima de modelos, objetos e grama a partir da câmera ativa.</p>
         <label class="render-settings-field">
           <span>Distância máxima</span>
           <span class="render-settings-number-wrap">
