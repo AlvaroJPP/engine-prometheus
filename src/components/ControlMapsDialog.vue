@@ -28,6 +28,7 @@ const actions: Array<{ key: ActionKey; label: string; group: ActionGroup }> = [
   { key: 'proneToggle', label: 'Deitar / rastejar', group: 'Postura e manobras' },
   { key: 'dodge', label: 'Esquiva rápida', group: 'Postura e manobras' },
   { key: 'slide', label: 'Deslizar', group: 'Postura e manobras' },
+  { key: 'roll', label: 'Rolamento evasivo', group: 'Postura e manobras' },
   { key: 'interact', label: 'Interagir / montar / desmontar', group: 'Ações' },
   { key: 'primaryAction', label: 'Ação principal (gatilho de evento)', group: 'Ações' },
   { key: 'secondaryAction', label: 'Ação secundária (gatilho de evento)', group: 'Ações' },
