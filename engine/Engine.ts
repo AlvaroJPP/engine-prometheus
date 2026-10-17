@@ -24,7 +24,7 @@ import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
-import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings } from './script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings, ONE_SHOT_ANIMATION_ROLES } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
@@ -210,7 +210,7 @@ export class Engine {
           hasRunningModelAnimation = true
         }
         const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
-        if (mountedTransition && ['mount', 'dismount', 'run_stop', 'jump'].includes(mountedTransition)) {
+        if (mountedTransition && ONE_SHOT_ANIMATION_ROLES.has(mountedTransition)) {
           const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
           const transitionAction = actions?.[mountedTransition]
           if (!transitionAction?.isRunning()) {
@@ -1024,14 +1024,32 @@ export class Engine {
         const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalizedName)
         const diagonal = /diagonal|diag|strafe|sidestep|sideways/.test(normalizedName) ||
           (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalizedName))
+        const backward = /backward|backwards|reverse|walkback|moveback|backward|tras|atr.s/.test(normalizedName)
         const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
           : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
             : /stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalizedName) ? 'run_stop'
-              : diagonal && left ? (isRun ? 'run_diagonal_left' : 'walk_diagonal_left')
-                : diagonal && right ? (isRun ? 'run_diagonal_right' : 'walk_diagonal_right')
-                  : isRun ? 'run'
-                    : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
-                      : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
+              : /crouch|squat/.test(normalizedName) ? 'crouch'
+                : /prone|crawl/.test(normalizedName) ? 'prone_crawl'
+                  : /dodge|evade/.test(normalizedName) ? 'dodge'
+                    : /slide|sliding/.test(normalizedName) ? 'slide'
+                      : /roll|rolling|somersault/.test(normalizedName) ? 'roll'
+                        : /reload/.test(normalizedName) ? 'reload'
+                          : /inventory/.test(normalizedName) ? 'inventory'
+                            : /useitem|consume|drinking|eating/.test(normalizedName) ? 'use_item'
+                              : /ability1|skill1|spell1/.test(normalizedName) ? 'ability_1'
+                                : /ability2|skill2|spell2/.test(normalizedName) ? 'ability_2'
+                                  : /ability3|skill3|spell3/.test(normalizedName) ? 'ability_3'
+                                    : /ability4|skill4|spell4/.test(normalizedName) ? 'ability_4'
+                                      : /secondaryaction|secondaryattack|block|parry|defend/.test(normalizedName) ? 'secondary_action'
+                                        : /primaryaction|attack|strike|punch|slash|shoot|melee/.test(normalizedName) ? 'primary_action'
+                                          : /interact|interaction|useobject/.test(normalizedName) ? 'interact'
+                                            : /emote|gesture|dance|wave/.test(normalizedName) ? 'emote'
+                                              : movementClip && backward ? (isRun ? 'run_backward' : 'walk_backward')
+                                                : diagonal && left ? (isRun ? 'run_diagonal_left' : 'walk_diagonal_left')
+                                                  : diagonal && right ? (isRun ? 'run_diagonal_right' : 'walk_diagonal_right')
+                                                    : isRun ? 'run'
+                                                      : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
+                                                        : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
         const savedRole = explicitRoles?.[String(index)]
         const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
         // Migra papéis automáticos antigos de locomoção para os papéis diagonais
