@@ -283,12 +283,40 @@ function refreshRigHelper() {
   rigHelper.updateMatrixWorld(true)
 }
 
+function ensureGroupRootForRig(): THREE.Object3D | null {
+  const current = model.value
+  if (!current || !(current instanceof THREE.Mesh) || current instanceof THREE.SkinnedMesh) return current
+  const host = current.parent ?? scene
+  if (!host) return current
+
+  // Formatos como STL/PLY podem chegar como Mesh raiz, sem um nó Group.
+  // Um wrapper permite inserir Bones como irmãos da malha sem perder os transforms.
+  const wrapper = new THREE.Group()
+  wrapper.name = current.name || 'RigRoot'
+  wrapper.userData = { ...current.userData }
+  wrapper.position.copy(current.position)
+  wrapper.quaternion.copy(current.quaternion)
+  wrapper.scale.copy(current.scale)
+  host.add(wrapper)
+  wrapper.add(current)
+  current.position.set(0, 0, 0)
+  current.quaternion.identity()
+  current.scale.set(1, 1, 1)
+  current.updateMatrix()
+  wrapper.updateWorldMatrix(true, true)
+  model.value = wrapper
+  return wrapper
+}
+
 function createRig() {
-  const root = model.value
+  let root = model.value
   if (!root || props.initialAsset || loading.value) return
   error.value = ''
   try {
     previewMixer?.stopAllAction()
+    const rigRoot = ensureGroupRootForRig()
+    if (!rigRoot) return
+    root = rigRoot
     const result = autoRigModel(root, rigPreset.value)
     rigBones.value = result.bones
     rigPreset.value = result.preset
