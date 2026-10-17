@@ -7,6 +7,8 @@ export interface SavedComponent {
   logic?: import('@engine').LogicRule[]
   id: string
   name: string
+  /** Categoria opcional da biblioteca; componentes legados são categorizados automaticamente. */
+  group?: string
   height: number
   colliderType: SavedComponentCollider
   colliderSize: [number, number, number]
