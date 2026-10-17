@@ -39,7 +39,12 @@ export class World {
   private readonly fogDayColor = new THREE.Color(0x87b9e8)
   private readonly horizonColor = new THREE.Color()
   private readonly fogCorner = new THREE.Vector3()
-  private grassRenderDistance: number | null = 72
+  private renderDistance: number | null = 72
+  private renderDistanceDirty = true
+  private hasRenderDistanceCameraPosition = false
+  private readonly lastRenderDistanceCameraPosition = new THREE.Vector3()
+  private readonly renderDistanceCenter = new THREE.Vector3()
+  private readonly renderDistanceScale = new THREE.Vector3()
   private grassOcclusionRootsCache: THREE.Object3D[] | null = null
   private selectedId: string | null = null
   private gridVisible = true
@@ -235,8 +240,10 @@ export class World {
 
   add(obj: GameObject): GameObject {
     reserveId(obj.id)
+    this.initializeObjectRenderVisibility(obj)
     this.scene.add(obj.mesh)
     this.objects.set(obj.id, obj)
+    this.renderDistanceDirty = true
     this.invalidateGrassOcclusionRoots()
     this.events.emit('objectAdded', { id: obj.id })
     return obj
@@ -342,7 +349,11 @@ export class World {
       else delete current[patch.faceTexture.face]
       applyFaceTextures(m, current)
     }
-    if (patch.visible !== undefined) m.visible = patch.visible
+    if (patch.visible !== undefined) {
+      m.userData.renderDistanceBaseVisible = patch.visible
+      m.visible = patch.visible && m.userData.renderDistanceCulled !== true
+    }
+    if (transformFields) this.renderDistanceDirty = true
     if (patch.locked !== undefined) m.userData.locked = patch.locked
     const wireframeVisible = patch.wireframeVisible
     if (wireframeVisible !== undefined) {
@@ -449,6 +460,7 @@ export class World {
     this.objects.clear()
     for (const o of objs) {
       reserveId(o.id)
+      this.initializeObjectRenderVisibility(o)
       this.scene.add(o.mesh)
       this.objects.set(o.id, o)
     }
@@ -469,6 +481,7 @@ export class World {
     this.objects.clear()
     for (const o of objs) {
       reserveId(o.id)
+      this.initializeObjectRenderVisibility(o)
       this.scene.add(o.mesh)
       this.objects.set(o.id, o)
     }
@@ -540,7 +553,7 @@ export class World {
       scaleX: o.mesh.scale.x,
       scaleY: o.mesh.scale.y,
       scaleZ: o.mesh.scale.z,
-      visible: o.mesh.visible,
+      visible: this.isObjectVisible(o),
       locked: o.mesh.userData.locked === true,
       wireframeVisible: o.mesh.userData.wireframeVisible !== false,
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
@@ -562,17 +575,88 @@ export class World {
       .map((o) => o.mesh)
   }
 
-  // ---- terreno ----
-  /** Alinha o limite de neblina ao alcance da grama para esconder seu corte distante. */
-  setGrassRenderDistance(distance: number | null): void {
+  // ---- renderização geral ----
+  /** Configura a distância radial para modelos/objetos e para os anéis de grama. */
+  setRenderDistance(distance: number | null): void {
     if (distance !== null && !Number.isFinite(distance)) return
-    this.grassRenderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
-    this.terrain.grass.setRenderDistance(distance)
-    this.updateGrassFogDistance(this.grassRenderDistance ?? 72)
+    this.renderDistance = distance === null ? null : THREE.MathUtils.clamp(distance, 10, 5000)
+    this.terrain.grass.setRenderDistance(this.renderDistance)
+    this.renderDistanceDirty = true
+    this.updateGrassFogDistance(this.renderDistance ?? 72)
     this.events.emit('renderInvalidated', undefined)
   }
 
-  /** Atualiza a neblina conforme o alcance de grama e a distância real até a borda do mapa. */
+  /**
+   * Mantém a visibilidade lógica separada do culling por distância.
+   * Assim objetos distantes deixam de ser desenhados, mas continuam colidindo,
+   * participando de eventos e salvando sua visibilidade real no projeto.
+   */
+  isObjectVisible(object: GameObject): boolean {
+    const value = object.mesh.userData.renderDistanceBaseVisible
+    return typeof value === 'boolean' ? value : object.mesh.visible
+  }
+
+  private initializeObjectRenderVisibility(object: GameObject): void {
+    const mesh = object.mesh
+    if (mesh.userData.renderDistanceCulled === true && typeof mesh.userData.renderDistanceBaseVisible === 'boolean') {
+      mesh.visible = mesh.userData.renderDistanceBaseVisible
+    } else {
+      mesh.userData.renderDistanceBaseVisible = mesh.visible
+    }
+    mesh.userData.renderDistanceCulled = false
+    this.renderDistanceDirty = true
+  }
+
+  private isOutsideRenderDistance(mesh: THREE.Mesh, wasCulled: boolean): boolean {
+    if (this.renderDistance === null) return false
+
+    mesh.updateWorldMatrix(true, false)
+    const sphere = mesh.geometry.boundingSphere ?? (mesh.geometry.computeBoundingSphere(), mesh.geometry.boundingSphere)
+    this.renderDistanceCenter.copy(sphere?.center ?? mesh.position).applyMatrix4(mesh.matrixWorld)
+    mesh.getWorldScale(this.renderDistanceScale)
+    const radius = (sphere?.radius ?? 0) * Math.max(
+      Math.abs(this.renderDistanceScale.x),
+      Math.abs(this.renderDistanceScale.y),
+      Math.abs(this.renderDistanceScale.z),
+    )
+    // Histerese pequena reduz o piscar de objetos próximos ao limite.
+    const margin = Math.min(3, Math.max(0.5, this.renderDistance * 0.025))
+    const threshold = Math.max(0, this.renderDistance + radius + (wasCulled ? -margin : margin))
+    return this.renderDistanceCenter.distanceToSquared(this.lastRenderDistanceCameraPosition) > threshold * threshold
+  }
+
+  /** Atualiza o culling quando a câmera muda de região, objetos se movem ou a opção muda. */
+  updateRenderDistance(cameraPosition: THREE.Vector3): void {
+    const cameraMoved = !this.hasRenderDistanceCameraPosition
+      || this.lastRenderDistanceCameraPosition.distanceToSquared(cameraPosition) >= 0.25
+    if (!this.renderDistanceDirty && !cameraMoved) return
+
+    this.lastRenderDistanceCameraPosition.copy(cameraPosition)
+    this.hasRenderDistanceCameraPosition = true
+    this.renderDistanceDirty = false
+    let changed = false
+
+    for (const object of this.objects.values()) {
+      const mesh = object.mesh
+      const wasCulled = mesh.userData.renderDistanceCulled === true
+
+      // Só capturamos mesh.visible quando ele não está escondido pelo culling.
+      // Isso preserva alterações reais de visibilidade feitas pelo usuário ou scripts.
+      if (!wasCulled) mesh.userData.renderDistanceBaseVisible = mesh.visible
+
+      const culled = this.isOutsideRenderDistance(mesh, wasCulled)
+      mesh.userData.renderDistanceCulled = culled
+      const visible = this.isObjectVisible(object) && !culled
+      if (mesh.visible !== visible) {
+        mesh.visible = visible
+        changed = true
+      }
+    }
+
+    if (changed) this.events.emit('renderInvalidated', undefined)
+  }
+
+  /** Atualiza a neblina conforme o alcance efetivo e a distância até a borda do mapa. */
   updateFogForCamera(cameraPosition: THREE.Vector3): void {
     let farthestCorner = 0
     for (const corner of TERRAIN_FOG_CORNERS) {
@@ -580,9 +664,9 @@ export class World {
       farthestCorner = Math.max(farthestCorner, this.fogCorner.distanceTo(cameraPosition))
     }
 
-    const configuredDistance = this.grassRenderDistance === null
+    const configuredDistance = this.renderDistance === null
       ? farthestCorner
-      : Math.min(this.grassRenderDistance, farthestCorner)
+      : Math.min(this.renderDistance, farthestCorner)
     const presetDistance = this.terrain.grass.getEffectiveRenderDistance()
     const effectiveDistance = presetDistance === null
       ? configuredDistance
