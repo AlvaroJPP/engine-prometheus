@@ -44,6 +44,7 @@ export class World {
   private readonly dirtyRenderDistanceObjectIds = new Set<string>()
   private hasRenderDistanceCameraPosition = false
   private readonly lastRenderDistanceCameraPosition = new THREE.Vector3()
+  private readonly renderDistanceCameraPosition = new THREE.Vector3()
   private readonly renderDistanceCenter = new THREE.Vector3()
   private readonly renderDistanceScale = new THREE.Vector3()
   private grassOcclusionRootsCache: THREE.Object3D[] | null = null
@@ -627,7 +628,7 @@ export class World {
     // Histerese pequena reduz o piscar de objetos próximos ao limite.
     const margin = Math.min(3, Math.max(0.5, this.renderDistance * 0.025))
     const threshold = Math.max(0, this.renderDistance + radius + (wasCulled ? -margin : margin))
-    return this.renderDistanceCenter.distanceToSquared(this.lastRenderDistanceCameraPosition) > threshold * threshold
+    return this.renderDistanceCenter.distanceToSquared(this.renderDistanceCameraPosition) > threshold * threshold
   }
 
   /** Atualiza o culling ao mudar a câmera; movimentos isolados só recalculam o objeto afetado. */
@@ -637,9 +638,12 @@ export class World {
     const updateAll = this.renderDistanceDirty || cameraMoved
     if (!updateAll && this.dirtyRenderDistanceObjectIds.size === 0) return
 
-    this.lastRenderDistanceCameraPosition.copy(cameraPosition)
-    this.hasRenderDistanceCameraPosition = true
-    if (updateAll) this.renderDistanceDirty = false
+    this.renderDistanceCameraPosition.copy(cameraPosition)
+    if (updateAll) {
+      this.lastRenderDistanceCameraPosition.copy(cameraPosition)
+      this.hasRenderDistanceCameraPosition = true
+      this.renderDistanceDirty = false
+    }
 
     const objectsToUpdate: GameObject[] = updateAll
       ? [...this.objects.values()]
