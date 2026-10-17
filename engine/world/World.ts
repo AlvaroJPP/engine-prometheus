@@ -597,8 +597,13 @@ export class World {
    * participando de eventos e salvando sua visibilidade real no projeto.
    */
   isObjectVisible(object: GameObject): boolean {
-    const value = object.mesh.userData.renderDistanceBaseVisible
-    return typeof value === 'boolean' ? value : object.mesh.visible
+    const mesh = object.mesh
+    // Fora da distância, mesh.visible é apenas culling visual; a visibilidade
+    // efetiva vem do estado anterior ao culling. Dentro do alcance, respeite
+    // alterações diretas feitas por sistemas de comportamento.
+    if (mesh.userData.renderDistanceCulled !== true) return mesh.visible
+    const value = mesh.userData.renderDistanceBaseVisible
+    return typeof value === 'boolean' ? value : mesh.visible
   }
 
   private initializeObjectRenderVisibility(object: GameObject): void {
