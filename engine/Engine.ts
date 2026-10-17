@@ -479,7 +479,11 @@ export class Engine {
   }
 
   /** Aplica um modelo GLB escolhido pelo usuário, preservando a cápsula física do jogador. */
-  async setPlayerModel(data: ArrayBuffer, name: string): Promise<void> {
+  async setPlayerModel(
+    data: ArrayBuffer,
+    name: string,
+    animationRoles?: Record<string, AnimationRole>,
+  ): Promise<void> {
     const cleanName = name.trim() || 'Jogador.glb'
     if (!cleanName.toLowerCase().endsWith('.glb')) {
       throw new Error('O modelo do jogador precisa estar no formato binário .glb.')
@@ -493,8 +497,12 @@ export class Engine {
     }
 
     // A troca visual só é confirmada após o GLB ser validado e carregado.
-    await this.avatar.setCustomModel(data)
-    this.playerModelData = { name: cleanName, glbData: encodeArrayBufferBase64(data) }
+    await this.avatar.setCustomModel(data, animationRoles)
+    this.playerModelData = {
+      name: cleanName,
+      glbData: encodeArrayBufferBase64(data),
+      ...(animationRoles ? { animationRoles: { ...animationRoles } } : {}),
+    }
     this.viewport.invalidate()
   }
 
@@ -1504,8 +1512,12 @@ export class Engine {
       report('Restaurando modelo personalizado do jogador…', 91)
       try {
         const playerBytes = decodeBase64ArrayBuffer(scene.playerModel.glbData)
-        await this.avatar.setCustomModel(playerBytes)
-        this.playerModelData = { name: scene.playerModel.name, glbData: scene.playerModel.glbData }
+        await this.avatar.setCustomModel(playerBytes, scene.playerModel.animationRoles)
+        this.playerModelData = {
+          name: scene.playerModel.name,
+          glbData: scene.playerModel.glbData,
+          ...(scene.playerModel.animationRoles ? { animationRoles: { ...scene.playerModel.animationRoles } } : {}),
+        }
       } catch (error) {
         console.error('[Engine] Não foi possível restaurar o modelo personalizado do jogador:', error)
         throw new ProjectFormatError('Não foi possível carregar o modelo personalizado do jogador salvo neste projeto.')
