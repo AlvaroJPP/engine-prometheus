@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
+import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import { DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, ModelControlBindings } from '@engine'
@@ -13,6 +15,7 @@ const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes:
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number }]
+  'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -979,6 +982,40 @@ watch(modelHeight, (height, previousHeight) => {
   updateColliderPreview()
 })
 
+async function useAsPlayerModel() {
+  const root = model.value
+  if (!root || loading.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    let bytes: ArrayBuffer
+    if (props.initialAsset) {
+      // Prévia de componente salvo: reutiliza o GLB exato, sem reexportar o ativo.
+      bytes = props.initialAsset.bytes.slice(0)
+    } else {
+      // Exporta o modelo inteiro com as animações e os papéis configurados no workspace.
+      // SkeletonUtils mantém os bones ligados corretamente durante a exportação.
+      const exportRoot = cloneSkinnedModel(root)
+      exportRoot.updateMatrixWorld(true)
+      const exporter = new GLTFExporter()
+      const clips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+      const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: clips })
+      if (!(exported instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
+      bytes = exported
+    }
+
+    const name = props.initialAsset?.name || fileName.value || root.name || 'Jogador'
+    emit('use-player', { name, bytes, animationRoles: { ...animationRoles.value } })
+    emit('close')
+  } catch (cause) {
+    error.value = cause instanceof Error
+      ? `Não foi possível usar este ativo como jogador: ${cause.message}`
+      : 'Não foi possível exportar o modelo para o jogador.'
+  } finally {
+    loading.value = false
+  }
+}
+
 function confirmImport() {
   if (!model.value || !fileName.value) return
   const root = model.value
@@ -1305,7 +1342,7 @@ onBeforeUnmount(() => {
 
       <footer class="model-import-footer">
         <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
       </footer>
     </section>
   </div>
