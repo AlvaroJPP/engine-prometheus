@@ -382,7 +382,7 @@ export class Engine {
         config: {
           ...instance.config,
           interactionKey: controlBindings.interact,
-          controlBindings,
+          controlBindings: { ...controlBindings },
         },
       })
     }
