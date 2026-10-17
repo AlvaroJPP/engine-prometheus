@@ -146,6 +146,7 @@ export class HumanoidAvatar {
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
   private activeOneShotAnimation: AnimationRole | null = null
+  private playerMountTransition: 'mount' | null = null
   private animationTime = 0
   private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
@@ -415,9 +416,10 @@ export class HumanoidAvatar {
 
     // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
     if (this.mountedRoot && this.mountSettings) {
-      // O avatar está oculto e vinculado à montaria: os contatos físicos são
-      // gerenciados pela montaria, não por uma cápsula de jogador sobreposta a ela.
+      // Durante a transição de montar, o clipe do jogador e o da montaria avançam
+      // paralelamente. Ao terminar a animação do jogador, ele fica oculto no assento.
       this.updateMountedMovement(step, forwardInput, sideInput, running, this.walkToggled && !running)
+      this.updateMountedPlayerTransition(step)
       return
     }
 
@@ -645,13 +647,20 @@ export class HumanoidAvatar {
       modelStates: settings.modelStates.map(rule => ({ ...rule })),
       controlBindings: { ...settings.controlBindings },
     }
-    this.visualRoot.visible = false
-    // placeAvatarAtMountSeat atualiza a hierarquia antes de converter o assento;
-    // evitar uma segunda travessia completa de GLBs densos ao montar.
+    // Ambos os modelos iniciam o papel "mount" no mesmo evento do pacote.
+    // O jogador fica visível durante o clipe próprio e some ao concluir a transição.
+    this.visualRoot.visible = true
     this.placeAvatarAtMountSeat()
+    if (this.animationActions.has('mount')) {
+      this.playerMountTransition = 'mount'
+      this.playAnimation('mount', true)
+    } else {
+      this.playerMountTransition = null
+      this.visualRoot.visible = false
+    }
     this.playMountAnimation(root, 'mount', true)
     if (!root.userData.importAnimationActions ||
-        !(root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>>).mount) {
+        !(root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>).mount) {
       this.playMountAnimation(root, 'idle')
     }
     this.verticalVelocity = 0
@@ -659,6 +668,16 @@ export class HumanoidAvatar {
     this.activeCollisions.clear()
     this.pressed.clear()
     return true
+  }
+
+  private updateMountedPlayerTransition(dt: number): void {
+    if (!this.mixer || !this.playerMountTransition) return
+    this.mixer.update(dt)
+    const action = this.animationActions.get(this.playerMountTransition)
+    if (action?.isRunning()) return
+    this.playerMountTransition = null
+    this.activeOneShotAnimation = null
+    this.visualRoot.visible = false
   }
 
   /** Desvincula o jogador e o posiciona junto ao lado livre da montaria. */
@@ -715,6 +734,7 @@ export class HumanoidAvatar {
     this.mountedStartPosition = null
     this.mountedStartRotation = null
     this.visualRoot.visible = true
+    this.playerMountTransition = null
     this.pressed.clear()
     let placed = false
 
@@ -772,7 +792,8 @@ export class HumanoidAvatar {
     this.grounded = placedSupportY !== null
     this.activeCollisions.clear()
     this.cameraTarget.set(this.mesh.position.x, this.mesh.position.y + 1, this.mesh.position.z)
-    this.playAnimation('idle')
+    const hasDismountAnimation = this.animationActions.has('dismount')
+    this.playAnimation(hasDismountAnimation ? 'dismount' : 'idle', hasDismountAnimation)
     // A cena só é notificada uma vez, ao sair da montaria e apenas se a
     // entidade realmente mudou de posição/rotação durante a execução.
     if (rootId && (positionChanged || rotationChanged)) this.world.notifyChanged(rootId)
