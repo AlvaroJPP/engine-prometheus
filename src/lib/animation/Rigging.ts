@@ -269,6 +269,25 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
   }
 }
 
+/** Recalculates bind matrices after adjusting joints in an auto-generated rig. */
+export function rebindRigModel(root: THREE.Object3D): void {
+  root.updateWorldMatrix(true, true)
+  const meshes: THREE.SkinnedMesh[] = []
+  const skeletons = new Set<THREE.Skeleton>()
+  root.traverse(node => {
+    if (!(node instanceof THREE.SkinnedMesh)) return
+    meshes.push(node)
+    skeletons.add(node.skeleton)
+  })
+  for (const skeleton of skeletons) skeleton.calculateInverses()
+  for (const mesh of meshes) {
+    mesh.updateWorldMatrix(true, false)
+    mesh.bind(mesh.skeleton, mesh.matrixWorld.clone())
+    mesh.normalizeSkinWeights()
+  }
+}
+
+/** Captures each rig joint's local transform for a keyframe. */
 export function captureRigPose(bones: THREE.Bone[]): Record<string, {
   position: [number, number, number]
   quaternion: [number, number, number, number]
