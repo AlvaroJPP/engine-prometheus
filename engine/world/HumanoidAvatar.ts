@@ -3,6 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
 import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
 import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
+import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
+import type { ControlMapBindings } from '../input/ControlMaps'
 
 const PLAYER_ID = 'player'
 const WALK_SPEED = 4.2
@@ -11,6 +13,14 @@ const JUMP_SPEED = 6.2
 const GRAVITY = 18
 const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
+const DODGE_SPEED = 10
+const DODGE_DURATION = 0.22
+const SLIDE_SPEED = 7.8
+const SLIDE_DURATION = 0.48
+const MANEUVER_COOLDOWN = 0.32
+
+type PlayerPosture = 'standing' | 'crouching' | 'prone'
+type PlayerManeuver = 'dodge' | 'slide' | null
 
 /** Bounds do colisor físico, independentes da malha visual importada. */
 function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
@@ -93,10 +103,21 @@ export class HumanoidAvatar {
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
-  private playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
+  private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
   private verticalVelocity = 0
   private grounded = true
+  private sprintToggled = false
+  private walkToggled = false
+  private posture: PlayerPosture = 'standing'
+  private dodgeRequested = false
+  private slideRequested = false
+  private maneuver: PlayerManeuver = null
+  private maneuverRemaining = 0
+  private maneuverCooldown = 0
+  private maneuverSpeed = 0
+  private readonly maneuverDirection = new THREE.Vector3()
+  private postureBeforeSlide: PlayerPosture = 'standing'
   private enabled = true
   private firstPersonMode = false
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
@@ -110,28 +131,63 @@ export class HumanoidAvatar {
   private mountedStartRotation: THREE.Euler | null = null
   private mountedVisualPivot: THREE.Object3D | null = null
   private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
-  private controlBindings(): ModelControlBindings {
+  private controlBindings(): ControlMapBindings {
     if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
 
     // Um pacote que mantém os controles padrão herda o mapa selecionado pelo usuário.
-    // Se o pacote tiver teclas próprias, essas configurações específicas continuam valendo.
+    // Se o pacote tiver teclas próprias, preserva-as e herda as manobras do perfil ativo.
     const mountBindings = this.mountSettings.controlBindings
     const keys: (keyof ModelControlBindings)[] = ['forward', 'backward', 'left', 'right', 'run', 'jump', 'interact']
     const usesDefaults = keys.every(key => mountBindings[key] === DEFAULT_MODEL_CONTROL_BINDINGS[key])
-    return usesDefaults ? this.playerControlBindings : mountBindings
+    return usesDefaults
+      ? this.playerControlBindings
+      : { ...this.playerControlBindings, ...mountBindings }
   }
 
-  setControlBindings(bindings: ModelControlBindings): void {
+  setControlBindings(bindings: ControlMapBindings): void {
     this.playerControlBindings = { ...bindings }
     this.pressed.clear()
+    this.sprintToggled = false
+    this.walkToggled = false
+    this.dodgeRequested = false
+    this.slideRequested = false
+  }
+
+  private getPlayerHeight(): number {
+    if (this.posture === 'prone') return 0.62
+    if (this.posture === 'crouching') return 1.12
+    return PLAYER_HEIGHT
+  }
+
+  private setPosture(posture: PlayerPosture): void {
+    this.posture = posture
+    // A raiz visual é ancorada nos pés, portanto reduzir sua escala não afunda o jogador.
+    this.visualRoot.scale.y = posture === 'prone' ? 0.34 : posture === 'crouching' ? 0.68 : 1
+  }
+
+  private beginManeuver(kind: Exclude<PlayerManeuver, null>, direction: THREE.Vector3): void {
+    this.maneuver = kind
+    this.maneuverRemaining = kind === 'slide' ? SLIDE_DURATION : DODGE_DURATION
+    this.maneuverSpeed = kind === 'slide' ? SLIDE_SPEED : DODGE_SPEED
+    this.maneuverDirection.copy(direction).setY(0)
+    if (this.maneuverDirection.lengthSq() < 1e-8) {
+      this.maneuverDirection.set(Math.sin(this.mesh.rotation.y), 0, Math.cos(this.mesh.rotation.y))
+    }
+    this.maneuverDirection.normalize()
+    this.maneuverCooldown = kind === 'slide' ? 0.72 : MANEUVER_COOLDOWN
+    if (kind === 'slide') {
+      this.postureBeforeSlide = this.posture
+      this.setPosture('crouching')
+    }
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    // O jogador usa o mapa ativo; montarias personalizadas podem manter teclas próprias.
     const bindings = this.controlBindings()
     const movementKeys = [
       bindings.forward, bindings.backward, bindings.left, bindings.right,
       bindings.run, bindings.jump, bindings.interact,
+      bindings.sprintToggle, bindings.walkToggle, bindings.crouchToggle,
+      bindings.proneToggle, bindings.dodge, bindings.slide,
     ]
     if (!movementKeys.includes(event.code)) return
 
@@ -139,9 +195,39 @@ export class HumanoidAvatar {
     const tag = target?.tagName
     const editingText = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable
     if (this.enabled && !editingText) event.preventDefault()
+    if (editingText || event.metaKey || event.ctrlKey && event.code !== 'ControlLeft' && event.code !== 'ControlRight' || event.altKey && event.code !== 'AltLeft' && event.code !== 'AltRight') return
 
-    if (event.code === bindings.jump) {
-      if (this.mountedRoot && !event.repeat) this.mountedJumpRequested = true
+    if (!event.repeat && !this.mountedRoot) {
+      if (event.code === bindings.sprintToggle) {
+        this.sprintToggled = !this.sprintToggled
+        if (this.sprintToggled) this.walkToggled = false
+        return
+      }
+      if (event.code === bindings.walkToggle) {
+        this.walkToggled = !this.walkToggled
+        if (this.walkToggled) this.sprintToggled = false
+        return
+      }
+      if (event.code === bindings.crouchToggle) {
+        if (this.maneuver !== 'slide') this.setPosture(this.posture === 'crouching' ? 'standing' : 'crouching')
+        return
+      }
+      if (event.code === bindings.proneToggle) {
+        if (this.maneuver !== 'slide') this.setPosture(this.posture === 'prone' ? 'standing' : 'prone')
+        return
+      }
+      if (event.code === bindings.dodge) {
+        this.dodgeRequested = true
+        return
+      }
+      if (event.code === bindings.slide) {
+        this.slideRequested = true
+        return
+      }
+    }
+
+    if (event.code === bindings.jump && this.mountedRoot && !event.repeat) {
+      this.mountedJumpRequested = true
     }
     this.pressed.add(event.code)
   }
@@ -226,8 +312,11 @@ export class HumanoidAvatar {
     const forwardInput = Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
     const sideInput = Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
     const length = Math.hypot(forwardInput, sideInput)
-    const running = this.pressed.has(bindings.run)
-    const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
+    const running = this.pressed.has(bindings.run) || this.sprintToggled
+    let speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
+    if (this.walkToggled && !running) speed = WALK_SPEED * 0.48
+    if (this.posture === 'crouching') speed = WALK_SPEED * 0.54
+    else if (this.posture === 'prone') speed = WALK_SPEED * 0.24
 
     // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
     if (this.mountedRoot && this.mountSettings) {
@@ -247,14 +336,42 @@ export class HumanoidAvatar {
     let nextY = oldY + this.verticalVelocity * step
 
     // Movimento relativo à orientação horizontal da câmera.
+    if (this.maneuverCooldown > 0) this.maneuverCooldown = Math.max(0, this.maneuverCooldown - step)
+    let requestedDirection = new THREE.Vector3(
+      sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
+      0,
+      -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
+    )
+    if (requestedDirection.lengthSq() > 1e-8) requestedDirection.normalize()
+
+    if (this.dodgeRequested || this.slideRequested) {
+      const requestedManeuver = this.slideRequested ? 'slide' : 'dodge'
+      if (this.grounded && this.maneuverCooldown <= 0 && this.maneuver === null && (length > 0 || requestedManeuver === 'dodge')) {
+        this.beginManeuver(requestedManeuver, requestedDirection)
+      }
+      this.dodgeRequested = false
+      this.slideRequested = false
+    }
+
     let horizontalStepY: number | null = null
-    if (length > 0) {
-      const direction = new THREE.Vector3(
-        sideInput * Math.cos(this.getCameraYaw()) - forwardInput * Math.sin(this.getCameraYaw()),
-        0,
-        -sideInput * Math.sin(this.getCameraYaw()) - forwardInput * Math.cos(this.getCameraYaw()),
-      )
-      direction.normalize().multiplyScalar(speed * step)
+    const movingByInput = length > 0
+    if (movingByInput || this.maneuver !== null) {
+      let displacement = new THREE.Vector3()
+      if (this.maneuver !== null && this.maneuverRemaining > 0) {
+        const maneuverTime = Math.min(step, this.maneuverRemaining)
+        const normalTime = Math.max(0, step - maneuverTime)
+        displacement.addScaledVector(this.maneuverDirection, this.maneuverSpeed * maneuverTime)
+        if (normalTime > 0 && movingByInput) displacement.addScaledVector(requestedDirection, speed * normalTime)
+        this.maneuverRemaining = Math.max(0, this.maneuverRemaining - step)
+        if (this.maneuverRemaining <= 0) {
+          if (this.maneuver === 'slide') this.setPosture(this.postureBeforeSlide)
+          this.maneuver = null
+          this.maneuverSpeed = 0
+        }
+      } else if (movingByInput) {
+        displacement.copy(requestedDirection).multiplyScalar(speed * step)
+      }
+      const direction = displacement
       const oldFeetY = this.mesh.position.y
 
       // Faça a varredura horizontal em incrementos pequenos. Um único teste no
@@ -303,7 +420,7 @@ export class HumanoidAvatar {
 
       moveAxis('x', direction.x)
       moveAxis('z', direction.z)
-      this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
+      if (direction.lengthSq() > 1e-8) this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
     }
 
     // A correção de altura feita durante o movimento horizontal precisa
@@ -360,14 +477,14 @@ export class HumanoidAvatar {
       this.grounded = false
     }
 
-    this.updateAvatarAnimation(step, length > 0, running)
+    this.updateAvatarAnimation(step, length > 0 || this.maneuver !== null, running)
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     if (this.firstPersonMode) {
       this.cameraTarget.x = this.mesh.position.x
       // Mantém a câmera na altura dos olhos relativa aos pés do avatar,
       // acompanhando pulos e mudanças de nível do terreno/plataformas.
-      this.cameraTarget.y = this.mesh.position.y + 1
+      this.cameraTarget.y = this.mesh.position.y + this.getPlayerHeight() * 0.88
       this.cameraTarget.z = this.mesh.position.z
     } else {
       this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.12)
@@ -1581,6 +1698,11 @@ export class HumanoidAvatar {
     this.pressed.clear()
     this.activeCollisions.clear()
     this.animationTime = 0
+    this.maneuver = null
+    this.maneuverRemaining = 0
+    this.dodgeRequested = false
+    this.slideRequested = false
+    this.setPosture('standing')
     this.playAnimation('idle')
   }
 
@@ -1591,6 +1713,14 @@ export class HumanoidAvatar {
     this.pressed.clear()
     this.activeCollisions.clear()
     this.animationTime = 0
+    this.sprintToggled = false
+    this.walkToggled = false
+    this.maneuver = null
+    this.maneuverRemaining = 0
+    this.maneuverCooldown = 0
+    this.dodgeRequested = false
+    this.slideRequested = false
+    this.setPosture('standing')
     this.playAnimation('idle')
   }
 
@@ -1855,9 +1985,10 @@ export class HumanoidAvatar {
   }
 
   private playerBox(): THREE.Box3 {
+    const height = this.getPlayerHeight()
     return new THREE.Box3().setFromCenterAndSize(
-      new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + PLAYER_HEIGHT / 2, this.mesh.position.z),
-      new THREE.Vector3(PLAYER_RADIUS * 2, PLAYER_HEIGHT, PLAYER_RADIUS * 2),
+      new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + height / 2, this.mesh.position.z),
+      new THREE.Vector3(PLAYER_RADIUS * 2, height, PLAYER_RADIUS * 2),
     )
   }
 
@@ -1872,16 +2003,22 @@ export class HumanoidAvatar {
    */
   private collidesWithObjects(blockCeilings = false): boolean {
     const playerBox = this.playerBox()
-    const sampleY = blockCeilings ? PLAYER_HEIGHT - PLAYER_RADIUS : PLAYER_HEIGHT * 0.5
+    const playerHeight = this.getPlayerHeight()
+    const sampleY = blockCeilings ? Math.max(0.1, playerHeight - PLAYER_RADIUS) : playerHeight * 0.5
     const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + sampleY, this.mesh.position.z)
     const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
     const triangle = new THREE.Triangle()
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
-    // Amostras ao longo do eixo vertical da cápsula do jogador; ajudam a
-    // detectar contato com faces finas sem transformá-las em uma caixa grossa.
-    const playerContactPoints = [0.13, 0.39, 0.65, 0.91, 1.17, 1.43, 1.69].map(
-      height => new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + height, this.mesh.position.z),
+    // Distribui contatos ao longo da altura física atual: ao rastejar, os
+    // pontos altos deixam de bloquear o jogador como se ele estivesse em pé.
+    const contactCount = Math.max(2, Math.ceil(playerHeight / 0.26))
+    const playerContactPoints = Array.from({ length: contactCount }, (_, index) =>
+      new THREE.Vector3(
+        this.mesh.position.x,
+        this.mesh.position.y + Math.min(playerHeight - 0.05, 0.13 + index * 0.26),
+        this.mesh.position.z,
+      ),
     )
     const contactRadiusSq = (PLAYER_RADIUS * 1.05) ** 2
     const triangleBounds = new THREE.Box3()
@@ -2008,11 +2145,12 @@ export class HumanoidAvatar {
    * primeira plataforma e ele nunca chega à superfície superior da rampa.
    */
   private findStepUpSurface(x: number, z: number, feetY: number): number | null {
+    const playerHeight = this.getPlayerHeight()
     const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(x, feetY + PLAYER_HEIGHT + 0.65, z),
+      new THREE.Vector3(x, feetY + playerHeight + 0.65, z),
       new THREE.Vector3(0, -1, 0),
       0,
-      PLAYER_HEIGHT + 1.15,
+      playerHeight + 1.15,
     )
     const candidates = this.world.list().filter((object) =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
