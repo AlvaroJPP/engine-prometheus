@@ -66,6 +66,13 @@ export interface EnvironmentData {
   cycleSpeed: number
 }
 
+export interface PlayerModelData {
+  /** Nome original do arquivo escolhido pelo usuário, para exibição no editor. */
+  name: string
+  /** Conteúdo binário GLB codificado em Base64 para manter o modelo junto do projeto. */
+  glbData: string
+}
+
 export interface SceneFile {
   formatVersion: number
   id: string
@@ -73,6 +80,8 @@ export interface SceneFile {
   camera: CameraData
   terrain: TerrainData
   environment?: EnvironmentData
+  /** Visual personalizado do jogador, opcional para manter projetos antigos compatíveis. */
+  playerModel?: PlayerModelData
   objects: SceneObjectData[]
 }
 
