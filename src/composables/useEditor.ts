@@ -79,8 +79,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const gridVisible = ref(true)
   const polygonLinesVisible = ref(false)
   const performanceMode = ref<PerformancePreset>('quality')
-  const grassRenderDistance = ref(72)
-  const grassRenderAll = ref(false)
+  const renderDistance = ref(72)
+  const renderAll = ref(false)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
   const skyTextureDataUrl = ref('')
@@ -359,45 +359,51 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say(`Modo automático ajustou a renderização para ${labels[next]} (${stats.fps} FPS, ${(stats.triangles / 1000).toFixed(0)} mil triângulos).`)
   }
 
-  const GRASS_RENDER_SETTINGS_KEY = 'engine-prometheus.grass-render-settings'
+  const RENDER_SETTINGS_KEY = 'engine-prometheus.render-settings'
+  const LEGACY_GRASS_RENDER_SETTINGS_KEY = 'engine-prometheus.grass-render-settings'
 
-  function persistGrassRenderSettings() {
+  function persistRenderSettings() {
     try {
-      window.localStorage.setItem(GRASS_RENDER_SETTINGS_KEY, JSON.stringify({
-        distance: grassRenderDistance.value,
-        renderAll: grassRenderAll.value,
+      window.localStorage.setItem(RENDER_SETTINGS_KEY, JSON.stringify({
+        distance: renderDistance.value,
+        renderAll: renderAll.value,
       }))
     } catch (error) {
-      console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização da grama.', error)
+      console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização.', error)
     }
   }
 
-  function setGrassRenderDistance(value: number) {
+  function setRenderDistance(value: number) {
     if (!Number.isFinite(value)) return
-    grassRenderDistance.value = Math.round(Math.max(10, Math.min(5000, value)))
-    if (!grassRenderAll.value) engine?.setGrassRenderDistance(grassRenderDistance.value)
-    persistGrassRenderSettings()
+    renderDistance.value = Math.round(Math.max(10, Math.min(5000, value)))
+    if (!renderAll.value) engine?.setRenderDistance(renderDistance.value)
+    persistRenderSettings()
   }
 
-  function setGrassRenderAll(enabled: boolean) {
-    grassRenderAll.value = enabled
-    engine?.setGrassRenderDistance(enabled ? null : grassRenderDistance.value)
-    persistGrassRenderSettings()
+  function setRenderAll(enabled: boolean) {
+    renderAll.value = enabled
+    engine?.setRenderDistance(enabled ? null : renderDistance.value)
+    persistRenderSettings()
   }
 
-  function loadGrassRenderSettings() {
+  function loadRenderSettings() {
     try {
-      const raw = window.localStorage.getItem(GRASS_RENDER_SETTINGS_KEY)
+      const raw = window.localStorage.getItem(RENDER_SETTINGS_KEY) ?? window.localStorage.getItem(LEGACY_GRASS_RENDER_SETTINGS_KEY)
       if (!raw) return
       const parsed: unknown = JSON.parse(raw)
       if (!parsed || typeof parsed !== 'object') return
       const settings = parsed as { distance?: unknown; renderAll?: unknown }
       if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
-        grassRenderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
+        renderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
       }
-      if (typeof settings.renderAll === 'boolean') grassRenderAll.value = settings.renderAll
+      if (typeof settings.renderAll === 'boolean') renderAll.value = settings.renderAll
+      // Migra as preferências antigas, salvas como renderização somente da grama.
+      if (
+        window.localStorage.getItem(RENDER_SETTINGS_KEY) === null
+        && window.localStorage.getItem(LEGACY_GRASS_RENDER_SETTINGS_KEY) !== null
+      ) persistRenderSettings()
     } catch (error) {
-      console.warn('[EditorSettings] Configuração de renderização da grama inválida; usando padrão.', error)
+      console.warn('[EditorSettings] Configuração de renderização inválida; usando padrão.', error)
     }
   }
 
@@ -484,8 +490,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       renderStats.value = value
       updateAutoPerformancePreset(value)
     })
-    loadGrassRenderSettings()
-    e.setGrassRenderDistance(grassRenderAll.value ? null : grassRenderDistance.value)
+    loadRenderSettings()
+    e.setRenderDistance(renderAll.value ? null : renderDistance.value)
     offs.push(
       e.events.on('objectAdded', markDirty),
       e.events.on('objectRemoved', markDirty),
@@ -1366,8 +1372,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     gridVisible,
     polygonLinesVisible,
     performanceMode,
-    grassRenderDistance,
-    grassRenderAll,
+    renderDistance,
+    renderAll,
     playerModelName,
     playerModelCustom,
     setPlayerModelFile,
@@ -1399,8 +1405,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleTerrain,
     toggleGrid,
     togglePerformanceMode,
-    setGrassRenderDistance,
-    setGrassRenderAll,
+    setRenderDistance,
+    setRenderAll,
     togglePolygonLines,
     removeSelected,
     onRename,
