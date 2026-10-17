@@ -10,6 +10,7 @@ import type {
   TerrainData,
   Vec3,
 } from './format'
+import type { AnimationRole, ModelControlBindings } from '../script/packages'
 
 export class ProjectFormatError extends Error {}
 
@@ -25,6 +26,34 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function isNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
+}
+
+const VALID_ANIMATION_ROLES = new Set<AnimationRole>([
+  'ignore', 'idle', 'walk', 'run',
+  'walk_diagonal_left', 'walk_diagonal_right',
+  'run_diagonal_left', 'run_diagonal_right',
+  'run_stop', 'jump', 'mount', 'dismount',
+])
+
+function parseAnimationRoleMap(value: unknown): Record<string, AnimationRole> | undefined {
+  if (!isRecord(value)) return undefined
+  const result: Record<string, AnimationRole> = {}
+  for (const [key, role] of Object.entries(value)) {
+    if (!/^\\d+$/.test(key) || typeof role !== 'string' || !VALID_ANIMATION_ROLES.has(role as AnimationRole)) continue
+    result[key] = role as AnimationRole
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
+function parseControlBindings(value: unknown): Partial<ModelControlBindings> | undefined {
+  if (!isRecord(value)) return undefined
+  const result: Partial<ModelControlBindings> = {}
+  const keys: (keyof ModelControlBindings)[] = ['forward', 'backward', 'left', 'right', 'run', 'jump', 'interact']
+  for (const key of keys) {
+    const candidate = value[key]
+    if (typeof candidate === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate)) result[key] = candidate
+  }
+  return Object.keys(result).length ? result : undefined
 }
 
 function parseJson(text: string, label: string): Record<string, unknown> {
@@ -236,8 +265,11 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       colliderSize: item.colliderSize === undefined ? undefined : vec3(item.colliderSize, null, `${label} (${id}.colliderSize)`),
       colliderOffset: item.colliderOffset === undefined ? undefined : vec3(item.colliderOffset, null, `${label} (${id}.colliderOffset)`),
       sceneKind: item.sceneKind === 'entity' ? 'entity' : 'object',
+      componentId: typeof item.componentId === 'string' && item.componentId.trim() !== '' ? item.componentId : undefined,
       importedModelData: typeof item.importedModelData === 'string' && item.importedModelData.length > 0 ? item.importedModelData : undefined,
       importedModelHeight: isNum(item.importedModelHeight) && item.importedModelHeight > 0 ? item.importedModelHeight : undefined,
+      importAnimationRoles: parseAnimationRoleMap(item.importAnimationRoles),
+      importControlBindings: parseControlBindings(item.importControlBindings),
     })
   }
 
@@ -251,7 +283,12 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
     if (typeof glbData !== 'string' || glbData.length === 0 || glbData.length > 42_000_000 || glbData.startsWith('asset://')) {
       fail(`${label}: dados do modelo do jogador inválidos ou grandes demais (limite aproximado de 30 MB por GLB).`)
     }
-    playerModel = { name: name.trim(), glbData }
+    const animationRoles = parseAnimationRoleMap(obj.playerModel.animationRoles)
+    playerModel = {
+      name: name.trim(),
+      glbData,
+      ...(animationRoles ? { animationRoles } : {}),
+    }
   }
 
   return {
