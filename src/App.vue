@@ -1826,7 +1826,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" @close="closeModelImport" @import="handleModelImport" @use-player="handleUsePlayerModel" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :control-map="activeControlMap.bindings" @close="closeModelImport" @import="handleModelImport" @use-player="handleUsePlayerModel" />
   </div>
 </template>
 
