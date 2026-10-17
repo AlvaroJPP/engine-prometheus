@@ -1250,16 +1250,16 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span>Sair da tela cheia <kbd>Esc</kbd></span>
         </button>
         <div class="quick-add-wrap">
-          <button class="quick-add-trigger" :aria-expanded="quickAddOpen" @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
+          <button class="quick-add-trigger" :aria-expanded="quickAddOpen" title="Adiciona rapidamente formas e objetos comuns à cena." data-tooltip="Escolha um objeto simples, um ponto inicial do jogador ou um exemplo interativo." @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
           <div v-if="quickAddOpen" class="quick-add-popover" @click.stop>
             <div class="quick-add-heading">CRIAR NA CENA</div>
-            <button @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
-            <button @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
-            <button @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
-            <button @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
+            <button title="Adiciona um cubo à cena. Atalho indicado: 1." @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
+            <button title="Adiciona uma plataforma retangular. Atalho indicado: 2." @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
+            <button title="Cria um marcador para o ponto inicial do jogador." @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
+            <button title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
           </div>
         </div>
-        <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
+        <button class="model-import-launch" title="Importa arquivos 3D, inspeciona animações e configura o modelo antes de adicioná-lo." @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
         <div v-if="!modelImportOpen" class="viewport-fps" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
             <span class="fps-indicator" />
@@ -1328,17 +1328,17 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <h4>Modelo do jogador</h4>
               <p class="muted">Substitua o visual do personagem controlado em Run por um modelo 3D próprio. O modelo é ajustado automaticamente para 1,8 unidade de altura; a cápsula física e os controles continuam iguais.</p>
               <input ref="playerModelFileInput" type="file" accept=".glb,model/gltf-binary" hidden @change="onPlayerModelSelected" />
-              <button class="primary environment-button" @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
+              <button class="primary environment-button" title="Substitui o visual do personagem usado ao executar a cena. A física e os controles permanecem iguais." @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
               <div class="environment-file">
                 <span>♟ {{ playerModelName }}</span>
-                <button v-if="playerModelCustom" class="ghost" @click="resetPlayerModel">Restaurar padrão</button>
+                <button v-if="playerModelCustom" class="ghost" title="Remove o modelo personalizado e volta ao personagem padrão." @click="resetPlayerModel">Restaurar padrão</button>
               </div>
               <p class="component-note">Aceita arquivos GLB de até 30 MB. Modelos com animações embutidas podem usar clipes nomeados idle, walk, run e jump; modelos estáticos serão exibidos sem animação de movimento.</p>
               <h4>Céu</h4>
               <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
               <input ref="skyFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onSkyTextureSelected" />
-              <button class="primary environment-button" @click="skyFileInput?.click()">{{ skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>
-              <div v-if="skyTextureDataUrl" class="environment-file"><span>▧ {{ skyTextureName || 'Textura carregada' }}</span><button class="ghost" @click="clearSkyTexture">Remover</button></div>
+              <button class="primary environment-button" title="Carrega uma imagem para usar como textura do céu da cena." @click="skyFileInput?.click()">{{ skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>
+              <div v-if="skyTextureDataUrl" class="environment-file"><span>▧ {{ skyTextureName || 'Textura carregada' }}</span><button class="ghost" title="Remove a textura personalizada do céu." @click="clearSkyTexture">Remover</button></div>
               <h4>Dia e noite</h4>
               <div class="day-night-time-heading">
                 <label for="day-night-time-slider">Horário</label>
@@ -1354,7 +1354,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                 :value="timeOfDay"
                 :style="{ '--time-progress': `${(timeOfDay / 24) * 100}%` }"
                 :aria-valuetext="timeOfDayLabel"
-                aria-label="Horário do dia"
+                aria-label="Horário do dia" title="Define a hora atual de 00:00 a 24:00 e atualiza a iluminação da cena."
                 @input="setTimeOfDay(Number(($event.target as HTMLInputElement).value))"
                 @keydown="handleTimeOfDayKeydown"
               />
@@ -1362,10 +1362,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <div class="day-night-time-ticks" aria-hidden="true">
                 <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
               </div>
-              <label class="checkline"><input type="checkbox" :checked="dayNightCycleEnabled" @change="setDayNightCycleEnabled(($event.target as HTMLInputElement).checked)" /> Ciclo automático de dia/noite</label>
+              <label class="checkline"><input type="checkbox" :checked="dayNightCycleEnabled" title="Ativa a passagem automática do tempo durante a execução ou visualização da cena." @change="setDayNightCycleEnabled(($event.target as HTMLInputElement).checked)" /> Ciclo automático de dia/noite</label>
               <div class="day-night-speed-control" :class="{ 'is-disabled': !dayNightCycleEnabled }">
                 <div class="slider-row"><span>Velocidade do ciclo</span><b class="mono">{{ dayNightCycleSpeed.toFixed(2) }} h/s</b></div>
-                <input class="environment-range" type="range" min="0.01" max="4" step="0.01" :value="dayNightCycleSpeed" :disabled="!dayNightCycleEnabled" aria-label="Velocidade do ciclo dia/noite" @input="setDayNightCycleSpeed(Number(($event.target as HTMLInputElement).value))" />
+                <input class="environment-range" type="range" min="0.01" max="4" step="0.01" :value="dayNightCycleSpeed" :disabled="!dayNightCycleEnabled" aria-label="Velocidade do ciclo dia/noite" title="Ajusta quantas horas do mundo passam por segundo." @input="setDayNightCycleSpeed(Number(($event.target as HTMLInputElement).value))" />
               </div>
               <p class="component-note">O céu, o horário e o ciclo são salvos com o projeto.</p>
             </div>
@@ -1377,20 +1377,20 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               Selecione Editar terreno e clique no chão para elevar. Segure Shift e clique para rebaixar.
             </p>
             <div class="slider-row"><span>Força do pincel</span><b class="mono">{{ brushStrength.toFixed(2) }}</b></div>
-            <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.05" />
+            <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.05" title="Controla quanto o terreno sobe ou desce a cada passada do pincel." />
             <div class="slider-row"><span>Raio do pincel</span><b class="mono">{{ brushRadius.toFixed(1) }}</b></div>
-            <input v-model.number="brushRadius" type="range" min="1" max="12" step="0.5" />
+            <input v-model.number="brushRadius" type="range" min="1" max="12" step="0.5" title="Define a área afetada por cada passada do pincel de terreno." />
             <div class="btn-row">
-              <button class="ghost" @click="regenerateTerrain">Novo relevo</button>
-              <button class="ghost" @click="clearTerrain">Limpar edições</button>
+              <button class="ghost" title="Gera um novo relevo procedural e descarta as alterações de altura atuais." @click="regenerateTerrain">Novo relevo</button>
+              <button class="ghost" title="Apaga as alterações manuais de altura e restaura o terreno de sua semente atual." @click="clearTerrain">Limpar edições</button>
             </div>
             <div class="grass-paint-panel">
               <h4>Grama</h4>
               <p class="muted">Escolha Pintar grama na barra superior e arraste sobre o terreno. Segure Shift para apagar os tufos que você pintou.</p>
               <div class="slider-row"><span>Tamanho do pincel</span><b class="mono">{{ brushRadius.toFixed(1) }}</b></div>
-              <input v-model.number="brushRadius" type="range" min="0.5" max="12" step="0.5" />
+              <input v-model.number="brushRadius" type="range" min="0.5" max="12" step="0.5" title="Define o raio da área em que os tufos de grama são pintados ou apagados." />
               <div class="slider-row"><span>Densidade</span><b class="mono">{{ brushStrength.toFixed(2) }}</b></div>
-              <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.1" />
+              <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.1" title="Controla a densidade de grama adicionada a cada passada do pincel." />
               <p class="component-note">A grama pintada é salva junto com o projeto. Configure o alcance e a opção Renderizar tudo pelo menu Grama na barra superior.</p>
             </div>
           </section>
@@ -1555,25 +1555,25 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <div class="transform-property-row">
                     <span class="transform-property-label">Posição</span>
                     <div class="transform-axis-grid">
-                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
-                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
-                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
+                      <label class="axis-value axis-x" title="Posição horizontal no eixo X."><span>X</span><input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
+                      <label class="axis-value axis-y" title="Altura do objeto no eixo Y."><span>Y</span><input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
+                      <label class="axis-value axis-z" title="Posição de profundidade no eixo Z."><span>Z</span><input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
                     </div>
                   </div>
                   <div class="transform-property-row">
                     <span class="transform-property-label">Rotação</span>
                     <div class="transform-axis-grid">
-                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
-                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
-                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
+                      <label class="axis-value axis-x" title="Rotação em graus ao redor do eixo X."><span>X</span><input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
+                      <label class="axis-value axis-y" title="Rotação em graus ao redor do eixo Y."><span>Y</span><input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
+                      <label class="axis-value axis-z" title="Rotação em graus ao redor do eixo Z."><span>Z</span><input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
                     </div>
                   </div>
                   <div class="transform-property-row">
                     <span class="transform-property-label">Escala</span>
                     <div class="transform-axis-grid">
-                      <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
-                      <label class="axis-value axis-y"><span>Y</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
-                      <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
+                      <label class="axis-value axis-x" title="Escala do objeto no eixo X."><span>X</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
+                      <label class="axis-value axis-y" title="Escala do objeto no eixo Y."><span>Y</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
+                      <label class="axis-value axis-z" title="Escala do objeto no eixo Z."><span>Z</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
                     </div>
                   </div>
                   <div class="component-caption">FÍSICA</div>
@@ -1591,7 +1591,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                         <option value="none">Sem colisão</option>
                       </select>
                     </label>
-                    <button class="ghost collider-visibility-button" :class="{ active: colliderDebugVisible }" @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar' : 'Ver no mundo' }}</button>
+                    <button class="ghost collider-visibility-button" :class="{ active: colliderDebugVisible }" title="Mostra ou esconde a forma física usada para colisões no mundo." @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar' : 'Ver no mundo' }}</button>
                   </div>
                   <p class="component-note">Caixa, esfera e cápsula usam formas simplificadas. As dimensões abaixo personalizam o colisor em unidades do mundo.</p>
 <div class="transform-property-row collider-vector-row">
