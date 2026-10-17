@@ -176,15 +176,15 @@ const emit = defineEmits<{
     </div>
 
     <nav class="library-tabs" aria-label="Painel lateral">
-      <button :class="{ active: activeTab === 'hierarchy' }" @click="activeTab = 'hierarchy'"><span class="tab-icon" aria-hidden="true">☷</span> Hierarquia</button>
-      <button :class="{ active: activeTab === 'components' }" @click="activeTab = 'components'"><span class="tab-icon" aria-hidden="true">▦</span> Componentes <span class="tab-count">{{ components.length }}</span></button>
+      <button :class="{ active: activeTab === 'hierarchy' }" title="Lista os objetos presentes no mundo e permite selecionar cada um." @click="activeTab = 'hierarchy'"><span class="tab-icon" aria-hidden="true">☷</span> Hierarquia</button>
+      <button :class="{ active: activeTab === 'components' }" title="Abre a biblioteca de componentes salvos para reutilização na cena." @click="activeTab = 'components'"><span class="tab-icon" aria-hidden="true">▦</span> Componentes <span class="tab-count">{{ components.length }}</span></button>
     </nav>
 
     <template v-if="activeTab === 'hierarchy'">
       <label class="hierarchy-search">
         <span aria-hidden="true">⌕</span>
-        <input v-model="hierarchySearch" type="search" placeholder="Buscar objetos…" aria-label="Buscar objetos na hierarquia" />
-        <button v-if="hierarchySearch" type="button" aria-label="Limpar busca" @click="hierarchySearch = ''">×</button>
+        <input v-model="hierarchySearch" type="search" placeholder="Buscar objetos…" aria-label="Buscar objetos na hierarquia" title="Filtra objetos por nome, tipo ou ID." />
+        <button v-if="hierarchySearch" type="button" aria-label="Limpar busca" title="Limpa o filtro da hierarquia." @click="hierarchySearch = ''">×</button>
       </label>
 
       <div class="tree">
@@ -232,8 +232,8 @@ const emit = defineEmits<{
       </div>
 
       <div class="hierarchy-actions">
-        <button :disabled="groupSelection.length < 2" @click="emit('group-selected')">Agrupar <span v-if="groupSelection.length">({{ groupSelection.length }})</span></button>
-        <button :disabled="groupSelection.length === 0" @click="emit('ungroup-selected')">Desagrupar</button>
+        <button :disabled="groupSelection.length < 2" title="Agrupa os objetos selecionados para transformá-los em conjunto." @click="emit('group-selected')">Agrupar <span v-if="groupSelection.length">({{ groupSelection.length }})</span></button>
+        <button :disabled="groupSelection.length === 0" title="Remove o agrupamento dos objetos selecionados." @click="emit('ungroup-selected')">Desagrupar</button>
       </div>
     </template>
 
@@ -254,7 +254,7 @@ const emit = defineEmits<{
         </div>
 
         <section v-for="group in componentGroups" :key="group.name" class="component-group">
-          <button class="component-group-heading" :aria-expanded="!collapsedGroups[group.name]" @click="collapsedGroups[group.name] = !collapsedGroups[group.name]">
+          <button class="component-group-heading" :aria-expanded="!collapsedGroups[group.name]" :title="collapsedGroups[group.name] ? 'Expandir este grupo de componentes.' : 'Recolher este grupo de componentes.'" @click="collapsedGroups[group.name] = !collapsedGroups[group.name]">
             <span class="component-group-chevron" :class="{ collapsed: collapsedGroups[group.name] }">›</span>
             <span class="component-group-name">{{ group.name }}</span>
             <span class="component-group-count">{{ group.components.length }}</span>
@@ -284,14 +284,14 @@ const emit = defineEmits<{
                 <details class="saved-component-menu">
                   <summary :aria-label="'Mais opções para ' + component.name" title="Mais opções">⋯</summary>
                   <div class="saved-component-menu-popover">
-                    <button @click="beginComponentRename(component)">Renomear</button>
-                    <button @click="emit('preview-component', component.id)">Pré-visualizar</button>
+                    <button title="Altera o nome deste componente na biblioteca." @click="beginComponentRename(component)">Renomear</button>
+                    <button title="Abre a prévia do componente sem colocá-lo no mundo." @click="emit('preview-component', component.id)">Pré-visualizar</button>
                     <label>Grupo
                       <select :value="componentGroup(component)" aria-label="Grupo do componente" @change="updateComponentGroup(component, $event)">
                         <option v-for="name in componentGroupOptions" :key="name" :value="name">{{ name }}</option>
                       </select>
                     </label>
-                    <button class="delete-option" @click="emit('delete-component', component.id)">Excluir</button>
+                    <button class="delete-option" title="Remove este componente salvo da biblioteca." @click="emit('delete-component', component.id)">Excluir</button>
                   </div>
                 </details>
               </template>
@@ -301,8 +301,8 @@ const emit = defineEmits<{
       </div>
 
       <div class="component-library-footer">
-        <button @click="addComponentGroup">＋ Novo grupo</button>
-        <button class="import-component-button" @click="emit('open-model-import')">Importar modelo</button>
+        <button title="Cria um grupo personalizado para organizar os componentes salvos." @click="addComponentGroup">＋ Novo grupo</button>
+        <button class="import-component-button" title="Importa um modelo 3D e permite salvá-lo como componente reutilizável." @click="emit('open-model-import')">Importar modelo</button>
       </div>
     </div>
   </aside>
