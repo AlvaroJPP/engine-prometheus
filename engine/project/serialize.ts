@@ -25,7 +25,9 @@ export function buildBundle(
       position: [m.position.x, m.position.y, m.position.z],
       rotation: [m.rotation.x, m.rotation.y, m.rotation.z],
       scale: [m.scale.x, m.scale.y, m.scale.z],
-      visible: m.visible,
+      visible: typeof m.userData.renderDistanceBaseVisible === 'boolean'
+        ? m.userData.renderDistanceBaseVisible
+        : m.visible,
       locked: m.userData.locked === true,
       wireframeVisible: m.userData.wireframeVisible !== false,
       groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
