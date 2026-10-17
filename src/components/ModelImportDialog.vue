@@ -278,7 +278,7 @@ function refreshRigHelper() {
   rigHelper.renderOrder = 999
   rigHelper.frustumCulled = false
   scene.add(rigHelper)
-  rigHelper.update()
+  rigHelper.updateMatrixWorld(true)
 }
 
 function createRig() {
