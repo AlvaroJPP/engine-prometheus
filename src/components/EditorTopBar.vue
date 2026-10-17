@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { isTauri } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 const props = defineProps<{
   projectName: string
   dirty: boolean
@@ -31,6 +33,48 @@ const emit = defineEmits<{
 }>()
 type SearchResult = { key: string; label: string; detail: string; action: 'object' | 'component' | 'save' | 'import' | 'edit' | 'run' | 'camera' | 'controls'; id?: string }
 const searchQuery = ref('')
+const isFullscreen = ref(false)
+const fullscreenBusy = ref(false)
+const fullscreenToggleTitle = computed(() => isFullscreen.value ? 'Sair da tela cheia' : 'Entrar em tela cheia')
+
+async function syncFullscreenState() {
+  if (isTauri()) {
+    try {
+      isFullscreen.value = await getCurrentWindow().isFullscreen()
+    } catch (error) {
+      console.warn('Não foi possível consultar o estado de tela cheia.', error)
+    }
+    return
+  }
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
+
+function handleFullscreenStateChange() {
+  void syncFullscreenState()
+}
+
+async function toggleFullscreen() {
+  if (fullscreenBusy.value) return
+  fullscreenBusy.value = true
+  try {
+    if (isTauri()) {
+      const appWindow = getCurrentWindow()
+      const shouldEnter = !(await appWindow.isFullscreen())
+      await appWindow.setFullscreen(shouldEnter)
+      isFullscreen.value = shouldEnter
+    } else if (document.fullscreenElement) {
+      await document.exitFullscreen()
+      isFullscreen.value = false
+    } else {
+      await document.documentElement.requestFullscreen()
+      isFullscreen.value = true
+    }
+  } catch (error) {
+    console.error('Não foi possível alternar para tela cheia.', error)
+  } finally {
+    fullscreenBusy.value = false
+  }
+}
 const searchResults = computed<SearchResult[]>(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return []
@@ -66,8 +110,19 @@ function handleGlobalShortcut(event: KeyboardEvent) {
     document.getElementById('global-editor-search')?.focus()
   }
 }
-onMounted(() => window.addEventListener('keydown', handleGlobalShortcut))
-onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut))
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalShortcut)
+  window.addEventListener('resize', handleFullscreenStateChange)
+  window.addEventListener('focus', handleFullscreenStateChange)
+  document.addEventListener('fullscreenchange', handleFullscreenStateChange)
+  void syncFullscreenState()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalShortcut)
+  window.removeEventListener('resize', handleFullscreenStateChange)
+  window.removeEventListener('focus', handleFullscreenStateChange)
+  document.removeEventListener('fullscreenchange', handleFullscreenStateChange)
+})
 
 </script>
 
@@ -167,6 +222,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <p class="render-settings-note">Quanto maior o alcance, maior o custo de renderização. A qualidade diminui gradualmente nos anéis mais distantes.</p>
       </div>
     </details>
+    <button
+      class="topbar-fullscreen"
+      type="button"
+      :class="{ active: isFullscreen }"
+      :title="fullscreenToggleTitle"
+      :aria-label="fullscreenToggleTitle"
+      :aria-pressed="isFullscreen"
+      :disabled="fullscreenBusy"
+      @click="toggleFullscreen"
+    >
+      <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" />
+      </svg>
+      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" />
+      </svg>
+      <span>{{ isFullscreen ? 'Restaurar' : 'Tela cheia' }}</span>
+    </button>
     <button class="cam" :class="{ active: firstPersonMode }" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
     <button class="cam" @click="emit('cycle-camera')">{{ cameraLabel === 'Câmera livre' ? 'Câmera livre' : cameraLabel }}</button>
     <button class="cam" @click="emit('open-control-maps')">Controles</button>
@@ -372,6 +445,29 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .mode-segment button { height:26px; min-width:55px; padding:0 10px; border:0; border-radius:4px; background:transparent; color:#9aa1ae; font-size:11px; cursor:pointer; }
 .mode-segment button.active { background:#f5a524; color:#1a1204; font-weight:700; }
 .topbar-spacer { flex:1; min-width:4px; }
+.topbar-fullscreen {
+  order:8;
+  display:inline-flex;
+  flex:none;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:32px;
+  padding:0 9px;
+  border:1px solid #2b313c;
+  border-radius:5px;
+  background:#181c23;
+  color:#aab4c3;
+  font-size:11px;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:background-color .14s ease,border-color .14s ease,color .14s ease;
+}
+.topbar-fullscreen svg { width:15px; height:15px; flex:none; }
+.topbar-fullscreen:hover { border-color:#3a4351; background:#202630; color:#f0f2f6; }
+.topbar-fullscreen.active { border-color:#6f531e; background:#292314; color:#f5c56b; }
+.topbar-fullscreen:focus-visible { outline:2px solid #f5a524; outline-offset:2px; }
+.topbar-fullscreen:disabled { opacity:.55; cursor:wait; }
 .save-state { display:flex; align-items:center; gap:5px; white-space:nowrap; font-size:10px; color:#9aa1ae; }
 .save-state .dot { width:6px; height:6px; }
 .save-state.is-saved { color:#3fb950; }
@@ -451,7 +547,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .mode-segment { order: 5; }
 .topbar-spacer { order: 6; }
 .render-settings { order: 7; }
-.topbar > .cam { order: 8; }
+.topbar > .cam { order: 9; }
 @media(max-width:1200px) {
   .project { margin-left: 3px; padding-left: 8px; }
 }
@@ -463,11 +559,14 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .mode-segment { order: 4; }
   .topbar-spacer { order: 5; }
   .render-settings { order: 6; }
-  .topbar > .cam { order: 7; }
+  .topbar-fullscreen { order: 7; }
+  .topbar > .cam { order: 8; }
 }
 @media(max-width:760px) {
   .topbar-save { display:none; }
   .file-menu > summary { padding-inline:7px; font-size:10px; }
+  .topbar-fullscreen { width:30px; min-width:30px; padding:0; }
+  .topbar-fullscreen span { display:none; }
 }
 
 </style>
