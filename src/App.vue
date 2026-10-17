@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
+import { isTauri } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
 import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -21,6 +23,8 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running'>('edit')
+const worldFullscreen = ref(false)
+const fullscreenTransition = ref(false)
 const controlMapsOpen = ref(false)
 const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
 const activeControlMap = computed(() =>
@@ -1066,14 +1070,76 @@ function closeQuickAddOutside(event: PointerEvent) {
   if (target instanceof Element && !target.closest('.quick-add-wrap')) quickAddOpen.value = false
 }
 
-onMounted(() => window.addEventListener('pointerdown', closeQuickAddOutside))
-onBeforeUnmount(() => window.removeEventListener('pointerdown', closeQuickAddOutside))
+async function toggleWorldFullscreen() {
+  if (fullscreenTransition.value) return
+  fullscreenTransition.value = true
+  const entering = !worldFullscreen.value
+
+  if (entering) {
+    worldFullscreen.value = true
+    quickAddOpen.value = false
+    try {
+      if (isTauri()) {
+        await getCurrentWindow().setFullscreen(true)
+      } else if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen()
+      }
+    } catch (error) {
+      // Mesmo sem a API de tela cheia do host, o viewport continua ocupando
+      // toda a área da janela por meio do modo CSS.
+      console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
+    }
+  } else {
+    worldFullscreen.value = false
+    try {
+      if (isTauri()) {
+        const appWindow = getCurrentWindow()
+        if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      }
+    } catch (error) {
+      console.warn('Não foi possível restaurar o tamanho da janela.', error)
+    }
+  }
+
+  fullscreenTransition.value = false
+  await nextTick()
+}
+
+function handleWorldFullscreenKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !worldFullscreen.value) return
+
+  // No navegador, deixe o próprio Fullscreen API tratar Esc para não disputar
+  // com a saída da tela cheia nativa. Se só o modo CSS estiver ativo, saia daqui.
+  if (!isTauri() && document.fullscreenElement) return
+
+  event.preventDefault()
+  void toggleWorldFullscreen()
+}
+
+function syncWorldFullscreenAfterBrowserExit() {
+  if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
+    worldFullscreen.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', closeQuickAddOutside)
+  window.addEventListener('keydown', handleWorldFullscreenKeydown)
+  document.addEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', closeQuickAddOutside)
+  window.removeEventListener('keydown', handleWorldFullscreenKeydown)
+  document.removeEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
+})
 
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
 
 <template>
-  <div class="app" :class="{ 'is-running': executionMode === 'running' }">
+  <div class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen }">
     <EditorTopBar
       v-model:project-name="projectName"
       :dirty="dirty"
@@ -1082,6 +1148,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-render-distance="grassRenderDistance"
       :grass-render-all="grassRenderAll"
       :execution-mode="executionMode"
+      :world-fullscreen="worldFullscreen"
       :objects="objects"
       :components="savedComponents"
       @select-object="selectItem"
@@ -1089,6 +1156,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @open-model-import="previewComponentAsset = null; modelImportOpen = true"
       @run-world="runWorld"
       @edit-world="returnToEdit"
+      @toggle-world-fullscreen="toggleWorldFullscreen"
       @grass-render-distance-change="setGrassRenderDistance"
       @grass-render-all-change="setGrassRenderAll"
       @toggle-first-person="toggleFirstPerson"
@@ -1156,6 +1224,19 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
+        <button
+          v-if="worldFullscreen"
+          class="world-fullscreen-exit"
+          type="button"
+          aria-label="Sair da tela cheia do mundo"
+          title="Voltar ao editor (Esc)"
+          @click="toggleWorldFullscreen"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" />
+          </svg>
+          <span>Sair da tela cheia <kbd>Esc</kbd></span>
+        </button>
         <div class="quick-add-wrap">
           <button class="quick-add-trigger" :aria-expanded="quickAddOpen" @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
           <div v-if="quickAddOpen" class="quick-add-popover" @click.stop>
@@ -4309,5 +4390,102 @@ button:disabled { cursor: not-allowed; }
 @media(max-width:700px) {
   .day-night-time-heading { margin-top:8px; }
   .day-night-time-ticks { font-size:10px; }
+}
+</style>
+
+
+<style>
+/* Tela cheia do mundo: amplia apenas o viewport e oculta os painéis do editor. */
+.app.world-fullscreen {
+  position:fixed !important;
+  inset:0 !important;
+  z-index:10000 !important;
+  width:100vw !important;
+  height:100vh !important;
+  height:100dvh !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  background:#0e1013 !important;
+}
+.app.world-fullscreen > .topbar,
+.app.world-fullscreen > .toolbar,
+.app.world-fullscreen .panel.left,
+.app.world-fullscreen .panel.right {
+  display:none !important;
+}
+.app.world-fullscreen .main {
+  position:fixed !important;
+  inset:0 !important;
+  z-index:10001 !important;
+  display:block !important;
+  width:100vw !important;
+  height:100vh !important;
+  height:100dvh !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:hidden !important;
+}
+.app.world-fullscreen .viewport {
+  position:fixed !important;
+  inset:0 !important;
+  z-index:10002 !important;
+  display:block !important;
+  width:100vw !important;
+  height:100vh !important;
+  height:100dvh !important;
+  min-width:0 !important;
+  margin:0 !important;
+  border:0 !important;
+  overflow:hidden !important;
+}
+.app.world-fullscreen .viewport > :not(.canvas):not(.world-fullscreen-exit) {
+  display:none !important;
+}
+.app.world-fullscreen .world-fullscreen-exit {
+  position:absolute;
+  z-index:10005;
+  top:14px;
+  right:14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:36px;
+  padding:0 12px;
+  border:1px solid #3a4351;
+  border-radius:6px;
+  background:#14181fe8;
+  color:#e6e8ec;
+  box-shadow:0 8px 24px #0006;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  backdrop-filter:blur(12px);
+}
+.app.world-fullscreen .world-fullscreen-exit svg { width:15px; height:15px; flex:none; }
+.app.world-fullscreen .world-fullscreen-exit:hover {
+  border-color:#8a641c;
+  background:#292314;
+  color:#f5c56b;
+}
+.app.world-fullscreen .world-fullscreen-exit kbd {
+  padding:2px 5px;
+  border:1px solid #394250;
+  border-radius:4px;
+  color:#9aa1ae;
+  font:10px 'IBM Plex Mono',monospace;
+}
+.app.world-fullscreen.is-running .world-fullscreen-exit,
+.app.world-fullscreen.is-running .world-fullscreen-exit * {
+  pointer-events:auto !important;
+}
+@media(max-width:600px) {
+  .app.world-fullscreen .world-fullscreen-exit {
+    top:8px;
+    right:8px;
+    min-height:32px;
+    padding:0 9px;
+  }
 }
 </style>
