@@ -30,6 +30,6 @@
 .graph-canvas.cursor-visual-script.is-panning { cursor: url('cursores/mover-camera.svg') 16 16, grabbing !important; }
 .graph-node { cursor: url('cursores/mover.svg') 16 16, grab !important; }
 .graph-node:active { cursor: url('cursores/mover.svg') 16 16, grabbing !important; }
-.quick-add-trigger, .quick-add-popover > button, .graph-actions > .primary { cursor: url('cursores/inserir.svg') 6 4, pointer !important; }
+.quick-add-trigger, .quick-add-popover > button, .graph-actions > button:first-child { cursor: url('cursores/inserir.svg') 6 4, pointer !important; }
 .danger, .variable-delete { cursor: url('cursores/excluir.svg') 16 16, pointer !important; }
 button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: url('cursores/bloqueado.svg') 16 16, not-allowed !important; }
