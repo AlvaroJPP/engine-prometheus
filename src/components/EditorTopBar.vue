@@ -7,7 +7,7 @@ const props = defineProps<{
   firstPersonMode: boolean
   grassRenderDistance: number
   grassRenderAll: boolean
-  executionMode: 'edit' | 'running' | 'stopped'
+  executionMode: 'edit' | 'running'
   objects: Array<{ id: string; name: string }>
   components: Array<{ id: string; name: string }>
 }>()
@@ -136,7 +136,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </div>
 
     <div class="mode-segment" aria-label="Modo do editor">
-      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" title="Modo de edição">Editar</button>
+      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'">Editar</button>
       <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena">Jogar</button>
     </div>
 
