@@ -918,6 +918,9 @@ export class Engine {
     // evitar trabalho desnecessário durante renderização e seleção.
     let meshCount = 0
     let triangleCount = 0
+    let generatedNormalCount = 0
+    let enhancedTextureCount = 0
+    const preferredAnisotropy = Math.min(4, this.viewport.renderer.capabilities.getMaxAnisotropy())
     const importedMeshes: THREE.Mesh[] = []
     // Mantém materiais independentes entre modelos importados, mas evita criar
     // um clone de material por bloco da mesma geometria particionada.
@@ -935,9 +938,17 @@ export class Engine {
       // recalculados sobre os vértices de cada região espacial.
       child.frustumCulled = child.userData.generatedOcclusionCluster === true
       const geometries = child.geometry
+      const position = geometries.getAttribute('position')
+      // Alguns OBJ/FBX/PLY exportados não incluem normais. Gere-as apenas quando
+      // faltarem, preservando o sombreamento e a topologia dos modelos que já
+      // possuem normais válidas no arquivo de origem.
+      const normal = geometries.getAttribute('normal')
+      if (position && position.count >= 3 && (!normal || normal.count !== position.count)) {
+        geometries.computeVertexNormals()
+        generatedNormalCount += 1
+      }
       if (!geometries.boundingSphere) geometries.computeBoundingSphere()
       if (!geometries.boundingBox) geometries.computeBoundingBox()
-      const position = geometries.getAttribute('position')
       if (position) triangleCount += geometries.index
         ? geometries.index.count / 3
         : position.count / 3
@@ -955,17 +966,28 @@ export class Engine {
       })
       child.material = Array.isArray(child.material) ? materials : (materials[0] ?? child.material)
       for (const material of materials) {
-        // Preserve os valores PBR do glTF e garanta que mapas de cor sejam lidos
-        // como sRGB, inclusive em arquivos exportados com metadados incompletos.
+        // Preserve os valores PBR da origem e trate mapas de cor como sRGB.
+        // Mapas de normais, rugosidade, metalness e oclusão mantêm espaço linear.
         material.visible = true
         const texturedMaterial = material as THREE.Material & {
           colorWrite?: boolean
-          map?: THREE.Texture | null
-          emissiveMap?: THREE.Texture | null
+          [key: string]: unknown
         }
-        if (texturedMaterial.map) texturedMaterial.map.colorSpace = THREE.SRGBColorSpace
-        if (texturedMaterial.emissiveMap) texturedMaterial.emissiveMap.colorSpace = THREE.SRGBColorSpace
         if ('colorWrite' in texturedMaterial) texturedMaterial.colorWrite = true
+        for (const [slot, value] of Object.entries(texturedMaterial)) {
+          if (!(value instanceof THREE.Texture)) continue
+          if ((slot === 'map' || slot === 'emissiveMap') && value.colorSpace !== THREE.SRGBColorSpace) {
+            value.colorSpace = THREE.SRGBColorSpace
+            value.needsUpdate = true
+          }
+          // Filtragem anisotrópica limitada a 4x deixa texturas oblíquas mais
+          // nítidas sem escolher o custo máximo da GPU para todos os materiais.
+          if (preferredAnisotropy > value.anisotropy) {
+            value.anisotropy = preferredAnisotropy
+            value.needsUpdate = true
+            enhancedTextureCount += 1
+          }
+        }
         material.needsUpdate = true
       }
     })
@@ -986,6 +1008,9 @@ export class Engine {
       name,
       meshCount,
       triangleCount,
+      generatedNormalCount,
+      enhancedTextureCount,
+      textureAnisotropy: preferredAnisotropy,
       bounds: originalSize.toArray(),
       visibleMeshes: importedMeshes.filter((mesh) => mesh.visible).length,
     })
