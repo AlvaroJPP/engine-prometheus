@@ -1952,7 +1952,9 @@ export class HumanoidAvatar {
       if (configuredRole !== undefined) {
         if (configuredRole === 'idle' || configuredRole === 'walk' || configuredRole === 'run' || configuredRole === 'jump') {
           key = configuredRole
-        } else if (configuredRole === 'run_stop') {
+        } else if (configuredRole === 'walk_diagonal_left' || configuredRole === 'walk_diagonal_right') {
+          key = 'walk'
+        } else if (configuredRole === 'run_diagonal_left' || configuredRole === 'run_diagonal_right') {
           key = 'run'
         } else {
           // Um clipe marcado como "Não usar" ou destinado à montaria não
