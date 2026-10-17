@@ -1,6 +1,6 @@
 type TooltipTarget = HTMLElement
 
-const SELECTOR = '[data-tooltip], [title]'
+const SELECTOR = '[data-tooltip], [title], [data-ep-tooltip]'
 const TOOLTIP_ID = 'engine-prometheus-tooltip'
 const SHOW_DELAY_MS = 420
 
@@ -132,8 +132,8 @@ function scheduleTooltip(target: TooltipTarget, immediate = false): void {
   }, delay)
 }
 
-function hideTooltip(): void {
-  cancelPending()
+function hideTooltip(preservePending = false): void {
+  if (!preservePending) cancelPending()
   if (activeTarget && activeTarget.isConnected) {
     if (previousDescribedBy) activeTarget.setAttribute('aria-describedby', previousDescribedBy)
     else activeTarget.removeAttribute('aria-describedby')
@@ -158,11 +158,28 @@ export function installTooltipManager(): void {
   }, true)
 
   document.addEventListener('pointerout', (event: PointerEvent) => {
-    const target = activeTarget ?? pendingTarget
-    if (!target) return
     const related = event.relatedTarget
-    if (related instanceof Node && target.contains(related)) return
-    if (event.target === target || target.contains(event.target as Node)) hideTooltip()
+    const fromActive = activeTarget && (
+      event.target === activeTarget || activeTarget.contains(event.target as Node)
+    )
+    if (
+      fromActive
+      && !(related instanceof Node && activeTarget?.contains(related))
+    ) {
+      // Ao passar de um alvo com tooltip para outro, fecha o atual sem cancelar
+      // o temporizador que já foi agendado para o novo alvo.
+      hideTooltip(!!pendingTarget)
+    }
+
+    const fromPending = pendingTarget && (
+      event.target === pendingTarget || pendingTarget.contains(event.target as Node)
+    )
+    if (
+      fromPending
+      && !(related instanceof Node && pendingTarget?.contains(related))
+    ) {
+      cancelPending()
+    }
   }, true)
 
   document.addEventListener('focusin', (event: FocusEvent) => {
