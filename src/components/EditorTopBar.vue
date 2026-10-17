@@ -84,17 +84,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </div>
 
     <div class="project">
-      <input :value="projectName" class="pname" aria-label="Nome do projeto" spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
+      <input :value="projectName" class="pname" aria-label="Nome do projeto" title="Edite o nome do projeto; alterações precisam ser salvas." spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
       <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
     </div>
 
     <details class="file-menu">
-      <summary>Arquivo <span aria-hidden="true">▾</span></summary>
+      <summary data-tooltip="Crie um projeto, abra um arquivo existente ou salve as alterações.">Arquivo <span aria-hidden="true">▾</span></summary>
       <div class="file-menu-popover">
-        <button @click="emit('new-project')">Novo projeto</button>
-        <button @click="emit('open-project')">Abrir projeto…</button>
+        <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
+        <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
         <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
-        <button @click="emit('save-project', true)">Salvar como…</button>
+        <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar como…</button>
       </div>
     </details>
 
@@ -139,8 +139,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </div>
 
     <div class="mode-segment" aria-label="Modo do editor">
-      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'">Editar</button>
-      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena">Jogar</button>
+      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">Editar</button>
+      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena" data-tooltip="Executa a cena para testar o jogador, as colisões e os eventos.">Jogar</button>
     </div>
 
     <div class="topbar-spacer" />
@@ -161,10 +161,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
             <small>un.</small>
           </span>
         </label>
-        <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(grassRenderDistance, 500)" :disabled="grassRenderAll" aria-label="Ajuste rápido do alcance da grama" @input="emit('grass-render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+        <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(grassRenderDistance, 500)" :disabled="grassRenderAll" aria-label="Ajuste rápido do alcance da grama" title="Define até onde a grama aparece. Alcances maiores podem reduzir o FPS." @input="emit('grass-render-distance-change', Number(($event.target as HTMLInputElement).value))" />
         <div class="render-settings-range-labels"><span>10 unidades</span><span>500 unidades</span></div>
         <label class="render-settings-everything">
-          <input type="checkbox" :checked="grassRenderAll" @change="emit('grass-render-all-change', ($event.target as HTMLInputElement).checked)" />
+          <input type="checkbox" :checked="grassRenderAll" title="Ignora o limite de distância e renderiza a grama de todo o mapa." @change="emit('grass-render-all-change', ($event.target as HTMLInputElement).checked)" />
           <span><strong>Renderizar tudo</strong><small>Ignora a distância máxima e inclui toda a grama do mapa.</small></span>
         </label>
         <p class="render-settings-note">Quanto maior o alcance, maior o custo de renderização. A qualidade diminui gradualmente nos anéis mais distantes.</p>
@@ -187,9 +187,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </svg>
       <span>{{ worldFullscreen ? 'Voltar ao editor' : 'Tela cheia do mundo' }}</span>
     </button>
-    <button class="cam" :class="{ active: firstPersonMode }" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
-    <button class="cam" @click="emit('cycle-camera')">{{ cameraLabel === 'Câmera livre' ? 'Câmera livre' : cameraLabel }}</button>
-    <button class="cam" @click="emit('open-control-maps')">Controles</button>
+    <button class="cam" :class="{ active: firstPersonMode }" :title="firstPersonMode ? 'Sair da visão em primeira pessoa.' : 'Entrar na visão em primeira pessoa para inspecionar o mundo do ponto de vista do jogador.'" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
+    <button class="cam" :title="`Alterna o enquadramento da câmera. Atual: ${cameraLabel}.`" @click="emit('cycle-camera')">{{ cameraLabel === 'Câmera livre' ? 'Câmera livre' : cameraLabel }}</button>
+    <button class="cam" title="Personalize mapas de teclas, ações de movimento e atalhos do jogador." @click="emit('open-control-maps')">Controles</button>
   </header>
 </template>
 
