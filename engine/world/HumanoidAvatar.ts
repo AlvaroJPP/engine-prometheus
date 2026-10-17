@@ -138,6 +138,10 @@ export class HumanoidAvatar {
   private mountedStartRotation: THREE.Euler | null = null
   private mountedVisualPivot: THREE.Object3D | null = null
   private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
+  /** Evita executar nove raycasts de suporte em cada subpasso de movimento da montaria. */
+  private mountedSupportProbeElapsed = 0
+  private mountedHasSupportProbe = false
+  private readonly mountedLastSupportProbePosition = new THREE.Vector3()
   private controlBindings(): ControlMapBindings {
     if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
 
@@ -553,6 +557,9 @@ export class HumanoidAvatar {
     this.mountedJumpRequested = false
     this.mountedAirborne = false
     this.mountedVerticalVelocity = 0
+    this.mountedSupportProbeElapsed = 1
+    this.mountedHasSupportProbe = false
+    this.mountedLastSupportProbePosition.copy(root.position)
     this.mountSettings = {
       interactionKey: settings.interactionKey,
       seatOffset: [...settings.seatOffset],
@@ -935,6 +942,7 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
+    this.mountedSupportProbeElapsed += dt
     const shouldJump = this.mountedJumpRequested && !this.mountedAirborne
     this.mountedJumpRequested = false
     let state: MountMovementState = 'idle'
@@ -964,7 +972,7 @@ export class HumanoidAvatar {
 
           // Ajusta a altura a cada subpasso, antes do teste lateral. Assim, a
           // montaria acompanha a subida gradual da rampa em vez de bater na sua face.
-          if (!this.mountedAirborne) {
+          if (!this.mountedAirborne && this.shouldRefreshMountedSupport(root, true)) {
             const supported = this.followMountedSurfaceAtStep(root, Math.abs(delta) / count)
             if (!supported) {
               // Se a montaria saiu da borda da rampa, deixa de congelar a altura:
@@ -1056,9 +1064,10 @@ export class HumanoidAvatar {
         this.mountedAirborne = false
         root.updateWorldMatrix(true, true)
       }
-    } else {
-      // Mantém o contato com a rampa mesmo sem entrada de movimento; se não houver
-      // superfície próxima, começa a cair e não deixa a montaria congelada no ar.
+    } else if (this.shouldRefreshMountedSupport(root, false)) {
+      // Em repouso, o piso não precisa ser amostrado novamente a cada frame.
+      // Revalidamos periodicamente e ao mover a montaria para acompanhar rampas
+      // sem manter a interface ocupada com raycasts redundantes.
       const beforeGroundingY = root.position.y
       const supported = this.followMountedSurfaceAtStep(root, 0.08)
       if (!supported) {
@@ -1084,6 +1093,29 @@ export class HumanoidAvatar {
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
     this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
+  }
+
+  /**
+   * Support probing is expensive: each probe raycasts the nearby scene at nine
+   * positions. Reuse the last result for short intervals instead of repeating
+   * those raycasts every movement micro-step and every idle frame.
+   */
+  private shouldRefreshMountedSupport(root: THREE.Mesh, moving: boolean): boolean {
+    const movedDistanceSq = this.mountedHasSupportProbe
+      ? this.mountedLastSupportProbePosition.distanceToSquared(root.position)
+      : Number.POSITIVE_INFINITY
+    const distanceThreshold = moving ? 0.035 : 0.0025
+    const timeThreshold = moving ? 0.075 : 0.25
+    if (
+      this.mountedHasSupportProbe &&
+      movedDistanceSq < distanceThreshold &&
+      this.mountedSupportProbeElapsed < timeThreshold
+    ) return false
+
+    this.mountedLastSupportProbePosition.copy(root.position)
+    this.mountedHasSupportProbe = true
+    this.mountedSupportProbeElapsed = 0
+    return true
   }
 
   /** Bounds de movimento da montaria, usando o colisor configurado ou o modelo visual como fallback. */
