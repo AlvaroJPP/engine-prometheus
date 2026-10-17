@@ -40,6 +40,9 @@ export function buildBundle(
       importAnimationRoles: m.userData.importAnimationRoles && typeof m.userData.importAnimationRoles === 'object'
         ? { ...m.userData.importAnimationRoles } as Record<string, import('../script/packages').AnimationRole>
         : undefined,
+      importControlBindings: m.userData.importControlBindings && typeof m.userData.importControlBindings === 'object'
+        ? { ...m.userData.importControlBindings } as Partial<import('../script/packages').ModelControlBindings>
+        : undefined,
       color: typeof m.userData.baseColor === 'number' ? m.userData.baseColor : ((Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial).color.getHex(),
       texturePreset: m.userData.texturePreset === 'grass' || m.userData.texturePreset === 'stone' || m.userData.texturePreset === 'brick' || m.userData.texturePreset === 'wood' || m.userData.texturePreset === 'sand' || m.userData.texturePreset === 'metal' ? m.userData.texturePreset : 'none',
       textureRepeat: typeof m.userData.textureRepeat === 'number' ? m.userData.textureRepeat : 2,
@@ -107,5 +110,6 @@ export function objectFromData(d: SceneObjectData): GameObject {
   object.mesh.userData.componentId = d.componentId
   object.mesh.userData.importedModelHeight = d.importedModelHeight
   object.mesh.userData.importAnimationRoles = d.importAnimationRoles ? { ...d.importAnimationRoles } : undefined
+  object.mesh.userData.importControlBindings = d.importControlBindings ? { ...d.importControlBindings } : undefined
   return object
 }
