@@ -76,7 +76,11 @@ function disposeModelResources(root: THREE.Object3D) {
  * biblioteca passar a armazenar imagens de preview.
  */
 export async function generateComponentThumbnail(bytes: ArrayBuffer): Promise<string | undefined> {
-  if (!ensureThumbnailRenderer() || !renderer || !scene || !camera) return undefined
+  if (!ensureThumbnailRenderer()) return undefined
+  const activeRenderer = renderer
+  const activeScene = scene
+  const activeCamera = camera
+  if (!activeRenderer || !activeScene || !activeCamera) return undefined
 
   let root: THREE.Object3D | null = null
   try {
@@ -96,23 +100,23 @@ export async function generateComponentThumbnail(bytes: ArrayBuffer): Promise<st
 
     const sphere = bounds.getBoundingSphere(new THREE.Sphere())
     const radius = Math.max(0.05, sphere.radius)
-    const fov = THREE.MathUtils.degToRad(camera.fov)
+    const fov = THREE.MathUtils.degToRad(activeCamera.fov)
     const distance = Math.max(0.5, radius / Math.sin(fov / 2) * 1.28)
-    camera.position.set(distance * 0.9, distance * 0.7, distance * 1.1)
-    camera.near = Math.max(0.01, distance / 1000)
-    camera.far = Math.max(100, distance * 20)
-    camera.lookAt(0, 0, 0)
-    camera.updateProjectionMatrix()
+    activeCamera.position.set(distance * 0.9, distance * 0.7, distance * 1.1)
+    activeCamera.near = Math.max(0.01, distance / 1000)
+    activeCamera.far = Math.max(100, distance * 20)
+    activeCamera.lookAt(0, 0, 0)
+    activeCamera.updateProjectionMatrix()
 
-    scene.add(root)
-    renderer.render(scene, camera)
-    return renderer.domElement.toDataURL('image/webp', 0.8)
+    activeScene.add(root)
+    activeRenderer.render(activeScene, activeCamera)
+    return activeRenderer.domElement.toDataURL('image/webp', 0.8)
   } catch (cause) {
     console.warn('[ComponentThumbnail] Não foi possível gerar a miniatura de um componente.', cause)
     return undefined
   } finally {
     if (root) {
-      scene.remove(root)
+      activeScene.remove(root)
       disposeModelResources(root)
     }
   }
