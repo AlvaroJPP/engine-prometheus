@@ -8,7 +8,7 @@ import type { BrushSettings, EditorState, ToolMode, TransformMode } from './Edit
 import { randomSeed, resetIds, uuid } from './lib/id'
 import type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 import { MAIN_SCENE_PATH } from './project/format'
-import type { CameraPreset, ObjectType, ProjectBundle, SceneObjectData } from './project/format'
+import type { CameraPreset, ObjectType, PlayerModelData, ProjectBundle, SceneObjectData } from './project/format'
 import { buildBundle, objectFromData } from './project/serialize'
 import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
@@ -31,6 +31,24 @@ import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
+const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
+
+function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
+  }
+  return btoa(binary)
+}
+
+function decodeBase64ArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes.buffer
+}
 
 export class Engine {
   readonly world = new World()
@@ -44,6 +62,7 @@ export class Engine {
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
+  private playerModelData: PlayerModelData | null = null
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -416,6 +435,42 @@ export class Engine {
   // ---- câmera ----
   get cameraPreset(): CameraPreset {
     return this.orbit.preset
+  }
+
+  /** Nome exibido no editor para o visual atual do jogador. */
+  getPlayerModelName(): string {
+    return this.playerModelData?.name ?? 'Modelo padrão (Dummy)'
+  }
+
+  hasCustomPlayerModel(): boolean {
+    return this.playerModelData !== null
+  }
+
+  /** Aplica um modelo GLB escolhido pelo usuário, preservando a cápsula física do jogador. */
+  async setPlayerModel(data: ArrayBuffer, name: string): Promise<void> {
+    const cleanName = name.trim() || 'Jogador.glb'
+    if (!cleanName.toLowerCase().endsWith('.glb')) {
+      throw new Error('O modelo do jogador precisa estar no formato binário .glb.')
+    }
+    if (data.byteLength < 12) throw new Error('O arquivo GLB está vazio ou incompleto.')
+    if (data.byteLength > MAX_PLAYER_MODEL_BYTES) {
+      throw new Error('O modelo do jogador deve ter no máximo 30 MB.')
+    }
+    if (new DataView(data).getUint32(0, true) !== 0x46546c67) {
+      throw new Error('O arquivo selecionado não tem o cabeçalho GLB esperado. Exporte o modelo como .glb.')
+    }
+
+    // A troca visual só é confirmada após o GLB ser validado e carregado.
+    await this.avatar.setCustomModel(data)
+    this.playerModelData = { name: cleanName, glbData: encodeArrayBufferBase64(data) }
+    this.viewport.invalidate()
+  }
+
+  /** Restaura o avatar original usado pelos projetos antigos. */
+  async resetPlayerModel(): Promise<void> {
+    await this.avatar.resetDefaultModel()
+    this.playerModelData = null
+    this.viewport.invalidate()
   }
 
   /** Alterna entre o editor livre e a execução controlada pelo jogador. */
@@ -1274,6 +1329,12 @@ export class Engine {
     this.events.emit('cameraChanged', { preset: 'free' })
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.modelLod.clear()
+    if (this.playerModelData) {
+      this.playerModelData = null
+      void this.avatar.resetDefaultModel().catch((error: unknown) => {
+        console.warn('[Engine] Não foi possível restaurar o avatar padrão ao criar um projeto novo.', error)
+      })
+    }
     this.world.replaceAll([], { seed: randomSeed(), visible: true, edits: [] })
     this.world.setEnvironment({ skyTextureDataUrl: '', timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 })
     this.avatar.reset()
@@ -1291,6 +1352,8 @@ export class Engine {
     })
     const scenePath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     bundle.scenes[scenePath].environment = this.world.getEnvironment()
+    if (this.playerModelData) bundle.scenes[scenePath].playerModel = { ...this.playerModelData }
+    else delete bundle.scenes[scenePath].playerModel
     bundle.logic = this.logic.exportData()
     return bundle
   }
@@ -1375,6 +1438,27 @@ export class Engine {
       // Dá ao navegador/Tauri a chance de pintar a barra e processar eventos
       // entre assets, em vez de bloquear a interface até terminar tudo.
       await yieldToUi()
+    }
+
+    if (scene.playerModel?.glbData) {
+      report('Restaurando modelo personalizado do jogador…', 91)
+      try {
+        const playerBytes = decodeBase64ArrayBuffer(scene.playerModel.glbData)
+        await this.avatar.setCustomModel(playerBytes)
+        this.playerModelData = { name: scene.playerModel.name, glbData: scene.playerModel.glbData }
+      } catch (error) {
+        console.error('[Engine] Não foi possível restaurar o modelo personalizado do jogador:', error)
+        throw new ProjectFormatError('Não foi possível carregar o modelo personalizado do jogador salvo neste projeto.')
+      }
+    } else if (this.playerModelData) {
+      report('Restaurando modelo padrão do jogador…', 91)
+      try {
+        await this.avatar.resetDefaultModel()
+        this.playerModelData = null
+      } catch (error) {
+        console.error('[Engine] Não foi possível restaurar o avatar padrão:', error)
+        throw new ProjectFormatError('Não foi possível restaurar o modelo padrão do jogador.')
+      }
     }
 
     report('Finalizando configurações do editor…', 93)
