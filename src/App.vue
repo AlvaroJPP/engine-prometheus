@@ -4088,3 +4088,68 @@ button:disabled { cursor: not-allowed; }
   .toolbar .tool-label { font-size: 10px; }
 }
 </style>
+
+
+<style>
+/* Keep the viewport tool palette narrow and increase its vertical working area. */
+.toolbar {
+  width: 42px !important;
+  min-width: 42px !important;
+  height: calc(100dvh - 96px) !important;
+  max-height: calc(100dvh - 96px) !important;
+  min-height: 0;
+  align-items: stretch !important;
+  justify-content: flex-start;
+  padding: 5px !important;
+  gap: 5px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+.toolbar-group {
+  width: 100%;
+  align-items: stretch;
+  flex: none;
+  gap: 3px;
+}
+.toolbar-separator { flex: none; width: 100%; }
+.toolbar .tool {
+  display: flex;
+  align-items: center;
+  justify-content: center !important;
+  gap: 0;
+  width: 30px !important;
+  min-width: 30px !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+}
+.toolbar .tool-ico {
+  flex: none;
+  width: auto;
+  text-align: center;
+  font-size: 16px;
+}
+.toolbar .tool-label {
+  position: absolute !important;
+  display: block;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0;
+}
+@media (max-width: 760px) {
+  .toolbar {
+    left: 188px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: calc(100dvh - 92px) !important;
+    max-height: calc(100dvh - 92px) !important;
+    padding: 4px !important;
+  }
+}
+</style>
