@@ -563,7 +563,8 @@ export class HumanoidAvatar {
       controlBindings: { ...settings.controlBindings },
     }
     this.visualRoot.visible = false
-    root.updateWorldMatrix(true, true)
+    // placeAvatarAtMountSeat atualiza a hierarquia antes de converter o assento;
+    // evitar uma segunda travessia completa de GLBs densos ao montar.
     this.placeAvatarAtMountSeat()
     this.playMountAnimation(root, 'mount', true)
     if (!root.userData.importAnimationActions ||
