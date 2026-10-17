@@ -1316,6 +1316,7 @@ async function useAsPlayerModel() {
         'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
         'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
         'importAnimationRoles', 'importControlBindings',
+        'importRigPreset', 'importRigGenerated', 'importRigBoneNames',
       ]) {
         delete exportRoot.userData[key]
       }
