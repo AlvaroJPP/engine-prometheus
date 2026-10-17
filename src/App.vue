@@ -140,7 +140,26 @@ async function onPlayerModelSelected(event: Event) {
   input.value = ''
   if (file) await setPlayerModelFile(file)
 }
-const timeOfDayLabel = computed(() => { const hours = Math.floor(timeOfDay.value) % 24; const minutes = Math.floor((timeOfDay.value % 1) * 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` })
+const timeOfDayLabel = computed(() => {
+  const totalMinutes = Math.round(Math.max(0, Math.min(24, timeOfDay.value)) * 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+})
+function handleTimeOfDayKeydown(event: KeyboardEvent) {
+  const keySteps: Record<string, number> = {
+    ArrowRight: 0.25,
+    ArrowUp: 0.25,
+    ArrowLeft: -0.25,
+    ArrowDown: -0.25,
+    PageUp: 1,
+    PageDown: -1,
+  }
+  const step = keySteps[event.key]
+  if (step === undefined) return
+  event.preventDefault()
+  setTimeOfDay(Number(Math.max(0, Math.min(24, timeOfDay.value + step)).toFixed(4)))
+}
 
 const newVariableName = ref('')
 const newVariableValue = ref('false')
@@ -1228,11 +1247,33 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <button class="primary environment-button" @click="skyFileInput?.click()">{{ skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>
               <div v-if="skyTextureDataUrl" class="environment-file"><span>▧ {{ skyTextureName || 'Textura carregada' }}</span><button class="ghost" @click="clearSkyTexture">Remover</button></div>
               <h4>Dia e noite</h4>
-              <div class="slider-row"><span>Horário</span><b class="mono">{{ timeOfDayLabel }}</b></div>
-              <input class="environment-range" type="range" min="0" max="24" step="0.25" :value="timeOfDay" :disabled="dayNightCycleEnabled" @input="setTimeOfDay(Number(($event.target as HTMLInputElement).value) % 24)" />
+              <div class="day-night-time-heading">
+                <label for="day-night-time-slider">Horário</label>
+                <output class="day-night-time-value mono" for="day-night-time-slider">{{ timeOfDayLabel }}</output>
+              </div>
+              <input
+                id="day-night-time-slider"
+                class="environment-range day-night-time-slider"
+                type="range"
+                min="0"
+                max="24"
+                step="0.05"
+                :value="timeOfDay"
+                :style="{ '--time-progress': `${(timeOfDay / 24) * 100}%` }"
+                :aria-valuetext="timeOfDayLabel"
+                aria-label="Horário do dia"
+                @input="setTimeOfDay(Number(($event.target as HTMLInputElement).value))"
+                @keydown="handleTimeOfDayKeydown"
+              />
+              <div class="day-night-color-band" aria-hidden="true"></div>
+              <div class="day-night-time-ticks" aria-hidden="true">
+                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+              </div>
               <label class="checkline"><input type="checkbox" :checked="dayNightCycleEnabled" @change="setDayNightCycleEnabled(($event.target as HTMLInputElement).checked)" /> Ciclo automático de dia/noite</label>
-              <div class="slider-row"><span>Velocidade do ciclo</span><b class="mono">{{ dayNightCycleSpeed.toFixed(2) }} h/s</b></div>
-              <input class="environment-range" type="range" min="0.01" max="4" step="0.01" :value="dayNightCycleSpeed" @input="setDayNightCycleSpeed(Number(($event.target as HTMLInputElement).value))" />
+              <div class="day-night-speed-control" :class="{ 'is-disabled': !dayNightCycleEnabled }">
+                <div class="slider-row"><span>Velocidade do ciclo</span><b class="mono">{{ dayNightCycleSpeed.toFixed(2) }} h/s</b></div>
+                <input class="environment-range" type="range" min="0.01" max="4" step="0.01" :value="dayNightCycleSpeed" :disabled="!dayNightCycleEnabled" aria-label="Velocidade do ciclo dia/noite" @input="setDayNightCycleSpeed(Number(($event.target as HTMLInputElement).value))" />
+              </div>
               <p class="component-note">O céu, o horário e o ciclo são salvos com o projeto.</p>
             </div>
           </section>
@@ -4131,5 +4172,142 @@ button:disabled { cursor: not-allowed; }
     min-height: 22px !important;
     height: 22px !important;
   }
+}
+</style>
+
+<style>
+/* Controle de horário do ciclo solar: a trilha e a faixa cromática usam a mesma escala 0–24 h. */
+.day-night-time-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:10px 0 7px;
+  color:#E6E8EC;
+  font:400 13px/1.4 'IBM Plex Sans', Inter, 'Segoe UI', sans-serif;
+}
+.day-night-time-heading label { cursor:pointer; }
+.day-night-time-value {
+  color:#F5A524;
+  font:500 12px/1.2 'IBM Plex Mono', 'JetBrains Mono', Consolas, monospace;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.025em;
+}
+.day-night-time-slider,
+.panel.right .scroll .day-night-time-slider {
+  -webkit-appearance:none;
+  appearance:none;
+  display:block;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:20px;
+  margin:0;
+  padding:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  accent-color:#F5A524;
+  cursor:pointer;
+  touch-action:pan-y;
+}
+.day-night-time-slider::-webkit-slider-runnable-track {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #2C323D;
+  border-radius:999px;
+  background:linear-gradient(
+    90deg,
+    #F5A524 0%,
+    #F5A524 var(--time-progress, 50%),
+    #101319 var(--time-progress, 50%),
+    #101319 100%
+  );
+}
+.day-night-time-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  appearance:none;
+  box-sizing:border-box;
+  width:14px;
+  height:14px;
+  margin-top:-5px;
+  border:2px solid #FFD17C;
+  border-radius:50%;
+  background:#F5A524;
+  box-shadow:0 0 0 2px #F5A52422,0 1px 3px #0008;
+}
+.day-night-time-slider::-moz-range-track {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #2C323D;
+  border-radius:999px;
+  background:linear-gradient(
+    90deg,
+    #F5A524 0%,
+    #F5A524 var(--time-progress, 50%),
+    #101319 var(--time-progress, 50%),
+    #101319 100%
+  );
+}
+.day-night-time-slider::-moz-range-progress {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #F5A524;
+  border-radius:999px;
+  background:#F5A524;
+}
+.day-night-time-slider::-moz-range-thumb {
+  box-sizing:border-box;
+  width:14px;
+  height:14px;
+  border:2px solid #FFD17C;
+  border-radius:50%;
+  background:#F5A524;
+  box-shadow:0 0 0 2px #F5A52422,0 1px 3px #0008;
+}
+.day-night-time-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:0 0 0 3px #F5A52433,0 0 0 1px #FFD17C;
+}
+.day-night-time-slider:focus-visible::-moz-range-thumb {
+  box-shadow:0 0 0 3px #F5A52433,0 0 0 1px #FFD17C;
+}
+.day-night-color-band {
+  width:100%;
+  height:6px;
+  margin-top:1px;
+  border:1px solid #2C323D;
+  border-radius:4px;
+  box-sizing:border-box;
+  background:linear-gradient(
+    90deg,
+    #2A3566 0%,
+    #F2A65A 25%,
+    #8CC4F5 50%,
+    #F2A65A 75%,
+    #2A3566 100%
+  );
+  pointer-events:none;
+}
+.day-night-time-ticks {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  width:100%;
+  margin-top:5px;
+  color:#7B8290;
+  font:400 10px/1.25 'IBM Plex Mono', 'JetBrains Mono', Consolas, monospace;
+  font-variant-numeric:tabular-nums;
+  user-select:none;
+}
+.day-night-time-ticks span { min-width:0; }
+.day-night-time-ticks span:first-child { text-align:left; }
+.day-night-time-ticks span:last-child { text-align:right; }
+.day-night-speed-control { min-width:0; }
+.day-night-speed-control.is-disabled { opacity:.5; }
+.day-night-speed-control input:disabled { cursor:not-allowed; }
+@media(max-width:700px) {
+  .day-night-time-heading { margin-top:8px; }
+  .day-night-time-ticks { font-size:10px; }
 }
 </style>
