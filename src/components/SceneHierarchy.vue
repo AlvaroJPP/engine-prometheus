@@ -85,7 +85,7 @@ const emit = defineEmits<{
         >
           <span class="ico rect" />
           <span class="name">Terreno editável</span>
-          <button class="eye" :class="{ off: !terrain.visible }" title="Mostrar/ocultar" @click.stop="emit('toggle-terrain')" />
+          <button class="eye" :class="{ off: !terrain.visible }" :title="terrain.visible ? 'Ocultar terreno' : 'Mostrar terreno'" :aria-label="terrain.visible ? 'Ocultar terreno' : 'Mostrar terreno'" :aria-pressed="terrain.visible" @click.stop="emit('toggle-terrain')" />
         </div>
         <div
           v-for="object in objects"
@@ -96,9 +96,19 @@ const emit = defineEmits<{
         >
           <span class="ico" :class="object.type" />
           <span class="name">{{ object.name }}</span>
-          <button class="eye" :class="{ off: !object.visible }" title="Mostrar/ocultar objeto" @click.stop="emit('toggle-visible', object.id)" />
-          <button class="row-action" :class="{ active: object.locked }" :title="object.locked ? 'Desbloquear posição' : 'Bloquear posição'" @click.stop="emit('toggle-lock', object.id)">{{ object.locked ? '🔒' : '🔓' }}</button>
-          <button class="row-action" :class="{ active: !object.wireframeVisible }" :title="object.wireframeVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'" @click.stop="emit('toggle-wireframe', object.id)">{{ object.wireframeVisible ? '▱' : '▰' }}</button>
+          <button class="eye" :class="{ off: !object.visible }" :title="object.visible ? 'Ocultar ' + object.name : 'Mostrar ' + object.name" :aria-label="object.visible ? 'Ocultar ' + object.name : 'Mostrar ' + object.name" :aria-pressed="object.visible" @click.stop="emit('toggle-visible', object.id)" />
+          <button class="row-action lock-action" :class="{ active: object.locked }" :title="object.locked ? 'Desbloquear posição' : 'Bloquear posição'" :aria-label="object.locked ? 'Desbloquear posição de ' + object.name : 'Bloquear posição de ' + object.name" :aria-pressed="object.locked" @click.stop="emit('toggle-lock', object.id)">
+            <svg v-if="object.locked" class="row-action-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="3.1" y="7" width="9.8" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+              <path d="M5.2 7V4.8a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+              <path d="M8 9.5v2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+            </svg>
+            <svg v-else class="row-action-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="3.1" y="7" width="9.8" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+              <path d="M10.8 7V4.8a2.8 2.8 0 0 0-5.6 0v1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button class="row-action" :class="{ active: object.wireframeVisible }" :title="object.wireframeVisible ? 'Ocultar linhas dos polígonos' : 'Mostrar linhas dos polígonos'" aria-label="Alternar linhas dos polígonos" :aria-pressed="object.wireframeVisible" @click.stop="emit('toggle-wireframe', object.id)"><span class="wireframe-glyph" aria-hidden="true">{{ object.wireframeVisible ? '▱' : '▰' }}</span></button>
         </div>
       </template>
     </div>
@@ -147,4 +157,91 @@ const emit = defineEmits<{
 .hierarchy-actions{display:flex;gap:5px;padding:0 10px 9px}.hierarchy-actions button{flex:1;min-width:0;padding:6px 4px;border:1px solid #414756;border-radius:4px;background:#292d37;color:#cbd2de;font-size:10px;cursor:pointer}.hierarchy-actions button:disabled{opacity:.4;cursor:default}.row.group-selected{outline:1px solid #b78048;outline-offset:-1px}.row-action{border:0;background:transparent;color:#8f99aa;cursor:pointer;padding:2px 3px;font-size:12px}.row-action.active{color:#f3c34e}
 .library-tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:7px 9px;border-bottom:1px solid #242a35;background:#171b23}.library-tabs button{min-width:0;padding:7px 4px;border:1px solid transparent;border-radius:4px;background:transparent;color:#9ba4b4;font-size:10px;cursor:pointer}.library-tabs button.active{border-color:#554034;background:#332720;color:#f0c39a}.library-tabs button span{margin-left:3px;color:#e9a76e}.component-library{min-height:0;flex:1;overflow:auto;padding:9px}.component-library-intro{padding:9px;border:1px solid #303744;border-radius:5px;background:#1b2029}.component-library-intro strong{font-size:11px;color:#e0e5ee}.component-library-intro p{margin:6px 0 0;color:#929caf;font-size:10px;line-height:1.5}.component-library-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 12px;color:#a5adbc;text-align:center}.component-library-empty>span{font-size:28px;color:#d99057}.component-library-empty strong{font-size:11px}.component-library-empty small{font-size:10px;line-height:1.5;color:#858fa0}.saved-component{display:flex;align-items:stretch;gap:3px;margin-top:7px}.saved-component-place{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:9px 7px;border:1px solid #303744;border-radius:5px;background:#202631;color:#dce2eb;text-align:left;cursor:pointer}.saved-component-place:hover{border-color:#bc7846;background:#2b2928}.saved-component-icon{display:grid;place-items:center;flex:none;width:31px;height:31px;border-radius:4px;background:#332920;color:#e9a76e;font-size:18px}.saved-component-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.saved-component-copy strong{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.saved-component-copy small{color:#929caf;font-size:9px}.saved-component-add{color:#e9a76e;font-size:18px}.saved-component-preview{width:28px;border:1px solid #303744;border-radius:4px;background:#202631;color:#e9a76e;cursor:pointer}.saved-component-preview:hover{border-color:#bc7846;background:#2b2928}.saved-component-delete{width:25px;border:1px solid #303744;border-radius:4px;background:#202631;color:#9a9fac;cursor:pointer}.saved-component-delete:hover{border-color:#a24e4e;color:#ff9696}
 .saved-component-edit{width:27px;flex:none;border:1px solid #303744;border-radius:4px;background:#202631;color:#b7c0ce;cursor:pointer}.saved-component-edit:hover{border-color:#bc7846;color:#f0c39a}.saved-component-rename{display:flex;align-items:center;gap:3px;flex:1;min-width:0}.saved-component-rename input{box-sizing:border-box;flex:1;min-width:0;width:100%;padding:8px 6px;border:1px solid #9b704d;border-radius:4px;background:#171b23;color:#e2e7ef;font-size:10px;outline:0}.saved-component-rename-save,.saved-component-rename-cancel{width:26px;flex:none;border:1px solid #39404c;border-radius:4px;background:#222732;color:#cdd4df;cursor:pointer}.saved-component-rename-save{border-color:#4b8065;color:#99e2b4}.saved-component-rename-save:disabled{opacity:.4;cursor:default}.saved-component-rename-cancel{color:#dda5a0}
+
+/* Refined hierarchy controls: consistent monochrome icons and clearer selection. */
+.row.group-selected {
+  border: 1px solid #604a2a;
+  border-radius: 5px;
+  background: #201d18;
+  outline: none;
+}
+.row.group-selected.active {
+  border-color: #7b5d24;
+  background: #2b2417;
+}
+.eye {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 11px;
+  min-width: 14px;
+  min-height: 11px;
+  margin-inline: 3px;
+  padding: 0;
+  border: 1px solid #8a96a8;
+  border-radius: 75% 15%;
+  transform: rotate(45deg);
+  background: #8a96a8;
+  box-shadow: none;
+  opacity: .62;
+}
+.eye::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #151920;
+}
+.eye.off {
+  border-color: #687385;
+  background: transparent;
+  box-shadow: none;
+  opacity: .42;
+}
+.eye.off::after { background: #687385; }
+.row:hover .eye,
+.row.active .eye,
+.eye:focus-visible { opacity: 1; }
+.eye:hover {
+  border-color: #f5c56b;
+  background: #f5c56b;
+}
+.eye:hover::after { background: #151920; }
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 5px;
+  color: #8f99aa;
+  line-height: 1;
+}
+.row-action-icon { display: block; width: 14px; height: 14px; }
+.row-action[aria-pressed="true"] {
+  color: #f5c56b;
+  background: #2a2418;
+}
+.row-action:hover {
+  border: 1px solid #414b5a;
+  background: #252c37;
+  color: #e5eaf2;
+}
+.row-action:focus-visible {
+  outline: 2px solid #f5a524;
+  outline-offset: 1px;
+}
+.wireframe-glyph { display: block; font-size: 13px; line-height: 1; }
+.component-library .saved-component-place:focus-visible,
+.component-library .saved-component-preview:focus-visible,
+.component-library .saved-component-edit:focus-visible,
+.component-library .saved-component-delete:focus-visible {
+  outline: 2px solid #f5a524;
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .saved-component-place { transition: none; }
+}
 </style>
