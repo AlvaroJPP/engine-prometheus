@@ -1796,7 +1796,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div class="graph-tip"><strong>Dica</strong><span>Selecione um objeto para focar sua edição. Todos os fluxos continuam visíveis no modo global.</span></div>
         </aside>
-        <div ref="graphViewport" class="graph-canvas" :class="['cursor-visual-script', { 'is-panning': dragCanvas }] @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
+        <div ref="graphViewport" class="graph-canvas" :class="['cursor-visual-script', { 'is-panning': dragCanvas }]" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
             <button title="Aproximar" aria-label="Aproximar" @click="zoomGraph(0.15)">＋</button>
             <span>{{ Math.round(graphZoom * 100) }}%</span>
