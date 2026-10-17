@@ -39,7 +39,7 @@ function parseAnimationRoleMap(value: unknown): Record<string, AnimationRole> | 
   if (!isRecord(value)) return undefined
   const result: Record<string, AnimationRole> = {}
   for (const [key, role] of Object.entries(value)) {
-    if (!/^\\d+$/.test(key) || typeof role !== 'string' || !VALID_ANIMATION_ROLES.has(role as AnimationRole)) continue
+    if (!/^\d+$/.test(key) || typeof role !== 'string' || !VALID_ANIMATION_ROLES.has(role as AnimationRole)) continue
     result[key] = role as AnimationRole
   }
   return Object.keys(result).length ? result : undefined
