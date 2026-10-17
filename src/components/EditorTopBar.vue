@@ -76,8 +76,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     <div class="brand">
       <div class="logo" aria-hidden="true">P</div>
       <div class="brand-copy">
-        <div class="title">ENGINE PROMETHEUS</div>
+        <div class="title">Prometheus</div>
       </div>
+    </div>
+
+    <div class="project">
+      <input :value="projectName" class="pname" aria-label="Nome do projeto" spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
+      <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
     </div>
 
     <details class="file-menu">
@@ -90,10 +95,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </div>
     </details>
 
-    <div class="project">
-      <input :value="projectName" class="pname" aria-label="Nome do projeto" spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
-      <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
-    </div>
+    <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">Salvar</button>
 
     <div class="global-search-wrap">
       <label class="global-search">
@@ -213,4 +215,61 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .render-settings-icon { display:none; }
   .cam { padding-inline:7px; font-size:10px; }
 }
+
+/* Match the compact topbar ordering shown in the provided reference. */
+.brand .title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  text-transform: none;
+}
+.project {
+  order: 1;
+  margin-left: 8px;
+  padding-left: 13px;
+  border-left: 1px solid #2a303a;
+}
+.file-menu { order: 2; }
+.topbar-save {
+  order: 3;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #d7dee8;
+  font-size: 11px;
+}
+.topbar-save:hover {
+  border-color: #343c49;
+  background: #202630;
+  color: #f2c36f;
+}
+.global-search-wrap { order: 4; }
+.mode-segment { order: 5; }
+.topbar-spacer { order: 6; }
+.render-settings { order: 7; }
+.topbar > .cam { order: 8; }
+@media(max-width:1200px) {
+  .project { margin-left: 3px; padding-left: 8px; }
+}
+@media(max-width:900px) {
+  .project { display:none; }
+  .file-menu { order: 1; }
+  .topbar-save { order: 2; }
+  .global-search-wrap { order: 3; }
+  .mode-segment { order: 4; }
+  .topbar-spacer { order: 5; }
+  .render-settings { order: 6; }
+  .topbar > .cam { order: 7; }
+}
+@media(max-width:760px) {
+  .topbar-save { display:none; }
+  .file-menu > summary { padding-inline:7px; font-size:10px; }
+}
+
 </style>
