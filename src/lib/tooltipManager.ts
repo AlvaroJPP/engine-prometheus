@@ -48,9 +48,9 @@ function ensureTooltip(): HTMLDivElement {
 function addShortcut(container: HTMLElement, shortcut: string): void {
   const keys = document.createElement('span')
   keys.className = 'ep-tooltip__keys'
-  for (const key of shortcut.split('+').map(part => part.trim()).filter(Boolean)) {
+  for (const rawKey of shortcut.split('+').map(part => part.trim()).filter(Boolean)) {
     const kbd = document.createElement('kbd')
-    kbd.textContent = key
+    kbd.textContent = /^control$/i.test(rawKey) ? 'Ctrl' : rawKey
     keys.append(kbd)
   }
   container.append(keys)
@@ -121,6 +121,7 @@ function cancelPending(): void {
 
 function scheduleTooltip(target: TooltipTarget, immediate = false): void {
   if (activeTarget === target) return
+  if (pendingTarget === target && !immediate) return
   cancelPending()
   pendingTarget = target
   const delay = immediate ? 0 : SHOW_DELAY_MS
