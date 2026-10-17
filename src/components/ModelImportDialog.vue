@@ -4,11 +4,12 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
-import type { AnimationRole } from '@engine'
+import { DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
+import type { AnimationRole, ModelControlBindings } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
-const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole> } | null }>()
+const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number }]
@@ -49,7 +50,40 @@ const previewAnimationIndex = ref(0)
 const previewPlaying = ref(true)
 const animationRoles = ref<Record<string, AnimationRole>>({})
 const previewAnimations = computed(() => (model.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [])
-const selectedAnimationRole = computed<AnimationRole>(() => animationRoles.value[String(previewAnimationIndex.value)] ?? 'ignore')
+type SetupTab = 'model' | 'controls' | 'animations' | 'technical'
+type ControlBindingAction = keyof ModelControlBindings
+const activeSetupTab = ref<SetupTab>('model')
+const controlBindings = ref<ModelControlBindings>({ ...DEFAULT_MODEL_CONTROL_BINDINGS })
+const listeningForBinding = ref<ControlBindingAction | null>(null)
+const setupTabs: Array<{ id: SetupTab; label: string; description: string }> = [
+  { id: 'model', label: 'Modelo', description: 'Nome, escala e colisão' },
+  { id: 'controls', label: 'Controles', description: 'Teclas e comandos' },
+  { id: 'animations', label: 'Animações', description: 'Mapear e testar clipes' },
+  { id: 'technical', label: 'Avançado', description: 'Diagnóstico e texturas' },
+]
+const controlBindingFields: Array<{ key: ControlBindingAction; label: string; description: string }> = [
+  { key: 'forward', label: 'Mover para frente', description: 'Deslocamento para frente' },
+  { key: 'backward', label: 'Mover para trás', description: 'Deslocamento para trás' },
+  { key: 'left', label: 'Mover para esquerda', description: 'Deslocamento lateral esquerdo' },
+  { key: 'right', label: 'Mover para direita', description: 'Deslocamento lateral direito' },
+  { key: 'run', label: 'Correr', description: 'Mantida pressionada durante o movimento' },
+  { key: 'jump', label: 'Pular', description: 'Salto do personagem ou montaria' },
+  { key: 'interact', label: 'Interagir / montar', description: 'Montar e desmontar quando o pacote Montaria estiver instalado' },
+]
+const animationRoleOptions: Array<{ value: AnimationRole; label: string }> = [
+  { value: 'ignore', label: 'Não usar' },
+  { value: 'idle', label: 'Parado / repouso' },
+  { value: 'walk', label: 'Andar em frente' },
+  { value: 'walk_diagonal_left', label: 'Andar na diagonal esquerda' },
+  { value: 'walk_diagonal_right', label: 'Andar na diagonal direita' },
+  { value: 'run', label: 'Correr em frente' },
+  { value: 'run_diagonal_left', label: 'Correr na diagonal esquerda' },
+  { value: 'run_diagonal_right', label: 'Correr na diagonal direita' },
+  { value: 'run_stop', label: 'Parar após correr' },
+  { value: 'jump', label: 'Pular' },
+  { value: 'mount', label: 'Montar / subir' },
+  { value: 'dismount', label: 'Desmontar / descer' },
+]
 const filteredPreviewParts = computed(() => {
   const query = partSearch.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return previewParts.value
@@ -93,11 +127,85 @@ function guessedAnimationRole(name: string): AnimationRole {
   if (/idle|stand|rest|breath|neutral/.test(normalized)) return 'idle'
   return 'ignore'
 }
-function setSelectedAnimationRole(role: AnimationRole) {
-  const clip = previewAnimations.value[previewAnimationIndex.value]
-  if (!clip) return
-  animationRoles.value = { ...animationRoles.value, [String(previewAnimationIndex.value)]: role }
+function setAnimationRole(index: number, role: AnimationRole) {
+  if (!previewAnimations.value[index]) return
+  animationRoles.value = { ...animationRoles.value, [String(index)]: role }
   if (model.value) model.value.userData.importAnimationRoles = { ...animationRoles.value }
+}
+
+function normalizeControlBindings(value: unknown): ModelControlBindings {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Partial<ModelControlBindings>
+    : {}
+  const read = (key: ControlBindingAction): string => {
+    const candidate = raw[key]
+    return typeof candidate === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate)
+      ? candidate
+      : DEFAULT_MODEL_CONTROL_BINDINGS[key]
+  }
+  return {
+    forward: read('forward'),
+    backward: read('backward'),
+    left: read('left'),
+    right: read('right'),
+    run: read('run'),
+    jump: read('jump'),
+    interact: read('interact'),
+  }
+}
+
+function formatControlKey(code: string): string {
+  const names: Record<string, string> = {
+    Space: 'Espaço',
+    ShiftLeft: 'Shift esquerdo',
+    ShiftRight: 'Shift direito',
+    ControlLeft: 'Ctrl esquerdo',
+    ControlRight: 'Ctrl direito',
+    AltLeft: 'Alt esquerdo',
+    AltRight: 'Alt direito',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ArrowLeft: '←',
+    ArrowRight: '→',
+    Escape: 'Esc',
+    Enter: 'Enter',
+    Tab: 'Tab',
+    Backspace: 'Backspace',
+    CapsLock: 'Caps Lock',
+  }
+  if (names[code]) return names[code]!
+  if (code.startsWith('Key')) return code.slice(3)
+  if (code.startsWith('Digit')) return code.slice(5)
+  if (code.startsWith('Numpad')) return 'Num ' + code.slice(6)
+  return code
+}
+
+function startControlBindingCapture(action: ControlBindingAction) {
+  if (!model.value || props.initialAsset) return
+  listeningForBinding.value = action
+  error.value = ''
+}
+
+function captureControlBindingKey(event: KeyboardEvent) {
+  const action = listeningForBinding.value
+  if (!action) return
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.code === 'Escape') {
+    listeningForBinding.value = null
+    return
+  }
+  if (!event.code || /^(Control|Alt|Shift|Meta)(Left|Right)?$/.test(event.code)) return
+  const next = { ...controlBindings.value, [action]: event.code }
+  controlBindings.value = next
+  if (model.value) model.value.userData.importControlBindings = { ...next }
+  listeningForBinding.value = null
+}
+
+function resetControlBindings() {
+  if (!model.value || props.initialAsset) return
+  controlBindings.value = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
+  model.value.userData.importControlBindings = { ...controlBindings.value }
 }
 
 const textureRepairSelections = ref<Record<string, string>>({})
@@ -477,6 +585,9 @@ function refreshModelDiagnostics() {
 
 
 function clearLoadedModel() {
+  activeSetupTab.value = 'model'
+  listeningForBinding.value = null
+  controlBindings.value = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   previewParts.value = []
   selectedPartId.value = ''
   soloPartId.value = ''
@@ -665,6 +776,8 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   loaded.updateMatrixWorld(true)
   modelHeight.value = 2
   colliderSize.value = [Math.max(0.05, dimensions.value[0] * 2 / height), 2, Math.max(0.05, dimensions.value[2] * 2 / height)]
+  controlBindings.value = normalizeControlBindings(loaded.userData.importControlBindings)
+  loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
   refreshPreviewParts()
   refreshModelDiagnostics()
@@ -807,6 +920,7 @@ async function chooseFile(event: Event) {
 
 watch(() => props.open, async (open) => {
   if (open) {
+    window.addEventListener('keydown', captureControlBindingKey, true)
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     initPreview()
     if (props.initialAsset) {
@@ -814,6 +928,7 @@ watch(() => props.open, async (open) => {
       try {
         const loaded = await parseGlbBytes(props.initialAsset.bytes.slice(0))
         loaded.userData.importAnimationRoles = props.initialAsset.animationRoles
+        loaded.userData.importControlBindings = props.initialAsset.controlBindings
         fileName.value = props.initialAsset.name
         await showLoadedModel(loaded, props.initialAsset.name)
       } catch (e) {
@@ -821,6 +936,8 @@ watch(() => props.open, async (open) => {
       } finally { loading.value = false }
     }
   } else {
+    window.removeEventListener('keydown', captureControlBindingKey, true)
+    listeningForBinding.value = null
     disposePreview()
     error.value = ''
   }
@@ -902,6 +1019,7 @@ function confirmImport() {
   imported.userData.importColliderSize = [...colliderSize.value]
   imported.userData.importColliderOffset = [...colliderOffset.value]
   imported.userData.importAnimationRoles = { ...animationRoles.value }
+  imported.userData.importControlBindings = { ...controlBindings.value }
 
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
@@ -912,14 +1030,17 @@ function confirmImport() {
   emit('close')
 }
 
-onBeforeUnmount(disposePreview)
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', captureControlBindingKey, true)
+  disposePreview()
+})
 </script>
 
 <template>
   <div v-if="open" class="model-import-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
     <section class="model-import-dialog" role="dialog" aria-modal="true" aria-labelledby="model-import-title">
       <header class="model-import-header">
-        <div class="model-import-brand"><span class="model-import-brand-icon">P</span><div><span class="model-import-kicker">ENGINE PROMETHEUS / ASSET WORKSPACE</span><h2 id="model-import-title">Importar ativos</h2></div></div>
+        <div class="model-import-brand"><span class="model-import-brand-icon">P</span><div><span class="model-import-kicker">ENGINE PROMETHEUS / MODEL WORKSPACE</span><h2 id="model-import-title">Configurar modelo 3D</h2></div></div>
         <div class="model-import-header-status"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span>{{ loading ? 'Processando arquivo…' : model ? 'Prévia pronta' : 'Aguardando arquivo' }}</div>
         <button class="model-import-close" aria-label="Fechar" title="Fechar janela" @click="emit('close')">×</button>
       </header>
@@ -932,6 +1053,20 @@ onBeforeUnmount(disposePreview)
         </div>
         <div class="model-import-toolbar-file"><span class="toolbar-file-dot"></span><span>{{ fileName || 'Nenhum arquivo selecionado' }}</span></div>
       </div>
+
+      <nav class="model-import-tabs" aria-label="Configuração do modelo">
+        <button
+          v-for="tab in setupTabs"
+          :key="tab.id"
+          type="button"
+          class="model-import-tab"
+          :class="{ active: activeSetupTab === tab.id }"
+          :disabled="!model && tab.id !== 'model' && tab.id !== 'technical'"
+          @click="activeSetupTab = tab.id"
+        >
+          <strong>{{ tab.label }}</strong><small>{{ tab.description }}</small>
+        </button>
+      </nav>
 
       <div class="model-import-workspace">
         <aside class="model-import-left-panel">
@@ -987,22 +1122,6 @@ onBeforeUnmount(disposePreview)
                   <option v-for="(clip, index) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
                 </select>
               </label>
-              <label>FUNÇÃO DO CLIPE
-                <select :value="selectedAnimationRole" @change="setSelectedAnimationRole(($event.target as HTMLSelectElement).value as AnimationRole)">
-                  <option value="ignore">Não usar</option>
-                  <option value="idle">Parado / repouso</option>
-                  <option value="walk">Andar em frente</option>
-                  <option value="walk_diagonal_left">Andar na diagonal esquerda</option>
-                  <option value="walk_diagonal_right">Andar na diagonal direita</option>
-                  <option value="run">Correr em frente</option>
-                  <option value="run_diagonal_left">Correr na diagonal esquerda</option>
-                  <option value="run_diagonal_right">Correr na diagonal direita</option>
-                  <option value="run_stop">Parar após correr</option>
-                  <option value="jump">Pular</option>
-                  <option value="mount">Montar / subir</option>
-                  <option value="dismount">Desmontar / descer</option>
-                </select>
-              </label>
               <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
             </div>
             <div v-else-if="model" class="preview-animation-empty">Este modelo não contém animações embutidas.</div>
@@ -1013,16 +1132,66 @@ onBeforeUnmount(disposePreview)
         </main>
 
         <aside class="model-import-right-panel">
-          <section class="model-panel-section">
-            <div class="model-panel-heading"><span>03</span> NOME DO COMPONENTE</div>
+          <section v-if="activeSetupTab === 'controls'" class="model-panel-section model-controls-section">
+            <div class="model-panel-heading"><span>02</span> MAPA DE CONTROLES</div>
+            <p class="model-panel-hint">Clique em uma tecla e pressione a nova combinação. Estas teclas são salvas junto ao modelo e serão usadas quando o componente receber o pacote de comportamento <strong>Montaria</strong>.</p>
+            <div class="model-control-bindings">
+              <div v-for="binding in controlBindingFields" :key="binding.key" class="model-control-row">
+                <div class="model-control-copy">
+                  <strong>{{ binding.label }}</strong>
+                  <small>{{ binding.description }}</small>
+                </div>
+                <button
+                  type="button"
+                  class="model-control-key"
+                  :class="{ listening: listeningForBinding === binding.key }"
+                  :disabled="!model || !!props.initialAsset"
+                  @click="startControlBindingCapture(binding.key)"
+                >{{ listeningForBinding === binding.key ? 'Pressione…' : formatControlKey(controlBindings[binding.key]) }}</button>
+              </div>
+            </div>
+            <p v-if="listeningForBinding" class="model-control-capture-tip">Aguardando tecla para “{{ controlBindingFields.find(item => item.key === listeningForBinding)?.label }}”. Pressione Esc para cancelar.</p>
+            <p class="model-control-note">Padrão: W/A/S/D movimentam, Shift corre, Espaço pula e E interage. As setas continuam aceitas para movimento. A tecla de interação também é usada para desmontar.</p>
+            <button type="button" class="model-control-reset" :disabled="!model || !!props.initialAsset" @click="resetControlBindings">Restaurar teclas padrão</button>
+          </section>
+
+          <section v-if="activeSetupTab === 'animations'" class="model-panel-section model-animation-section">
+            <div class="model-panel-heading"><span>03</span> MAPEAMENTO DE ANIMAÇÕES <b>{{ previewAnimations.length }}</b></div>
+            <p class="model-panel-hint">Associe cada clipe a uma função do motor. Selecione “Prévia” para testar o clipe no viewport antes de salvar.</p>
+            <div v-if="previewAnimations.length" class="model-animation-mapping-list">
+              <article v-for="(clip, index) in previewAnimations" :key="index" class="model-animation-map-row" :class="{ active: previewAnimationIndex === index }">
+                <div class="model-animation-map-head">
+                  <strong :title="clip.name || ('Animação ' + (index + 1))">{{ clip.name || ('Animação ' + (index + 1)) }}</strong>
+                  <small>{{ clip.duration.toFixed(2) }} s</small>
+                </div>
+                <select
+                  :value="animationRoles[String(index)] ?? 'ignore'"
+                  :disabled="!!props.initialAsset"
+                  :aria-label="'Função para ' + (clip.name || ('Animação ' + (index + 1)))"
+                  @change="setAnimationRole(index, ($event.target as HTMLSelectElement).value as AnimationRole)"
+                >
+                  <option v-for="role in animationRoleOptions" :key="role.value" :value="role.value">{{ role.label }}</option>
+                </select>
+                <button type="button" @click="selectPreviewAnimation(index)">▶ Prévia deste clipe</button>
+              </article>
+            </div>
+            <div v-else class="model-setup-empty">
+              <strong>Nenhuma animação encontrada</strong>
+              <small>O arquivo precisa conter clipes de animação para configurar movimento automaticamente.</small>
+            </div>
+            <p class="model-control-note">As funções incluem repouso, caminhar, correr, diagonais, pulo, montar e desmontar. Clipe sem função atribuída é ignorado pelo motor.</p>
+          </section>
+
+          <section v-if="activeSetupTab === 'model'" class="model-panel-section">
+            <div class="model-panel-heading"><span>04</span> NOME DO COMPONENTE</div>
             <label class="model-component-name-field">Nome na biblioteca
               <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model || !!props.initialAsset" />
             </label>
             <p class="model-panel-hint">Esse nome será usado na biblioteca e nas novas cópias colocadas no mundo.</p>
           </section>
-          <div class="model-panel-separator"></div>
-          <section class="model-panel-section">
-            <div class="model-panel-heading"><span>04</span> TRANSFORMAÇÃO</div>
+          <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'model'" class="model-panel-section">
+            <div class="model-panel-heading"><span>05</span> TRANSFORMAÇÃO</div>
             <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} <small>u</small></strong></label>
             <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" />
             <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }}u</button></div>
@@ -1032,9 +1201,9 @@ onBeforeUnmount(disposePreview)
               <div><small>PROF. Z</small><strong>{{ previewComponentDimensions.z ? previewComponentDimensions.z.toFixed(2) : '—' }}</strong></div>
             </div>
           </section>
-          <div class="model-panel-separator"></div>
-          <section class="model-panel-section model-collider-section">
-            <div class="model-panel-heading"><span>05</span> COLISOR FÍSICO</div>
+          <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'model'" class="model-panel-section model-collider-section">
+            <div class="model-panel-heading"><span>06</span> COLISOR FÍSICO</div>
             <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
             <label class="model-collider-field">Forma
               <select :value="colliderType" :disabled="!model" @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
@@ -1058,9 +1227,9 @@ onBeforeUnmount(disposePreview)
             </div>
             <p class="model-collider-example">Exemplo: para uma esfera de raio 0,5, informe 1,0 nos três diâmetros. Em uma árvore, ajuste o deslocamento Y para posicionar a esfera no tronco.</p>
           </section>
-          <div class="model-panel-separator"></div>
-          <section class="model-panel-section">
-            <div class="model-panel-heading"><span>06</span> INFORMAÇÕES</div>
+          <div v-if="activeSetupTab === 'technical'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'technical'" class="model-panel-section">
+            <div class="model-panel-heading"><span>01</span> INFORMAÇÕES DO ARQUIVO</div>
             <div class="model-asset-info-row"><span>Arquivo</span><strong :title="fileName">{{ fileName || '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Tipo</span><strong>{{ fileName ? (fileName.split('.').pop() || '—').toUpperCase() : '—' }}</strong></div>
             <div class="model-asset-info-row"><span>Geometria</span><strong>{{ diagnosticSummary.meshes }} malhas</strong></div>
@@ -1068,9 +1237,9 @@ onBeforeUnmount(disposePreview)
             <div class="model-asset-info-row"><span>Texturas</span><strong>{{ diagnosticSummary.textures }}</strong></div>
             <div class="model-asset-info-row"><span>Animações</span><strong>{{ diagnosticSummary.clips }}</strong></div>
           </section>
-          <div class="model-panel-separator"></div>
-          <section class="model-panel-section model-diagnostic-section">
-            <div class="model-panel-heading"><span>07</span> FERRAMENTAS</div>
+          <div v-if="activeSetupTab === 'technical'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'technical'" class="model-panel-section model-diagnostic-section">
+            <div class="model-panel-heading"><span>02</span> DIAGNÓSTICO E TEXTURAS</div>
                       <details class="model-diagnostics">
             <summary>DIAGNÓSTICO TÉCNICO DO MODELO</summary>
             <div class="model-diagnostics-summary">
@@ -1130,7 +1299,7 @@ onBeforeUnmount(disposePreview)
           </details>
           </section>
           <p v-if="error" class="model-import-error">{{ error }}</p>
-          <p class="model-import-tip">{{ props.initialAsset ? 'Modo de pré-visualização: selecione as animações no topo do viewport e ajuste a câmera. O modelo não será alterado no mundo.' : 'A prévia não altera o mundo. Salve o ativo como componente para reutilizá-lo quando quiser.' }}</p>
+          <p class="model-import-tip">{{ props.initialAsset ? 'Modo de pré-visualização: explore as abas, os clipes e os controles salvos. Nenhuma alteração será aplicada ao mundo.' : 'Configure o modelo, os controles e os clipes. A prévia não altera o mundo; salvar cria um componente reutilizável na biblioteca.' }}</p>
         </aside>
       </div>
 
@@ -1145,6 +1314,10 @@ onBeforeUnmount(disposePreview)
 <style>
 .model-import-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:#090b0ff0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#e5e7eb}
 .model-import-dialog{display:flex;flex-direction:column;width:min(1500px,98vw);height:min(900px,96vh);min-height:540px;overflow:hidden;border:1px solid #343944;border-radius:8px;background:#17191e;box-shadow:0 30px 100px #000b}
+.model-import-tabs{display:flex;gap:5px;padding:7px 12px;border-bottom:1px solid #30343c;background:#191c22;overflow-x:auto;flex:none}.model-import-tab{display:flex;flex-direction:column;gap:3px;min-width:112px;padding:7px 10px;border:1px solid #363c47;border-radius:4px;background:#20242b;color:#cbd1db;text-align:left;cursor:pointer}.model-import-tab strong{font-size:10px;font-weight:700}.model-import-tab small{color:#8d96a4;font-size:8px;white-space:nowrap}.model-import-tab.active{border-color:#9b704d;background:#3a2c22;color:#ffe0c3}.model-import-tab.active small{color:#c9a17c}.model-import-tab:disabled{opacity:.4;cursor:not-allowed}
+.model-control-bindings{display:flex;flex-direction:column;gap:6px;margin-top:12px}.model-control-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border:1px solid #343943;border-radius:4px;background:#202329}.model-control-copy{display:flex;flex-direction:column;gap:4px;min-width:0}.model-control-copy strong{color:#e0e4eb;font-size:10px;font-weight:650}.model-control-copy small{color:#8f98a6;font-size:8px;line-height:1.4}.model-control-key{flex:none;min-width:76px;padding:8px;border:1px solid #6c543e;border-radius:4px;background:#33271e;color:#f5c79a;font:700 10px ui-monospace,monospace;cursor:pointer}.model-control-key.listening{border-color:#d19a64;background:#59412b;color:#fff0dd;animation:model-key-pulse 1s ease-in-out infinite alternate}.model-control-key:disabled{opacity:.5;cursor:not-allowed}.model-control-capture-tip{padding:8px;border:1px solid #805b3d;border-radius:4px;background:#30251e;color:#ffd9b5;font-size:9px;line-height:1.5}.model-control-note{margin:10px 0;color:#949dab;font-size:9px;line-height:1.6}.model-control-reset{width:100%;padding:8px;border:1px solid #424752;border-radius:4px;background:#252932;color:#d1d5dd;font-size:9px;cursor:pointer}.model-control-reset:disabled{opacity:.45;cursor:not-allowed}
+.model-animation-mapping-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}.model-animation-map-row{padding:8px;border:1px solid #343943;border-radius:4px;background:#202329}.model-animation-map-row.active{border-color:#9b704d;background:#2b251f}.model-animation-map-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:7px}.model-animation-map-head strong{overflow:hidden;color:#e0e4eb;font-size:10px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}.model-animation-map-head small{flex:none;color:#999fac;font:9px ui-monospace,monospace}.model-animation-map-row select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:9px}.model-animation-map-row select:disabled{opacity:.55}.model-animation-map-row button{width:100%;margin-top:6px;padding:7px;border:1px solid #414752;border-radius:4px;background:#292d35;color:#d4dae3;font-size:9px;cursor:pointer}.model-animation-map-row button:hover{border-color:#9b704d;background:#3a2c22}.model-setup-empty{display:flex;flex-direction:column;gap:6px;padding:20px 10px;border:1px dashed #414752;border-radius:4px;color:#a8b0bd;text-align:center}.model-setup-empty strong{font-size:10px}.model-setup-empty small{font-size:9px;line-height:1.5;color:#858f9e}@keyframes model-key-pulse{from{box-shadow:0 0 0 0 #d19a6430}to{box-shadow:0 0 0 3px #d19a6440}}
+
 .model-import-header{display:flex;align-items:center;gap:20px;padding:13px 18px;border-bottom:1px solid #30343c;background:#1b1e24}
 .model-import-brand{display:flex;align-items:center;gap:11px;min-width:0;flex:1}.model-import-brand-icon{display:grid;place-items:center;width:34px;height:34px;border:1px solid #805b3d;border-radius:5px;background:#30251e;color:#e0a36b;font-weight:800;font-size:19px}
 .model-import-kicker{display:block;color:#bd8a60;font-size:9px;font-weight:750;letter-spacing:.15em}.model-import-header h2{margin:4px 0 0;font-size:17px;line-height:1.2;font-weight:650;letter-spacing:-.02em}
@@ -1170,7 +1343,7 @@ onBeforeUnmount(disposePreview)
 .model-diagnostics{margin:0;border:1px solid #343943;border-radius:4px;background:#202329;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.06em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}.model-texture-repair p{margin:7px 0;color:#929aa8;font-size:9px;line-height:1.5}.model-texture-repair-item{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-texture-repair-item label{color:#dce0e8;font-size:9px}.model-texture-repair-item select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:10px}.model-texture-repair-item button{padding:7px;border:1px solid #a66e3d;border-radius:4px;background:#3d3025;color:#ffd2a3;font-size:10px;cursor:pointer}.model-texture-repair-item button:disabled{opacity:.45;cursor:wait}.model-texture-repair-message{display:block;margin-top:8px;color:#d9b58f;font-size:9px;line-height:1.5}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}
 .model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;padding:9px 16px;border-top:1px solid #343944;background:#1d2026;color:#969eac;font-size:10px}.model-footer-state{display:flex;align-items:center;gap:8px}.model-footer-actions{display:flex;gap:8px}.model-import-primary,.model-import-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border-radius:4px;font-size:10px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:hover:not(:disabled){background:#e0ad7d}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}.model-import-secondary:hover{background:#333842}
 @media(max-width:1000px){.model-import-workspace{grid-template-columns:210px minmax(250px,1fr) 240px}.model-import-dialog{width:99vw}.model-panel-section{padding:12px 10px}.model-import-right-panel .model-panel-section{padding:12px 10px}}
-@media(max-width:760px){.model-import-backdrop{padding:5px}.model-import-dialog{height:98vh;max-height:98vh;min-height:0;width:100%;border-radius:5px}.model-import-header{padding:10px}.model-import-header-status{display:none}.model-import-toolbar{align-items:flex-start;flex-direction:column;padding:8px}.model-import-toolbar-file{max-width:100%;width:100%}.model-import-workspace{display:flex;flex-direction:column;overflow:auto}.model-import-center-panel{order:0;min-height:340px;flex:none}.model-import-preview{min-height:280px;flex:none}.model-import-preview canvas{height:280px;min-height:280px}.model-import-left-panel{order:1;overflow:visible;border-right:0;border-bottom:1px solid #30343c}.model-import-right-panel{order:2;overflow:visible;border-left:0}.model-hierarchy-section .model-preview-parts{max-height:230px;overflow:auto}.model-viewport-statusbar span:last-child{display:none}.model-import-footer{align-items:center;padding:8px;min-height:50px}.model-footer-state{font-size:9px}.model-footer-actions{gap:5px}.model-import-primary,.model-import-secondary{padding:8px;font-size:9px}}
+@media(max-width:760px){.model-import-backdrop{padding:5px}.model-import-dialog{height:98vh;max-height:98vh;min-height:0;width:100%;border-radius:5px}.model-import-tabs{padding:6px;gap:4px}.model-import-tab{min-width:94px;padding:6px 8px}.model-import-header{padding:10px}.model-import-header-status{display:none}.model-import-toolbar{align-items:flex-start;flex-direction:column;padding:8px}.model-import-toolbar-file{max-width:100%;width:100%}.model-import-workspace{display:flex;flex-direction:column;overflow:auto}.model-import-center-panel{order:0;min-height:340px;flex:none}.model-import-preview{min-height:280px;flex:none}.model-import-preview canvas{height:280px;min-height:280px}.model-import-left-panel{order:1;overflow:visible;border-right:0;border-bottom:1px solid #30343c}.model-import-right-panel{order:2;overflow:visible;border-left:0}.model-hierarchy-section .model-preview-parts{max-height:230px;overflow:auto}.model-viewport-statusbar span:last-child{display:none}.model-import-footer{align-items:center;padding:8px;min-height:50px}.model-footer-state{font-size:9px}.model-footer-actions{gap:5px}.model-import-primary,.model-import-secondary{padding:8px;font-size:9px}}
 @media(prefers-reduced-motion:reduce){.model-loading-spinner{animation:none}}
 .model-part-search{display:flex;flex-direction:column;gap:5px;margin:10px 0;color:#9ca5b3;font-size:8px;font-weight:750;letter-spacing:.08em}.model-part-search input,.model-component-name-field input{box-sizing:border-box;width:100%;min-width:0;padding:8px 9px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:11px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.model-part-search input:focus,.model-component-name-field input:focus{outline:1px solid #b98255;border-color:#b98255}.model-preview-parts{max-height:360px!important;overflow:auto!important;padding-right:2px}.model-preview-show-all{margin-top:6px}
 .model-component-name-field{display:flex;flex-direction:column;gap:6px;color:#aeb6c4;font-size:10px}
