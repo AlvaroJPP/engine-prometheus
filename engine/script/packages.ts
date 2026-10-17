@@ -8,6 +8,27 @@ export type PackageJsonValue =
 export type MountMovementState = 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right'
 export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right' | 'run_stop' | 'jump' | 'mount' | 'dismount'
 
+/** Teclas do teclado associadas aos comandos de controle de um modelo. */
+export interface ModelControlBindings {
+  forward: string
+  backward: string
+  left: string
+  right: string
+  run: string
+  jump: string
+  interact: string
+}
+
+export const DEFAULT_MODEL_CONTROL_BINDINGS: ModelControlBindings = {
+  forward: 'KeyW',
+  backward: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  run: 'ShiftLeft',
+  jump: 'Space',
+  interact: 'KeyE',
+}
+
 /** Regra visual declarativa: controla a visibilidade de um nó do GLB a partir de uma variável. */
 export interface MountModelStateRule {
   id: string
@@ -64,6 +85,7 @@ export interface MountPackageSettings {
   runMultiplier: number
   interactionRadius: number
   modelStates: MountModelStateRule[]
+  controlBindings: ModelControlBindings
 }
 
 export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
@@ -139,6 +161,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
     ],
     defaultConfig: {
       interactionKey: 'KeyE',
+      controlBindings: { ...DEFAULT_MODEL_CONTROL_BINDINGS },
       seatOffset: [0, 0.55, 0],
       modelStates: [],
     },
@@ -201,9 +224,37 @@ export function getMountPackageSettings(instance: BehaviorPackageInstance): Moun
       ? Math.max(min, Math.min(max, value))
       : fallback
   }
-  const interactionKey = instance.config.interactionKey
+  const rawBindings = instance.config.controlBindings
+  const bindingsRecord = rawBindings && typeof rawBindings === 'object' && !Array.isArray(rawBindings)
+    ? rawBindings as Record<string, PackageJsonValue>
+    : {}
+  const readKey = (name: keyof ModelControlBindings): string => {
+    const value = bindingsRecord[name]
+    return typeof value === 'string' && value.trim()
+      ? value
+      : DEFAULT_MODEL_CONTROL_BINDINGS[name]
+  }
+  const mappedInteractionKey = readKey('interact')
+  const legacyInteractionKey = instance.config.interactionKey
+  // Configs criadas antes da tela de controles só possuem interactionKey.
+  // Se o mapa novo ainda usa o padrão, respeite a opção legada.
+  const interactionKey = mappedInteractionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact
+    ? mappedInteractionKey
+    : typeof legacyInteractionKey === 'string' && legacyInteractionKey.trim()
+      ? legacyInteractionKey
+      : mappedInteractionKey
+  const controlBindings: ModelControlBindings = {
+    forward: readKey('forward'),
+    backward: readKey('backward'),
+    left: readKey('left'),
+    right: readKey('right'),
+    run: readKey('run'),
+    jump: readKey('jump'),
+    interact: interactionKey,
+  }
   return {
-    interactionKey: typeof interactionKey === 'string' && interactionKey.trim() ? interactionKey : 'KeyE',
+    interactionKey,
+    controlBindings,
     seatOffset: validSeatOffset,
     speed: getNumber('speed', 4.2, 0.2, 20),
     runMultiplier: getNumber('runMultiplier', 1.7, 1, 3),
