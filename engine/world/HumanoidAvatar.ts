@@ -44,23 +44,46 @@ function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
     : [0, 0, 0] as [number, number, number]
 
   // Em modelos importados, a raiz é apenas uma caixa proxy invisível. O modo automático
-  // deve usar os limites das malhas visuais filhas, senão o jogador colide com uma caixa
-  // que não corresponde ao modelo que aparece na tela.
+  // usa limites das malhas visuais filhas, calculados uma vez no espaço local do modelo.
+  // Recalcular Box3 para cada subpasso de movimento percorria toda a hierarquia do GLB
+  // repetidamente e congelava a execução com montarias de muitos nós/malhas.
   if ((type === undefined || type === 'auto') && !hasManualSize && offset.every(value => Math.abs(value) < 1e-9)) {
     if (mesh.userData.importedModel === true) {
+      type CachedAutoBounds = { min: [number, number, number]; max: [number, number, number] }
+      const cached = mesh.userData.importedAutoColliderLocalBounds as CachedAutoBounds | undefined
+      if (
+        cached &&
+        Array.isArray(cached.min) && cached.min.length === 3 &&
+        Array.isArray(cached.max) && cached.max.length === 3
+      ) {
+        return new THREE.Box3(
+          new THREE.Vector3(...cached.min),
+          new THREE.Vector3(...cached.max),
+        ).applyMatrix4(mesh.matrixWorld)
+      }
+
       mesh.updateWorldMatrix(true, true)
       const visualBounds = new THREE.Box3()
       const childBounds = new THREE.Box3()
+      const inverseRoot = mesh.matrixWorld.clone().invert()
+      const relativeMatrix = new THREE.Matrix4()
       mesh.traverse((child) => {
         if (child === mesh || !(child instanceof THREE.Mesh) || !child.visible) return
         if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
         child.updateWorldMatrix(true, false)
         if (!child.geometry.boundingBox) child.geometry.computeBoundingBox()
         if (!child.geometry.boundingBox) return
-        childBounds.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
+        relativeMatrix.multiplyMatrices(inverseRoot, child.matrixWorld)
+        childBounds.copy(child.geometry.boundingBox).applyMatrix4(relativeMatrix)
         visualBounds.union(childBounds)
       })
-      if (!visualBounds.isEmpty()) return visualBounds
+      if (!visualBounds.isEmpty()) {
+        mesh.userData.importedAutoColliderLocalBounds = {
+          min: visualBounds.min.toArray() as [number, number, number],
+          max: visualBounds.max.toArray() as [number, number, number],
+        }
+        return visualBounds.applyMatrix4(mesh.matrixWorld)
+      }
     }
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
     return (mesh.geometry.boundingBox?.clone() ?? new THREE.Box3()).applyMatrix4(mesh.matrixWorld)
@@ -1064,7 +1087,7 @@ export class HumanoidAvatar {
         this.mountedAirborne = false
         root.updateWorldMatrix(true, true)
       }
-    } else if (this.shouldRefreshMountedSupport(root, false)) {
+    } else if (length === 0 && this.shouldRefreshMountedSupport(root, false)) {
       // Em repouso, o piso não precisa ser amostrado novamente a cada frame.
       // Revalidamos periodicamente e ao mover a montaria para acompanhar rampas
       // sem manter a interface ocupada com raycasts redundantes.
