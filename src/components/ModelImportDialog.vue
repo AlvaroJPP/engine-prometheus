@@ -1464,8 +1464,8 @@ onBeforeUnmount(() => {
 
       <div class="model-import-toolbar">
         <div class="model-import-toolbar-group">
-          <button class="model-toolbar-button model-toolbar-primary" :disabled="loading" @click="fileInput?.click()"><span>＋</span> Abrir arquivo</button>
-          <button class="model-toolbar-button" :disabled="loading" @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
+          <button class="model-toolbar-button model-toolbar-primary" :disabled="loading" title="Abre um arquivo para visualizar, inspecionar e importar um modelo ou textura." @click="fileInput?.click()"><span>＋</span> Abrir arquivo</button>
+          <button class="model-toolbar-button" :disabled="loading" title="Importa um pacote ZIP com os arquivos de um modelo e seus recursos associados." @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3ds,.png,.jpg,.jpeg,.webp,.svg" @change="chooseFile" />
         </div>
         <div class="model-import-toolbar-file"><span class="toolbar-file-dot"></span><span>{{ fileName || 'Nenhum arquivo selecionado' }}</span></div>
@@ -1489,7 +1489,7 @@ onBeforeUnmount(() => {
         <aside class="model-import-left-panel">
           <section class="model-panel-section">
             <div class="model-panel-heading"><span>01</span> ORIGEM DO ATIVO</div>
-            <button class="model-file-dropzone" :disabled="loading" @click="fileInput?.click()">
+            <button class="model-file-dropzone" :disabled="loading" title="Clique para escolher o arquivo do modelo; os formatos compatíveis aparecem no seletor." @click="fileInput?.click()">
               <span class="model-dropzone-icon">↥</span><strong>Selecionar arquivo</strong><small>Escolha um arquivo no seu computador</small>
               <span class="model-dropzone-formats">3D · GLB · GLTF · FBX · OBJ · STL · PLY · DAE · 3DS</span>
               <span class="model-dropzone-formats">2D · PNG · JPG · WEBP · SVG</span>
@@ -1501,7 +1501,7 @@ onBeforeUnmount(() => {
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
             <p class="model-panel-hint">Escolha a casa, castelo ou grupo que deseja transformar em componente. Sem uma parte selecionada, o modelo inteiro será salvo.</p>
             <label class="model-part-search">FILTRAR HIERARQUIA
-              <input v-model="partSearch" type="search" placeholder="Ex.: castelo, casa, taverna" :disabled="!previewParts.length" />
+              <input v-model="partSearch" type="search" placeholder="Ex.: castelo, casa, taverna" :disabled="!previewParts.length" title="Filtra os nós e as partes do modelo pela nomenclatura." />
             </label>
             <div v-if="filteredPreviewParts.length" class="model-preview-parts">
               <div v-for="(part, index) in filteredPreviewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
@@ -1515,8 +1515,8 @@ onBeforeUnmount(() => {
                 <button class="model-preview-part-solo" :class="{ active: soloPartId === part.id }" :aria-label="`Visualizar somente ${part.name}`" title="Isolar parte" @click="showOnlyPreviewPart(part)">1×</button>
                 <button class="model-preview-part-delete" :aria-label="`Remover ${part.name} da importação`" title="Remover parte" @click="deletePreviewPart(part)">×</button>
               </div>
-              <button class="model-preview-show-all" @click="selectWholeModel">Selecionar modelo inteiro</button>
-              <button class="model-preview-show-all" @click="restorePreviewVisibility">Mostrar todas as partes na prévia</button>
+              <button class="model-preview-show-all" title="Seleciona a raiz do modelo para visualizar ou editar o conjunto." @click="selectWholeModel">Selecionar modelo inteiro</button>
+              <button class="model-preview-show-all" title="Reativa a visibilidade de todas as partes ocultadas na prévia." @click="restorePreviewVisibility">Mostrar todas as partes na prévia</button>
             </div>
             <div v-else-if="previewParts.length" class="model-hierarchy-empty"><span>⌕</span><p>Nenhuma parte encontrada</p><small>Tente outro nome ou apague o filtro.</small></div>
             <div v-else class="model-hierarchy-empty"><span>◇</span><p>Nenhuma malha carregada</p><small>A hierarquia aparecerá aqui após abrir um modelo.</small></div>
@@ -1529,17 +1529,17 @@ onBeforeUnmount(() => {
             <canvas ref="canvas" />
             <div v-if="!model && !loading" class="model-import-empty">
               <span class="upload-glyph">◇</span><strong>Seu ativo começa aqui</strong><small>Abra um modelo 3D ou uma imagem 2D para visualizar</small>
-              <button class="model-import-primary" @click="fileInput?.click()">Abrir arquivo</button>
+              <button class="model-import-primary" title="Abre um arquivo de modelo para carregar na prévia." @click="fileInput?.click()">Abrir arquivo</button>
             </div>
             <div v-if="loading" class="model-import-loading"><span class="model-loading-spinner"></span><strong>Preparando pré-visualização</strong><small>Carregando geometria, materiais e texturas</small></div>
             <div class="preview-badge"><span class="model-live-dot"></span> LIVE PREVIEW</div>
             <div v-if="model && previewAnimations.length" class="preview-animation-controls">
               <label>ANIMAÇÃO
-                <select :value="previewAnimationIndex" @change="selectPreviewAnimation(Number(($event.target as HTMLSelectElement).value))">
+                <select :value="previewAnimationIndex" title="Escolha qual clipe de animação reproduzir na prévia do modelo." @change="selectPreviewAnimation(Number(($event.target as HTMLSelectElement).value))">
                   <option v-for="(clip, index) in previewAnimations" :key="index" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }}s</option>
                 </select>
               </label>
-              <button @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
+              <button :title="previewPlaying ? 'Pausa a animação atual na prévia.' : 'Reproduz a animação selecionada na prévia.'" @click="togglePreviewAnimationPlayback">{{ previewPlaying ? 'Ⅱ Pausar' : '▶ Reproduzir' }}</button>
             </div>
             <div v-else-if="model" class="preview-animation-empty">Este modelo não contém animações embutidas.</div>
             <div v-if="model" class="preview-dimensions">X {{ dimensions[0].toFixed(2) }} <b>·</b> Y {{ modelHeight.toFixed(2) }} <b>·</b> Z {{ dimensions[2].toFixed(2) }} <small>unidades</small></div>
@@ -1569,7 +1569,7 @@ onBeforeUnmount(() => {
             </div>
             <p v-if="listeningForBinding" class="model-control-capture-tip">Aguardando tecla para “{{ controlBindingFields.find(item => item.key === listeningForBinding)?.label }}”. Pressione Esc para cancelar.</p>
             <p class="model-control-note">Padrão: W/A/S/D movimentam, Shift corre, Espaço pula e E interage. As setas continuam aceitas para movimento. A tecla de interação também é usada para desmontar.</p>
-            <button type="button" class="model-control-reset" :disabled="!model || !!props.initialAsset" @click="resetControlBindings">Restaurar teclas padrão</button>
+            <button type="button" class="model-control-reset" :disabled="!model || !!props.initialAsset" title="Descarta as alterações e restaura as teclas de movimento padrão para este modelo." @click="resetControlBindings">Restaurar teclas padrão</button>
           </section>
 
           <section v-if="activeSetupTab === 'animations'" class="model-panel-section model-animation-section">
@@ -1589,7 +1589,7 @@ onBeforeUnmount(() => {
                 >
                   <option v-for="role in animationRoleOptions" :key="role.value" :value="role.value">{{ role.label }}</option>
                 </select>
-                <button type="button" @click="selectPreviewAnimation(index)">▶ Prévia deste clipe</button>
+                <button type="button" title="Seleciona e reproduz este clipe de animação na prévia." @click="selectPreviewAnimation(index)">▶ Prévia deste clipe</button>
               </article>
             </div>
             <div v-else class="model-setup-empty">
@@ -1603,11 +1603,11 @@ onBeforeUnmount(() => {
             <div class="model-panel-heading"><span>04</span> RIGGING E ANIMAÇÃO POR OSSOS <b>{{ rigBones.length }}</b></div>
             <p class="model-panel-hint">Crie um esqueleto para modelos estáticos ou use os ossos de um modelo que já seja rigado. Depois ajuste a pose dos ossos e grave quadros-chave em tempos diferentes.</p>
             <label class="model-rigging-field">Modelo de rig
-              <select v-model="rigPreset" :disabled="!model || !!props.initialAsset || loading">
+              <select v-model="rigPreset" :disabled="!model || !!props.initialAsset || loading" title="Escolha a estrutura de rig sugerida para o tipo de modelo selecionado.">
                 <option v-for="option in rigPresetOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
             </label>
-            <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || loading" @click="createRig">
+            <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || loading" title="Gera um rig inicial para permitir selecionar ossos, ajustar poses e criar clipes." @click="createRig">
               {{ rigBones.length ? 'Recarregar rig existente' : 'Criar rig automático' }}
             </button>
             <p class="model-control-note">Quadrúpede pressupõe a cabeça voltada para +Z. O rig automático e os pesos de vértices são um ponto de partida: modelos complexos podem exigir ajustes ou um rig preparado externamente.</p>
@@ -1620,7 +1620,7 @@ onBeforeUnmount(() => {
               </div>
 
               <label class="model-rigging-field">Osso selecionado
-                <select v-model="selectedRigBoneName">
+                <select v-model="selectedRigBoneName" title="Seleciona o osso do rig que receberá os ajustes de posição e rotação.">
                   <option v-for="bone in rigBones" :key="bone.uuid" :value="bone.name">{{ bone.name }}</option>
                 </select>
               </label>
@@ -1634,7 +1634,7 @@ onBeforeUnmount(() => {
                 <label>Y<input v-model.number="boneRotationDraft.y" type="number" step="5" @change="applySelectedBoneTransform" /></label>
                 <label>Z<input v-model.number="boneRotationDraft.z" type="number" step="5" @change="applySelectedBoneTransform" /></label>
               </div>
-              <button type="button" class="model-rigging-secondary" @click="resetRigPose">Restaurar pose inicial</button>
+              <button type="button" class="model-rigging-secondary" title="Retorna o rig à pose inicial de referência." @click="resetRigPose">Restaurar pose inicial</button>
               <div class="model-rigging-separator"></div>
 
               <div class="model-rigging-subtitle">LINHA DO TEMPO</div>
@@ -1644,7 +1644,7 @@ onBeforeUnmount(() => {
               <label class="model-rigging-field">Duração do clipe (segundos)
                 <input v-model.number="rigDuration" type="number" min="0.1" max="120" step="0.1" />
               </label>
-              <button type="button" class="model-rigging-primary" @click="recordRigKeyframe">＋ Gravar pose neste tempo</button>
+              <button type="button" class="model-rigging-primary" title="Grava a pose atual do rig como um quadro-chave no tempo indicado." @click="recordRigKeyframe">＋ Gravar pose neste tempo</button>
               <div v-if="rigKeyframes.length" class="model-rigging-frames">
                 <button v-for="frame in rigKeyframes" :key="frame.time" type="button" @click="applyRigFrame(frame)" :class="{ active: Math.abs(rigFrameTime - frame.time) < 0.001 }">
                   <strong>{{ frame.time.toFixed(2) }} s</strong><span>Aplicar pose</span>
@@ -1662,8 +1662,8 @@ onBeforeUnmount(() => {
                   <option v-for="role in animationRoleBaseOptions.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
                 </select>
               </label>
-              <button type="button" class="model-rigging-primary" :disabled="rigKeyframes.length < 2 || !!props.initialAsset" @click="createRigAnimation">Criar clipe de animação</button>
-              <button type="button" class="model-rigging-secondary" @click="clearRigKeyframesForNewClip">Nova animação / limpar quadros</button>
+              <button type="button" class="model-rigging-primary" :disabled="rigKeyframes.length < 2 || !!props.initialAsset" title="Cria uma animação interpolando os quadros-chave gravados." @click="createRigAnimation">Criar clipe de animação</button>
+              <button type="button" class="model-rigging-secondary" title="Limpa os quadros-chave atuais para começar outro clipe." @click="clearRigKeyframesForNewClip">Nova animação / limpar quadros</button>
               <p class="model-control-note">Para sincronizar a montagem, crie um clipe com o papel “Montar / subir” no jogador e outro com o mesmo papel no cavalo. O pacote Montaria dispara os dois quando o jogador monta.</p>
               <p v-if="rigMessage" class="model-rigging-status">{{ rigMessage }}</p>
             </template>
@@ -1684,7 +1684,7 @@ onBeforeUnmount(() => {
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
             <div class="model-panel-heading"><span>05</span> TRANSFORMAÇÃO</div>
             <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} <small>u</small></strong></label>
-            <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" />
+            <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" title="Ajusta a altura final do modelo em unidades do mundo." />
             <div class="model-height-presets"><button v-for="size in [0.5, 1, 1.8, 2, 3, 5]" :key="size" :class="{ active: Math.abs(modelHeight - size) < 0.05 }" :disabled="!model" @click="modelHeight = size">{{ size }}u</button></div>
             <div class="model-import-dimensions">
               <div><small>LARGURA X</small><strong>{{ previewComponentDimensions.x ? previewComponentDimensions.x.toFixed(2) : '—' }}</strong></div>
@@ -1697,7 +1697,7 @@ onBeforeUnmount(() => {
             <div class="model-panel-heading"><span>06</span> COLISOR FÍSICO</div>
             <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
             <label class="model-collider-field">Forma
-              <select :value="colliderType" :disabled="!model" @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
+              <select :value="colliderType" :disabled="!model" title="Escolha o formato da área física de colisão usada no jogo." @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
                 <option value="box">Caixa</option>
                 <option value="sphere">Esfera</option>
                 <option value="capsule">Cápsula</option>
@@ -1796,7 +1796,7 @@ onBeforeUnmount(() => {
 
       <footer class="model-import-footer">
         <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" @click="confirmImport"><span>＋</span> Salvar componente</button></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" title="Salva o modelo e suas configurações como componente reutilizável." @click="confirmImport"><span>＋</span> Salvar componente</button></div>
       </footer>
     </section>
   </div>
