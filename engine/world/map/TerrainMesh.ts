@@ -69,9 +69,16 @@ export class TerrainMesh {
         this.colors[i * 3 + 2] = b
       }
     }
+    this.posAttr.clearUpdateRanges()
+    this.colAttr.clearUpdateRanges()
+    this.posAttr.setUsage(THREE.DynamicDrawUsage)
+    this.colAttr.setUsage(THREE.DynamicDrawUsage)
     this.posAttr.needsUpdate = true
     this.colAttr.needsUpdate = true
     this.geometry.computeVertexNormals()
+    const normals = this.geometry.getAttribute('normal') as THREE.BufferAttribute
+    normals.clearUpdateRanges()
+    normals.setUsage(THREE.DynamicDrawUsage)
     this.setConservativeBounds()
     this.grass.refresh()
   }
@@ -126,6 +133,16 @@ export class TerrainMesh {
       }
     }
 
+    const addVertexNormal = (vertex: number, nx: number, ny: number, nz: number): void => {
+      const vx = vertex % n
+      const vz = Math.floor(vertex / n)
+      if (vx < minX || vx > maxX || vz < minZ || vz > maxZ) return
+      const offset = vertex * 3
+      normals[offset] += nx
+      normals[offset + 1] += ny
+      normals[offset + 2] += nz
+    }
+
     const addTriangle = (a: number, b: number, c: number): void => {
       const ao = a * 3
       const bo = b * 3
@@ -140,15 +157,9 @@ export class TerrainMesh {
       const ny = abz * acx - abx * acz
       const nz = abx * acy - aby * acx
 
-      for (const vertex of [a, b, c]) {
-        const vx = vertex % n
-        const vz = Math.floor(vertex / n)
-        if (vx < minX || vx > maxX || vz < minZ || vz > maxZ) continue
-        const offset = vertex * 3
-        normals[offset] += nx
-        normals[offset + 1] += ny
-        normals[offset + 2] += nz
-      }
+      addVertexNormal(a, nx, ny, nz)
+      addVertexNormal(b, nx, ny, nz)
+      addVertexNormal(c, nx, ny, nz)
     }
 
     const cellMinX = Math.max(0, minX - 1)
@@ -178,6 +189,16 @@ export class TerrainMesh {
         normals[offset + 1] = ny / length
         normals[offset + 2] = nz / length
       }
+    }
+
+    const rowWidth = bounds.maxX - bounds.minX + 1
+    const normalRowWidth = maxX - minX + 1
+    for (let iz = bounds.minZ; iz <= bounds.maxZ; iz += 1) {
+      this.posAttr.addUpdateRange((iz * n + bounds.minX) * 3, rowWidth * 3)
+      this.colAttr.addUpdateRange((iz * n + bounds.minX) * 3, rowWidth * 3)
+    }
+    for (let iz = minZ; iz <= maxZ; iz += 1) {
+      normalAttr.addUpdateRange((iz * n + minX) * 3, normalRowWidth * 3)
     }
 
     this.posAttr.needsUpdate = true
