@@ -635,7 +635,29 @@ export class Engine {
   }
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
-    if (!this.cameraStateBeforeRun || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+    if (!this.cameraStateBeforeRun || event.repeat || event.metaKey) return
+
+    const target = event.target as HTMLElement | null
+    const tag = target?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return
+    const modifierKey = ['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight'].includes(event.code)
+    if ((event.ctrlKey || event.altKey) && !modifierKey) return
+
+    // Atalhos de ação ficam disponíveis como eventos personalizados do projeto.
+    // Evita, por exemplo, que Tab mova o foco da interface enquanto o jogo roda.
+    const actionKeys = [
+      this.playerControlBindings.primaryAction,
+      this.playerControlBindings.secondaryAction,
+      this.playerControlBindings.inventory,
+      this.playerControlBindings.useItem,
+      this.playerControlBindings.reload,
+      this.playerControlBindings.ability1,
+      this.playerControlBindings.ability2,
+      this.playerControlBindings.ability3,
+      this.playerControlBindings.ability4,
+      this.playerControlBindings.emote,
+    ]
+    if (actionKeys.includes(event.code)) event.preventDefault()
 
     // Montaria é um pacote de comportamento comum, configurado por objeto.
     // A tecla é lida da instância instalada; nenhum nome de espécie é necessário.
