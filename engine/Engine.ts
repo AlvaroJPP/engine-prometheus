@@ -26,6 +26,8 @@ import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings } from './script/packages'
+import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
+import type { ControlMapBindings } from './input/ControlMaps'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
@@ -62,7 +64,7 @@ export class Engine {
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
   private playerModelData: PlayerModelData | null = null
-  private playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
+  private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -504,7 +506,7 @@ export class Engine {
   }
 
   /** Define as teclas do mapa de controles ativo para o jogador. */
-  setControlBindings(bindings: ModelControlBindings): void {
+  setControlBindings(bindings: ControlMapBindings): void {
     this.playerControlBindings = { ...bindings }
     this.avatar.setControlBindings(this.playerControlBindings)
   }
