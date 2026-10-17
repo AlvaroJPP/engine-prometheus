@@ -21,6 +21,9 @@ const ROLL_SPEED = 6.8
 const ROLL_DURATION = 0.36
 const MANEUVER_COOLDOWN = 0.32
 const ROLL_COOLDOWN = 0.52
+// Exact triangle traversal is too expensive for dense animated GLBs during mounting.
+// Imported models over this threshold use their already-configured physical bounds.
+const MAX_EXACT_MOUNT_COLLISION_TRIANGLES = 6000
 
 type PlayerPosture = 'standing' | 'crouching' | 'prone'
 type PlayerManeuver = 'dodge' | 'slide' | 'roll' | null
@@ -859,7 +862,8 @@ export class HumanoidAvatar {
       const candidates = this.world.list().filter(object =>
         object.mesh !== root &&
         object.mesh.visible &&
-        object.mesh.userData.colliderType !== 'none',
+        object.mesh.userData.colliderType !== 'none' &&
+        object.mesh.userData.importedModel !== true,
       )
 
       if (candidates.length > 0) {
@@ -1086,6 +1090,23 @@ export class HumanoidAvatar {
     return getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
   }
 
+  /** Cacheia a complexidade uma vez; não conte vértices novamente em cada quadro. */
+  private getImportedTriangleCount(root: THREE.Mesh): number {
+    const cached = root.userData.mountCollisionTriangleCount
+    if (typeof cached === 'number') return cached
+
+    let triangleCount = 0
+    root.traverse(child => {
+      if (!(child instanceof THREE.Mesh) || child === root) return
+      if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
+      const position = child.geometry.getAttribute('position')
+      if (!position) return
+      triangleCount += Math.floor((child.geometry.getIndex()?.count ?? position.count) / 3)
+    })
+    root.userData.mountCollisionTriangleCount = triangleCount
+    return triangleCount
+  }
+
   /**
    * Verifica colisão da montaria com o mesmo princípio usado pelo player:
    * colisor configurado para modelos importados e triângulos reais para colisão automática.
@@ -1132,7 +1153,18 @@ export class HumanoidAvatar {
         configuredCollider !== undefined &&
         configuredCollider !== 'auto'
       ) {
-        const obstacleBounds = getColliderBounds(obstacle)
+        if (obstacleBounds && this.hasVolumeOverlap(mountBounds, obstacleBounds)) return true
+        continue
+      }
+
+      if (
+        obstacle.userData.importedModel === true &&
+        configuredCollider === 'auto' &&
+        this.getImportedTriangleCount(obstacle) > MAX_EXACT_MOUNT_COLLISION_TRIANGLES
+      ) {
+        // O colisor automático de um GLB denso não pode custar dezenas de
+        // milhares de verificações de triângulos por subpasso de movimento.
+        // Usa os limites físicos como fallback conservador para montarias.
         if (obstacleBounds && this.hasVolumeOverlap(mountBounds, obstacleBounds)) return true
         continue
       }
@@ -1200,7 +1232,13 @@ export class HumanoidAvatar {
       obstacle.updateWorldMatrix(true, true)
 
       const configuredCollider = obstacle.userData.colliderType
-      if (obstacle.userData.importedModel === true && configuredCollider !== undefined && configuredCollider !== 'auto') {
+      if (
+        obstacle.userData.importedModel === true &&
+        (
+          (configuredCollider !== undefined && configuredCollider !== 'auto') ||
+          (configuredCollider === 'auto' && this.getImportedTriangleCount(obstacle) > MAX_EXACT_MOUNT_COLLISION_TRIANGLES)
+        )
+      ) {
         const box = getColliderBounds(obstacle)
         if (!box) continue
         const overlapsHorizontally = currentBounds.max.x > box.min.x && currentBounds.min.x < box.max.x &&
@@ -1285,7 +1323,8 @@ export class HumanoidAvatar {
     const candidates = this.world.list().filter(object =>
       object.mesh !== root &&
       object.mesh.visible &&
-      object.mesh.userData.colliderType !== 'none',
+      object.mesh.userData.colliderType !== 'none' &&
+      object.mesh.userData.importedModel !== true,
     )
     const originY = feetY + height + 0.65
     const raycaster = new THREE.Raycaster()
@@ -1375,7 +1414,12 @@ export class HumanoidAvatar {
     const minProbeZ = centerZ - insetZ
     const maxProbeZ = centerZ + insetZ
     const candidates = this.world.list().filter(object => {
-      if (object.mesh === root || !object.mesh.visible || object.mesh.userData.colliderType === 'none') return false
+      if (
+        object.mesh === root ||
+        !object.mesh.visible ||
+        object.mesh.userData.colliderType === 'none' ||
+        object.mesh.userData.importedModel === true
+      ) return false
       object.mesh.updateWorldMatrix(true, true)
       const box = getColliderBounds(object.mesh) ?? new THREE.Box3().setFromObject(object.mesh)
       return box.max.x >= minProbeX - 0.02 && box.min.x <= maxProbeX + 0.02 &&
