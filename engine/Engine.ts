@@ -62,6 +62,7 @@ export class Engine {
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
   private playerModelData: PlayerModelData | null = null
+  private playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
@@ -502,6 +503,12 @@ export class Engine {
     this.viewport.invalidate()
   }
 
+  /** Define as teclas do mapa de controles ativo para o jogador. */
+  setControlBindings(bindings: ModelControlBindings): void {
+    this.playerControlBindings = { ...bindings }
+    this.avatar.setControlBindings(this.playerControlBindings)
+  }
+
   /** Alterna entre o editor livre e a execução controlada pelo jogador. */
   setRuntimeMode(enabled: boolean): void {
     if (enabled) {
@@ -635,7 +642,7 @@ export class Engine {
         ? this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
         : undefined
       const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
-      if (event.code === interactionKey) {
+      if (event.code === interactionKey || event.code === this.playerControlBindings.interact) {
         const mountedObjectId = this.avatar.dismount()
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
@@ -663,7 +670,7 @@ export class Engine {
         })
         .filter(candidate =>
           candidate.object?.mesh.visible &&
-          event.code === candidate.settings.interactionKey &&
+          (event.code === candidate.settings.interactionKey || event.code === this.playerControlBindings.interact) &&
           candidate.distance <= candidate.settings.interactionRadius,
         )
         .sort((a, b) => a.distance - b.distance)
