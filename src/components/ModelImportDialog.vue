@@ -316,7 +316,7 @@ function applySelectedBoneRotation() {
     bone.rotation.order,
   )
   bone.updateMatrixWorld(true)
-  rigHelper?.update()
+  rigHelper?.updateMatrixWorld(true)
 }
 
 function resetRigPose() {
@@ -330,7 +330,7 @@ function resetRigPose() {
       z: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.z),
     }
   }
-  rigHelper?.update()
+  rigHelper?.updateMatrixWorld(true)
 }
 
 function recordRigKeyframe() {
@@ -363,16 +363,8 @@ function applyRigFrame(frame: RigKeyframe) {
       z: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.z),
     }
   }
-  rigHelper?.update()
+  rigHelper?.updateMatrixWorld(true)
   rigMessage.value = `Pose de ${frame.time.toFixed(2)} s aplicada para edição.`
-}
-
-function applyRigKeyframeAtTime() {
-  if (!rigKeyframes.value.length || !rigBones.value.length) return
-  const frame = rigKeyframes.value.reduce((best, candidate) =>
-    Math.abs(candidate.time - rigFrameTime.value) < Math.abs(best.time - rigFrameTime.value) ? candidate : best,
-  )
-  applyRigFrame(frame)
 }
 
 function clearRigKeyframesForNewClip() {
