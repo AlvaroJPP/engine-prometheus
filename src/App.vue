@@ -3868,6 +3868,8 @@ button:disabled { cursor: not-allowed; }
   .panel.right .scroll .axis-value input { font-size:9px; }
 }
 
+</style>
+
 <style>
 /* Final alignment to the seven-page editor reference PDF. */
 .panel.left .panel-head { display:none !important; }
@@ -3912,6 +3914,4 @@ button:disabled { cursor: not-allowed; }
 .panel.left .component-library-footer { order:5; }
 .quick-add-wrap { right:181px; }
 @media(max-width:1180px) { .quick-add-wrap { right:190px; } }
-</style>
-
 </style>
