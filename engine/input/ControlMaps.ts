@@ -180,6 +180,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       proneToggle: 'KeyZ',
       dodge: 'KeyV',
       slide: 'KeyX',
+      roll: 'KeyB',
       interact: 'KeyU',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
