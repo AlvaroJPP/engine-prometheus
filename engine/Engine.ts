@@ -267,6 +267,7 @@ export class Engine {
         if (instance.packageId === 'mount') this.applyMountModelStates(instance)
       }
       this.orbit.update()
+      this.world.updateRenderDistance(this.orbit.camera.position)
       this.world.updateFogForCamera(this.orbit.camera.position)
       this.modelLod.update(this.orbit.camera.position)
       if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
@@ -701,7 +702,7 @@ export class Engine {
           return { instance, object, settings, distance }
         })
         .filter(candidate =>
-          candidate.object?.mesh.visible &&
+          candidate.object && this.world.isObjectVisible(candidate.object) &&
           (event.code === this.playerControlBindings.interact || (candidate.settings.interactionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact && event.code === candidate.settings.interactionKey)) &&
           candidate.distance <= candidate.settings.interactionRadius,
         )
@@ -715,7 +716,7 @@ export class Engine {
         // A regra Interagir pode mudar variáveis do pacote. Consulte a instância
         // atual, não a cópia retornada por listPackages antes do disparo.
         const currentInstance = this.logic.listPackages().find(instance => instance.id === candidate.instance.id)
-        if (!currentInstance?.enabled || !candidate.object.mesh.visible) continue
+        if (!currentInstance?.enabled || !this.world.isObjectVisible(candidate.object)) continue
         const currentSettings = getMountPackageSettings(currentInstance)
         if (!this.avatar.mount(candidate.object.mesh, currentSettings)) continue
         this.activeMountPackageId = currentInstance.id
@@ -1397,9 +1398,9 @@ export class Engine {
     this.world.setTerrainVisible(visible)
   }
 
-  /** Configura alcance radial da grama; null renderiza todo o mapa. */
-  setGrassRenderDistance(distance: number | null): void {
-    this.world.setGrassRenderDistance(distance)
+  /** Configura a distância geral de renderização; null mantém todos os objetos e a grama. */
+  setRenderDistance(distance: number | null): void {
+    this.world.setRenderDistance(distance)
     this.viewport.invalidate()
   }
 
