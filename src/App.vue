@@ -31,6 +31,7 @@ const activeControlMap = computed(() =>
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
+const quickAddOpen = ref(false)
 const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings> } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
@@ -1035,6 +1036,30 @@ onMounted(() => {
   })()
 })
 
+async function moveSavedComponentGroup(id: string, group: string) {
+  const normalizedGroup = group.trim().slice(0, 48)
+  if (!normalizedGroup) return
+  try {
+    const component = await getSavedComponent(id)
+    if (!component) throw new Error('Este componente não está mais na biblioteca.')
+    if (component.group === normalizedGroup) return
+    component.group = normalizedGroup
+    await saveComponentAsset(component)
+    await refreshSavedComponents()
+    status.value = 'Componente movido para "' + normalizedGroup + '".'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível mover o componente de grupo.'
+  }
+}
+
+function closeQuickAddOutside(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Element && !target.closest('.quick-add-wrap')) quickAddOpen.value = false
+}
+
+onMounted(() => window.addEventListener('pointerdown', closeQuickAddOutside))
+onBeforeUnmount(() => window.removeEventListener('pointerdown', closeQuickAddOutside))
+
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
 
@@ -1115,11 +1140,23 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @rename-component="renameSavedComponent"
         @delete-component="removeSavedComponent"
         @preview-component="previewSavedComponent"
+        @move-component="moveSavedComponentGroup"
+        @open-model-import="previewComponentAsset = null; modelImportOpen = true"
       />
 
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
+        <div class="quick-add-wrap">
+          <button class="quick-add-trigger" :aria-expanded="quickAddOpen" @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
+          <div v-if="quickAddOpen" class="quick-add-popover" @click.stop>
+            <div class="quick-add-heading">CRIAR NA CENA</div>
+            <button @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
+            <button @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
+            <button @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
+            <button @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
+          </div>
+        </div>
         <button class="model-import-launch" @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
         <div v-if="!modelImportOpen" class="viewport-fps" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
@@ -3600,5 +3637,134 @@ button:disabled { cursor: not-allowed; }
   .panel.right .scroll .component-caption { letter-spacing: .045em; }
   .panel.right .scroll .variable-row { gap: 3px; padding: 4px; }
   .panel.right .scroll .variable-table-head { letter-spacing: 0; }
+}
+</style>
+
+
+
+<style>
+/* Layout measurements from the supplied Editor Prometheus reference. */
+.panel.left { width:282px !important; min-width:282px !important; flex:0 0 282px !important; }
+.panel.right { width:360px !important; min-width:360px !important; flex:0 0 360px !important; }
+.toolbar { left:297px !important; }
+.viewport-fps {
+  top:68px !important;
+  left:auto !important;
+  right:16px !important;
+}
+.model-import-launch { top:12px !important; right:14px !important; }
+.quick-add-wrap {
+  position:absolute;
+  z-index:13;
+  top:12px;
+  right:194px;
+}
+.quick-add-trigger {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  height:34px;
+  min-height:34px;
+  padding:0 11px;
+  border:1px solid #303947;
+  border-radius:6px;
+  background:#141920;
+  color:#e2e7ef;
+  box-shadow:0 3px 12px #0003;
+  font-size:11px;
+  font-weight:600;
+}
+.quick-add-trigger > span:first-child {
+  color:#f5c56b;
+  font-size:16px;
+  line-height:1;
+}
+.quick-add-trigger:hover,
+.quick-add-trigger[aria-expanded="true"] {
+  border-color:#73561f;
+  background:#242116;
+  color:#f6d28b;
+}
+.quick-add-chevron { color:#9aa6b6; font-size:10px; }
+.quick-add-popover {
+  position:absolute;
+  top:calc(100% + 7px);
+  right:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  width:240px;
+  padding:6px;
+  border:1px solid #343d4a;
+  border-radius:8px;
+  background:#171c24;
+  box-shadow:0 15px 40px #0009;
+}
+.quick-add-heading {
+  padding:7px 8px 8px;
+  border-bottom:1px solid #2c333f;
+  color:#8692a4;
+  font:700 9px 'IBM Plex Mono',monospace;
+  letter-spacing:.1em;
+}
+.quick-add-popover > button {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-height:43px;
+  padding:5px 8px;
+  border:1px solid transparent;
+  border-radius:5px;
+  background:transparent;
+  color:#dce3ed;
+  text-align:left;
+}
+.quick-add-popover > button:hover {
+  border-color:#394351;
+  background:#222832;
+}
+.quick-add-icon {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:28px;
+  height:28px;
+  border:1px solid #394250;
+  border-radius:5px;
+  background:#202631;
+  color:#f2c36f;
+  font-size:15px;
+}
+.quick-add-popover > button > span:nth-child(2) {
+  display:flex;
+  flex:1;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+.quick-add-popover strong { font-size:11px; font-weight:600; }
+.quick-add-popover small { color:#8995a7; font-size:9px; }
+.quick-add-popover kbd {
+  border-color:#3a4351;
+  color:#96a2b2;
+  font-size:9px;
+}
+@media (max-width:1180px) {
+  .panel.left { width:220px !important; min-width:220px !important; flex-basis:220px !important; }
+  .panel.right { width:290px !important; min-width:290px !important; flex-basis:290px !important; }
+  .toolbar { left:232px !important; }
+  .quick-add-wrap { right:190px; }
+  .model-import-launch { right:12px !important; }
+  .viewport-fps { top:62px !important; }
+}
+@media (max-width:760px) {
+  .panel.left { width:180px !important; min-width:180px !important; flex-basis:180px !important; }
+  .panel.right { width:250px !important; min-width:250px !important; flex-basis:250px !important; }
+  .toolbar { left:188px !important; }
+  .quick-add-wrap { right:12px; top:54px; }
+  .model-import-launch { top:12px !important; right:12px !important; }
+  .viewport-fps { top:100px !important; right:12px !important; }
+  .quick-add-popover { width:min(240px, calc(100vw - 220px)); }
 }
 </style>
