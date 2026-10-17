@@ -10,7 +10,7 @@ import { DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { applyRigPose, autoRigModel, captureRigPose } from '@/lib/animation/Rigging'
+import { applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 
 const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
@@ -177,6 +177,7 @@ const rigClipName = ref('Animacao personalizada')
 const rigClipRole = ref<AnimationRole>('mount')
 const rigMessage = ref('')
 const boneRotationDraft = ref({ x: 0, y: 0, z: 0 })
+const bonePositionDraft = ref({ x: 0, y: 0, z: 0 })
 const selectedRigBone = computed(() => rigBones.value.find(bone => bone.name === selectedRigBoneName.value) ?? null)
 const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
   { value: 'humanoid', label: 'Humanoide / personagem' },
@@ -190,6 +191,7 @@ watch(selectedRigBone, bone => {
     y: THREE.MathUtils.radToDeg(bone.rotation.y),
     z: THREE.MathUtils.radToDeg(bone.rotation.z),
   }
+  bonePositionDraft.value = { x: bone.position.x, y: bone.position.y, z: bone.position.z }
 })
 const filteredPreviewParts = computed(() => {
   const query = partSearch.value.trim().toLocaleLowerCase('pt-BR')
@@ -305,17 +307,42 @@ function createRig() {
   }
 }
 
-function applySelectedBoneRotation() {
+function applySelectedBoneTransform() {
   const bone = selectedRigBone.value
   if (!bone) return
   previewMixer?.stopAllAction()
-  bone.rotation.set(
-    THREE.MathUtils.degToRad(boneRotationDraft.value.x),
-    THREE.MathUtils.degToRad(boneRotationDraft.value.y),
-    THREE.MathUtils.degToRad(boneRotationDraft.value.z),
-    bone.rotation.order,
-  )
+  const root = model.value
+  const positionChanged = Math.abs(bone.position.x - bonePositionDraft.value.x) > 1e-5 ||
+    Math.abs(bone.position.y - bonePositionDraft.value.y) > 1e-5 ||
+    Math.abs(bone.position.z - bonePositionDraft.value.z) > 1e-5
+
+  if (root?.userData.importRigGenerated === true && positionChanged) {
+    // Reposicionar um pivô redefine o repouso do rig. Quadros antigos são
+    // descartados porque dependiam da posição anterior do osso.
+    applyRigPose(rigBones.value, rigRestPose.value)
+    bone.position.set(bonePositionDraft.value.x, bonePositionDraft.value.y, bonePositionDraft.value.z)
+    root.updateWorldMatrix(true, true)
+    rebindRigModel(root)
+    rigRestPose.value = captureRigPose(rigBones.value)
+    rigKeyframes.value = []
+    rigFrameTime.value = 0
+    rigDuration.value = 1
+    boneRotationDraft.value = {
+      x: THREE.MathUtils.radToDeg(bone.rotation.x),
+      y: THREE.MathUtils.radToDeg(bone.rotation.y),
+      z: THREE.MathUtils.radToDeg(bone.rotation.z),
+    }
+    rigMessage.value = 'Pivô ajustado e pose de repouso atualizada. Grave novamente os quadros-chave.'
+  } else {
+    bone.rotation.set(
+      THREE.MathUtils.degToRad(boneRotationDraft.value.x),
+      THREE.MathUtils.degToRad(boneRotationDraft.value.y),
+      THREE.MathUtils.degToRad(boneRotationDraft.value.z),
+      bone.rotation.order,
+    )
+  }
   bone.updateMatrixWorld(true)
+  root?.updateWorldMatrix(true, true)
   rigHelper?.updateMatrixWorld(true)
 }
 
@@ -328,6 +355,11 @@ function resetRigPose() {
       x: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.x),
       y: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.y),
       z: THREE.MathUtils.radToDeg(selectedRigBone.value.rotation.z),
+    }
+    bonePositionDraft.value = {
+      x: selectedRigBone.value.position.x,
+      y: selectedRigBone.value.position.y,
+      z: selectedRigBone.value.position.z,
     }
   }
   rigHelper?.updateMatrixWorld(true)
@@ -1544,7 +1576,7 @@ onBeforeUnmount(() => {
               </select>
             </label>
             <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || loading" @click="createRig">
-              {{ rigBones.length ? 'Recriar / detectar rig' : 'Criar rig automático' }}
+              {{ rigBones.length ? 'Recarregar rig existente' : 'Criar rig automático' }}
             </button>
             <p class="model-control-note">Quadrúpede pressupõe a cabeça voltada para +Z. O rig automático e os pesos de vértices são um ponto de partida: modelos complexos podem exigir ajustes ou um rig preparado externamente.</p>
 
@@ -1561,10 +1593,14 @@ onBeforeUnmount(() => {
                 </select>
               </label>
               <div v-if="selectedRigBone" class="model-rigging-rotation">
+                <div class="model-rigging-subtitle">POSIÇÃO LOCAL · UNIDADES</div>
+                <label>X<input v-model.number="bonePositionDraft.x" type="number" step="0.05" :disabled="model?.userData.importRigGenerated !== true" @change="applySelectedBoneTransform" /></label>
+                <label>Y<input v-model.number="bonePositionDraft.y" type="number" step="0.05" :disabled="model?.userData.importRigGenerated !== true" @change="applySelectedBoneTransform" /></label>
+                <label>Z<input v-model.number="bonePositionDraft.z" type="number" step="0.05" :disabled="model?.userData.importRigGenerated !== true" @change="applySelectedBoneTransform" /></label>
                 <div class="model-rigging-subtitle">ROTAÇÃO LOCAL · GRAUS</div>
-                <label>X<input v-model.number="boneRotationDraft.x" type="number" step="5" @change="applySelectedBoneRotation" /></label>
-                <label>Y<input v-model.number="boneRotationDraft.y" type="number" step="5" @change="applySelectedBoneRotation" /></label>
-                <label>Z<input v-model.number="boneRotationDraft.z" type="number" step="5" @change="applySelectedBoneRotation" /></label>
+                <label>X<input v-model.number="boneRotationDraft.x" type="number" step="5" @change="applySelectedBoneTransform" /></label>
+                <label>Y<input v-model.number="boneRotationDraft.y" type="number" step="5" @change="applySelectedBoneTransform" /></label>
+                <label>Z<input v-model.number="boneRotationDraft.z" type="number" step="5" @change="applySelectedBoneTransform" /></label>
               </div>
               <button type="button" class="model-rigging-secondary" @click="resetRigPose">Restaurar pose inicial</button>
               <div class="model-rigging-separator"></div>
