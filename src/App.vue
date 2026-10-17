@@ -1145,7 +1145,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="axis"><b class="ax-z">Z</b> profundidade</span>
         </div>
         <div class="statusbar" aria-label="Status do editor">
-          <span class="seg">{{ selectedId ? '1 objeto selecionado' : inspectorMode === 'object' ? 'Objeto selecionado' : objects.length + ' objetos' }}</span>
+          <span class="seg">{{ groupSelection.length > 1 ? groupSelection.length + ' objetos selecionados' : selectedId ? '1 objeto selecionado' : inspectorMode === 'terrain' ? 'Terreno selecionado' : objects.length + ' objetos na cena' }}</span>
           <span class="seg"><i class="dot ok" /> Motor 3D ativo</span>
           <span class="seg">Terreno procedural</span>
           <span class="seg grow-text">{{ status || hint }}</span>
@@ -1164,7 +1164,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <span class="inspector-object-icon" :class="{ selected: inspectorMode === 'object', terrain: inspectorMode === 'terrain' }">{{ inspectorMode === 'object' ? '◇' : inspectorMode === 'terrain' ? '▤' : '⌂' }}</span>
             <div class="inspector-title-copy">
               <div class="h">{{ selected ? selected.name : inspectorMode === 'terrain' ? 'Terreno editável' : 'Mundo principal' }}</div>
-              <div class="inspector-description">{{ selected ? (selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
+              <div class="inspector-description">{{ selected ? (selected.type === 'cube' ? 'Cubo · Objeto de jogo' : 'Plataforma · Objeto de jogo') : inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
             </div>
             <span v-if="selected" class="selection-indicator" title="Objeto selecionado"></span>
           </div>
@@ -1243,11 +1243,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <template v-if="inspectorTab === 'variables'">
             <div class="object-meta">
               <div><span>ID</span><code>{{ selected.id }}</code><button class="meta-copy" title="Copiar ID" @click="copyObjectId(selected.id)">⧉</button></div>
-              <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cube / GameObject' : 'Platform / GameObject' }}</strong></div>
+              <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cubo / objeto de jogo' : 'Plataforma / objeto de jogo' }}</strong></div>
             </div>
             <div class="component-caption">VARIÁVEIS DO OBJETO · VALORES INDEPENDENTES</div>
             <div class="variable-table-head" aria-hidden="true">
-              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span>
+              <span>ID</span><span>TIPO</span><span>VALOR</span><span></span>
             </div>
             <div v-for="(value, name) in logicVariables" :key="'obj-' + name" class="variable-row object-variable-row">
               <code class="variable-id" :title="String(name)">{{ name }}</code>
@@ -1259,7 +1259,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <div class="component-caption">VARIÁVEIS GLOBAIS REUTILIZÁVEIS</div>
             <p class="muted">Adicione uma cópia ao objeto para que cada objeto mantenha seu próprio valor.</p>
             <div class="variable-table-head global-variable-head" aria-hidden="true">
-              <span>ID</span><span>TYPE</span><span>VALUE</span><span></span><span></span>
+              <span>ID</span><span>TIPO</span><span>VALOR</span><span></span><span></span>
             </div>
             <div v-for="(value, name) in globalLogicVariables" :key="'global-' + name" class="variable-row global-variable-row">
               <code class="variable-id" :title="String(name)">{{ name }}</code>
@@ -1392,19 +1392,19 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <div class="unity-component">
                 <div class="unity-component-head"><span class="component-icon transform-icon">↔</span><strong>Transform</strong><span class="component-menu">⋮</span></div>
                 <div class="unity-component-body">
-                  <div class="component-caption">POSITION</div>
+                  <div class="component-caption">POSIÇÃO</div>
                   <div class="grid3">
                     <label class="field">X<input class="mono" type="number" step="0.1" :value="selected.x.toFixed(2)" @change="onNumber('x', $event)" /></label>
                     <label class="field">Y<input class="mono" type="number" step="0.1" :value="selected.y.toFixed(2)" @change="onNumber('y', $event)" /></label>
                     <label class="field">Z<input class="mono" type="number" step="0.1" :value="selected.z.toFixed(2)" @change="onNumber('z', $event)" /></label>
                   </div>
-                  <div class="component-caption">ROTATION</div>
+                  <div class="component-caption">ROTAÇÃO</div>
                   <div class="grid3">
                     <label class="field">X<input class="mono" type="number" step="1" :value="selected.rotationX.toFixed(0)" @change="onNumber('rotationX', $event)" /></label>
                     <label class="field">Y<input class="mono" type="number" step="1" :value="selected.rotationY.toFixed(0)" @change="onNumber('rotationY', $event)" /></label>
                     <label class="field">Z<input class="mono" type="number" step="1" :value="selected.rotationZ.toFixed(0)" @change="onNumber('rotationZ', $event)" /></label>
                   </div>
-                  <div class="component-caption">SCALE</div>
+                  <div class="component-caption">ESCALA</div>
                   <div class="grid3">
                     <label class="field">X<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
                     <label class="field">Y<input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
@@ -1468,7 +1468,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   </label>
                   <FaceTextureEditor :model-value="selected.faceTextures ?? {}" @update-face-texture="onFaceTexture" />
                   <p class="component-note">Texturas procedurais aplicadas ao cubo ou à plataforma e salvas junto com o projeto.</p>
-                  <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
+                  <div class="component-readonly"><span>Malha</span><strong>{{ selected.type === 'cube' ? 'Malha de cubo' : 'Malha de plataforma' }}</strong></div>
                   <div class="component-readonly"><span>Shader</span><strong>Standard / PBR</strong></div>
                 </div>
               </div>
@@ -3294,5 +3294,311 @@ button:disabled { cursor: not-allowed; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+
+/* Secondary refinement: unify the inspector cards, data tables and controls. */
+.panel.right .inspector-description {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.panel.right .selection-indicator {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8bd49c;
+  box-shadow: 0 0 0 3px #8bd49c14;
+}
+.panel.right .scroll .unity-component {
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid #303744;
+  border-radius: 7px;
+  background: #171c24;
+  box-shadow: 0 2px 8px #00012;
+}
+.panel.right .scroll .unity-component-head {
+  min-height: 36px;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid #303744;
+  background: #1e242e;
+  color: #e6e8ec;
+}
+.panel.right .scroll .unity-component-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #e4e8ef;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+}
+.panel.right .scroll .component-icon {
+  flex: none;
+  border: 1px solid #333c49;
+  border-radius: 5px;
+  background: #13171d;
+}
+.panel.right .scroll .component-menu {
+  color: #8792a2;
+  cursor: default;
+}
+.panel.right .scroll .unity-component-body { padding: 10px; }
+.panel.right .scroll .component-caption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 7px;
+  color: #929eaf;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .09em;
+}
+.panel.right .scroll .component-caption::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #2b323d;
+}
+.panel.right .scroll .component-caption:first-child { margin-top: 0; }
+.panel.right .scroll .component-note {
+  margin: 6px 0 10px;
+  color: #8f9aaa;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.panel.right .scroll .component-enabled {
+  padding: 2px 0 10px;
+  border-bottom-color: #303744;
+}
+.panel.right .scroll .component-readonly {
+  padding: 8px 0 0;
+  color: #929eaf;
+  font-size: 10px;
+}
+.panel.right .scroll .component-readonly strong {
+  max-width: 66%;
+  color: #d5dbe5;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.panel.right .scroll .component-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding-inline: 5px;
+  border: 1px solid #37414e;
+  border-radius: 5px;
+  background: #141920;
+  color: #c2cbd8;
+  font: 10px 'IBM Plex Mono', monospace;
+}
+.panel.right .scroll .object-meta {
+  overflow: hidden;
+  border-color: #303744;
+  border-radius: 6px;
+  background: #171c24;
+}
+.panel.right .scroll .object-meta > div { min-width: 0; }
+.panel.right .scroll .object-meta > div + div { border-top-color: #303744; }
+.panel.right .scroll .object-meta span {
+  width: 40px;
+  color: #8f9aaa;
+  letter-spacing: .08em;
+}
+.panel.right .scroll .object-meta code,
+.panel.right .scroll .object-meta strong {
+  color: #dce2eb;
+}
+.panel.right .scroll .meta-copy {
+  border-color: #37404d;
+  border-radius: 5px;
+  background: #202631;
+  color: #bfc8d6;
+}
+.panel.right .scroll .meta-copy:hover {
+  border-color: #8a641c;
+  color: #f5c56b;
+}
+.panel.right .scroll .variable-table-head {
+  margin-top: 12px;
+  padding-inline: 7px;
+  color: #8591a2;
+  font: 700 9px 'IBM Plex Mono', monospace;
+  letter-spacing: .08em;
+}
+.panel.right .scroll .variable-row {
+  gap: 5px;
+  margin-bottom: 5px;
+  padding: 5px;
+  border-color: #303744;
+  border-radius: 6px;
+  background: #171c24;
+}
+.panel.right .scroll .variable-row:focus-within {
+  border-color: #76571e;
+  background: #1b2028;
+}
+.panel.right .scroll .variable-id {
+  color: #e1c18b;
+  font-size: 10px;
+}
+.panel.right .scroll .variable-type {
+  color: #9aa7b8;
+  font-size: 9px;
+}
+.panel.right .scroll .variable-value {
+  min-width: 0;
+  border-color: #333c49;
+  background: #10141a;
+  font: 10px 'IBM Plex Mono', monospace;
+}
+.panel.right .scroll .variable-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  width: 24px;
+  min-height: 25px;
+  height: 25px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #a0a8b4;
+}
+.panel.right .scroll .variable-delete:hover {
+  border-color: #60373a;
+  background: #2b1b1e;
+  color: #ff9b91;
+}
+.panel.right .scroll .variable-create {
+  padding: 9px;
+  border: 1px solid #303744;
+  border-radius: 7px;
+  background: #141920;
+}
+.panel.right .scroll .variable-create > button {
+  min-height: 34px;
+}
+.panel.right .scroll .variable-create > button:first-of-type {
+  border-color: #67501f;
+  background: #292316;
+  color: #f2c36f;
+}
+.panel.right .scroll .variable-create > button:last-of-type {
+  border-color: #303744;
+  background: #1d232c;
+  color: #c6cfdb;
+}
+.panel.right .scroll .attached-rule {
+  gap: 9px;
+  padding: 9px;
+  border-color: #303744;
+  border-radius: 6px;
+  background: #1a2029;
+}
+.panel.right .scroll .attached-rule:hover {
+  border-color: #67501f;
+  background: #242116;
+}
+.panel.right .scroll .attached-rule-status {
+  flex: none;
+  box-shadow: 0 0 0 3px #83bb8b12;
+}
+.panel.right .scroll .attached-rule-status.disabled {
+  box-shadow: none;
+}
+.panel.right .scroll .package-empty {
+  padding: 12px;
+  border: 1px dashed #3a4351;
+  border-radius: 6px;
+  background: #141920;
+}
+.panel.right .scroll .package-empty strong { color: #d7dee8; }
+.panel.right .scroll .behavior-package-card {
+  margin: 10px 0;
+  padding: 11px;
+  border-color: #323b48;
+  border-radius: 7px;
+  background: #1a2029;
+}
+.panel.right .scroll .behavior-package-header { align-items: center; }
+.panel.right .scroll .behavior-package-header strong { color: #e6e8ec; }
+.panel.right .scroll .behavior-package-header .variable-delete { flex: none; }
+.panel.right .scroll .rule-item {
+  gap: 6px;
+  padding: 7px 0;
+  border-top-color: #2d3440;
+}
+.panel.right .scroll .rule-order { flex: none; }
+.panel.right .scroll .rule-order button {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 3px 5px;
+}
+.panel.right .scroll .rule-item .checkline {
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.panel.right .scroll input[type="checkbox"],
+.panel.right .scroll input[type="radio"] { accent-color: #f5a524; }
+.panel.right .scroll input[type="range"] {
+  height: 18px;
+  accent-color: #f5a524;
+  cursor: pointer;
+}
+.panel.right .scroll input[type="range"]:disabled { cursor: not-allowed; }
+.panel.right .scroll input.color {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  padding: 3px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.panel.right .scroll .checkline {
+  gap: 8px;
+  color: #b2bccb;
+  line-height: 1.4;
+}
+.panel.right .scroll .checkline input { flex: none; }
+.panel.right .scroll .field {
+  color: #aeb8c7;
+  line-height: 1.4;
+}
+.panel.right .scroll .field > input,
+.panel.right .scroll .field > select { margin-top: 6px; }
+.panel.right .scroll .field > input[type="number"] { font-family: 'IBM Plex Mono', monospace; }
+.panel.right .scroll .field > input[type="number"]::-webkit-inner-spin-button { opacity: .55; }
+.panel.right .scroll .public-library-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid #2b323d;
+}
+.panel.right .scroll .public-library-item > span {
+  min-width: 0;
+  color: #d9e0ea;
+  overflow-wrap: anywhere;
+}
+.panel.right .scroll .collider-visibility-button.active {
+  border-color: #6d5624;
+  background: #2a2518;
+  color: #f5c56b;
+}
+@media (max-width: 760px) {
+  .panel.right .scroll .unity-component-body { padding: 8px; }
+  .panel.right .scroll .component-caption { letter-spacing: .045em; }
+  .panel.right .scroll .variable-row { gap: 3px; padding: 4px; }
+  .panel.right .scroll .variable-table-head { letter-spacing: 0; }
 }
 </style>
