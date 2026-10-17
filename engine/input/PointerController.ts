@@ -34,7 +34,8 @@ export class PointerController {
   private onBuildAt: ((x: number, y: number, z: number) => boolean) | undefined
   private onRuntimeObjectClick: ((id: string) => void) | undefined
   private runtimeMode = false
-  private raycaster = new THREE.Raycaster()
+  // O BVH retorna só a interseção mais próxima, evitando coletar todos os triângulos atingidos.
+  private raycaster = Object.assign(new THREE.Raycaster(), { firstHitOnly: true })
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
   private lastEvent: PointerEvent | null = null
