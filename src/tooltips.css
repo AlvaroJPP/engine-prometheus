@@ -1,0 +1,87 @@
+/* Tooltips globais do editor: discreto, legível e consistente com o painel escuro. */
+.ep-tooltip {
+  position: fixed;
+  z-index: 2147483000;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 10px;
+  border: 1px solid #3b4350;
+  border-radius: 7px;
+  background: #232831;
+  color: #f1f3f7;
+  box-shadow: 0 8px 22px #0008, 0 1px 0 #ffffff08 inset;
+  font: 500 11px/1.45 'IBM Plex Sans', Inter, 'Segoe UI', sans-serif;
+  letter-spacing: .005em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+}
+.ep-tooltip[hidden] { display: none !important; }
+.ep-tooltip--visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.ep-tooltip--measuring {
+  opacity: 1;
+  visibility: hidden;
+  transition: none;
+  transform: none;
+}
+.ep-tooltip__text { min-width: 0; }
+.ep-tooltip__keys {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 3px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid #454d5a;
+  white-space: nowrap;
+}
+.ep-tooltip__keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  min-height: 18px;
+  box-sizing: border-box;
+  padding: 1px 5px;
+  border: 1px solid #505866;
+  border-radius: 4px;
+  background: #181d25;
+  color: #d7dce5;
+  font: 10px/1.1 'IBM Plex Mono', Consolas, monospace;
+  box-shadow: 0 1px 0 #0005;
+}
+.ep-tooltip::after {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 0 solid #3b4350;
+  background: #232831;
+  content: '';
+  transform: rotate(45deg);
+}
+.ep-tooltip--top::after {
+  bottom: -5px;
+  left: calc(var(--ep-tooltip-arrow-x, 50%) - 4px);
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+.ep-tooltip--bottom::after {
+  top: -5px;
+  left: calc(var(--ep-tooltip-arrow-x, 50%) - 4px);
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-tooltip { transition: none; }
+}
