@@ -667,8 +667,10 @@ export class World {
       if (!wasCulled) mesh.userData.renderDistanceBaseVisible = mesh.visible
 
       const culled = this.isOutsideRenderDistance(mesh, wasCulled)
+      const storedBaseVisible = mesh.userData.renderDistanceBaseVisible
+      const baseVisible = typeof storedBaseVisible === 'boolean' ? storedBaseVisible : mesh.visible
       mesh.userData.renderDistanceCulled = culled
-      const visible = this.isObjectVisible(object) && !culled
+      const visible = baseVisible && !culled
       if (mesh.visible !== visible) {
         mesh.visible = visible
         changed = true
