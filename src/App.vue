@@ -4018,3 +4018,73 @@ button:disabled { cursor: not-allowed; }
   text-align: right;
 }
 </style>
+
+
+<style>
+/* Give the viewport tool palette enough room to show tool names, not only icons. */
+.toolbar {
+  width: 154px !important;
+  min-width: 154px;
+  align-items: stretch !important;
+  padding: 6px !important;
+  gap: 6px !important;
+  overflow-x: hidden;
+}
+.toolbar-group {
+  width: 100%;
+  align-items: stretch;
+  gap: 3px;
+}
+.toolbar-separator {
+  flex: none;
+  width: 100%;
+}
+.toolbar .tool {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start !important;
+  gap: 9px;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 34px;
+  height: auto !important;
+  padding: 5px 8px !important;
+  text-align: left;
+}
+.toolbar .tool-ico {
+  flex: 0 0 18px;
+  width: 18px;
+  text-align: center;
+  font-size: 17px;
+}
+.toolbar .tool-label {
+  position: static !important;
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+@media (max-width: 1180px) {
+  .toolbar { left: 232px !important; }
+}
+@media (max-width: 760px) {
+  .toolbar {
+    left: 188px !important;
+    width: 126px !important;
+    min-width: 126px;
+    padding: 4px !important;
+  }
+  .toolbar .tool { gap: 6px; padding-inline: 5px !important; }
+  .toolbar .tool-ico { flex-basis: 16px; width: 16px; }
+  .toolbar .tool-label { font-size: 10px; }
+}
+</style>
