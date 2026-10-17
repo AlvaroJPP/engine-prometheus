@@ -996,6 +996,14 @@ async function useAsPlayerModel() {
       // Exporta o modelo inteiro com as animações e os papéis configurados no workspace.
       // SkeletonUtils mantém os bones ligados corretamente durante a exportação.
       const exportRoot = cloneSkinnedModel(root)
+      exportRoot.userData = { ...exportRoot.userData }
+      for (const key of [
+        'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
+        'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
+        'importAnimationRoles', 'importControlBindings',
+      ]) {
+        delete exportRoot.userData[key]
+      }
       exportRoot.updateMatrixWorld(true)
       const exporter = new GLTFExporter()
       const clips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
