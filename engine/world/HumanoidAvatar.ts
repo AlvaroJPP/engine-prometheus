@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
-import type { MountPackageSettings, AnimationRole, MountMovementState } from '../script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
+import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
 
 const PLAYER_ID = 'player'
 const WALK_SPEED = 4.2
@@ -108,15 +109,27 @@ export class HumanoidAvatar {
   private mountedStartRotation: THREE.Euler | null = null
   private mountedVisualPivot: THREE.Object3D | null = null
   private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
+  private controlBindings(): ModelControlBindings {
+    return this.mountedRoot && this.mountSettings
+      ? this.mountSettings.controlBindings
+      : DEFAULT_MODEL_CONTROL_BINDINGS
+  }
+
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    // O movimento do avatar funciona tanto em primeira quanto em terceira pessoa.
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) {
-      if (event.code === 'Space') {
-        event.preventDefault()
-        if (this.mountedRoot && !event.repeat) this.mountedJumpRequested = true
-      }
-      this.pressed.add(event.code)
+    // As teclas vêm do mapa do modelo montado; o jogador a pé mantém os padrões.
+    const bindings = this.controlBindings()
+    const movementKeys = [
+      bindings.forward, bindings.backward, bindings.left, bindings.right,
+      bindings.run, bindings.jump, bindings.interact,
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    ]
+    if (!movementKeys.includes(event.code)) return
+
+    if (event.code === bindings.jump) {
+      event.preventDefault()
+      if (this.mountedRoot && !event.repeat) this.mountedJumpRequested = true
     }
+    this.pressed.add(event.code)
   }
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     this.pressed.delete(event.code)
@@ -195,10 +208,11 @@ export class HumanoidAvatar {
   update(dt: number): void {
     if (!this.enabled) return
     const step = Math.min(dt, 0.05)
-    const forwardInput = Number(this.pressed.has('KeyW') || this.pressed.has('ArrowUp')) - Number(this.pressed.has('KeyS') || this.pressed.has('ArrowDown'))
-    const sideInput = Number(this.pressed.has('KeyD') || this.pressed.has('ArrowRight')) - Number(this.pressed.has('KeyA') || this.pressed.has('ArrowLeft'))
+    const bindings = this.controlBindings()
+    const forwardInput = Number(this.pressed.has(bindings.forward) || this.pressed.has('ArrowUp')) - Number(this.pressed.has(bindings.backward) || this.pressed.has('ArrowDown'))
+    const sideInput = Number(this.pressed.has(bindings.right) || this.pressed.has('ArrowRight')) - Number(this.pressed.has(bindings.left) || this.pressed.has('ArrowLeft'))
     const length = Math.hypot(forwardInput, sideInput)
-    const running = this.pressed.has('ShiftLeft') || this.pressed.has('ShiftRight')
+    const running = this.pressed.has(bindings.run)
     const speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
 
     // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
@@ -209,7 +223,7 @@ export class HumanoidAvatar {
       return
     }
 
-    if (this.pressed.has('Space') && this.grounded) {
+    if (this.pressed.has(bindings.jump) && this.grounded) {
       this.verticalVelocity = JUMP_SPEED
       this.grounded = false
     }
