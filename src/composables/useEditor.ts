@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
-import { Engine, TERRAIN_ID } from '@engine'
+import { Engine, TERRAIN_ID, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type {
   CameraPreset,
   ObjectInfo,
@@ -14,6 +14,7 @@ import type {
   BehaviorPackageInstance,
   TextureFace,
   FaceTextureData,
+  ModelControlBindings,
 } from '@engine'
 import {
   chooseFolder,
@@ -101,6 +102,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleConditionEnabled = ref(false)
 
   let engine: Engine | null = null
+  let playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
   let autoPerformanceHealthySamples = 0
   let runtimeMode = false
@@ -474,6 +476,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     loadPerformanceSettings()
     const e = new Engine(canvas.value)
     engine = e
+    e.setControlBindings(playerControlBindings)
     appliedPerformancePreset = performanceMode.value === 'auto' ? 'economy' : performanceMode.value
     e.setPerformancePreset(appliedPerformancePreset)
     e.setRenderStatsListener((value) => {
@@ -664,9 +667,14 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
+  function setControlBindings(bindings: ModelControlBindings) {
+    playerControlBindings = { ...bindings }
+    engine?.setControlBindings(playerControlBindings)
+  }
+
   function setFirstPersonMode(enabled: boolean) {
     engine?.setFirstPersonMode(enabled)
-    say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; WASD move, Shift corre, Espaço pula e Esc libera o mouse.' : 'Modo primeira pessoa desativado.')
+    say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; use o mapa de controles ativo para se movimentar.' : 'Modo primeira pessoa desativado.')
   }
 
   function setRuntimeMode(enabled: boolean) {
@@ -1353,6 +1361,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setBuildComponentPlacement,
     addClickableCubeExample,
     cycleCamera,
+    setControlBindings,
     setFirstPersonMode,
     setRuntimeMode,
     selectItem,
