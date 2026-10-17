@@ -12,6 +12,7 @@ export interface ControlMapBindings extends ModelControlBindings {
   proneToggle: string
   dodge: string
   slide: string
+  roll: string
   primaryAction: string
   secondaryAction: string
   inventory: string
@@ -46,6 +47,7 @@ const COMMON_ACTIONS = {
   proneToggle: 'KeyZ',
   dodge: 'KeyV',
   slide: 'KeyX',
+  roll: 'KeyB',
   primaryAction: 'KeyF',
   secondaryAction: 'KeyG',
   inventory: 'Tab',
@@ -56,7 +58,6 @@ const COMMON_ACTIONS = {
   ability3: 'Digit3',
   ability4: 'Digit4',
   emote: 'KeyN',
-  lookBehind: undefined,
 }
 
 export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
@@ -77,6 +78,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       proneToggle: COMMON_ACTIONS.proneToggle,
       dodge: COMMON_ACTIONS.dodge,
       slide: COMMON_ACTIONS.slide,
+      roll: COMMON_ACTIONS.roll,
       interact: 'KeyE',
       primaryAction: COMMON_ACTIONS.primaryAction,
       secondaryAction: COMMON_ACTIONS.secondaryAction,
@@ -110,6 +112,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       proneToggle: 'KeyZ',
       dodge: 'KeyV',
       slide: 'KeyX',
+      roll: 'KeyB',
       interact: 'KeyE',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
@@ -143,6 +146,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       proneToggle: 'KeyZ',
       dodge: 'KeyV',
       slide: 'KeyX',
+      roll: 'KeyB',
       interact: 'KeyA',
       primaryAction: 'KeyR',
       secondaryAction: 'KeyT',
