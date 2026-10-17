@@ -46,7 +46,7 @@ function persistCustomComponentGroups() {
 }
 
 function inferComponentGroup(name: string): string {
-  const value = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+  const value = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').replace(/[_-]+/g, ' ')
   if (/\b(car|carro|vehicle|veiculo|moto|motorcycle|bike|truck|caminhao|van)\b/.test(value)) return 'Veículos'
   if (/\b(cj|boneco|person|personagem|human|humano|player|npc|character|cavalo|horse|animal|avatar|rider)\b/.test(value)) return 'Personagens'
   if (/\b(casa|house|building|build|construcao|medieval|porta|door|parede|wall|platform|plataforma|muro)\b/.test(value)) return 'Construções'
