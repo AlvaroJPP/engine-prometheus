@@ -27,6 +27,15 @@ export class TerrainMesh {
   private colAttr: THREE.BufferAttribute
   private bvhWorker: GenerateMeshBVHWorker | null = null
   private disposed = false
+  // Raycast direto na grade de alturas: não depende do BVH assíncrono.
+  private raycastRay = new THREE.Ray()
+  private raycastInverseMatrix = new THREE.Matrix4()
+  private raycastA = new THREE.Vector3()
+  private raycastB = new THREE.Vector3()
+  private raycastC = new THREE.Vector3()
+  private raycastD = new THREE.Vector3()
+  private raycastLocalHit = new THREE.Vector3()
+  private raycastWorldHit = new THREE.Vector3()
 
   constructor(seed: number) {
     this.field = new Heightfield(seed)
@@ -58,6 +67,134 @@ export class TerrainMesh {
     // A malha tem 20 mil triângulos. Construa a árvore de raycast em worker
     // para não travar a thread principal durante a abertura do editor.
     void this.buildRaycastAcceleration()
+  }
+
+  /**
+   * Interseção rápida com o heightfield usando travessia de grade (DDA).
+   * Testa somente as células atravessadas pelo raio, em vez de todos os 20 mil
+   * triângulos durante a inicialização do BVH ou enquanto o terreno é esculpido.
+   */
+  intersectRay(raycaster: THREE.Raycaster): THREE.Intersection | undefined {
+    if (this.disposed || !this.mesh.visible || !raycaster.layers.test(this.mesh.layers)) return undefined
+
+    this.mesh.updateWorldMatrix(true, false)
+    this.raycastInverseMatrix.copy(this.mesh.matrixWorld).invert()
+    this.raycastRay.copy(raycaster.ray).applyMatrix4(this.raycastInverseMatrix)
+
+    const origin = this.raycastRay.origin
+    const direction = this.raycastRay.direction
+    const half = TERRAIN_SIZE / 2
+    let tEnter = Math.max(0, raycaster.near)
+    let tExit = raycaster.far
+
+    // Recorta o raio contra o volume conhecido do terreno.
+    const clipAxis = (o: number, d: number, min: number, max: number): boolean => {
+      if (Math.abs(d) < 1e-12) return o >= min && o <= max
+      let t1 = (min - o) / d
+      let t2 = (max - o) / d
+      if (t1 > t2) [t1, t2] = [t2, t1]
+      tEnter = Math.max(tEnter, t1)
+      tExit = Math.min(tExit, t2)
+      return tEnter <= tExit
+    }
+
+    if (
+      !clipAxis(origin.x, direction.x, -half, half)
+      || !clipAxis(origin.y, direction.y, -16, 34)
+      || !clipAxis(origin.z, direction.z, -half, half)
+    ) return undefined
+
+    const stepSize = TERRAIN_SIZE / TERRAIN_SEGMENTS
+    const startX = origin.x + direction.x * tEnter
+    const startZ = origin.z + direction.z * tEnter
+    const gridX = THREE.MathUtils.clamp((startX + half) / stepSize, 0, TERRAIN_SEGMENTS)
+    const gridZ = THREE.MathUtils.clamp((startZ + half) / stepSize, 0, TERRAIN_SEGMENTS)
+    let cellX = Math.min(TERRAIN_SEGMENTS - 1, Math.max(0, Math.floor(gridX)))
+    let cellZ = Math.min(TERRAIN_SEGMENTS - 1, Math.max(0, Math.floor(gridZ)))
+
+    // Se o raio começa exatamente numa linha e segue para trás, entre na célula correta.
+    if (direction.x < 0 && Math.abs(gridX - Math.round(gridX)) < 1e-7) {
+      cellX = Math.max(0, Math.round(gridX) - 1)
+    }
+    if (direction.z < 0 && Math.abs(gridZ - Math.round(gridZ)) < 1e-7) {
+      cellZ = Math.max(0, Math.round(gridZ) - 1)
+    }
+
+    const stepX = direction.x > 1e-12 ? 1 : direction.x < -1e-12 ? -1 : 0
+    const stepZ = direction.z > 1e-12 ? 1 : direction.z < -1e-12 ? -1 : 0
+    const deltaTX = stepX === 0 ? Infinity : stepSize / Math.abs(direction.x)
+    const deltaTZ = stepZ === 0 ? Infinity : stepSize / Math.abs(direction.z)
+    const nextBoundaryX = (): number => Heightfield.worldX(stepX > 0 ? cellX + 1 : cellX)
+    const nextBoundaryZ = (): number => Heightfield.worldX(stepZ > 0 ? cellZ + 1 : cellZ)
+    let tMaxX = stepX === 0 ? Infinity : (nextBoundaryX() - origin.x) / direction.x
+    let tMaxZ = stepZ === 0 ? Infinity : (nextBoundaryZ() - origin.z) / direction.z
+    // Corrige pequenas diferenças numéricas quando a origem cai na própria borda.
+    if (tMaxX < tEnter) tMaxX = tEnter
+    if (tMaxZ < tEnter) tMaxZ = tEnter
+
+    const makeHit = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, faceIndex: number, cellExit: number): THREE.Intersection | undefined => {
+      const point = this.raycastRay.intersectTriangle(a, b, c, true, this.raycastLocalHit)
+      if (!point) return undefined
+
+      const hitT = (point.x - origin.x) * direction.x
+        + (point.y - origin.y) * direction.y
+        + (point.z - origin.z) * direction.z
+      if (hitT < tEnter - 1e-6 || hitT > cellExit + 1e-6 || hitT > tExit + 1e-6) return undefined
+
+      this.raycastWorldHit.copy(point).applyMatrix4(this.mesh.matrixWorld)
+      const distance = raycaster.ray.origin.distanceTo(this.raycastWorldHit)
+      if (distance < raycaster.near || distance > raycaster.far) return undefined
+      return {
+        distance,
+        point: this.raycastWorldHit.clone(),
+        object: this.mesh,
+        face: null,
+        faceIndex,
+      }
+    }
+
+    const n = TERRAIN_VERTS_PER_SIDE
+    while (
+      cellX >= 0 && cellX < TERRAIN_SEGMENTS
+      && cellZ >= 0 && cellZ < TERRAIN_SEGMENTS
+      && tEnter <= tExit + 1e-7
+    ) {
+      const x0 = Heightfield.worldX(cellX)
+      const x1 = Heightfield.worldX(cellX + 1)
+      const z0 = Heightfield.worldX(cellZ)
+      const z1 = Heightfield.worldX(cellZ + 1)
+      this.raycastA.set(x0, this.field.height(cellX, cellZ), z0)
+      this.raycastB.set(x1, this.field.height(cellX + 1, cellZ), z0)
+      this.raycastC.set(x0, this.field.height(cellX, cellZ + 1), z1)
+      this.raycastD.set(x1, this.field.height(cellX + 1, cellZ + 1), z1)
+
+      const cellExit = Math.min(tMaxX, tMaxZ, tExit)
+      const cellIndex = cellZ * TERRAIN_SEGMENTS + cellX
+      const firstHit = makeHit(this.raycastA, this.raycastC, this.raycastB, cellIndex * 2, cellExit)
+      if (firstHit) return firstHit
+      const secondHit = makeHit(this.raycastB, this.raycastC, this.raycastD, cellIndex * 2 + 1, cellExit)
+      if (secondHit) return secondHit
+
+      if (!Number.isFinite(cellExit) || cellExit >= tExit) break
+      if (tMaxX < tMaxZ) {
+        cellX += stepX
+        tEnter = tMaxX
+        tMaxX += deltaTX
+      } else if (tMaxZ < tMaxX) {
+        cellZ += stepZ
+        tEnter = tMaxZ
+        tMaxZ += deltaTZ
+      } else {
+        // Raio cruzando exatamente um canto da grade.
+        cellX += stepX
+        cellZ += stepZ
+        tEnter = tMaxX
+        tMaxX += deltaTX
+        tMaxZ += deltaTZ
+      }
+    }
+
+    return undefined
   }
 
   private async buildRaycastAcceleration(): Promise<void> {
@@ -246,9 +383,8 @@ export class TerrainMesh {
       normalAttr.addUpdateRange((iz * n + minX) * 3, normalRowWidth * 3)
     }
 
-    // O refit atualiza a hierarquia espacial após a deformação dos vértices.
-    // A geometria/indexação não muda, então reconstruir a árvore a cada quadro é desnecessário.
-    this.refitRaycastAcceleration()
+    // O raycast do pincel usa diretamente o heightfield durante o traço.
+    // A árvore espacial será atualizada uma única vez ao finalizar a pincelada.
     this.posAttr.needsUpdate = true
     this.colAttr.needsUpdate = true
     normalAttr.needsUpdate = true
