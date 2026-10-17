@@ -118,6 +118,8 @@ export class TerrainMesh {
     normals.clearUpdateRanges()
     normals.setUsage(THREE.DynamicDrawUsage)
     this.setConservativeBounds()
+    // Importar ou regenerar um projeto também muda as alturas cobertas pela BVH.
+    this.refitRaycastAcceleration()
     this.grass.refresh()
   }
 
