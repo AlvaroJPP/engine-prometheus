@@ -13,6 +13,8 @@ export interface SavedComponent {
   colliderOffset: [number, number, number]
   /** Papéis atribuídos aos clipes no preview, indexados pelo índice da animação. */
   animationRoles?: Record<string, import('@engine').AnimationRole>
+  /** Teclas personalizadas que acompanham o modelo no catálogo de componentes. */
+  controlBindings?: Partial<import('@engine').ModelControlBindings>
   bytes: ArrayBuffer
   createdAt: number
 }
