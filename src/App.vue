@@ -3582,7 +3582,7 @@ button:disabled { cursor: not-allowed; }
 <style>
 /* Layout measurements from the supplied Editor Prometheus reference. */
 .panel.left { width:282px !important; min-width:282px !important; flex:0 0 282px !important; }
-.panel.right { width:360px !important; min-width:360px !important; flex:0 0 360px !important; }
+.panel.right { width:252px !important; min-width:252px !important; flex:0 0 252px !important; }
 .toolbar { left:297px !important; }
 .viewport-fps {
   top:68px !important;
@@ -3689,7 +3689,7 @@ button:disabled { cursor: not-allowed; }
 }
 @media (max-width:1180px) {
   .panel.left { width:220px !important; min-width:220px !important; flex-basis:220px !important; }
-  .panel.right { width:290px !important; min-width:290px !important; flex-basis:290px !important; }
+  .panel.right { width:203px !important; min-width:203px !important; flex-basis:203px !important; }
   .toolbar { left:232px !important; }
   .quick-add-wrap { right:190px; }
   .model-import-launch { right:12px !important; }
@@ -3697,7 +3697,7 @@ button:disabled { cursor: not-allowed; }
 }
 @media (max-width:760px) {
   .panel.left { width:180px !important; min-width:180px !important; flex-basis:180px !important; }
-  .panel.right { width:250px !important; min-width:250px !important; flex-basis:250px !important; }
+  .panel.right { width:175px !important; min-width:175px !important; flex-basis:175px !important; }
   .toolbar { left:188px !important; }
   .quick-add-wrap { right:12px; top:54px; }
   .model-import-launch { top:12px !important; right:12px !important; }
