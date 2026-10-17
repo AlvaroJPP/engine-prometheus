@@ -140,10 +140,11 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
     const mime = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/png'
     scene.environment.skyTextureDataUrl = `data:${mime};base64,${base64}`
   }
-  if (scene.playerModel?.glbData?.startsWith('asset://')) {
-    const rel = scene.playerModel.glbData.slice('asset://'.length)
+  const playerModel = scene.playerModel
+  if (playerModel?.glbData?.startsWith('asset://')) {
+    const rel = playerModel.glbData.slice('asset://'.length)
     onProgress?.(`Carregando modelo do jogador ${rel.split('/').pop()}…`, percent)
-    scene.playerModel.glbData = await readAsset(dir, rel)
+    playerModel.glbData = await readAsset(dir, rel)
   }
   for (const object of scene.objects ?? []) {
     const faces = object.faceTextures as FaceTextureMap | undefined
