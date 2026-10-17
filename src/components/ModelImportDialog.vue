@@ -6,12 +6,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
-import { DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
-import type { AnimationRole, ModelControlBindings } from '@engine'
+import { DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
+import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
-const props = defineProps<{ open: boolean; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
+const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number }]
@@ -73,20 +73,89 @@ const controlBindingFields: Array<{ key: ControlBindingAction; label: string; de
   { key: 'jump', label: 'Pular', description: 'Salto do personagem ou montaria' },
   { key: 'interact', label: 'Interagir / montar', description: 'Montar e desmontar quando o pacote Montaria estiver instalado' },
 ]
-const animationRoleOptions: Array<{ value: AnimationRole; label: string }> = [
+const animationRoleBaseOptions: Array<{ value: AnimationRole; label: string }> = [
   { value: 'ignore', label: 'Não usar' },
   { value: 'idle', label: 'Parado / repouso' },
-  { value: 'walk', label: 'Andar em frente' },
+  { value: 'walk', label: 'Andar para frente' },
+  { value: 'walk_slow', label: 'Andar devagar (alternância de caminhada)' },
+  { value: 'walk_backward', label: 'Andar para trás' },
+  { value: 'walk_left', label: 'Deslocar para esquerda' },
+  { value: 'walk_right', label: 'Deslocar para direita' },
   { value: 'walk_diagonal_left', label: 'Andar na diagonal esquerda' },
   { value: 'walk_diagonal_right', label: 'Andar na diagonal direita' },
-  { value: 'run', label: 'Correr em frente' },
+  { value: 'run', label: 'Correr para frente' },
+  { value: 'run_backward', label: 'Correr para trás' },
+  { value: 'run_left', label: 'Correr para esquerda' },
+  { value: 'run_right', label: 'Correr para direita' },
   { value: 'run_diagonal_left', label: 'Correr na diagonal esquerda' },
   { value: 'run_diagonal_right', label: 'Correr na diagonal direita' },
   { value: 'run_stop', label: 'Parar após correr' },
   { value: 'jump', label: 'Pular' },
+  { value: 'crouch', label: 'Agachar parado' },
+  { value: 'crouch_walk', label: 'Mover agachado' },
+  { value: 'prone', label: 'Deitado / rastejar parado' },
+  { value: 'prone_crawl', label: 'Rastejar em movimento' },
+  { value: 'dodge', label: 'Esquiva' },
+  { value: 'slide', label: 'Deslizar' },
+  { value: 'roll', label: 'Rolamento evasivo' },
+  { value: 'interact', label: 'Interagir' },
+  { value: 'primary_action', label: 'Ação principal / ataque' },
+  { value: 'secondary_action', label: 'Ação secundária / defesa' },
+  { value: 'inventory', label: 'Abrir inventário' },
+  { value: 'use_item', label: 'Usar item' },
+  { value: 'reload', label: 'Recarregar' },
+  { value: 'ability_1', label: 'Habilidade 1' },
+  { value: 'ability_2', label: 'Habilidade 2' },
+  { value: 'ability_3', label: 'Habilidade 3' },
+  { value: 'ability_4', label: 'Habilidade 4' },
+  { value: 'emote', label: 'Emote / gesto' },
   { value: 'mount', label: 'Montar / subir' },
   { value: 'dismount', label: 'Desmontar / descer' },
 ]
+const animationRoleControlBindingKeys: Partial<Record<AnimationRole, keyof ControlMapBindings>> = {
+  walk: 'forward',
+  walk_slow: 'walkToggle',
+  walk_backward: 'backward',
+  walk_left: 'left',
+  walk_right: 'right',
+  walk_diagonal_left: 'left',
+  walk_diagonal_right: 'right',
+  run: 'run',
+  run_backward: 'backward',
+  run_left: 'left',
+  run_right: 'right',
+  run_diagonal_left: 'left',
+  run_diagonal_right: 'right',
+  run_stop: 'run',
+  jump: 'jump',
+  crouch: 'crouchToggle',
+  crouch_walk: 'crouchToggle',
+  prone: 'proneToggle',
+  prone_crawl: 'proneToggle',
+  dodge: 'dodge',
+  slide: 'slide',
+  roll: 'roll',
+  interact: 'interact',
+  mount: 'interact',
+  dismount: 'interact',
+  primary_action: 'primaryAction',
+  secondary_action: 'secondaryAction',
+  inventory: 'inventory',
+  use_item: 'useItem',
+  reload: 'reload',
+  ability_1: 'ability1',
+  ability_2: 'ability2',
+  ability_3: 'ability3',
+  ability_4: 'ability4',
+  emote: 'emote',
+}
+const activeControlMapBindings = computed(() => props.controlMap ?? DEFAULT_CONTROL_MAPS[0]!.bindings)
+const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option => {
+  const bindingKey = animationRoleControlBindingKeys[option.value]
+  if (!bindingKey) return option
+  const keyCode = activeControlMapBindings.value[bindingKey] ?? DEFAULT_CONTROL_MAPS[0]!.bindings[bindingKey]
+  return { ...option, label: `${option.label} · ${formatControlKey(keyCode)}` }
+}))
 const filteredPreviewParts = computed(() => {
   const query = partSearch.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return previewParts.value
@@ -117,12 +186,30 @@ function guessedAnimationRole(name: string): AnimationRole {
   if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
   if (/jump|leap|hop|saut|salto|pular/.test(normalized)) return 'jump'
   if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
+  if (/crouch|squat|agachar/.test(normalized)) return 'crouch'
+  if (/prone|crawl|rastejar/.test(normalized)) return 'prone_crawl'
+  if (/dodge|evade|esquiva/.test(normalized)) return 'dodge'
+  if (/slide|sliding|deslizar/.test(normalized)) return 'slide'
+  if (/roll|rolling|somersault|rolamento/.test(normalized)) return 'roll'
+  if (/reload|reloading/.test(normalized)) return 'reload'
+  if (/inventory|inventario/.test(normalized)) return 'inventory'
+  if (/useitem|consume|drinking|eating|usaritem/.test(normalized)) return 'use_item'
+  if (/ability1|skill1|spell1/.test(normalized)) return 'ability_1'
+  if (/ability2|skill2|spell2/.test(normalized)) return 'ability_2'
+  if (/ability3|skill3|spell3/.test(normalized)) return 'ability_3'
+  if (/ability4|skill4|spell4/.test(normalized)) return 'ability_4'
+  if (/secondaryaction|secondaryattack|block|parry|defend/.test(normalized)) return 'secondary_action'
+  if (/primaryaction|attack|strike|punch|slash|shoot|melee/.test(normalized)) return 'primary_action'
+  if (/interact|interaction|useobject/.test(normalized)) return 'interact'
+  if (/emote|gesture|dance|wave/.test(normalized)) return 'emote'
   const isRun = /gallop|canter|sprint|running|run/.test(normalized)
   const left = /left|esquerda|izquierda/.test(normalized)
   const right = /right|direita|derecha/.test(normalized)
+  const backward = /backward|backwards|reverse|walkback|moveback|backward|tras|atr.s/.test(normalized)
   const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalized)
   const lateral = /diagonal|diag|strafe|sidestep|sideways/.test(normalized) ||
     (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalized))
+  if (movementClip && backward) return isRun ? 'run_backward' : 'walk_backward'
   if (lateral && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
   if (lateral && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
   if (isRun) return 'run'
@@ -791,12 +878,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
     const savedRole = savedRoles?.[String(index)]
     const guessed = guessedAnimationRole(clip.name)
     const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
-    const recognizedRoles: AnimationRole[] = [
-      'ignore', 'idle', 'walk', 'run',
-      'walk_diagonal_left', 'walk_diagonal_right',
-      'run_diagonal_left', 'run_diagonal_right',
-      'run_stop', 'jump', 'mount', 'dismount',
-    ]
+    const recognizedRoles: AnimationRole[] = animationRoleBaseOptions.map(option => option.value)
     // Atualiza classificações automáticas antigas que guardaram um papel genérico.
     nextRoles[String(index)] = savedRole && recognizedRoles.includes(savedRole) && !(guessedIsDiagonal && ['ignore', 'walk', 'run'].includes(savedRole))
       ? savedRole
@@ -1224,7 +1306,7 @@ onBeforeUnmount(() => {
               <strong>Nenhuma animação encontrada</strong>
               <small>O arquivo precisa conter clipes de animação para configurar movimento automaticamente.</small>
             </div>
-            <p class="model-control-note">As funções incluem repouso, caminhar, correr, diagonais, pulo, montar e desmontar. Clipe sem função atribuída é ignorado pelo motor.</p>
+            <p class="model-control-note">As funções acompanham o mapa de controles ativo: movimento, caminhada lenta, postura, esquiva, rolamento, interação e ações de inventário/itens/habilidades. A tecla atual aparece ao lado do papel. Câmera e sair do jogo não acionam animações do personagem.</p>
           </section>
 
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
