@@ -632,11 +632,11 @@ export class World {
   }
 
   /** Atualiza o culling ao mudar a câmera; movimentos isolados só recalculam o objeto afetado. */
-  updateRenderDistance(cameraPosition: THREE.Vector3): void {
+  updateRenderDistance(cameraPosition: THREE.Vector3): boolean {
     const cameraMoved = !this.hasRenderDistanceCameraPosition
       || this.lastRenderDistanceCameraPosition.distanceToSquared(cameraPosition) >= 0.25
     const updateAll = this.renderDistanceDirty || cameraMoved
-    if (!updateAll && this.dirtyRenderDistanceObjectIds.size === 0) return
+    if (!updateAll && this.dirtyRenderDistanceObjectIds.size === 0) return false
 
     this.renderDistanceCameraPosition.copy(cameraPosition)
     if (updateAll) {
@@ -671,6 +671,7 @@ export class World {
     }
 
     if (changed) this.events.emit('renderInvalidated', undefined)
+    return changed
   }
 
   /** Atualiza a neblina conforme o alcance efetivo e a distância até a borda do mapa. */
