@@ -24,8 +24,8 @@ import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
-import { getMountPackageSettings } from './script/packages'
-import type { AnimationRole, BehaviorPackageInstance } from './script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings } from './script/packages'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
@@ -353,9 +353,39 @@ export class Engine {
   listRules(): LogicRule[] { return this.logic.list() }
   listBehaviorPackages(ownerObjectId?: string): BehaviorPackageInstance[] { return this.logic.listPackages(ownerObjectId) }
   installBehaviorPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance {
+    const alreadyInstalled = this.logic.listPackages(ownerObjectId).some(instance => instance.packageId === packageId)
     const instance = this.logic.installPackage(ownerObjectId, packageId)
+    if (packageId === 'mount' && !alreadyInstalled) {
+      const rawBindings = this.world.get(ownerObjectId)?.mesh.userData.importControlBindings
+      const candidate = rawBindings && typeof rawBindings === 'object'
+        ? rawBindings as Partial<ModelControlBindings>
+        : {}
+      const readKey = (key: keyof ModelControlBindings): string => {
+        const value = candidate[key]
+        return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(value)
+          ? value
+          : DEFAULT_MODEL_CONTROL_BINDINGS[key]
+      }
+      const controlBindings: ModelControlBindings = {
+        forward: readKey('forward'),
+        backward: readKey('backward'),
+        left: readKey('left'),
+        right: readKey('right'),
+        run: readKey('run'),
+        jump: readKey('jump'),
+        interact: readKey('interact'),
+      }
+      this.logic.updatePackage(instance.id, {
+        config: {
+          ...instance.config,
+          interactionKey: controlBindings.interact,
+          controlBindings,
+        },
+      })
+    }
+    const installed = this.logic.listPackages(ownerObjectId).find(item => item.packageId === packageId) ?? instance
     this.notifyBehaviorPackageChanged(ownerObjectId)
-    return instance
+    return installed
   }
   updateBehaviorPackage(
     id: string,
@@ -1080,6 +1110,11 @@ export class Engine {
     }
     root.userData.importedModel = true
     root.userData.importAnimationRoles = explicitRoles ? { ...explicitRoles } : undefined
+    const importedControlBindings = model.userData.importControlBindings
+      ?? restoreData?.importControlBindings
+    root.userData.importControlBindings = importedControlBindings && typeof importedControlBindings === 'object'
+      ? { ...importedControlBindings as Partial<ModelControlBindings> }
+      : undefined
     const componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : null
     const componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
     if (model.userData.sceneKind === 'entity') {
@@ -1417,6 +1452,7 @@ export class Engine {
         model.userData.importPart = true
         model.userData.importAnimations = gltf.animations
         model.userData.importAnimationRoles = data.importAnimationRoles
+        model.userData.importControlBindings = data.importControlBindings
         model.userData.componentId = data.componentId
         model.userData.sceneKind = data.sceneKind === 'entity' ? 'entity' : 'object'
         model.userData.importedModelData = data.importedModelData
