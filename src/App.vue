@@ -828,7 +828,12 @@ async function previewSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
     if (!component) throw new Error('Este componente não está mais na biblioteca.')
-    previewComponentAsset.value = { name: component.name, bytes: component.bytes.slice(0), animationRoles: component.animationRoles }
+    previewComponentAsset.value = {
+      name: component.name,
+      bytes: component.bytes.slice(0),
+      animationRoles: component.animationRoles,
+      controlBindings: component.controlBindings,
+    }
     modelImportOpen.value = true
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível abrir a prévia do componente.'
@@ -898,6 +903,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
       animationRoles: payload.model.userData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
+      controlBindings: payload.model.userData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
       bytes: result,
       createdAt: Date.now(),
     }
@@ -930,6 +936,7 @@ async function placeSavedComponent(id: string) {
       loader.parse(component.bytes.slice(0), '', gltf => {
         gltf.scene.userData.importAnimations = gltf.animations ?? []
         gltf.scene.userData.importAnimationRoles = component.animationRoles
+        gltf.scene.userData.importControlBindings = component.controlBindings
         resolve(gltf.scene)
       }, reject)
     })

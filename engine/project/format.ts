@@ -39,6 +39,8 @@ export interface SceneObjectData {
   importedModelHeight?: number
   /** Papel de gameplay selecionado para cada clipe de animação importado. */
   importAnimationRoles?: Record<string, import('../script/packages').AnimationRole>
+  /** Mapeamento de teclas escolhido no workspace de importação do modelo. */
+  importControlBindings?: Partial<import('../script/packages').ModelControlBindings>
 }
 
 export interface TerrainData {
