@@ -642,7 +642,7 @@ export class Engine {
         ? this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
         : undefined
       const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
-      if (event.code === interactionKey || event.code === this.playerControlBindings.interact) {
+      if (event.code === this.playerControlBindings.interact || (interactionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact && event.code === interactionKey)) {
         const mountedObjectId = this.avatar.dismount()
         if (packageInstance) {
           this.logic.setPackageVariable(packageInstance.id, 'mounted', false)
@@ -670,7 +670,7 @@ export class Engine {
         })
         .filter(candidate =>
           candidate.object?.mesh.visible &&
-          (event.code === candidate.settings.interactionKey || event.code === this.playerControlBindings.interact) &&
+          (event.code === this.playerControlBindings.interact || (candidate.settings.interactionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact && event.code === candidate.settings.interactionKey)) &&
           candidate.distance <= candidate.settings.interactionRadius,
         )
         .sort((a, b) => a.distance - b.distance)
