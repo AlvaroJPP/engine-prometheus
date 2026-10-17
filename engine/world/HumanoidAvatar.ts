@@ -17,10 +17,13 @@ const DODGE_SPEED = 10
 const DODGE_DURATION = 0.22
 const SLIDE_SPEED = 7.8
 const SLIDE_DURATION = 0.48
+const ROLL_SPEED = 6.8
+const ROLL_DURATION = 0.36
 const MANEUVER_COOLDOWN = 0.32
+const ROLL_COOLDOWN = 0.52
 
 type PlayerPosture = 'standing' | 'crouching' | 'prone'
-type PlayerManeuver = 'dodge' | 'slide' | null
+type PlayerManeuver = 'dodge' | 'slide' | 'roll' | null
 
 /** Bounds do colisor físico, independentes da malha visual importada. */
 function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
@@ -112,6 +115,7 @@ export class HumanoidAvatar {
   private posture: PlayerPosture = 'standing'
   private dodgeRequested = false
   private slideRequested = false
+  private rollRequested = false
   private maneuver: PlayerManeuver = null
   private maneuverRemaining = 0
   private maneuverCooldown = 0
@@ -151,6 +155,7 @@ export class HumanoidAvatar {
     this.walkToggled = false
     this.dodgeRequested = false
     this.slideRequested = false
+    this.rollRequested = false
   }
 
   private getPlayerHeight(): number {
@@ -167,17 +172,17 @@ export class HumanoidAvatar {
 
   private beginManeuver(kind: Exclude<PlayerManeuver, null>, direction: THREE.Vector3): void {
     this.maneuver = kind
-    this.maneuverRemaining = kind === 'slide' ? SLIDE_DURATION : DODGE_DURATION
-    this.maneuverSpeed = kind === 'slide' ? SLIDE_SPEED : DODGE_SPEED
+    this.maneuverRemaining = kind === 'slide' ? SLIDE_DURATION : kind === 'roll' ? ROLL_DURATION : DODGE_DURATION
+    this.maneuverSpeed = kind === 'slide' ? SLIDE_SPEED : kind === 'roll' ? ROLL_SPEED : DODGE_SPEED
     this.maneuverDirection.copy(direction).setY(0)
     if (this.maneuverDirection.lengthSq() < 1e-8) {
       this.maneuverDirection.set(Math.sin(this.mesh.rotation.y), 0, Math.cos(this.mesh.rotation.y))
     }
     this.maneuverDirection.normalize()
-    this.maneuverCooldown = kind === 'slide' ? 0.72 : MANEUVER_COOLDOWN
-    if (kind === 'slide') {
+    this.maneuverCooldown = kind === 'slide' ? 0.72 : kind === 'roll' ? ROLL_COOLDOWN : MANEUVER_COOLDOWN
+    if (kind === 'slide' || kind === 'roll') {
       this.postureBeforeSlide = this.posture
-      this.setPosture('crouching')
+      this.setPosture(kind === 'slide' ? 'crouching' : 'prone')
     }
   }
 
@@ -187,7 +192,7 @@ export class HumanoidAvatar {
       bindings.forward, bindings.backward, bindings.left, bindings.right,
       bindings.run, bindings.jump, bindings.interact,
       bindings.sprintToggle, bindings.walkToggle, bindings.crouchToggle,
-      bindings.proneToggle, bindings.dodge, bindings.slide,
+      bindings.proneToggle, bindings.dodge, bindings.slide, bindings.roll,
     ]
     if (!movementKeys.includes(event.code)) return
 
@@ -209,11 +214,11 @@ export class HumanoidAvatar {
         return
       }
       if (event.code === bindings.crouchToggle) {
-        if (this.maneuver !== 'slide') this.setPosture(this.posture === 'crouching' ? 'standing' : 'crouching')
+        if (this.maneuver !== 'slide' && this.maneuver !== 'roll') this.setPosture(this.posture === 'crouching' ? 'standing' : 'crouching')
         return
       }
       if (event.code === bindings.proneToggle) {
-        if (this.maneuver !== 'slide') this.setPosture(this.posture === 'prone' ? 'standing' : 'prone')
+        if (this.maneuver !== 'slide' && this.maneuver !== 'roll') this.setPosture(this.posture === 'prone' ? 'standing' : 'prone')
         return
       }
       if (event.code === bindings.dodge) {
@@ -222,6 +227,10 @@ export class HumanoidAvatar {
       }
       if (event.code === bindings.slide) {
         this.slideRequested = true
+        return
+      }
+      if (event.code === bindings.roll) {
+        this.rollRequested = true
         return
       }
     }
@@ -344,13 +353,15 @@ export class HumanoidAvatar {
     )
     if (requestedDirection.lengthSq() > 1e-8) requestedDirection.normalize()
 
-    if (this.dodgeRequested || this.slideRequested) {
-      const requestedManeuver = this.slideRequested ? 'slide' : 'dodge'
-      if (this.grounded && this.maneuverCooldown <= 0 && this.maneuver === null && (length > 0 || requestedManeuver === 'dodge')) {
+    if (this.dodgeRequested || this.slideRequested || this.rollRequested) {
+      const requestedManeuver = this.rollRequested ? 'roll' : this.slideRequested ? 'slide' : 'dodge'
+      const canStart = requestedManeuver === 'dodge' || requestedManeuver === 'roll' || length > 0
+      if (this.grounded && this.maneuverCooldown <= 0 && this.maneuver === null && canStart) {
         this.beginManeuver(requestedManeuver, requestedDirection)
       }
       this.dodgeRequested = false
       this.slideRequested = false
+      this.rollRequested = false
     }
 
     let horizontalStepY: number | null = null
@@ -364,7 +375,7 @@ export class HumanoidAvatar {
         if (normalTime > 0 && movingByInput) displacement.addScaledVector(requestedDirection, speed * normalTime)
         this.maneuverRemaining = Math.max(0, this.maneuverRemaining - step)
         if (this.maneuverRemaining <= 0) {
-          if (this.maneuver === 'slide') this.setPosture(this.postureBeforeSlide)
+          if (this.maneuver === 'slide' || this.maneuver === 'roll') this.setPosture(this.postureBeforeSlide)
           this.maneuver = null
           this.maneuverSpeed = 0
         }
@@ -1702,6 +1713,7 @@ export class HumanoidAvatar {
     this.maneuverRemaining = 0
     this.dodgeRequested = false
     this.slideRequested = false
+    this.rollRequested = false
     this.setPosture('standing')
     this.playAnimation('idle')
   }
@@ -1720,6 +1732,7 @@ export class HumanoidAvatar {
     this.maneuverCooldown = 0
     this.dodgeRequested = false
     this.slideRequested = false
+    this.rollRequested = false
     this.setPosture('standing')
     this.playAnimation('idle')
   }
