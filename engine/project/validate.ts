@@ -29,10 +29,15 @@ function isNum(v: unknown): v is number {
 }
 
 const VALID_ANIMATION_ROLES = new Set<AnimationRole>([
-  'ignore', 'idle', 'walk', 'run',
+  'ignore', 'idle', 'walk', 'walk_slow', 'walk_backward', 'walk_left', 'walk_right',
   'walk_diagonal_left', 'walk_diagonal_right',
-  'run_diagonal_left', 'run_diagonal_right',
-  'run_stop', 'jump', 'mount', 'dismount',
+  'run', 'run_backward', 'run_left', 'run_right',
+  'run_diagonal_left', 'run_diagonal_right', 'run_stop', 'jump',
+  'crouch', 'crouch_walk', 'prone', 'prone_crawl',
+  'dodge', 'slide', 'roll', 'interact',
+  'primary_action', 'secondary_action', 'inventory', 'use_item', 'reload',
+  'ability_1', 'ability_2', 'ability_3', 'ability_4', 'emote',
+  'mount', 'dismount',
 ])
 
 function parseAnimationRoleMap(value: unknown): Record<string, AnimationRole> | undefined {
