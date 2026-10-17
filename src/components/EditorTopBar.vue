@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue'
 defineProps<{
   projectName: string
   dirty: boolean
@@ -23,6 +24,15 @@ const emit = defineEmits<{
   'run-world': []
   'edit-world': []
 }>()
+function handleGlobalShortcut(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    document.getElementById('global-editor-search')?.focus()
+  }
+}
+onMounted(() => window.addEventListener('keydown', handleGlobalShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut))
+
 </script>
 
 <template>
