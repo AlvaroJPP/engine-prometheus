@@ -5,8 +5,8 @@ const props = defineProps<{
   dirty: boolean
   cameraLabel: string
   firstPersonMode: boolean
-  grassRenderDistance: number
-  grassRenderAll: boolean
+  renderDistance: number
+  renderAll: boolean
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
   objects: Array<{ id: string; name: string }>
@@ -21,8 +21,8 @@ const emit = defineEmits<{
   'save-project': [saveAs: boolean]
   'cycle-camera': []
   'toggle-first-person': []
-  'grass-render-distance-change': [value: number]
-  'grass-render-all-change': [value: boolean]
+  'render-distance-change': [value: number]
+  'render-all-change': [value: boolean]
   'open-control-maps': []
   'run-world': []
   'edit-world': []
@@ -146,28 +146,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     <div class="topbar-spacer" />
 
     <details class="render-settings">
-      <summary class="cam render-settings-trigger" :class="{ active: grassRenderAll }" title="Configurar alcance de renderização da grama">
+      <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
         <span class="render-settings-icon" aria-hidden="true">◌</span>
-        {{ grassRenderAll ? 'Grama · Tudo' : 'Grama' }}
+        {{ renderAll ? 'Render · Tudo' : 'Render' }}
         <span class="render-settings-chevron">▾</span>
       </summary>
       <div class="render-settings-popover">
-        <div class="render-settings-heading">Renderização da grama</div>
-        <p class="render-settings-description">Defina a distância máxima a partir do jogador ou da câmera do editor.</p>
+        <div class="render-settings-heading">Renderização geral</div>
+        <p class="render-settings-description">Defina a distância máxima de modelos, objetos e grama a partir da câmera do editor.</p>
         <label class="render-settings-field">
-          <span>Alcance máximo</span>
+          <span>Distância máxima</span>
           <span class="render-settings-number-wrap">
-            <input type="number" min="10" max="5000" step="1" :value="grassRenderDistance" :disabled="grassRenderAll" aria-label="Alcance máximo da grama em unidades" @change="emit('grass-render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+            <input type="number" min="10" max="5000" step="1" :value="renderDistance" :disabled="renderAll" aria-label="Distância máxima da grama em unidades" @change="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
             <small>un.</small>
           </span>
         </label>
-        <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(grassRenderDistance, 500)" :disabled="grassRenderAll" aria-label="Ajuste rápido do alcance da grama" title="Define até onde a grama aparece. Alcances maiores podem reduzir o FPS." @input="emit('grass-render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+        <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(renderDistance, 500)" :disabled="renderAll" aria-label="Ajuste rápido da distância de renderização" title="Define até onde modelos, objetos e grama são desenhados. Distâncias maiores podem reduzir o FPS." @input="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
         <div class="render-settings-range-labels"><span>10 unidades</span><span>500 unidades</span></div>
         <label class="render-settings-everything">
-          <input type="checkbox" :checked="grassRenderAll" title="Ignora o limite de distância e renderiza a grama de todo o mapa." @change="emit('grass-render-all-change', ($event.target as HTMLInputElement).checked)" />
-          <span><strong>Renderizar tudo</strong><small>Ignora a distância máxima e inclui toda a grama do mapa.</small></span>
+          <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
+          <span><strong>Renderizar tudo</strong><small>Ignora o limite global de distância para objetos, modelos 3D e grama.</small></span>
         </label>
-        <p class="render-settings-note">Quanto maior o alcance, maior o custo de renderização. A qualidade diminui gradualmente nos anéis mais distantes.</p>
+        <p class="render-settings-note">Distâncias menores reduzem a carga de renderização ao ocultar objetos distantes. A grama também usa níveis de detalhe para economizar GPU.</p>
       </div>
     </details>
     <button
