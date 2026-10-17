@@ -59,6 +59,7 @@ const {
   playerModelName,
   playerModelCustom,
   setPlayerModelFile,
+  setPlayerModelAsset,
   resetPlayerModel,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
@@ -854,6 +855,10 @@ async function renameSavedComponent(id: string, requestedName: string) {
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível renomear o componente.'
   }
+}
+
+async function handleUsePlayerModel(payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, import('@engine').AnimationRole> }) {
+  await setPlayerModelAsset(payload.bytes, payload.name, payload.animationRoles)
 }
 
 async function previewSavedComponent(id: string) {
@@ -1821,7 +1826,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" @close="closeModelImport" @import="handleModelImport" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" @close="closeModelImport" @import="handleModelImport" @use-player="handleUsePlayerModel" />
   </div>
 </template>
 
