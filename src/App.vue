@@ -918,7 +918,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
   // SkeletonUtils.clone preserva o esqueleto ao serializar modelos animados como cavalos.
   const exportRoot = cloneSkinnedModel(payload.model)
   exportRoot.userData = { ...exportRoot.userData }
-  for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl']) {
+  for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl', 'importRigPreset', 'importRigGenerated', 'importRigBoneNames']) {
     delete exportRoot.userData[key]
   }
   let savedComponentId: string | null = null
