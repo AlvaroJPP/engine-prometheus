@@ -64,7 +64,12 @@ export function loadControlMapSettings(): ControlMapSettings {
     if (!isRecord(parsed) || !Array.isArray(parsed.profiles)) return defaults
 
     const savedProfiles = parsed.profiles
-      .map(profile => normalizeProfile(profile))
+      .map(profile => {
+        const fallback = isRecord(profile) && typeof profile.id === 'string'
+          ? DEFAULT_CONTROL_MAPS.find(item => item.id === profile.id)
+          : undefined
+        return normalizeProfile(profile, fallback)
+      })
       .filter((profile): profile is ControlMapProfile => profile !== null)
     const savedById = new Map(savedProfiles.map(profile => [profile.id, profile]))
     const builtInIds = new Set(DEFAULT_CONTROL_MAPS.map(profile => profile.id))
