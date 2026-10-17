@@ -664,7 +664,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       say('Pare a execução antes de alterar o modelo do jogador.')
       return
     }
-    const baseName = name.trim().replace(/\\.[^.]+$/, '') || 'Jogador'
+    const baseName = name.trim().replace(/\.[^.]+$/, '') || 'Jogador'
     const cleanName = `${baseName}.glb`
     try {
       say(`Aplicando ativo do Model Workspace ao jogador: ${cleanName}…`)
