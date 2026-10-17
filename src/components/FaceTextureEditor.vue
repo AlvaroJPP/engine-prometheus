@@ -89,7 +89,7 @@ function removeImage() {
         class="net-face"
         :class="['face-' + face.id, { active: activeFace === face.id, textured: !!modelValue[face.id] }]"
         :style="{ gridColumn: face.x + 1, gridRow: face.y + 1 }"
-         :title="'Editar face ' + face.label + '. Clique para escolher qual lado do cubo será editado.'".trim()
+        :title="'Editar face ' + face.label + '. Clique para escolher qual lado do cubo será editado.'"
         @click="activeFace = face.id"
       >
         <img v-if="modelValue[face.id]?.imageDataUrl" :src="modelValue[face.id]?.imageDataUrl" alt="" />
