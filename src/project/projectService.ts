@@ -37,7 +37,7 @@ async function readAsset(dir: string, rel: string): Promise<string> {
 
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
   const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
-  const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length, 0)
+  const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length + Number(!!scene.playerModel?.glbData), 0)
   const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length * 2 + 2)
   let completed = 0
   const report = (message: string) => onProgress?.(message, Math.min(99, Math.round((completed / total) * 100)))
@@ -57,6 +57,16 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
       report('Salvando textura do céu…')
     } else if (environment?.skyTextureDataUrl?.startsWith('asset://')) {
       retainedAssets.add(environment.skyTextureDataUrl.slice('asset://'.length))
+    }
+    if (scene.playerModel?.glbData?.startsWith('asset://')) {
+      retainedAssets.add(scene.playerModel.glbData.slice('asset://'.length))
+    } else if (scene.playerModel?.glbData) {
+      const rel = `resources/models/player-${safeAssetId(scenePath.replace(/[^a-zA-Z0-9_-]/g, '_'))}.glb`
+      await writeAsset(dir, rel, scene.playerModel.glbData.replace(/^data:.*?;base64,/, ''))
+      scene.playerModel.glbData = `asset://${rel}`
+      retainedAssets.add(rel)
+      completed++
+      report('Salvando modelo personalizado do jogador…')
     }
     for (const object of scene.objects as SceneObjectData[]) {
       const faceTextures = object.faceTextures as FaceTextureMap | undefined
@@ -129,6 +139,11 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
     const extension = rel.split('.').pop()?.toLowerCase()
     const mime = extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : extension === 'gif' ? 'image/gif' : 'image/png'
     scene.environment.skyTextureDataUrl = `data:${mime};base64,${base64}`
+  }
+  if (scene.playerModel?.glbData?.startsWith('asset://')) {
+    const rel = scene.playerModel.glbData.slice('asset://'.length)
+    onProgress?.(`Carregando modelo do jogador ${rel.split('/').pop()}…`, percent)
+    scene.playerModel.glbData = await readAsset(dir, rel)
   }
   for (const object of scene.objects ?? []) {
     const faces = object.faceTextures as FaceTextureMap | undefined
