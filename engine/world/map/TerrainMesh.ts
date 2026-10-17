@@ -145,7 +145,6 @@ export class TerrainMesh {
       }
     }
 
-    const n = TERRAIN_VERTS_PER_SIDE
     while (
       cellX >= 0 && cellX < TERRAIN_SEGMENTS
       && cellZ >= 0 && cellZ < TERRAIN_SEGMENTS
