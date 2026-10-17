@@ -1,0 +1,15 @@
+/* Cursores do Engine Prometheus. Formato: url(arquivo) x y, fallback */
+.cursor-selecionar{cursor:url('cursores/selecionar.svg') 6 4, auto}
+.cursor-mover{cursor:url('cursores/mover.svg') 16 16, auto}
+.cursor-rotacionar{cursor:url('cursores/rotacionar.svg') 16 16, auto}
+.cursor-escalar{cursor:url('cursores/escalar.svg') 16 16, auto}
+.cursor-construir{cursor:url('cursores/construir.svg') 16 14, auto}
+.cursor-editar-terreno{cursor:url('cursores/editar-terreno.svg') 16 16, auto}
+.cursor-pintar-grama{cursor:url('cursores/pintar-grama.svg') 9 27, auto}
+.cursor-visual-script{cursor:url('cursores/visual-script.svg') 16 16, auto}
+.cursor-orbitar{cursor:url('cursores/orbitar.svg') 16 16, auto}
+.cursor-mover-camera{cursor:url('cursores/mover-camera.svg') 16 16, auto}
+.cursor-zoom{cursor:url('cursores/zoom.svg') 14 14, auto}
+.cursor-inserir{cursor:url('cursores/inserir.svg') 6 4, auto}
+.cursor-excluir{cursor:url('cursores/excluir.svg') 16 16, auto}
+.cursor-bloqueado{cursor:url('cursores/bloqueado.svg') 16 16, auto}
