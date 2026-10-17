@@ -242,6 +242,17 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
   }
 
   const environment = isRecord(obj.environment) ? obj.environment : undefined
+  let playerModel: SceneFile['playerModel'] = undefined
+  if (obj.playerModel !== undefined) {
+    if (!isRecord(obj.playerModel)) fail(`${label}: modelo do jogador inválido.`)
+    const name = obj.playerModel.name
+    const glbData = obj.playerModel.glbData
+    if (typeof name !== 'string' || name.trim() === '') fail(`${label}: nome do modelo do jogador inválido.`)
+    if (typeof glbData !== 'string' || glbData.length === 0 || glbData.length > 42_000_000 || glbData.startsWith('asset://')) {
+      fail(`${label}: dados do modelo do jogador inválidos ou grandes demais (limite aproximado de 30 MB por GLB).`)
+    }
+    playerModel = { name: name.trim(), glbData }
+  }
 
   return {
     formatVersion: FORMAT_VERSION, // já migrado para o formato atual
@@ -255,6 +266,7 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       cycleEnabled: environment.cycleEnabled === true,
       cycleSpeed: isNum(environment.cycleSpeed) ? Math.min(4, Math.max(0.01, environment.cycleSpeed)) : 0.1,
     } : undefined,
+    playerModel,
     objects,
   }
 }

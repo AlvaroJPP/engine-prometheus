@@ -81,6 +81,7 @@ export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
   private readonly visualRoot = new THREE.Group()
   private disposed = false
+  private modelLoadRevision = 0
   private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
@@ -1583,89 +1584,125 @@ export class HumanoidAvatar {
     })
   }
 
-  /** Carrega o GLB enviado no commit, mantendo o avatar procedural como fallback. */
+  /** Substitui o visual do jogador por um GLB escolhido no editor. */
+  async setCustomModel(data: ArrayBuffer): Promise<void> {
+    if (this.disposed) throw new Error('O jogador já foi descarregado.')
+    if (!(data instanceof ArrayBuffer) || data.byteLength < 20) {
+      throw new Error('O arquivo do jogador não parece ser um GLB válido.')
+    }
+
+    const revision = ++this.modelLoadRevision
+    const installed = await this.parseAndInstallModel(data.slice(0), revision)
+    if (!installed) throw new Error('O carregamento do modelo foi substituído por outra operação.')
+  }
+
+  /** Restaura o modelo padrão sem interromper o jogo enquanto o asset é carregado. */
+  async resetDefaultModel(): Promise<void> {
+    if (this.disposed) throw new Error('O jogador já foi descarregado.')
+    const revision = ++this.modelLoadRevision
+    const installed = await this.loadDefaultModel(revision)
+    if (!installed || revision !== this.modelLoadRevision) {
+      throw new Error('A restauração do modelo padrão foi interrompida.')
+    }
+  }
+
+  /** Carrega o modelo padrão embutido na aplicação, mantendo o avatar procedural como fallback. */
   private async loadSketchfabModel(): Promise<void> {
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}models/dummy.zip`)
-      if (!response.ok) throw new Error(`Não foi possível carregar o modelo (HTTP ${response.status}).`)
-      const archive = await response.arrayBuffer()
-      const view = new DataView(archive)
-      if (view.byteLength < 30 || view.getUint32(0, true) !== 0x04034b50) {
-        throw new Error('O arquivo do avatar não é um ZIP válido.')
-      }
-      const compression = view.getUint16(8, true)
-      const compressedSize = view.getUint32(18, true)
-      const nameLength = view.getUint16(26, true)
-      const extraLength = view.getUint16(28, true)
-      if (compression !== 0) throw new Error('O ZIP do avatar usa uma compressão não suportada.')
-      const dataStart = 30 + nameLength + extraLength
-      if (dataStart + compressedSize > view.byteLength) throw new Error('O GLB dentro do ZIP está incompleto.')
-      const glb = archive.slice(dataStart, dataStart + compressedSize)
-
-      const loader = new GLTFLoader()
-      loader.parse(glb, '', (gltf) => {
-        if (this.disposed) {
-          this.disposeObject(gltf.scene)
-          return
-        }
-        const bounds = new THREE.Box3().setFromObject(gltf.scene)
-        const size = bounds.getSize(new THREE.Vector3())
-        if (size.y <= 0) {
-          this.disposeObject(gltf.scene)
-          return
-        }
-
-        // Padroniza o personagem para 1,8 m e apoia os pés na origem local.
-        gltf.scene.scale.setScalar(PLAYER_HEIGHT / size.y)
-        gltf.scene.updateMatrixWorld(true)
-        const normalizedBounds = new THREE.Box3().setFromObject(gltf.scene)
-        const center = normalizedBounds.getCenter(new THREE.Vector3())
-        gltf.scene.position.x -= center.x
-        gltf.scene.position.y -= normalizedBounds.min.y
-        gltf.scene.position.z -= center.z
-        this.mixer = new THREE.AnimationMixer(gltf.scene)
-        this.animationActions.clear()
-        for (const clip of gltf.animations) {
-          const key = this.classifyAnimation(clip.name)
-          if (!this.animationActions.has(key)) this.animationActions.set(key, this.mixer.clipAction(clip))
-        }
-        gltf.scene.updateMatrixWorld(true)
-        this.animatedBones = []
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Bone || /arm|leg|thigh|calf|foot|hand|spine|hips|pelvis/i.test(child.name)) {
-            this.animatedBones.push({
-              node: child,
-              name: child.name.toLowerCase(),
-              baseX: child.rotation.x,
-              baseY: child.rotation.y,
-              baseZ: child.rotation.z,
-              basePosition: child.position.clone(),
-            })
-          }
-          if (child instanceof THREE.Mesh) {
-            child.castShadow = true
-            child.receiveShadow = true
-            child.userData.avatarPart = true
-          }
-        })
-
-        for (const child of [...this.visualRoot.children]) this.disposeObject(child)
-        this.visualRoot.clear()
-        this.proceduralLimbs = null
-        this.visualRoot.add(gltf.scene)
-        // O modelo GLB é carregado de forma assíncrona; reaplica o modo atual
-        // para esconder a cabeça também quando o avatar termina de carregar.
-        this.setFirstPersonMode(this.firstPersonMode)
-        // O estado idle pode ter sido definido antes de o GLB terminar de carregar.
-        // Força a ativação do primeiro clipe do modelo já carregado.
-        this.activeAnimation = ''
-        this.playAnimation('idle')
-      }, (error) => {
-        console.warn('[Engine Prometheus] Não foi possível carregar o avatar Dummy; mantendo o modelo de reserva.', error)
-      })
+      await this.loadDefaultModel(this.modelLoadRevision)
     } catch (error) {
-      console.warn('[Engine Prometheus] Falha ao carregar o avatar Dummy; mantendo o modelo de reserva.', error)
+      console.warn('[Engine Prometheus] Não foi possível carregar o avatar padrão; mantendo o modelo de reserva.', error)
     }
+  }
+
+  private async loadDefaultModel(revision: number): Promise<boolean> {
+    const response = await fetch(`${import.meta.env.BASE_URL}models/dummy.zip`)
+    if (!response.ok) throw new Error(`Não foi possível carregar o modelo padrão (HTTP ${response.status}).`)
+    const archive = await response.arrayBuffer()
+    const view = new DataView(archive)
+    if (view.byteLength < 30 || view.getUint32(0, true) !== 0x04034b50) {
+      throw new Error('O arquivo do avatar padrão não é um ZIP válido.')
+    }
+    const compression = view.getUint16(8, true)
+    const compressedSize = view.getUint32(18, true)
+    const nameLength = view.getUint16(26, true)
+    const extraLength = view.getUint16(28, true)
+    if (compression !== 0) throw new Error('O ZIP do avatar usa uma compressão não suportada.')
+    const dataStart = 30 + nameLength + extraLength
+    if (dataStart + compressedSize > view.byteLength) throw new Error('O GLB dentro do ZIP está incompleto.')
+    return this.parseAndInstallModel(archive.slice(dataStart, dataStart + compressedSize), revision)
+  }
+
+  private async parseAndInstallModel(data: ArrayBuffer, revision: number): Promise<boolean> {
+    const loader = new GLTFLoader()
+    const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
+      loader.parse(data, '', resolve, reject)
+    })
+
+    if (this.disposed || revision !== this.modelLoadRevision) {
+      this.disposeObject(gltf.scene)
+      return false
+    }
+
+    const bounds = new THREE.Box3().setFromObject(gltf.scene)
+    const size = bounds.getSize(new THREE.Vector3())
+    if (!Number.isFinite(size.y) || size.y <= 1e-5) {
+      this.disposeObject(gltf.scene)
+      throw new Error('O modelo não possui altura válida. Verifique se o GLB contém malhas visíveis.')
+    }
+
+    // Padroniza todos os modelos para 1,8 m e apoia os pés na origem local.
+    gltf.scene.scale.multiplyScalar(PLAYER_HEIGHT / size.y)
+    gltf.scene.updateMatrixWorld(true)
+    const normalizedBounds = new THREE.Box3().setFromObject(gltf.scene)
+    const center = normalizedBounds.getCenter(new THREE.Vector3())
+    gltf.scene.position.x -= center.x
+    gltf.scene.position.y -= normalizedBounds.min.y
+    gltf.scene.position.z -= center.z
+
+    const nextMixer = new THREE.AnimationMixer(gltf.scene)
+    const nextActions = new Map<string, THREE.AnimationAction>()
+    for (const clip of gltf.animations) {
+      const key = this.classifyAnimation(clip.name)
+      if (!nextActions.has(key)) nextActions.set(key, nextMixer.clipAction(clip))
+    }
+
+    const nextBones: typeof this.animatedBones = []
+    gltf.scene.updateMatrixWorld(true)
+    gltf.scene.traverse((child) => {
+      if (child instanceof THREE.Bone || /arm|leg|thigh|calf|foot|hand|spine|hips|pelvis/i.test(child.name)) {
+        nextBones.push({
+          node: child,
+          name: child.name.toLowerCase(),
+          baseX: child.rotation.x,
+          baseY: child.rotation.y,
+          baseZ: child.rotation.z,
+          basePosition: child.position.clone(),
+        })
+      }
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+        child.userData.avatarPart = true
+      }
+    })
+
+    // O novo modelo só substitui o antigo depois de ser carregado e validado.
+    // Assim, um GLB inválido não deixa o jogador invisível nem remove o fallback.
+    this.mixer?.stopAllAction()
+    this.animationActions.clear()
+    this.mixer = nextMixer
+    this.animationActions = nextActions
+    this.animatedBones = nextBones
+    this.firstPersonHiddenBones.clear()
+    for (const child of [...this.visualRoot.children]) this.disposeObject(child)
+    this.visualRoot.clear()
+    this.proceduralLimbs = null
+    this.visualRoot.add(gltf.scene)
+    this.setFirstPersonMode(this.firstPersonMode)
+    this.activeAnimation = ''
+    this.playAnimation('idle')
+    return true
   }
 
   private classifyAnimation(name: string): string {
