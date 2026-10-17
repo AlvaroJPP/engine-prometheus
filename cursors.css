@@ -13,3 +13,23 @@
 .cursor-inserir{cursor:url('cursores/inserir.svg') 6 4, auto}
 .cursor-excluir{cursor:url('cursores/excluir.svg') 16 16, auto}
 .cursor-bloqueado{cursor:url('cursores/bloqueado.svg') 16 16, auto}
+
+/* Ligação dos cursores aos modos e interações do editor. */
+.canvas.cursor-selecionar { cursor: url('cursores/selecionar.svg') 6 4, auto !important; }
+.canvas.cursor-mover { cursor: url('cursores/mover.svg') 16 16, move !important; }
+.canvas.cursor-rotacionar { cursor: url('cursores/rotacionar.svg') 16 16, crosshair !important; }
+.canvas.cursor-escalar { cursor: url('cursores/escalar.svg') 16 16, nwse-resize !important; }
+.canvas.tool-build.cursor-construir { cursor: url('cursores/construir.svg') 16 14, copy !important; }
+.canvas.tool-terrain.cursor-editar-terreno { cursor: url('cursores/editar-terreno.svg') 16 16, crosshair !important; }
+.canvas.tool-grass.cursor-pintar-grama { cursor: url('cursores/pintar-grama.svg') 9 27, crosshair !important; }
+.canvas[data-cursor-override="orbit"] { cursor: url('cursores/orbitar.svg') 16 16, move !important; }
+.canvas[data-cursor-override="pan"] { cursor: url('cursores/mover-camera.svg') 16 16, move !important; }
+.canvas[data-cursor-override="zoom"] { cursor: url('cursores/zoom.svg') 14 14, zoom-in !important; }
+.canvas[data-cursor-override="erase"] { cursor: url('cursores/excluir.svg') 16 16, not-allowed !important; }
+.graph-canvas.cursor-visual-script { cursor: url('cursores/visual-script.svg') 16 16, auto; }
+.graph-canvas.cursor-visual-script.is-panning { cursor: url('cursores/mover-camera.svg') 16 16, grabbing; }
+.graph-node { cursor: url('cursores/mover.svg') 16 16, grab; }
+.graph-node:active { cursor: url('cursores/mover.svg') 16 16, grabbing; }
+.quick-add-trigger, .quick-add-popover > button, .graph-actions > .primary { cursor: url('cursores/inserir.svg') 6 4, pointer; }
+.danger, .variable-delete { cursor: url('cursores/excluir.svg') 16 16, pointer; }
+button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: url('cursores/bloqueado.svg') 16 16, not-allowed !important; }

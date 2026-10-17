@@ -614,6 +614,18 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
   { id: 'scale', icon: '⤢', label: 'Escalar' },
 ]
 
+const viewportCursorClass = computed(() => {
+  if (tool.value === 'terrain') return 'cursor-editar-terreno'
+  if (tool.value === 'grass') return 'cursor-pintar-grama'
+  if (tool.value === 'build') return 'cursor-construir'
+  if (tool.value === 'select' && selectedId.value && selectedId.value !== TERRAIN_ID) {
+    if (transform.value === 'rotate') return 'cursor-rotacionar'
+    if (transform.value === 'scale') return 'cursor-escalar'
+    return 'cursor-mover'
+  }
+  return 'cursor-selecionar'
+})
+
 const selected = computed(() => objects.value.find((o) => o.id === selectedId.value) ?? null)
 const inspectorMode = computed(() => selected.value ? 'object' : selectedId.value === TERRAIN_ID ? 'terrain' : 'environment')
 watch(selectedId, () => { inspectorTab.value = 'transform'; publicLibraryOpen.value = false })
@@ -1223,7 +1235,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 
       <!-- Viewport -->
       <main class="viewport">
-        <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
+        <canvas ref="canvas" class="canvas" :class="['tool-' + tool, viewportCursorClass]" />
         <button
           v-if="worldFullscreen"
           class="world-fullscreen-exit"
@@ -1784,7 +1796,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <div class="graph-tip"><strong>Dica</strong><span>Selecione um objeto para focar sua edição. Todos os fluxos continuam visíveis no modo global.</span></div>
         </aside>
-        <div ref="graphViewport" class="graph-canvas" :class="{ 'is-panning': dragCanvas }" @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
+        <div ref="graphViewport" class="graph-canvas" :class="['cursor-visual-script', { 'is-panning': dragCanvas }] @pointerdown="startGraphPan" @pointermove="moveNode" @pointerup="endNodeDrag" @pointercancel="endNodeDrag" @wheel.prevent="onGraphWheel">
           <div class="graph-zoom-controls" @pointerdown.stop>
             <button title="Aproximar" aria-label="Aproximar" @click="zoomGraph(0.15)">＋</button>
             <span>{{ Math.round(graphZoom * 100) }}%</span>

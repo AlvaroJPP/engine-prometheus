@@ -39,6 +39,7 @@ export class PointerController {
   private pointer = new THREE.Vector2()
   private drag: Drag = { kind: 'none' }
   private lastEvent: PointerEvent | null = null
+  private cursorResetTimer: ReturnType<typeof setTimeout> | null = null
   private lastGrassPaintAt = 0
   private ring = new THREE.Mesh(
     new THREE.RingGeometry(0.94, 1, 64),
@@ -76,6 +77,7 @@ export class PointerController {
   /** Bloqueia as ferramentas de edição durante a execução do mundo. */
   setRuntimeMode(enabled: boolean): void {
     this.runtimeMode = enabled
+    this.setCursorOverride(null)
     this.drag = { kind: 'none' }
     this.lastEvent = null
     if (document.pointerLockElement === this.canvas) document.exitPointerLock()
@@ -171,6 +173,7 @@ export class PointerController {
       }
       if (e.button === 0 || e.button === 1 || e.button === 2) {
         e.preventDefault()
+        this.setCursorOverride('orbit')
         this.begin({ kind: 'orbit', lastX: e.clientX, lastY: e.clientY }, e)
       }
       return
@@ -185,10 +188,12 @@ export class PointerController {
     this.lastEvent = e
     if (e.button === 1) {
       e.preventDefault()
+      this.setCursorOverride('orbit')
       this.begin({ kind: 'orbit', lastX: e.clientX, lastY: e.clientY }, e)
       return
     }
     if (e.button === 2) {
+      this.setCursorOverride('pan')
       this.begin({ kind: 'pan', lastX: e.clientX, lastY: e.clientY }, e)
       return
     }
@@ -237,6 +242,22 @@ export class PointerController {
     this.canvas.setPointerCapture(e.pointerId)
   }
 
+  private setCursorOverride(cursor: 'orbit' | 'pan' | 'zoom' | 'erase' | null): void {
+    if (this.cursorResetTimer !== null) {
+      clearTimeout(this.cursorResetTimer)
+      this.cursorResetTimer = null
+    }
+    if (cursor) this.canvas.dataset.cursorOverride = cursor
+    else delete this.canvas.dataset.cursorOverride
+  }
+
+  private flashCursorOverride(cursor: 'zoom', duration = 180): void {
+    this.setCursorOverride(cursor)
+    this.cursorResetTimer = setTimeout(() => {
+      if (this.canvas.dataset.cursorOverride === cursor) this.setCursorOverride(null)
+    }, duration)
+  }
+
   private onDocumentMouseMove = (e: MouseEvent): void => {
     if (!this.orbit.firstPerson || document.pointerLockElement !== this.canvas) return
     this.orbit.rotate(e.movementX, e.movementY)
@@ -244,6 +265,9 @@ export class PointerController {
 
   private onMove = (e: PointerEvent): void => {
     this.lastEvent = e
+    const canEraseGrass = this.state.tool === 'grass' && e.shiftKey && (this.drag.kind === 'none' || this.drag.kind === 'grassPaint')
+    if (canEraseGrass && this.canvas.dataset.cursorOverride !== 'erase') this.setCursorOverride('erase')
+    else if (!canEraseGrass && this.canvas.dataset.cursorOverride === 'erase') this.setCursorOverride(null)
     const d = this.drag
     switch (d.kind) {
       case 'none':
@@ -252,6 +276,7 @@ export class PointerController {
       case 'orbitPending':
         if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_THRESHOLD) {
           this.drag = { kind: 'orbit', lastX: d.x, lastY: d.y }
+          this.setCursorOverride('orbit')
           this.onMove(e)
         }
         break
@@ -317,6 +342,7 @@ export class PointerController {
   private onUp = (e: PointerEvent): void => {
     const d = this.drag
     this.drag = { kind: 'none' }
+    this.setCursorOverride(null)
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId)
 
     switch (d.kind) {
@@ -408,11 +434,15 @@ export class PointerController {
   }
 
   private onLeave = (): void => {
-    if (this.drag.kind === 'none') this.ring.visible = false
+    if (this.drag.kind === 'none') {
+      this.ring.visible = false
+      this.setCursorOverride(null)
+    }
   }
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault()
+    if (this.drag.kind === 'none' || this.drag.kind === 'orbitPending') this.flashCursorOverride('zoom')
     this.orbit.zoom(e.deltaY)
   }
 
@@ -421,6 +451,7 @@ export class PointerController {
   }
 
   dispose(): void {
+    this.setCursorOverride(null)
     this.canvas.removeEventListener('pointerdown', this.onDown)
     document.removeEventListener('mousemove', this.onDocumentMouseMove)
     if (document.pointerLockElement === this.canvas) document.exitPointerLock()
