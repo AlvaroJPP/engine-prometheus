@@ -21,6 +21,10 @@ const emit = defineEmits<{
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
+const thumbnailFileInput = ref<HTMLInputElement | null>(null)
+const customThumbnail = ref<string | null>(null)
+const customThumbnailFileName = ref('')
+const thumbnailImageError = ref('')
 const canvas = ref<HTMLCanvasElement | null>(null)
 const fileName = ref('')
 const error = ref('')
@@ -947,6 +951,9 @@ function refreshModelDiagnostics() {
 
 
 function clearLoadedModel() {
+  customThumbnail.value = null
+  customThumbnailFileName.value = ''
+  thumbnailImageError.value = ''
   activeSetupTab.value = 'model'
   listeningForBinding.value = null
   controlBindings.value = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
@@ -1431,6 +1438,65 @@ function capturePreviewThumbnail(): string | undefined {
   }
 }
 
+async function chooseThumbnailImage(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  thumbnailImageError.value = ''
+
+  if (!file.type.startsWith('image/')) {
+    thumbnailImageError.value = 'Escolha um arquivo PNG, JPG, WEBP ou SVG.'
+    input.value = ''
+    return
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    thumbnailImageError.value = 'A imagem precisa ter menos de 12 MB.'
+    input.value = ''
+    return
+  }
+
+  try {
+    const source = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível ler a imagem.'))
+      reader.onerror = () => reject(reader.error ?? new Error('Não foi possível ler a imagem.'))
+      reader.readAsDataURL(file)
+    })
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => reject(new Error('O arquivo escolhido não é uma imagem válida.'))
+      element.src = source
+    })
+
+    const size = 256
+    const thumbnailCanvas = document.createElement('canvas')
+    thumbnailCanvas.width = size
+    thumbnailCanvas.height = size
+    const context = thumbnailCanvas.getContext('2d')
+    if (!context) throw new Error('Não foi possível preparar a miniatura.')
+    context.fillStyle = '#20232a'
+    context.fillRect(0, 0, size, size)
+
+    const ratio = Math.min(size / image.naturalWidth, size / image.naturalHeight)
+    const width = Math.max(1, Math.round(image.naturalWidth * ratio))
+    const height = Math.max(1, Math.round(image.naturalHeight * ratio))
+    context.drawImage(image, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height)
+    customThumbnail.value = thumbnailCanvas.toDataURL('image/webp', 0.84)
+    customThumbnailFileName.value = file.name
+  } catch (cause) {
+    thumbnailImageError.value = cause instanceof Error ? cause.message : 'Não foi possível usar essa imagem.'
+  } finally {
+    input.value = ''
+  }
+}
+
+function clearCustomThumbnail() {
+  customThumbnail.value = null
+  customThumbnailFileName.value = ''
+  thumbnailImageError.value = ''
+}
+
 function confirmImport() {
   if (!model.value || !fileName.value) return
   const root = model.value
@@ -1474,7 +1540,7 @@ function confirmImport() {
   imported.userData.importControlBindings = { ...controlBindings.value }
 
   // Capture a miniatura antes de remover o modelo da cena de pré-visualização.
-  const thumbnail = capturePreviewThumbnail()
+  const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
 
   // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
   previewMixer?.stopAllAction()
@@ -1720,6 +1786,33 @@ onBeforeUnmount(() => {
           </section>
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
+            <div class="model-panel-heading"><span>04A</span> IMAGEM DE PREVIEW</div>
+            <input
+              ref="thumbnailFileInput"
+              class="model-file-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              @change="chooseThumbnailImage"
+            />
+            <div class="model-preview-image-config">
+              <div class="model-preview-image-frame">
+                <img v-if="customThumbnail" :src="customThumbnail" alt="Prévia da imagem escolhida" />
+                <span v-else>▧</span>
+              </div>
+              <div class="model-preview-image-copy">
+                <strong :title="customThumbnailFileName">{{ customThumbnailFileName || 'Prévia 3D automática' }}</strong>
+                <small>{{ customThumbnail ? 'Esta imagem aparecerá na biblioteca de componentes.' : 'Escolha uma imagem para usar no cartão do componente.' }}</small>
+                <div class="model-preview-image-actions">
+                  <button type="button" :disabled="!model || !!props.initialAsset" title="Escolhe uma imagem JPG, PNG ou WEBP do computador para o cartão do componente." @click="thumbnailFileInput?.click()">Escolher imagem</button>
+                  <button v-if="customThumbnail" type="button" :disabled="!!props.initialAsset" title="Remove a imagem escolhida e volta a gerar a miniatura a partir da prévia 3D." @click="clearCustomThumbnail">Usar 3D</button>
+                </div>
+              </div>
+            </div>
+            <p v-if="thumbnailImageError" class="model-preview-image-error">{{ thumbnailImageError }}</p>
+            <p class="model-panel-hint">A imagem é reduzida para 256 × 256 px para não ocupar muito espaço. Se nenhuma for escolhida, o editor usa a captura da prévia 3D.</p>
+          </section>
+          <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'model'" class="model-panel-section">
             <div class="model-panel-heading"><span>05</span> TRANSFORMAÇÃO</div>
             <label class="model-height-label"><span>Altura final</span><strong>{{ modelHeight.toFixed(2) }} <small>u</small></strong></label>
             <input v-model.number="modelHeight" class="model-height-slider" type="range" min="0.1" max="10" step="0.1" :disabled="!model" title="Ajusta a altura final do modelo em unidades do mundo." />
@@ -1877,4 +1970,15 @@ onBeforeUnmount(() => {
 @media(prefers-reduced-motion:reduce){.model-loading-spinner{animation:none}}
 .model-part-search{display:flex;flex-direction:column;gap:5px;margin:10px 0;color:#9ca5b3;font-size:8px;font-weight:750;letter-spacing:.08em}.model-part-search input,.model-component-name-field input{box-sizing:border-box;width:100%;min-width:0;padding:8px 9px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:11px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.model-part-search input:focus,.model-component-name-field input:focus{outline:1px solid #b98255;border-color:#b98255}.model-preview-parts{max-height:360px!important;overflow:auto!important;padding-right:2px}.model-preview-show-all{margin-top:6px}
 .model-component-name-field{display:flex;flex-direction:column;gap:6px;color:#aeb6c4;font-size:10px}
+.model-preview-image-config{display:flex;align-items:center;gap:10px;min-width:0}
+.model-preview-image-frame{display:grid;place-items:center;flex:none;width:68px;height:68px;overflow:hidden;border:1px solid #3a414d;border-radius:5px;background:#20242c;color:#8893a4;font-size:23px}
+.model-preview-image-frame img{display:block;width:100%;height:100%;object-fit:contain}
+.model-preview-image-copy{display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
+.model-preview-image-copy strong{overflow:hidden;color:#dce2eb;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.model-preview-image-copy small{color:#8f98a6;font-size:9px;line-height:1.45}
+.model-preview-image-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.model-preview-image-actions button{padding:6px 7px;border:1px solid #424752;border-radius:4px;background:#252932;color:#d1d5dd;font-size:9px;cursor:pointer}
+.model-preview-image-actions button:first-child{border-color:#9b704d;background:#493526;color:#ffe0c3}
+.model-preview-image-actions button:disabled{opacity:.45;cursor:not-allowed}
+.model-preview-image-error{margin:8px 0 0;color:#ffaaa3;font-size:9px;line-height:1.45}
 </style>
