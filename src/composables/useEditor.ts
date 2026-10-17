@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
-import { Engine, TERRAIN_ID, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
+import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS } from '@engine'
 import type {
   CameraPreset,
   ObjectInfo,
@@ -14,7 +14,7 @@ import type {
   BehaviorPackageInstance,
   TextureFace,
   FaceTextureData,
-  ModelControlBindings,
+  ControlMapBindings,
 } from '@engine'
 import {
   chooseFolder,
@@ -102,7 +102,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleConditionEnabled = ref(false)
 
   let engine: Engine | null = null
-  let playerControlBindings: ModelControlBindings = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
+  let playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
   let autoPerformanceHealthySamples = 0
   let runtimeMode = false
