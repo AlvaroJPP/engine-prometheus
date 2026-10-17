@@ -3915,3 +3915,106 @@ button:disabled { cursor: not-allowed; }
 .quick-add-wrap { right:181px; }
 @media(max-width:1180px) { .quick-add-wrap { right:190px; } }
 </style>
+
+
+
+<style>
+/* Fix range selector dimensions: brush radius and strength must not inherit
+   the 32px height/padding used by text inputs. */
+.panel.right .scroll input[type="range"],
+.panel.right .scroll .environment-editor input[type="range"],
+.panel.right .scroll .grass-paint-panel input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  min-height: 18px;
+  margin: 5px 0 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  accent-color: #f5a524;
+  cursor: pointer;
+}
+.panel.right .scroll input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: #394250;
+}
+.panel.right .scroll input[type="range"]::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: #394250;
+}
+.panel.right .scroll input[type="range"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #b98228;
+}
+.panel.right .scroll input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 2px solid #171c24;
+  border-radius: 50%;
+  background: #f5b942;
+  box-shadow: 0 0 0 1px #a97822, 0 1px 3px #0008;
+}
+.panel.right .scroll input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #171c24;
+  border-radius: 50%;
+  background: #f5b942;
+  box-shadow: 0 0 0 1px #a97822, 0 1px 3px #0008;
+}
+.panel.right .scroll input[type="range"]:hover::-webkit-slider-thumb {
+  background: #ffd477;
+  box-shadow: 0 0 0 2px #f5a52424, 0 1px 3px #0008;
+}
+.panel.right .scroll input[type="range"]:hover::-moz-range-thumb {
+  background: #ffd477;
+  box-shadow: 0 0 0 2px #f5a52424, 0 1px 3px #0008;
+}
+.panel.right .scroll input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px #f5a52435, 0 0 0 1px #a97822;
+}
+.panel.right .scroll input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px #f5a52435, 0 0 0 1px #a97822;
+}
+.panel.right .scroll input[type="range"]:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+}
+.panel.right .scroll .slider-row {
+  align-items: center;
+  min-height: 18px;
+  gap: 10px;
+  margin: 10px 0 3px;
+}
+.panel.right .scroll .slider-row > span {
+  min-width: 0;
+  line-height: 1.35;
+}
+.panel.right .scroll .slider-row > b {
+  flex: none;
+  min-width: 44px;
+  padding: 2px 5px;
+  border: 1px solid #333d4b;
+  border-radius: 4px;
+  background: #11161d;
+  color: #e9c17a;
+  font: 10px 'IBM Plex Mono', monospace;
+  text-align: right;
+}
+</style>
