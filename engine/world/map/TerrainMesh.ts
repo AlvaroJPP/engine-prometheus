@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { CENTER, MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import { GenerateMeshBVHWorker } from 'three-mesh-bvh/worker'
 import {
   Heightfield,
   TERRAIN_SEGMENTS,
@@ -12,6 +14,8 @@ import type { PaintedGrassTuft } from './GrassLayer'
 
 export const TERRAIN_ID = 'terrain'
 
+type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
+
 export class TerrainMesh {
   readonly field: Heightfield
   readonly mesh: THREE.Mesh
@@ -21,6 +25,8 @@ export class TerrainMesh {
   private colors = new Float32Array(TERRAIN_VERTS * 3)
   private posAttr: THREE.BufferAttribute
   private colAttr: THREE.BufferAttribute
+  private bvhWorker: GenerateMeshBVHWorker | null = null
+  private disposed = false
 
   constructor(seed: number) {
     this.field = new Heightfield(seed)
@@ -49,6 +55,38 @@ export class TerrainMesh {
     this.mesh.userData.id = TERRAIN_ID
     this.grass = new GrassLayer(this.field)
     this.refresh()
+    // A malha tem 20 mil triângulos. Construa a árvore de raycast em worker
+    // para não travar a thread principal durante a abertura do editor.
+    void this.buildRaycastAcceleration()
+  }
+
+  private async buildRaycastAcceleration(): Promise<void> {
+    const geometry = this.geometry as GeometryWithBoundsTree
+    if (this.disposed || geometry.boundsTree) return
+
+    // A cópia isola o cálculo assíncrono enquanto o terreno continua editável.
+    const workerGeometry = this.geometry.clone()
+    try {
+      this.bvhWorker ??= new GenerateMeshBVHWorker()
+      const workerTree = await this.bvhWorker.generate(workerGeometry, {
+        strategy: CENTER,
+        targetLeafSize: 12,
+        indirect: true,
+      })
+      if (this.disposed) return
+
+      const serialized = MeshBVH.serialize(workerTree, { cloneBuffers: true })
+      geometry.boundsTree = MeshBVH.deserialize(serialized, this.geometry, { setIndex: false })
+      // A geometria pode ter sido esculpida durante a construção da árvore.
+      geometry.boundsTree.refit()
+      this.mesh.raycast = acceleratedRaycast
+    } catch (error) {
+      if (!this.disposed) {
+        console.warn('[TerrainMesh] BVH do terreno indisponível; usando raycast padrão.', error)
+      }
+    } finally {
+      workerGeometry.dispose()
+    }
   }
 
   /** Recalcula a malha inteira apenas ao criar ou carregar um terreno. */
@@ -94,6 +132,11 @@ export class TerrainMesh {
       new THREE.Vector3(half, 34, half),
     )
     this.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 9, 0), 75)
+  }
+
+  private refitRaycastAcceleration(): void {
+    const geometry = this.geometry as GeometryWithBoundsTree
+    geometry.boundsTree?.refit()
   }
 
   /**
@@ -201,6 +244,9 @@ export class TerrainMesh {
       normalAttr.addUpdateRange((iz * n + minX) * 3, normalRowWidth * 3)
     }
 
+    // O refit atualiza a hierarquia espacial após a deformação dos vértices.
+    // A geometria/indexação não muda, então reconstruir a árvore a cada quadro é desnecessário.
+    this.refitRaycastAcceleration()
     this.posAttr.needsUpdate = true
     this.colAttr.needsUpdate = true
     normalAttr.needsUpdate = true
@@ -239,6 +285,10 @@ export class TerrainMesh {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.bvhWorker?.dispose()
+    this.bvhWorker = null
+    delete (this.geometry as GeometryWithBoundsTree).boundsTree
     this.geometry.dispose()
     ;(this.mesh.material as THREE.Material).dispose()
     this.grass.dispose()
