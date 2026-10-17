@@ -1,6 +1,4 @@
 import * as THREE from 'three'
-import { CENTER, MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
-import { GenerateMeshBVHWorker } from 'three-mesh-bvh/worker'
 import {
   Heightfield,
   TERRAIN_SEGMENTS,
@@ -14,8 +12,6 @@ import type { PaintedGrassTuft } from './GrassLayer'
 
 export const TERRAIN_ID = 'terrain'
 
-type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
-
 export class TerrainMesh {
   readonly field: Heightfield
   readonly mesh: THREE.Mesh
@@ -25,7 +21,6 @@ export class TerrainMesh {
   private colors = new Float32Array(TERRAIN_VERTS * 3)
   private posAttr: THREE.BufferAttribute
   private colAttr: THREE.BufferAttribute
-  private bvhWorker: GenerateMeshBVHWorker | null = null
   private disposed = false
   // Raycast direto na grade de alturas: não depende do BVH assíncrono.
   private raycastRay = new THREE.Ray()
@@ -64,9 +59,6 @@ export class TerrainMesh {
     this.mesh.userData.id = TERRAIN_ID
     this.grass = new GrassLayer(this.field)
     this.refresh()
-    // A malha tem 20 mil triângulos. Construa a árvore de raycast em worker
-    // para não travar a thread principal durante a abertura do editor.
-    void this.buildRaycastAcceleration()
   }
 
   /**
@@ -176,54 +168,19 @@ export class TerrainMesh {
       if (secondHit) return secondHit
 
       if (!Number.isFinite(cellExit) || cellExit >= tExit) break
-      if (tMaxX < tMaxZ) {
+      if (tMaxX <= tMaxZ) {
+        // Em empate, atravessa um eixo por vez para não pular células no canto.
         cellX += stepX
         tEnter = tMaxX
         tMaxX += deltaTX
-      } else if (tMaxZ < tMaxX) {
+      } else {
         cellZ += stepZ
         tEnter = tMaxZ
-        tMaxZ += deltaTZ
-      } else {
-        // Raio cruzando exatamente um canto da grade.
-        cellX += stepX
-        cellZ += stepZ
-        tEnter = tMaxX
-        tMaxX += deltaTX
         tMaxZ += deltaTZ
       }
     }
 
     return undefined
-  }
-
-  private async buildRaycastAcceleration(): Promise<void> {
-    const geometry = this.geometry as GeometryWithBoundsTree
-    if (this.disposed || geometry.boundsTree) return
-
-    // A cópia isola o cálculo assíncrono enquanto o terreno continua editável.
-    const workerGeometry = this.geometry.clone()
-    try {
-      this.bvhWorker ??= new GenerateMeshBVHWorker()
-      const workerTree = await this.bvhWorker.generate(workerGeometry, {
-        strategy: CENTER,
-        targetLeafSize: 12,
-        indirect: true,
-      })
-      if (this.disposed) return
-
-      const serialized = MeshBVH.serialize(workerTree, { cloneBuffers: true })
-      geometry.boundsTree = MeshBVH.deserialize(serialized, this.geometry, { setIndex: false })
-      // A geometria pode ter sido esculpida durante a construção da árvore.
-      geometry.boundsTree.refit()
-      this.mesh.raycast = acceleratedRaycast
-    } catch (error) {
-      if (!this.disposed) {
-        console.warn('[TerrainMesh] BVH do terreno indisponível; usando raycast padrão.', error)
-      }
-    } finally {
-      workerGeometry.dispose()
-    }
   }
 
   /** Recalcula a malha inteira apenas ao criar ou carregar um terreno. */
@@ -255,8 +212,6 @@ export class TerrainMesh {
     normals.clearUpdateRanges()
     normals.setUsage(THREE.DynamicDrawUsage)
     this.setConservativeBounds()
-    // Importar ou regenerar um projeto também muda as alturas cobertas pela BVH.
-    this.refitRaycastAcceleration()
     this.grass.refresh()
   }
 
@@ -271,11 +226,6 @@ export class TerrainMesh {
       new THREE.Vector3(half, 34, half),
     )
     this.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 9, 0), 75)
-  }
-
-  private refitRaycastAcceleration(): void {
-    const geometry = this.geometry as GeometryWithBoundsTree
-    geometry.boundsTree?.refit()
   }
 
   /**
@@ -424,9 +374,6 @@ export class TerrainMesh {
 
   dispose(): void {
     this.disposed = true
-    this.bvhWorker?.dispose()
-    this.bvhWorker = null
-    delete (this.geometry as GeometryWithBoundsTree).boundsTree
     this.geometry.dispose()
     ;(this.mesh.material as THREE.Material).dispose()
     this.grass.dispose()
