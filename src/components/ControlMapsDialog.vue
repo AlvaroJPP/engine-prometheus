@@ -246,29 +246,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       <div class="profile-tools">
         <label class="profile-select">
           <span>Perfil ativo</span>
-          <select :value="activeProfile.id" @change="selectProfile(($event.target as HTMLSelectElement).value)">
+          <select :value="activeProfile.id" title="Escolhe qual mapa de controles será usado durante o jogo." @change="selectProfile(($event.target as HTMLSelectElement).value)">
             <option v-for="profile in settings.profiles" :key="profile.id" :value="profile.id">
               {{ profile.name }}{{ profile.builtIn ? ' · integrado' : ' · personalizado' }}
             </option>
           </select>
         </label>
         <div class="profile-buttons">
-          <button class="primary-button" @click="createProfile">＋ Criar mapa</button>
-          <button class="secondary-button" @click="duplicateProfile">Duplicar</button>
-          <button v-if="!activeProfile.builtIn" class="danger-button" @click="deleteProfile">Excluir</button>
+          <button class="primary-button" title="Cria um mapa de controles personalizado com vínculos editáveis." @click="createProfile">＋ Criar mapa</button>
+          <button class="secondary-button" title="Cria uma cópia independente do mapa selecionado." @click="duplicateProfile">Duplicar</button>
+          <button v-if="!activeProfile.builtIn" class="danger-button" title="Exclui o mapa personalizado selecionado." @click="deleteProfile">Excluir</button>
         </div>
       </div>
 
       <div class="profile-name">
         <label>
           <span>Nome do mapa</span>
-          <input v-model="nameDraft" maxlength="48" placeholder="Ex.: Controles do meu jogo" @keydown.enter.prevent="saveName" />
+          <input v-model="nameDraft" maxlength="48" placeholder="Ex.: Controles do meu jogo" title="Digite o nome do mapa e pressione Enter ou use Salvar nome." @keydown.enter.prevent="saveName" />
         </label>
-        <button class="secondary-button" @click="saveName">Salvar nome</button>
+        <button class="secondary-button" title="Salva o nome novo do mapa de controles." @click="saveName">Salvar nome</button>
       </div>
 
       <nav class="control-tabs" aria-label="Categorias de comandos">
-        <button v-for="group in ['Movimento', 'Postura e manobras', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" @click="selectGroup(group)">
+        <button v-for="group in ['Movimento', 'Postura e manobras', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" :title="`Mostra os vínculos de teclado de: ${group.toLocaleLowerCase('pt-BR')}.`" @click="selectGroup(group)">
           {{ group }}
         </button>
       </nav>
@@ -279,7 +279,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
             <strong>{{ action.label }}</strong>
             <small v-if="action.key === 'interact'">Também pode acionar pacotes de comportamento, como montarias.</small>
           </div>
-          <button class="key-button" :class="{ capturing: capturingAction === action.key }" @click="startCapture(action.key)">
+          <button class="key-button" :class="{ capturing: capturingAction === action.key }" :title="capturingAction === action.key ? 'Pressione a nova tecla ou combinação para esta ação.' : 'Clique para trocar a tecla de: ' + action.label + '.'" @click="startCapture(action.key)">
             {{ capturingAction === action.key ? 'Pressione uma tecla…' : keyLabel(activeProfile.bindings[action.key]) }}
             <span>{{ capturingAction === action.key ? 'Esc cancela' : 'Alterar' }}</span>
           </button>
@@ -290,8 +290,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
 
       <footer class="controls-footer">
         <span>Movimentos funcionam no jogo; ações marcadas como gatilho podem ativar regras key_pressed. Inventário e combate precisam de lógica/sistemas próprios.</span>
-        <button class="secondary-button" @click="restoreBindings">Restaurar teclas</button>
-        <button class="primary-button" @click="close">Concluído</button>
+        <button class="secondary-button" title="Restaura os vínculos padrão do mapa atual." @click="restoreBindings">Restaurar teclas</button>
+        <button class="primary-button" title="Fecha a janela de controles; as alterações já são aplicadas ao mapa." @click="close">Concluído</button>
       </footer>
     </section>
   </div>
