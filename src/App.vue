@@ -7,7 +7,6 @@ import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
 import { loadControlMapSettings, saveControlMapSettings } from '@/lib/controls/controlMapSettings'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
-import ExecutionDock from '@/components/ExecutionDock.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
@@ -21,7 +20,7 @@ import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
-const executionMode = ref<'edit' | 'running' | 'stopped'>('edit')
+const executionMode = ref<'edit' | 'running'>('edit')
 const controlMapsOpen = ref(false)
 const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
 const activeControlMap = computed(() =>
@@ -618,15 +617,6 @@ function runWorld() {
   setRuntimeMode(true)
   executionMode.value = 'running'
   status.value = `Modo Run ativo · mapa “${activeControlMap.value.name}”. Use Controles para personalizar as teclas.`
-}
-function stopWorld() {
-  if (firstPersonMode.value) {
-    firstPersonMode.value = false
-    setFirstPersonMode(false)
-  }
-  setRuntimeMode(false)
-  executionMode.value = 'stopped'
-  status.value = 'Execução interrompida'
 }
 function returnToEdit() {
   if (firstPersonMode.value) {
@@ -1647,7 +1637,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
       </aside>
     </div>
-    <ExecutionDock :mode="executionMode" @run="runWorld" @stop="stopWorld" @edit="returnToEdit" />
     <div v-if="graphOpen" class="graph-overlay">
       <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="graphObjectFilter" @change="resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="addLogicRule()">+ Criar fluxo</button><button class="primary" @click="saveProject(false)">Salvar projeto</button><button class="ghost" @click="graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
@@ -2535,26 +2524,7 @@ input[type='range'] { accent-color: #e98524; }
 .object-meta code,.object-meta strong{min-width:0;overflow:hidden;color:#d3d3d3;font-size:10px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
 .object-meta code{flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .meta-copy{padding:2px 5px;border:1px solid #484848;border-radius:3px;background:#333;color:#bbb;cursor:pointer}
-.execution-dock{position:absolute;z-index:12;left:50%;bottom:25px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:12px;min-height:86px;padding:9px 15px 7px;border:1px solid #454b53;border-radius:48px;background:linear-gradient(180deg,#3c4148 0%,#24282e 48%,#171a1f 100%);box-shadow:inset 0 1px 1px #ffffff35,inset 0 -2px 3px #0008,0 8px 28px #0009;backdrop-filter:blur(12px)}
-.media-orb{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;width:57px;height:57px;padding:0;border:1px solid #77818d;border-radius:50%;color:#f5f7fa;cursor:pointer;box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 2px 4px #0009;transition:transform .12s ease,filter .12s ease}
-.media-orb::before{position:absolute;content:"";top:3px;left:7px;right:7px;height:43%;border-radius:50% 50% 45% 45%;background:linear-gradient(180deg,#ffffff6b,#ffffff08);pointer-events:none}
-.media-orb:hover{filter:brightness(1.18);transform:translateY(-1px)}
-.media-orb:active{transform:translateY(1px);box-shadow:inset 0 3px 7px #0008,0 1px 2px #0008}
-.media-orb .orb-glyph{position:relative;z-index:1;font-size:17px;line-height:1;text-shadow:0 1px 2px #0009}
-.media-orb small{position:relative;z-index:1;font-size:9px;font-weight:750;line-height:1;text-shadow:0 1px 2px #000}
-.media-stop{width:49px;height:49px;background:linear-gradient(180deg,#e8f0f6 0%,#8398aa 17%,#465d70 52%,#263747 100%);border-color:#a8bac8;margin-top:4px}
-.media-stop .orb-glyph{color:#fff;font-size:13px}
-.media-run{width:69px;height:69px;background:linear-gradient(180deg,#e9ffd9 0%,#9bd76d 15%,#4caa35 48%,#216b20 100%);border:2px solid #c7f3a9;box-shadow:inset 0 2px 3px #ffffffc2,inset 0 -7px 9px #174c16b8,0 0 0 3px #1b241d,0 3px 8px #000b}
-.media-run .orb-glyph{font-size:23px}
-.media-edit{width:49px;height:49px;margin-top:4px;background:linear-gradient(180deg,#fff1d4 0%,#e9b86d 17%,#b97a31 53%,#70431e 100%);border-color:#f0c58b}
-.media-edit .orb-glyph{font-size:17px}
-.media-orb.active{filter:brightness(1.2);outline:1px solid #ffffff80;outline-offset:2px}
-.media-stop.active{box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 0 0 2px #d8e6f2,0 2px 5px #0009}
-.media-run.active{box-shadow:inset 0 2px 3px #ffffffc2,inset 0 -7px 9px #174c16b8,0 0 0 3px #1b241d,0 0 0 5px #8be36d,0 3px 8px #000b}
-.media-edit.active{box-shadow:inset 0 2px 2px #ffffff8a,inset 0 -5px 7px #0008,0 0 0 2px #f0c58b,0 2px 5px #0009}
-.dock-state{display:flex;align-items:center;gap:6px;margin-left:3px;padding:0 3px;color:#b8bec7;font-size:9px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
-.dock-state i{width:6px;height:6px;border-radius:50%;background:#9c9c9c}.dock-state i.running{background:#83e46f;box-shadow:0 0 0 3px #83bd771a}.dock-state i.stopped{background:#ed786f}.dock-state i.edit{background:#efb567}
-@media(max-width:850px){.execution-dock{bottom:32px;gap:8px;min-height:72px;padding:7px 10px}.media-orb{width:45px;height:45px}.media-run{width:59px;height:59px}.media-orb .orb-glyph{font-size:14px}.media-run .orb-glyph{font-size:20px}.media-orb small{font-size:8px}.dock-state{display:none}.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
+@media(max-width:850px){.inspector-tabs{padding-inline:4px;gap:1px}.inspector-tabs button small{font-size:8px}}
 </style>
 
 <style>
@@ -2763,11 +2733,11 @@ input[type='range'] { accent-color: #e98524; }
 </style>
 
 <style>
-/* Durante Run, somente o viewport e os controles Run/Stop/Edit recebem entrada. */
+/* Durante Run, bloqueia a edição da cena, mas mantém o viewport e a barra superior interativos. */
 .app.is-running * { pointer-events:none !important; }
 .app.is-running canvas.canvas,
-.app.is-running .execution-dock,
-.app.is-running .execution-dock * { pointer-events:auto !important; }
+.app.is-running .topbar,
+.app.is-running .topbar * { pointer-events:auto !important; }
 .app.is-running .model-import-launch { display:none !important; }
 .model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
 .model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
@@ -2940,10 +2910,6 @@ input:focus, select:focus, textarea:focus { outline:1px solid #f5a524; border-co
 .scroll .environment-range { accent-color:#f5a524; }
 .scroll input[type=range] { accent-color:#f5a524; }
 .scroll input:disabled,.scroll select:disabled { opacity:.45; }
-.execution-dock { position:absolute !important; z-index:14; left:50% !important; bottom:38px !important; transform:translateX(-50%); display:flex; align-items:center; gap:7px; padding:5px 8px; border:1px solid #252a33; border-radius:8px; background:#14171ce8; box-shadow:0 8px 28px #0005; }
-.media-orb { min-height:30px; min-width:34px; padding:2px 8px; border:1px solid #2c323d; border-radius:5px; background:#181c23; color:#e6e8ec; }
-.media-run { background:#2ea043 !important; border-color:#2ea043 !important; color:#fff !important; }
-.dock-state { padding:0 5px; color:#9aa1ae; font-size:9px; white-space:nowrap; }
 .toolbar { position:fixed; z-index:25; top:58px; left:276px; display:flex; flex-direction:column; align-items:stretch; gap:5px; width:42px; max-height:calc(100vh - 110px); padding:5px; overflow-x:hidden; overflow-y:auto; border:1px solid #252a33; border-radius:8px; background:#14171ceF; box-shadow:0 6px 24px #0004; scrollbar-width:none; }
 .toolbar-group { display:flex; flex-direction:column; gap:3px; }
 .toolbar-separator { display:block; width:100%; height:1px; margin:1px 0; background:#252a33; }
@@ -3237,46 +3203,7 @@ input:focus, select:focus, textarea:focus { outline:1px solid #f5a524; border-co
 .model-import-launch:active { transform: translateY(1px); }
 .chips { gap: 5px; }
 .chip { backdrop-filter: blur(8px); }
-.viewport-fps { backdrop-filter: blur(10px); box-shadow: 0 4px 14px #0003; }
-.execution-dock {
-  gap: 5px;
-  padding: 5px 7px;
-  border-color: #363d48;
-  background: #14181ff0;
-  box-shadow: 0 8px 24px #0005, 0 1px 0 #ffffff06 inset;
-  backdrop-filter: blur(12px);
-}
-.execution-dock .media-orb {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 48px;
-  min-height: 34px;
-  width: auto;
-  height: 34px;
-  border: 1px solid #333b47;
-  border-radius: 5px;
-  background: #1c222b;
-  box-shadow: none;
-}
-.execution-dock .media-orb::before { display: none; }
-.execution-dock .media-orb:hover { border-color: #4b5665; background: #252c37; }
-.execution-dock .media-orb .orb-glyph { font-size: 12px; }
-.execution-dock .media-orb small { font-size: 9px; }
-.execution-dock .media-run {
-  border-color: #2ea043 !important;
-  background: #238636 !important;
-  color: #fff !important;
-}
-.execution-dock .media-run:hover { background: #2ea043 !important; }
-.execution-dock .media-stop.active { border-color: #6a3434; background: #2b1a1b; color: #ffaaa2; }
-.execution-dock .dock-state {
-  margin-left: 3px;
-  padding-left: 9px;
-  border-left: 1px solid #303744;
-}
-.toolbar {
+.viewport-fps { backdrop-filter: blur(10px); box-shadow: 0 4px 14px #0003; }.toolbar {
   gap: 6px;
   border-color: #2d333e;
   background: #151920f5;
@@ -3331,14 +3258,11 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 760px) {
   .statusbar .seg:not(.grow-text):not(.status-version) { display: none; }
   .statusbar .seg.grow-text { border-left: 0; }
-  .execution-dock { max-width: calc(100vw - 24px); gap: 3px; padding-inline: 5px; }
-  .execution-dock .dock-state { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
   .toolbar { max-height: calc(100dvh - 100px); }
 }
 @media (max-height: 720px) {
   .toolbar { max-height: calc(100dvh - 92px); }
   .chips { display: none; }
-  .execution-dock { bottom: 34px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
