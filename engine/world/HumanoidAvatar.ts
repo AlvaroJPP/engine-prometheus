@@ -127,7 +127,7 @@ export class HumanoidAvatar {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    // As teclas vêm do mapa do modelo montado; o jogador a pé mantém os padrões.
+    // O jogador usa o mapa ativo; montarias personalizadas podem manter teclas próprias.
     const bindings = this.controlBindings()
     const movementKeys = [
       bindings.forward, bindings.backward, bindings.left, bindings.right,
