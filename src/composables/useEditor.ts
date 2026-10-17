@@ -653,6 +653,30 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
+  async function setPlayerModelAsset(
+    bytes: ArrayBuffer,
+    name: string,
+    animationRoles?: Record<string, import('@engine').AnimationRole>,
+  ): Promise<void> {
+    const eng = engine
+    if (!eng) return
+    if (runtimeMode) {
+      say('Pare a execução antes de alterar o modelo do jogador.')
+      return
+    }
+    const cleanName = name.toLowerCase().endsWith('.glb') ? name : `${name || 'Jogador'}.glb`
+    try {
+      say(`Aplicando ativo do Model Workspace ao jogador: ${cleanName}…`)
+      await eng.setPlayerModel(bytes, cleanName, animationRoles)
+      playerModelName.value = eng.getPlayerModelName()
+      playerModelCustom.value = eng.hasCustomPlayerModel()
+      dirty.value = true
+      say(`Modelo do jogador configurado a partir do Model Workspace: "${playerModelName.value}". Salve o projeto para preservar a configuração.`)
+    } catch (error) {
+      say(`Não foi possível usar este ativo como modelo do jogador: ${errMsg(error)}`)
+    }
+  }
+
   async function resetPlayerModel(): Promise<void> {
     const eng = engine
     if (!eng) return
@@ -1346,6 +1370,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     playerModelName,
     playerModelCustom,
     setPlayerModelFile,
+    setPlayerModelAsset,
     resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
