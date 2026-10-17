@@ -2756,7 +2756,7 @@ input[type='range'] { accent-color: #e98524; }
 
 <style>
 /* Final cascade layer: keep the redesign ahead of legacy App.vue rules. */
-500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 :root {
   --bg: #0e1013;
   --panel: #14171c;
