@@ -89,7 +89,7 @@ function removeImage() {
         class="net-face"
         :class="['face-' + face.id, { active: activeFace === face.id, textured: !!modelValue[face.id] }]"
         :style="{ gridColumn: face.x + 1, gridRow: face.y + 1 }"
-        :title="'Editar face ' + face.label"
+         :title="'Editar face ' + face.label + '. Clique para escolher qual lado do cubo será editado.'".trim()
         @click="activeFace = face.id"
       >
         <img v-if="modelValue[face.id]?.imageDataUrl" :src="modelValue[face.id]?.imageDataUrl" alt="" />
@@ -104,13 +104,13 @@ function removeImage() {
       <img :src="imagePreview" alt="Prévia da imagem de textura" />
       <div><strong>Imagem carregada</strong><small>Será aplicada somente nesta face.</small></div>
     </div>
-    <button class="face-import-button" @click="chooseImage">▧ {{ imagePreview ? 'Trocar imagem' : 'Importar imagem' }}</button>
+    <button class="face-import-button" title="Carrega uma imagem para usar como textura apenas na face selecionada." @click="chooseImage">▧ {{ imagePreview ? 'Trocar imagem' : 'Importar imagem' }}</button>
     <div class="pixel-size-grid">
-      <label>Pixels X <input v-model.number="pixelWidth" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
-      <label>Pixels Y <input v-model.number="pixelHeight" type="number" min="8" max="10000" step="8" @change="applyImage" /></label>
+      <label title="Largura da textura em pixels. Alterar aplica a imagem novamente.">Pixels X <input v-model.number="pixelWidth" type="number" min="8" max="10000" step="8" title="Define a largura da imagem da textura em pixels." @change="applyImage" /></label>
+      <label title="Altura da textura em pixels. Alterar aplica a imagem novamente.">Pixels Y <input v-model.number="pixelHeight" type="number" min="8" max="10000" step="8" title="Define a altura da imagem da textura em pixels." @change="applyImage" /></label>
     </div>
     <p class="face-texture-help">Por padrão, usa a resolução original da imagem. Você pode ajustar manualmente entre 8 e 10000 px.</p>
-    <button v-if="selected" class="face-remove-button" @click="removeImage">Remover textura desta face</button>
+    <button v-if="selected" class="face-remove-button" title="Remove a imagem desta face e restaura seu material padrão." @click="removeImage">Remover textura desta face</button>
   </div>
 </template>
 
