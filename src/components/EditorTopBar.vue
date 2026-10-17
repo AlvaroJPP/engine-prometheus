@@ -98,16 +98,40 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">Salvar</button>
 
     <div class="global-search-wrap">
-      <label class="global-search">
-        <span class="search-glass" aria-hidden="true">⌕</span>
-        <input id="global-editor-search" v-model="searchQuery" type="search" placeholder="Buscar objetos, componentes e comandos…" aria-label="Busca global do editor" @keydown.esc="searchQuery = ''" />
-        <kbd>Ctrl K</kbd>
-      </label>
+      <div class="global-search" :class="{ 'has-query': searchQuery.trim() }">
+        <svg class="search-glass" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="8.7" cy="8.7" r="5.7" />
+          <path d="m13 13 4 4" />
+        </svg>
+        <input
+          id="global-editor-search"
+          v-model="searchQuery"
+          type="search"
+          placeholder="Pesquisar no editor…"
+          aria-label="Busca global do editor"
+          title="Pesquisar no editor (Ctrl+K)"
+          autocomplete="off"
+          spellcheck="false"
+          @keydown.esc="searchQuery = ''"
+        />
+        <button v-if="searchQuery" class="global-search-clear" type="button" title="Limpar pesquisa" aria-label="Limpar pesquisa" @mousedown.prevent @click="searchQuery = ''">×</button>
+        <span v-else class="search-shortcut" aria-label="Atalho Ctrl mais K">
+          <kbd>Ctrl</kbd><kbd>K</kbd>
+        </span>
+      </div>
       <div v-if="searchQuery.trim()" class="global-search-results" role="listbox" aria-label="Resultados da busca">
+        <div class="global-search-results-heading">
+          <span>RESULTADOS</span>
+          <kbd>{{ searchResults.length }}</kbd>
+        </div>
         <button v-for="result in searchResults" :key="result.key" class="global-search-result" role="option" @mousedown.prevent="activateSearchResult(result)">
-          <span class="global-search-result-main">{{ result.label }}</span><small>{{ result.detail }}</small>
+          <span class="global-search-result-main">{{ result.label }}</span>
+          <small>{{ result.detail }}</small>
         </button>
-        <div v-if="!searchResults.length" class="global-search-empty">Nenhum resultado encontrado</div>
+        <div v-if="!searchResults.length" class="global-search-empty">
+          <span class="global-search-empty-icon">⌕</span>
+          <span><strong>Nenhum resultado encontrado</strong><small>Tente outro termo ou nome de comando.</small></span>
+        </div>
       </div>
     </div>
 
@@ -157,17 +181,192 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 .file-menu-popover button { display:flex; justify-content:space-between; align-items:center; width:100%; min-height:32px; padding:0 9px; border:0; border-radius:4px; background:transparent; color:#e6e8ec; text-align:left; cursor:pointer; }
 .file-menu-popover button:hover { background:#252a33; }
 kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1ae; font:10px 'IBM Plex Mono',monospace; }
-.global-search-wrap { position:relative; flex:1 1 260px; width:min(420px,30vw); max-width:420px; min-width:140px; }
-.global-search { display:flex; align-items:center; gap:8px; flex:1 1 260px; width:100%; max-width:100%; min-width:0; height:32px; padding:0 7px 0 10px; border:1px solid #252a33; border-radius:6px; background:#0e1013; color:#9aa1ae; }
-.global-search input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:#e6e8ec; font-size:11px; }
-.global-search input::placeholder { color:#7b8290; }
-.search-glass { font-size:20px; line-height:1; }
-.global-search-results { position:absolute; z-index:260; top:calc(100% + 5px); left:0; right:0; max-height:320px; overflow:auto; padding:4px; border:1px solid #2c323d; border-radius:7px; background:#14171c; box-shadow:0 12px 32px #0009; }
-.global-search-result { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:34px; padding:5px 8px; border:0; border-radius:4px; background:transparent; color:#e6e8ec; text-align:left; cursor:pointer; }
-.global-search-result:hover { background:#292314; color:#f5c56b; }
-.global-search-result-main { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.global-search-result small { flex:none; color:#7b8290; font-size:10px; }
-.global-search-empty { padding:12px 8px; color:#9aa1ae; font-size:11px; }
+.global-search-wrap {
+  position:relative;
+  z-index:1;
+  flex:1 1 300px;
+  width:min(440px,34vw);
+  max-width:440px;
+  min-width:180px;
+}
+.global-search {
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  width:100%;
+  min-width:0;
+  height:34px;
+  padding:0 8px 0 10px;
+  border:1px solid #2b313c;
+  border-radius:7px;
+  background:#101319;
+  color:#929cac;
+  transition:border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.global-search:hover {
+  border-color:#3a4351;
+  background:#12161d;
+}
+.global-search:focus-within {
+  border-color:#a87824;
+  background:#11151b;
+  box-shadow:0 0 0 3px #f5a52415, 0 1px 0 #ffffff05 inset;
+}
+.search-glass {
+  flex:none;
+  width:15px;
+  height:15px;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  transition:color .15s ease;
+}
+.global-search:focus-within .search-glass { color:#e9b75c; }
+.global-search input {
+  flex:1;
+  width:100%;
+  min-width:0;
+  padding:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#e6eaf1;
+  font:400 12px/1.4 Inter, 'Segoe UI', sans-serif;
+}
+.global-search input::placeholder { color:#788394; opacity:1; }
+.global-search input::-webkit-search-cancel-button { display:none; }
+.search-shortcut {
+  display:flex;
+  align-items:center;
+  flex:none;
+  gap:3px;
+  margin-left:5px;
+  padding-left:9px;
+  border-left:1px solid #2b313c;
+}
+.search-shortcut kbd {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:20px;
+  height:19px;
+  box-sizing:border-box;
+  padding:0 5px;
+  border:1px solid #353d49;
+  border-radius:4px;
+  background:linear-gradient(180deg,#202630 0%,#191e26 100%);
+  color:#aab3c1;
+  font:500 9px/1 'IBM Plex Mono',monospace;
+  box-shadow:0 1px 0 #0005;
+}
+.search-shortcut kbd:first-child { min-width:31px; }
+.global-search-clear {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  width:21px;
+  height:21px;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:4px;
+  background:transparent;
+  color:#8e98a8;
+  font:18px/1 'Segoe UI',sans-serif;
+  cursor:pointer;
+}
+.global-search-clear:hover {
+  border-color:#3a4351;
+  background:#202630;
+  color:#f0f2f6;
+}
+.global-search-results {
+  position:absolute;
+  z-index:260;
+  top:calc(100% + 6px);
+  left:0;
+  right:0;
+  max-height:min(360px,60vh);
+  overflow:auto;
+  padding:5px;
+  border:1px solid #353d49;
+  border-radius:8px;
+  background:#151920;
+  box-shadow:0 16px 38px #0009,0 1px 0 #ffffff05 inset;
+  backdrop-filter:blur(14px);
+}
+.global-search-results-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:24px;
+  padding:0 8px 4px;
+  border-bottom:1px solid #262d38;
+  color:#7e899a;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.09em;
+}
+.global-search-results-heading kbd {
+  min-width:18px;
+  padding:2px 5px;
+  border:1px solid #303845;
+  border-radius:4px;
+  color:#a6afbd;
+  font:10px 'IBM Plex Mono',monospace;
+  letter-spacing:0;
+  text-align:center;
+}
+.global-search-result {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  width:100%;
+  min-height:35px;
+  margin-top:2px;
+  padding:6px 8px;
+  border:1px solid transparent;
+  border-radius:5px;
+  background:transparent;
+  color:#e1e6ee;
+  text-align:left;
+  cursor:pointer;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
+}
+.global-search-result:hover,
+.global-search-result:focus-visible {
+  border-color:#4c3a1c;
+  outline:0;
+  background:#2a2317;
+  color:#f5c56b;
+}
+.global-search-result-main { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+.global-search-result small { flex:none; color:#8490a1; font-size:10px; }
+.global-search-empty {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:16px 10px;
+  color:#a6afbd;
+  font-size:11px;
+}
+.global-search-empty-icon {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:30px;
+  height:30px;
+  flex:none;
+  border:1px solid #2e3541;
+  border-radius:6px;
+  color:#8d98a8;
+  font-size:18px;
+}
+.global-search-empty > span:last-child { display:flex; flex-direction:column; gap:4px; }
+.global-search-empty strong { color:#dce2eb; font-size:11px; font-weight:600; }
+.global-search-empty small { color:#8792a3; font-size:10px; }
 
 .mode-segment { display:flex; flex:none; padding:3px; gap:2px; border:1px solid #252a33; border-radius:7px; background:#0b0d10; }
 .mode-segment button { height:26px; min-width:55px; padding:0 10px; border:0; border-radius:4px; background:transparent; color:#9aa1ae; font-size:11px; cursor:pointer; }
@@ -205,7 +404,6 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .project { display:none; }
   .global-search-wrap { display:block; flex:1 1 170px; width:auto; max-width:300px; min-width:130px; }
   .topbar-spacer { display:none; }
-  .global-search kbd { display:none; }
   .cam { padding-inline:7px; }
 }
 @media(max-width:760px) {
