@@ -1652,7 +1652,7 @@ export class HumanoidAvatar {
     }
 
     // Padroniza todos os modelos para 1,8 m e apoia os pés na origem local.
-    gltf.scene.scale.setScalar(PLAYER_HEIGHT / size.y)
+    gltf.scene.scale.multiplyScalar(PLAYER_HEIGHT / size.y)
     gltf.scene.updateMatrixWorld(true)
     const normalizedBounds = new THREE.Box3().setFromObject(gltf.scene)
     const center = normalizedBounds.getCenter(new THREE.Vector3())
