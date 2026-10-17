@@ -9,18 +9,7 @@ import type {
 } from '@engine'
 
 const STORAGE_KEY = 'engine-prometheus.control-maps.v1'
-const BINDING_KEYS: (keyof ControlMapBindings)[] = [
-  'forward',
-  'backward',
-  'left',
-  'right',
-  'run',
-  'jump',
-  'interact',
-  'toggleFirstPerson',
-  'cycleCamera',
-  'exitRuntime',
-]
+const BINDING_KEYS = Object.keys(DEFAULT_CONTROL_MAPS[0]!.bindings) as (keyof ControlMapBindings)[]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
