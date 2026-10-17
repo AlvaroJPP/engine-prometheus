@@ -32,7 +32,6 @@ function distanceToSegmentSquared(point: THREE.Vector3, start: THREE.Vector3, en
 
 function createJointSpecs(bounds: THREE.Box3, preset: AutoRigPreset): JointSpec[] {
   const min = bounds.min
-  const max = bounds.max
   const size = bounds.getSize(new THREE.Vector3())
   const center = bounds.getCenter(new THREE.Vector3())
   const h = Math.max(size.y, 0.1)
@@ -155,7 +154,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
   const bones: THREE.Bone[] = []
   for (const spec of specs) {
     const bone = new THREE.Bone()
-    bone.name = `Rig_${spec.name.replace(/[^A-Za-z0-9_.-]/g, '_')}`
+    bone.name = `Rig_${spec.name.replace(/[^A-Za-z0-9_-]/g, '_')}`
     bone.userData.generatedRigBone = true
     const parent = spec.parent ? boneByName.get(spec.parent) : undefined
     if (spec.parent && !parent) throw new Error(`A hierarquia do rig tem um pai ausente: ${spec.parent}`)
