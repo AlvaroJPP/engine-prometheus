@@ -110,7 +110,9 @@ function showTooltip(target: TooltipTarget): void {
 
   activeTarget = target
   previousDescribedBy = target.getAttribute('aria-describedby')
-  target.setAttribute('aria-describedby', TOOLTIP_ID)
+  const describedBy = new Set((previousDescribedBy ?? '').split(/\\s+/).filter(Boolean))
+  describedBy.add(TOOLTIP_ID)
+  target.setAttribute('aria-describedby', [...describedBy].join(' '))
 }
 
 function cancelPending(): void {
