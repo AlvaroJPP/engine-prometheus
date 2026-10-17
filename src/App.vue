@@ -4153,3 +4153,19 @@ button:disabled { cursor: not-allowed; }
   }
 }
 </style>
+
+
+<style>
+/* Keep the tool palette at roughly half the available viewport height. */
+.toolbar {
+  height: calc((100dvh - 96px) / 2) !important;
+  max-height: calc((100dvh - 96px) / 2) !important;
+  overflow-y: auto !important;
+}
+@media (max-width: 760px) {
+  .toolbar {
+    height: calc((100dvh - 92px) / 2) !important;
+    max-height: calc((100dvh - 92px) / 2) !important;
+  }
+}
+</style>
