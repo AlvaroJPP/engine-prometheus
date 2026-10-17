@@ -394,9 +394,8 @@ export class PointerController {
       if (hit) surfaces.push(hit.point.y)
     }
     if (this.world.terrain.mesh.visible) {
-      const terrainHits = down.intersectObject(this.world.terrain.mesh, false)
-      const terrainHit = terrainHits.find((hit) => hit.point.y <= referenceY + 0.05)
-      if (terrainHit) surfaces.push(terrainHit.point.y)
+      const terrainHit = this.world.terrain.intersectRay(down)
+      if (terrainHit && terrainHit.point.y <= referenceY + 0.05) surfaces.push(terrainHit.point.y)
       else surfaces.push(this.world.terrain.heightAt(x, z))
     } else if (surfaces.length === 0) {
       return referenceY
