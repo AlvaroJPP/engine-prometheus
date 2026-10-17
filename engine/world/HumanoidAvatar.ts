@@ -135,8 +135,12 @@ export class HumanoidAvatar {
     ]
     if (!movementKeys.includes(event.code)) return
 
+    const target = event.target as HTMLElement | null
+    const tag = target?.tagName
+    const editingText = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable
+    if (this.enabled && !editingText) event.preventDefault()
+
     if (event.code === bindings.jump) {
-      event.preventDefault()
       if (this.mountedRoot && !event.repeat) this.mountedJumpRequested = true
     }
     this.pressed.add(event.code)
