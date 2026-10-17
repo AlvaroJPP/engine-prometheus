@@ -157,7 +157,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <label class="render-settings-field">
           <span>Distância máxima</span>
           <span class="render-settings-number-wrap">
-            <input type="number" min="10" max="5000" step="1" :value="renderDistance" :disabled="renderAll" aria-label="Distância máxima da grama em unidades" @change="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+            <input type="number" min="10" max="5000" step="1" :value="renderDistance" :disabled="renderAll" aria-label="Distância de renderização em unidades" @change="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
             <small>un.</small>
           </span>
         </label>
@@ -165,7 +165,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <div class="render-settings-range-labels"><span>10 unidades</span><span>500 unidades</span></div>
         <label class="render-settings-everything">
           <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
-          <span><strong>Renderizar tudo</strong><small>Ignora o limite global de distância para objetos, modelos 3D e grama.</small></span>
+          <span><strong>Renderizar tudo</strong><small>Ignora o limite global para objetos, modelos 3D e grama dentro da cena.</small></span>
         </label>
         <p class="render-settings-note">Distâncias menores reduzem a carga de renderização ao ocultar objetos distantes. A grama também usa níveis de detalhe para economizar GPU.</p>
       </div>
