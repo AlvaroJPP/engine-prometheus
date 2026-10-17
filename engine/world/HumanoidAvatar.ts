@@ -660,7 +660,7 @@ export class HumanoidAvatar {
     }
     this.playMountAnimation(root, 'mount', true)
     if (!root.userData.importAnimationActions ||
-        !(root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>).mount) {
+        !(root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>>).mount) {
       this.playMountAnimation(root, 'idle')
     }
     this.verticalVelocity = 0
