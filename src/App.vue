@@ -58,8 +58,8 @@ const {
   gridVisible,
   polygonLinesVisible,
   performanceMode,
-  grassRenderDistance,
-  grassRenderAll,
+  renderDistance,
+  renderAll,
   playerModelName,
   playerModelCustom,
   setPlayerModelFile,
@@ -91,8 +91,8 @@ const {
   toggleGrid,
   togglePolygonLines,
   togglePerformanceMode,
-  setGrassRenderDistance,
-  setGrassRenderAll,
+  setRenderDistance,
+  setRenderAll,
   removeSelected,
   onRename,
   onNumber,
@@ -1157,8 +1157,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :dirty="dirty"
       :camera-label="cameraLabel"
       :first-person-mode="firstPersonMode"
-      :grass-render-distance="grassRenderDistance"
-      :grass-render-all="grassRenderAll"
+      :grass-render-distance="renderDistance"
+      :grass-render-all="renderAll"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
       :objects="objects"
@@ -1169,8 +1169,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @run-world="runWorld"
       @edit-world="returnToEdit"
       @toggle-world-fullscreen="toggleWorldFullscreen"
-      @grass-render-distance-change="setGrassRenderDistance"
-      @grass-render-all-change="setGrassRenderAll"
+      @render-distance-change="setRenderDistance"
+      @render-all-change="setRenderAll"
       @toggle-first-person="toggleFirstPerson"
       @open-control-maps="controlMapsOpen = true"
       @mark-dirty="markDirty"
@@ -1391,7 +1391,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <input v-model.number="brushRadius" type="range" min="0.5" max="12" step="0.5" title="Define o raio da área em que os tufos de grama são pintados ou apagados." />
               <div class="slider-row"><span>Densidade</span><b class="mono">{{ brushStrength.toFixed(2) }}</b></div>
               <input v-model.number="brushStrength" type="range" min="0.2" max="3" step="0.1" title="Controla a densidade de grama adicionada a cada passada do pincel." />
-              <p class="component-note">A grama pintada é salva junto com o projeto. Configure o alcance e a opção Renderizar tudo pelo menu Grama na barra superior.</p>
+              <p class="component-note">A grama pintada é salva junto com o projeto. Configure a distância de renderização pelo menu Render na barra superior.</p>
             </div>
           </section>
 
