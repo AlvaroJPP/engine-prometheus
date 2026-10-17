@@ -18,6 +18,7 @@ const emit = defineEmits<{
   'toggle-first-person': []
   'grass-render-distance-change': [value: number]
   'grass-render-all-change': [value: boolean]
+  'open-control-maps': []
 }>()
 </script>
 
@@ -101,6 +102,7 @@ const emit = defineEmits<{
       </div>
     </details>
 
+    <button class="cam" @click="emit('open-control-maps')">Controles</button>
     <button class="cam" :class="{ active: firstPersonMode }" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
     <button class="cam" @click="emit('cycle-camera')"><i class="cam-ring" />{{ cameraLabel }}</button>
   </header>
