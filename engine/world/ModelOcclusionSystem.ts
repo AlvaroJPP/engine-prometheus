@@ -14,6 +14,10 @@ const SELF_OCCLUSION_MARGIN = 0.12
 const MIN_TARGET_DISTANCE = 0.2
 const MIN_BVH_TRIANGLES = 700
 const MIN_TRIANGLES_FOR_PARTITION = 12_000
+// Acima desse limite, duplicar os índices/atributos durante a partição pode
+// criar picos grandes de RAM/VRAM. O LOD e o BVH continuam disponíveis para
+// modelos muito maiores, sem bloquear a importação com uma cópia espacial cara.
+const MAX_TRIANGLES_FOR_PARTITION = 200_000
 const BVH_TARGET_LEAF_SIZE = 12
 
 type GeometryWithBoundsTree = THREE.BufferGeometry & { boundsTree?: MeshBVH }
@@ -163,7 +167,7 @@ export class ModelOcclusionSystem {
     const replacedGeometries = new Set<THREE.BufferGeometry>()
     root.traverse((node) => {
       if (!(node instanceof THREE.Mesh) || node instanceof THREE.SkinnedMesh || node instanceof THREE.InstancedMesh) return
-      if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isOpaqueBlocker(node.material)) return
+      if (node.children.length > 0 || this.isEditorOverlay(node) || !this.isSafeOcclusionPartitionTarget(node.material)) return
       const geometry = node.geometry
       if (geometry.getAttribute('skinIndex') || geometry.getAttribute('skinWeight')) return
       const morphAttributes = geometry.morphAttributes as Record<string, { length: number } | undefined>
@@ -185,7 +189,7 @@ export class ModelOcclusionSystem {
 
       const elementCount = geometry.index?.count ?? position.count
       const triangleCount = Math.floor(elementCount / 3)
-      if (triangleCount < MIN_TRIANGLES_FOR_PARTITION) return
+      if (triangleCount < MIN_TRIANGLES_FOR_PARTITION || triangleCount > MAX_TRIANGLES_FOR_PARTITION) return
       if (elementCount % 3 !== 0) return
       if (geometry.groups.some((group: { start: number; count: number; materialIndex?: number }) => group.start % 3 !== 0 || group.count % 3 !== 0)) return
       if (Array.isArray(node.material)) {
@@ -730,6 +734,35 @@ export class ModelOcclusionSystem {
       || node.name === 'collider-debug-wireframe'
       || node.name.startsWith('polygon-wireframe-')
       || node.name === 'polygon-wireframe'
+  }
+
+  /**
+   * Superfícies opacas e alpha-tested são seguras para dividir como alvos:
+   * a malha conserva UVs e alphaTest, mas só materiais realmente opacos poderão
+   * bloquear raios. Materiais blend/transmissivos e shaders customizados ficam intactos.
+   */
+  private isSafeOcclusionPartitionTarget(material: THREE.Material | THREE.Material[]): boolean {
+    const materials = Array.isArray(material) ? material : [material]
+    return materials.length > 0 && materials.every((item) => {
+      const candidate = item as THREE.Material & {
+        opacity?: number
+        depthWrite?: boolean
+        depthTest?: boolean
+        colorWrite?: boolean
+        wireframe?: boolean
+        transmission?: number
+      }
+      return candidate.visible !== false
+        && candidate.transparent !== true
+        && (candidate.opacity ?? 1) >= 0.98
+        && candidate.depthWrite !== false
+        && candidate.depthTest !== false
+        && candidate.colorWrite !== false
+        && candidate.wireframe !== true
+        && (candidate.transmission ?? 0) <= 0
+        && !(item instanceof THREE.ShaderMaterial)
+        && !(item instanceof THREE.RawShaderMaterial)
+    })
   }
 
   private isOpaqueBlocker(material: THREE.Material | THREE.Material[]): boolean {
