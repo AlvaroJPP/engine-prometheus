@@ -20,7 +20,6 @@ import { World } from './world/World'
 import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
-import { partitionLargeStaticMeshes } from './world/model/StaticModelPartitioner'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
@@ -834,15 +833,9 @@ export class Engine {
     // Removê-lo antes de calcular os limites evita misturar transformações de pais externos.
     model.removeFromParent()
     model.updateMatrixWorld(true)
-    // Divide só as malhas opacas grandes de modelos sem clips, para permitir
-    // oclusão por região sem alterar rigs, morph targets ou animações.
-    const occlusionRegions = importedAnimations.length === 0
-      ? partitionLargeStaticMeshes(model)
-      : 0
-    if (occlusionRegions > 0) {
-      console.info('[Engine] Malha estática particionada para oclusão:', { name, regions: occlusionRegions })
-      model.updateMatrixWorld(true)
-    }
+    // A partição espacial e o BVH são preparados em segundo plano depois que
+    // a raiz entra no mundo. Isso mantém a interface responsiva em malhas de 50k+
+    // triângulos e usa o mesmo pipeline para os formatos de modelo aceitos pelo importador.
     const bounds = new THREE.Box3().setFromObject(model)
     if (bounds.isEmpty()) throw new Error('O modelo importado não possui geometria visível.')
 
