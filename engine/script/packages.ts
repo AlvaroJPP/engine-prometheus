@@ -8,6 +8,20 @@ export type PackageJsonValue =
 export type MountMovementState = 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right'
 export type AnimationRole = 'ignore' | 'idle' | 'walk' | 'run' | 'walk_diagonal_left' | 'walk_diagonal_right' | 'run_diagonal_left' | 'run_diagonal_right' | 'run_stop' | 'jump' | 'mount' | 'dismount'
 
+/** Ações extras que podem ser acionadas pelo mapa de controles e conectadas ao Visual Script. */
+export type ModelControlActionId =
+  | 'crouch'
+  | 'primary_action'
+  | 'secondary_action'
+  | 'dodge'
+  | 'ability_1'
+  | 'ability_2'
+  | 'use_item'
+  | 'inventory'
+  | 'map'
+  | 'pause'
+  | 'camera_toggle'
+
 /** Teclas do teclado associadas aos comandos de controle de um modelo. */
 export interface ModelControlBindings {
   forward: string
@@ -17,6 +31,17 @@ export interface ModelControlBindings {
   run: string
   jump: string
   interact: string
+  crouch: string
+  primaryAction: string
+  secondaryAction: string
+  dodge: string
+  ability1: string
+  ability2: string
+  useItem: string
+  inventory: string
+  map: string
+  pause: string
+  cameraToggle: string
 }
 
 export const DEFAULT_MODEL_CONTROL_BINDINGS: ModelControlBindings = {
@@ -27,7 +52,38 @@ export const DEFAULT_MODEL_CONTROL_BINDINGS: ModelControlBindings = {
   run: 'ShiftLeft',
   jump: 'Space',
   interact: 'KeyE',
+  crouch: 'ControlLeft',
+  primaryAction: 'KeyF',
+  secondaryAction: 'KeyQ',
+  dodge: 'KeyC',
+  ability1: 'Digit1',
+  ability2: 'Digit2',
+  useItem: 'KeyG',
+  inventory: 'KeyI',
+  map: 'KeyM',
+  pause: 'Escape',
+  cameraToggle: 'KeyV',
 }
+
+/** Liga o nome da ação de gameplay ao campo configurável do mapa do modelo. */
+export const MODEL_CONTROL_ACTIONS: Array<{
+  id: ModelControlActionId
+  binding: keyof ModelControlBindings
+  label: string
+  description: string
+}> = [
+  { id: 'crouch', binding: 'crouch', label: 'Agachar', description: 'Dispara o evento Agachar no Visual Script.' },
+  { id: 'primary_action', binding: 'primaryAction', label: 'Ação primária / ataque', description: 'Ação principal do personagem ou da montaria.' },
+  { id: 'secondary_action', binding: 'secondaryAction', label: 'Ação secundária / defesa', description: 'Ataque alternativo, defesa ou mira.' },
+  { id: 'dodge', binding: 'dodge', label: 'Esquiva', description: 'Executa uma regra de esquiva ou rolamento.' },
+  { id: 'ability_1', binding: 'ability1', label: 'Habilidade 1', description: 'Ativa uma habilidade configurada no Visual Script.' },
+  { id: 'ability_2', binding: 'ability2', label: 'Habilidade 2', description: 'Ativa uma segunda habilidade.' },
+  { id: 'use_item', binding: 'useItem', label: 'Usar item', description: 'Executa uma ação de uso de item.' },
+  { id: 'inventory', binding: 'inventory', label: 'Inventário', description: 'Abre ou fecha o inventário por meio de regras.' },
+  { id: 'map', binding: 'map', label: 'Mapa', description: 'Aciona a ação de mapa.' },
+  { id: 'pause', binding: 'pause', label: 'Pausa / menu', description: 'Aciona uma regra de pausa ou menu.' },
+  { id: 'camera_toggle', binding: 'cameraToggle', label: 'Alternar câmera', description: 'Aciona uma regra para alternar câmeras.' },
+]
 
 /** Regra visual declarativa: controla a visibilidade de um nó do GLB a partir de uma variável. */
 export interface MountModelStateRule {
@@ -251,6 +307,17 @@ export function getMountPackageSettings(instance: BehaviorPackageInstance): Moun
     run: readKey('run'),
     jump: readKey('jump'),
     interact: interactionKey,
+    crouch: readKey('crouch'),
+    primaryAction: readKey('primaryAction'),
+    secondaryAction: readKey('secondaryAction'),
+    dodge: readKey('dodge'),
+    ability1: readKey('ability1'),
+    ability2: readKey('ability2'),
+    useItem: readKey('useItem'),
+    inventory: readKey('inventory'),
+    map: readKey('map'),
+    pause: readKey('pause'),
+    cameraToggle: readKey('cameraToggle'),
   }
   return {
     interactionKey,
