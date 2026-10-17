@@ -36,14 +36,21 @@ const activeProfile = computed(() =>
 const nameDraft = ref('')
 const capturingAction = ref<ActionKey | null>(null)
 const message = ref('')
-const activeGroup = ref<'Movimento' | 'Ações' | 'Câmera e jogo'>('Movimento')
+type ActionGroup = 'Movimento' | 'Ações' | 'Câmera e jogo'
+const activeGroup = ref<ActionGroup>('Movimento')
 const groupedActions = computed(() => actions.filter(action => action.group === activeGroup.value))
 
-watch(activeProfile, profile => {
-  nameDraft.value = profile?.name ?? ''
+watch(() => props.settings.activeProfileId, () => {
+  nameDraft.value = activeProfile.value?.name ?? ''
   capturingAction.value = null
   message.value = ''
 }, { immediate: true })
+
+function selectGroup(group: string) {
+  if (group === 'Movimento' || group === 'Ações' || group === 'Câmera e jogo') {
+    activeGroup.value = group
+  }
+}
 
 function publish(next: ControlMapSettings) {
   emit('update:settings', next)
@@ -242,7 +249,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       </div>
 
       <nav class="control-tabs" aria-label="Categorias de comandos">
-        <button v-for="group in ['Movimento', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" @click="activeGroup = group as typeof activeGroup">
+        <button v-for="group in ['Movimento', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" @click="selectGroup(group)">
           {{ group }}
         </button>
       </nav>
