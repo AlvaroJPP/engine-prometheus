@@ -18,6 +18,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
 import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
+import { generateComponentThumbnail } from '@/lib/assets/ComponentThumbnail'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -38,6 +39,7 @@ const quickAddOpen = ref(false)
 const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings> } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
+let componentThumbnailBackfillRunning = false
 const {
   projectName,
   dirty,
@@ -855,6 +857,38 @@ async function refreshSavedComponents() {
   }
 }
 
+async function backfillMissingComponentThumbnails() {
+  if (componentThumbnailBackfillRunning) return
+  const missing = savedComponents.value.filter(component => !component.thumbnail)
+  if (!missing.length) return
+
+  componentThumbnailBackfillRunning = true
+  let changed = false
+  try {
+    for (const metadata of missing) {
+      try {
+        const component = await getSavedComponent(metadata.id)
+        if (!component || component.thumbnail) continue
+        const thumbnail = await generateComponentThumbnail(component.bytes)
+        if (!thumbnail) continue
+        component.thumbnail = thumbnail
+        await saveComponentAsset(component)
+        changed = true
+        savedComponents.value = savedComponents.value.map(item =>
+          item.id === component.id ? { ...item, thumbnail } : item,
+        )
+      } catch (error) {
+        console.warn('[ComponentLibrary] Não foi possível criar a miniatura de ' + metadata.name + '.', error)
+      }
+      // Permite que a interface responda entre uma miniatura e a próxima.
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0))
+    }
+    if (changed) await refreshSavedComponents()
+  } finally {
+    componentThumbnailBackfillRunning = false
+  }
+}
+
 async function renameSavedComponent(id: string, requestedName: string) {
   const name = requestedName.trim().slice(0, 80)
   if (!name) {
@@ -1232,6 +1266,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @preview-component="previewSavedComponent"
         @move-component="moveSavedComponentGroup"
         @open-model-import="previewComponentAsset = null; modelImportOpen = true"
+        @open-components="backfillMissingComponentThumbnails"
       />
 
       <!-- Viewport -->
