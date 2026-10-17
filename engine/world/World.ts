@@ -449,6 +449,7 @@ export class World {
 
   /** Avisa a interface que um objeto foi alterado por arrasto no viewport. */
   notifyChanged(id: string): void {
+    this.renderDistanceDirty = true
     this.terrain.grass.invalidateOcclusion()
     this.events.emit('objectChanged', { id })
   }
@@ -612,7 +613,8 @@ export class World {
 
     mesh.updateWorldMatrix(true, false)
     const sphere = mesh.geometry.boundingSphere ?? (mesh.geometry.computeBoundingSphere(), mesh.geometry.boundingSphere)
-    this.renderDistanceCenter.copy(sphere?.center ?? mesh.position).applyMatrix4(mesh.matrixWorld)
+    if (sphere) this.renderDistanceCenter.copy(sphere.center).applyMatrix4(mesh.matrixWorld)
+    else this.renderDistanceCenter.setFromMatrixPosition(mesh.matrixWorld)
     mesh.getWorldScale(this.renderDistanceScale)
     const radius = (sphere?.radius ?? 0) * Math.max(
       Math.abs(this.renderDistanceScale.x),
