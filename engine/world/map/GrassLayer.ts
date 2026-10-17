@@ -3,7 +3,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.glb?url'
 import type { Heightfield } from '../worldGeneration/Heightfield'
 
-const GRASS_COUNT = 7200
 const WORLD_HALF = 50
 const TERRAIN_SAMPLE = 0.5
 // Os chunks mantêm apenas os dados espaciais. A renderização usa malhas globais
@@ -1716,66 +1715,14 @@ export class GrassLayer {
     this.queueDistanceRingRebuild(this.lastRingCenter)
   }
 
-  /** Regenera as manchas de grama procedural respeitando a nova altura do terreno. */
+  /** Atualiza a camada após mudanças no terreno sem gerar a grama antiga automaticamente. */
   refresh(): void {
     this.paintedModelCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
     this.paintedFallbackCache = new WeakMap<PaintedGrassTuft, GrassInstance>()
+
+    // A grama procedural antiga não é mais criada por padrão ao iniciar o terreno.
+    // Mantém-se o caminho de grama pintada, carregada do projeto ou adicionada pelo pincel.
     for (const chunk of this.chunks) chunk.procedural.length = 0
-
-    let state = (this.field.seed >>> 0) || 0x6d2b79f5
-    const random = (): number => {
-      state += 0x6d2b79f5
-      let value = state
-      value = Math.imul(value ^ (value >>> 15), value | 1)
-      value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
-      return ((value ^ (value >>> 14)) >>> 0) / 4294967296
-    }
-    const palettes = [
-      [0.16, 0.34, 0.065],
-      [0.21, 0.42, 0.075],
-      [0.29, 0.48, 0.105],
-      [0.11, 0.27, 0.045],
-      [0.35, 0.45, 0.12],
-      [0.18, 0.38, 0.075],
-      [0.26, 0.37, 0.08],
-    ] as const
-
-    // As manchas quebram a regularidade de uma malha uniforme; os instantes continuam instanciados.
-    const clusters = Array.from({ length: 420 }, () => ({
-      x: (random() * 2 - 1) * WORLD_HALF,
-      z: (random() * 2 - 1) * WORLD_HALF,
-      spread: 1.5 + random() * 3.8,
-    }))
-
-    for (let i = 0; i < GRASS_COUNT; i += 1) {
-      const cluster = clusters[Math.floor(random() * clusters.length)]!
-      const offsetX = (random() + random() + random() - 1.5) * cluster.spread
-      const offsetZ = (random() + random() + random() - 1.5) * cluster.spread
-      const x = THREE.MathUtils.clamp(cluster.x + offsetX, -WORLD_HALF, WORLD_HALF)
-      const z = THREE.MathUtils.clamp(cluster.z + offsetZ, -WORLD_HALF, WORLD_HALF)
-      const height = this.field.sample(x, z)
-      const slopeX = this.field.sample(x + TERRAIN_SAMPLE, z) - this.field.sample(x - TERRAIN_SAMPLE, z)
-      const slopeZ = this.field.sample(x, z + TERRAIN_SAMPLE) - this.field.sample(x, z - TERRAIN_SAMPLE)
-      // Altura final aproximada de 0.25–0.45 unidades; o tuft deixa de parecer um arbusto.
-      const bladeHeight = 0.36 + random() * 0.28
-      const width = 0.52 + random() * 0.28
-      const palette = palettes[Math.floor(random() * palettes.length)] ?? palettes[0]
-      const variation = 0.82 + random() * 0.32
-      this.color.setRGB(palette[0] * variation, palette[1] * variation, palette[2] * variation)
-
-      const instance: GrassInstance = {
-        x,
-        y: height + 0.008,
-        z,
-        width,
-        height: bladeHeight,
-        rotationX: THREE.MathUtils.clamp(-slopeZ * 0.13, -0.24, 0.24),
-        rotationY: random() * Math.PI * 2,
-        rotationZ: THREE.MathUtils.clamp(slopeX * 0.13, -0.24, 0.24),
-        color: this.color.getHex(),
-      }
-      this.chunkFor(x, z).procedural.push(instance)
-    }
 
     this.requestRenderRebuild()
   }
