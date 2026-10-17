@@ -78,14 +78,24 @@ export class Heightfield {
     return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz
   }
 
-  /** Eleva (amount > 0) ou rebaixa (amount < 0) o terreno ao redor de (x, z). */
-  brush(x: number, z: number, radius: number, amount: number): boolean {
+  /** Eleva/rebaixa o terreno e informa o menor retângulo de vértices realmente alterados. */
+  brushWithBounds(
+    x: number,
+    z: number,
+    radius: number,
+    amount: number,
+  ): { minX: number; minZ: number; maxX: number; maxZ: number } | null {
+    if (![x, z, radius, amount].every(Number.isFinite) || radius <= 0 || amount === 0) return null
     const n = TERRAIN_VERTS_PER_SIDE
     const minX = Math.max(0, Math.floor((x - radius + HALF) / STEP))
     const maxX = Math.min(n - 1, Math.ceil((x + radius + HALF) / STEP))
     const minZ = Math.max(0, Math.floor((z - radius + HALF) / STEP))
     const maxZ = Math.min(n - 1, Math.ceil((z + radius + HALF) / STEP))
     let changed = false
+    let changedMinX = n
+    let changedMinZ = n
+    let changedMaxX = -1
+    let changedMaxZ = -1
     for (let iz = minZ; iz <= maxZ; iz += 1) {
       for (let ix = minX; ix <= maxX; ix += 1) {
         const d = Math.hypot(Heightfield.worldX(ix) - x, Heightfield.worldX(iz) - z)
@@ -97,10 +107,24 @@ export class Heightfield {
         if (next !== prev) {
           this.edits[i] = next
           changed = true
+          changedMinX = Math.min(changedMinX, ix)
+          changedMinZ = Math.min(changedMinZ, iz)
+          changedMaxX = Math.max(changedMaxX, ix)
+          changedMaxZ = Math.max(changedMaxZ, iz)
         }
       }
     }
-    return changed
+    return changed ? {
+      minX: changedMinX,
+      minZ: changedMinZ,
+      maxX: changedMaxX,
+      maxZ: changedMaxZ,
+    } : null
+  }
+
+  /** Compatibilidade para chamadas que só precisam saber se algo mudou. */
+  brush(x: number, z: number, radius: number, amount: number): boolean {
+    return this.brushWithBounds(x, z, radius, amount) !== null
   }
 
   exportEdits(): Array<[number, number]> {
