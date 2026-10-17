@@ -80,6 +80,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const performanceMode = ref<PerformancePreset>('quality')
   const grassRenderDistance = ref(72)
   const grassRenderAll = ref(false)
+  const playerModelName = ref('Modelo padrão (Dummy)')
+  const playerModelCustom = ref(false)
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -619,6 +621,49 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.cycleCameraPreset()
   }
 
+  async function setPlayerModelFile(file: File): Promise<void> {
+    const eng = engine
+    if (!eng) return
+    if (runtimeMode) {
+      say('Pare a execução antes de alterar o modelo do jogador.')
+      return
+    }
+    if (!file.name.toLowerCase().endsWith('.glb')) {
+      say('Escolha um modelo no formato binário .glb. Arquivos .gltf com dependências externas não são aceitos nesta importação.')
+      return
+    }
+    if (file.size > 30 * 1024 * 1024) {
+      say('O modelo do jogador deve ter no máximo 30 MB.')
+      return
+    }
+
+    try {
+      say(`Carregando modelo do jogador: ${file.name}…`)
+      const bytes = await file.arrayBuffer()
+      await eng.setPlayerModel(bytes, file.name)
+      playerModelName.value = eng.getPlayerModelName()
+      playerModelCustom.value = eng.hasCustomPlayerModel()
+      dirty.value = true
+      say(`Modelo do jogador alterado para "${playerModelName.value}". Salve o projeto para manter essa configuração.`)
+    } catch (error) {
+      say(`Não foi possível trocar o modelo do jogador: ${errMsg(error)}`)
+    }
+  }
+
+  async function resetPlayerModel(): Promise<void> {
+    const eng = engine
+    if (!eng) return
+    try {
+      await eng.resetPlayerModel()
+      playerModelName.value = eng.getPlayerModelName()
+      playerModelCustom.value = eng.hasCustomPlayerModel()
+      dirty.value = true
+      say('Modelo padrão do jogador restaurado. Salve o projeto para manter a alteração.')
+    } catch (error) {
+      say(`Não foi possível restaurar o modelo padrão do jogador: ${errMsg(error)}`)
+    }
+  }
+
   function setFirstPersonMode(enabled: boolean) {
     engine?.setFirstPersonMode(enabled)
     say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; WASD move, Shift corre, Espaço pula e Esc libera o mouse.' : 'Modo primeira pessoa desativado.')
@@ -1109,6 +1154,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     applyingProjectSettings = true
     try {
       eng.newProject()
+      playerModelName.value = eng.getPlayerModelName()
+      playerModelCustom.value = eng.hasCustomPlayerModel()
       // worldReset é emitido antes de o motor limpar as regras; atualize a interface
       // depois que o estado inteiro do projeto novo já estiver redefinido.
       refresh()
@@ -1146,6 +1193,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
           ioProgress.value = { active: true, kind: 'load', message, percent }
           status.value = message
         })
+        playerModelName.value = eng.getPlayerModelName()
+        playerModelCustom.value = eng.hasCustomPlayerModel()
         // Projetos antigos podem ter salvo wireframe ligado por padrão.
         // A visualização das linhas começa desligada, mas pode ser reativada na toolbar.
         polygonLinesVisible.value = false
@@ -1286,6 +1335,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     performanceMode,
     grassRenderDistance,
     grassRenderAll,
+    playerModelName,
+    playerModelCustom,
+    setPlayerModelFile,
+    resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
