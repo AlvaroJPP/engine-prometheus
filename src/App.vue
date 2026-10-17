@@ -48,6 +48,10 @@ const {
   performanceMode,
   grassRenderDistance,
   grassRenderAll,
+  playerModelName,
+  playerModelCustom,
+  setPlayerModelFile,
+  resetPlayerModel,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
@@ -95,6 +99,7 @@ const {
 } = useEditor(canvas)
 
 const skyFileInput = ref<HTMLInputElement | null>(null)
+const playerModelFileInput = ref<HTMLInputElement | null>(null)
 const skyTextureName = ref('')
 function onSkyTextureSelected(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -111,6 +116,12 @@ function onSkyTextureSelected(event: Event) {
   reader.readAsDataURL(file)
 }
 function clearSkyTexture() { skyTextureName.value = ''; setSkyTexture('') }
+async function onPlayerModelSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (file) await setPlayerModelFile(file)
+}
 const timeOfDayLabel = computed(() => { const hours = Math.floor(timeOfDay.value) % 24; const minutes = Math.floor((timeOfDay.value % 1) * 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` })
 
 const newVariableName = ref('')
@@ -1113,6 +1124,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <dt>Relevo</dt><dd class="mono">Procedural + editável</dd>
             </dl>
             <div class="environment-editor">
+              <h4>Modelo do jogador</h4>
+              <p class="muted">Substitua o visual do personagem controlado em Run por um modelo 3D próprio. O modelo é ajustado automaticamente para 1,8 unidade de altura; a cápsula física e os controles continuam iguais.</p>
+              <input ref="playerModelFileInput" type="file" accept=".glb,model/gltf-binary" hidden @change="onPlayerModelSelected" />
+              <button class="primary environment-button" @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
+              <div class="environment-file">
+                <span>♟ {{ playerModelName }}</span>
+                <button v-if="playerModelCustom" class="ghost" @click="resetPlayerModel">Restaurar padrão</button>
+              </div>
+              <p class="component-note">Aceita arquivos GLB de até 30 MB. Modelos com animações embutidas podem usar clipes nomeados idle, walk, run e jump; modelos estáticos serão exibidos sem animação de movimento.</p>
               <h4>Céu</h4>
               <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
               <input ref="skyFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onSkyTextureSelected" />
