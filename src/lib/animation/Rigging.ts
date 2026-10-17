@@ -112,12 +112,18 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
   })
 
   if (existingBones.length > 0 && hasSkinnedMesh) {
+    const isGeneratedRig = existingBones.every(bone => bone.userData.generatedRigBone === true)
+    const savedPreset = existingBones
+      .map(bone => bone.userData.generatedRigPreset)
+      .find(value => value === 'humanoid' || value === 'quadruped' || value === 'chain') as AutoRigPreset | undefined
     return {
       bones: existingBones,
-      preset,
+      preset: savedPreset ?? preset,
       created: false,
       convertedMeshes: 0,
-      message: 'Rig existente detectado. Os ossos e pesos originais foram preservados.',
+      message: isGeneratedRig
+        ? 'Rig automático salvo detectado. Os ossos e pesos existentes foram preservados.'
+        : 'Rig existente detectado. Os ossos e pesos originais foram preservados.',
     }
   }
 
@@ -156,6 +162,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     const bone = new THREE.Bone()
     bone.name = `Rig_${spec.name.replace(/[^A-Za-z0-9_-]/g, '_')}`
     bone.userData.generatedRigBone = true
+    bone.userData.generatedRigPreset = preset
     const parent = spec.parent ? boneByName.get(spec.parent) : undefined
     if (spec.parent && !parent) throw new Error(`A hierarquia do rig tem um pai ausente: ${spec.parent}`)
     if (parent) parent.add(bone)
