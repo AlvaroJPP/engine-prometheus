@@ -99,7 +99,7 @@ export class CollisionSystem {
   }
 
   update(simulateContacts = true): void {
-    const objects = this.world.list().filter(object => object.mesh.visible)
+    const objects = this.world.list().filter(object => this.world.isObjectVisible(object))
     if (!simulateContacts) {
       // O editor precisa manter os objetos apoiados no terreno, mas não precisa
       // executar CCD/SAT O(n²) em todos os objetos estáticos a cada frame.
