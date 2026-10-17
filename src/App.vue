@@ -1173,7 +1173,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
-          <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
           <span class="chip">ÓRBITA LIVRE</span>
         </div>
         <div class="axes">
@@ -1201,7 +1200,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <span class="inspector-object-icon" :class="{ selected: inspectorMode === 'object', terrain: inspectorMode === 'terrain' }">{{ inspectorMode === 'object' ? '◇' : inspectorMode === 'terrain' ? '▤' : '⌂' }}</span>
             <div class="inspector-title-copy">
               <div class="h">{{ selected ? selected.name : inspectorMode === 'terrain' ? 'Terreno editável' : 'Mundo principal' }}</div>
-              <div class="inspector-description">{{ selected ? (selected.type === 'cube' ? 'Cubo · Objeto de jogo' : 'Plataforma · Objeto de jogo') : inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
+              <div class="inspector-description">{{ selected ? (selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
             </div>
             <span v-if="selected" class="selection-indicator" title="Objeto selecionado"></span>
           </div>
@@ -1280,7 +1279,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <template v-if="inspectorTab === 'variables'">
             <div class="object-meta">
               <div><span>ID</span><code>{{ selected.id }}</code><button class="meta-copy" title="Copiar ID" @click="copyObjectId(selected.id)">⧉</button></div>
-              <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cubo / objeto de jogo' : 'Plataforma / objeto de jogo' }}</strong></div>
+              <div><span>TIPO</span><strong>{{ selected.type === 'cube' ? 'Cube / GameObject' : 'Platform / GameObject' }}</strong></div>
             </div>
             <div class="component-caption">VARIÁVEIS DO OBJETO · VALORES INDEPENDENTES</div>
             <div class="variable-table-head" aria-hidden="true">
@@ -1517,7 +1516,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   </label>
                   <FaceTextureEditor :model-value="selected.faceTextures ?? {}" @update-face-texture="onFaceTexture" />
                   <p class="component-note">Texturas procedurais aplicadas ao cubo ou à plataforma e salvas junto com o projeto.</p>
-                  <div class="component-readonly"><span>Malha</span><strong>{{ selected.type === 'cube' ? 'Malha de cubo' : 'Malha de plataforma' }}</strong></div>
+                  <div class="component-readonly"><span>Mesh</span><strong>{{ selected.type === 'cube' ? 'Cube Mesh' : 'Platform Mesh' }}</strong></div>
                   <div class="component-readonly"><span>Shader</span><strong>Standard / PBR</strong></div>
                 </div>
               </div>
@@ -3868,4 +3867,51 @@ button:disabled { cursor: not-allowed; }
   .panel.right .scroll .axis-value { gap:3px; padding-inline:4px; }
   .panel.right .scroll .axis-value input { font-size:9px; }
 }
+
+<style>
+/* Final alignment to the seven-page editor reference PDF. */
+.panel.left .panel-head { display:none !important; }
+.panel.left .library-tabs {
+  order:0;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  height:42px;
+  padding:0 8px;
+  border-bottom:1px solid #292f39;
+  background:#14171c;
+}
+.panel.left .library-tabs button {
+  min-width:0;
+  height:42px;
+  min-height:42px;
+  padding:0 5px;
+  border:0;
+  border-bottom:2px solid transparent;
+  border-radius:0;
+  background:transparent;
+  color:#96a0b0;
+  font-size:11px;
+  white-space:nowrap;
+}
+.panel.left .library-tabs button.active {
+  border-color:transparent;
+  border-bottom:2px solid #f5a524;
+  background:transparent;
+  color:#e7ebf2;
+}
+.panel.left .library-tabs button .tab-icon { display:none; }
+.panel.left .library-tabs button .tab-count {
+  margin-left:3px;
+  color:#9ba6b7;
+}
+.panel.left .hierarchy-search { order:1; }
+.panel.left .tree { order:2; }
+.panel.left .hierarchy-actions { order:5; }
+.panel.left .component-library { order:2; }
+.panel.left .component-library-footer { order:5; }
+.quick-add-wrap { right:181px; }
+@media(max-width:1180px) { .quick-add-wrap { right:190px; } }
+</style>
+
 </style>
