@@ -194,10 +194,10 @@ export function installTooltipManager(): void {
     if (target && (!(related instanceof Node) || !target.contains(related))) hideTooltip()
   }, true)
 
-  document.addEventListener('pointerdown', hideTooltip, true)
+  document.addEventListener('pointerdown', () => hideTooltip(), true)
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') hideTooltip()
   }, true)
-  window.addEventListener('resize', hideTooltip, { passive: true })
-  window.addEventListener('scroll', hideTooltip, { capture: true, passive: true })
+  window.addEventListener('resize', () => hideTooltip(), { passive: true })
+  window.addEventListener('scroll', () => hideTooltip(), { capture: true, passive: true })
 }
