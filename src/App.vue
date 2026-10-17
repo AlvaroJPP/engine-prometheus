@@ -936,7 +936,7 @@ function disposeComponentSource(root: THREE.Object3D) {
   textures.forEach(texture => texture.dispose())
 }
 
-async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number }) {
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string }) {
   if (componentBusy.value) return
   componentBusy.value = true
   status.value = 'Salvando modelo na biblioteca de componentes…'
@@ -967,6 +967,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
       animationRoles: payload.model.userData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
       controlBindings: payload.model.userData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
+      thumbnail: payload.thumbnail,
       bytes: result,
       createdAt: Date.now(),
     }
