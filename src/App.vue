@@ -1145,7 +1145,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="axis"><b class="ax-z">Z</b> profundidade</span>
         </div>
         <div class="statusbar" aria-label="Status do editor">
-          <span class="seg">{{ groupSelection.length > 1 ? groupSelection.length + ' objetos selecionados' : selectedId ? '1 objeto selecionado' : inspectorMode === 'terrain' ? 'Terreno selecionado' : objects.length + ' objetos na cena' }}</span>
+          <span class="seg">{{ groupSelection.length > 1 ? groupSelection.length + ' objetos selecionados' : inspectorMode === 'terrain' ? 'Terreno selecionado' : selectedId ? '1 objeto selecionado' : objects.length + ' objetos na cena' }}</span>
           <span class="seg"><i class="dot ok" /> Motor 3D ativo</span>
           <span class="seg">Terreno procedural</span>
           <span class="seg grow-text">{{ status || hint }}</span>
