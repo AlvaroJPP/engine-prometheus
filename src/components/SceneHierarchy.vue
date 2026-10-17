@@ -163,6 +163,7 @@ const emit = defineEmits<{
   'rename-component': [id: string, name: string]
   'move-component': [id: string, group: string]
   'open-model-import': []
+  'open-components': []
 }>()
 </script>
 
@@ -178,7 +179,7 @@ const emit = defineEmits<{
 
     <nav class="library-tabs" aria-label="Painel lateral">
       <button :class="{ active: activeTab === 'hierarchy' }" title="Lista os objetos presentes no mundo e permite selecionar cada um." @click="activeTab = 'hierarchy'"><span class="tab-icon" aria-hidden="true">☷</span> Hierarquia</button>
-      <button :class="{ active: activeTab === 'components' }" title="Abre a biblioteca de componentes salvos para reutilização na cena." @click="activeTab = 'components'"><span class="tab-icon" aria-hidden="true">▦</span> Componentes <span class="tab-count">{{ components.length }}</span></button>
+      <button :class="{ active: activeTab === 'components' }" title="Abre a biblioteca de componentes salvos para reutilização na cena." @click="activeTab = 'components'; emit('open-components')"><span class="tab-icon" aria-hidden="true">▦</span> Componentes <span class="tab-count">{{ components.length }}</span></button>
     </nav>
 
     <template v-if="activeTab === 'hierarchy'">
