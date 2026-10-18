@@ -1267,6 +1267,18 @@ export class Engine {
     root.frustumCulled = false
     root.updateMatrixWorld(true)
     const renderedBounds = new THREE.Box3().setFromObject(model)
+    const renderedSize = renderedBounds.getSize(new THREE.Vector3())
+    const hasAnimatedColliderGeometry = importedMeshes.some(mesh =>
+      mesh instanceof THREE.SkinnedMesh || (mesh.geometry.morphAttributes.position?.length ?? 0) > 0,
+    )
+    // Migra cidades/cenários estáticos antigos que ainda tinham a caixa proxy
+    // como colisor. A heurística corresponde ao padrão do importador 3D.
+    const isStaticCityLike = importedAnimations.length === 0 &&
+      !hasAnimatedColliderGeometry &&
+      (
+        (Math.max(renderedSize.x, renderedSize.z) >= 18 && triangleCount >= 1_000) ||
+        (meshCount >= 36 && Math.max(renderedSize.x, renderedSize.z) >= 8)
+      )
     console.info('[Engine] Modelo na cena:', {
       name: root.name,
       rootPosition: root.position.toArray(),
@@ -1325,6 +1337,14 @@ export class Engine {
       if (restoreData.colliderType) root.userData.colliderType = restoreData.colliderType
       if (restoreData.colliderSize) root.userData.colliderSize = [...restoreData.colliderSize]
       if (restoreData.colliderOffset) root.userData.colliderOffset = [...restoreData.colliderOffset]
+    }
+    // Projetos salvos antes de existir "Malha estática" guardavam cidades como
+    // caixas sólidas. Corrige esses cenários ao abrir o mundo para que ruas,
+    // rampas e vãos usem a geometria real sem exigir reimportação manual.
+    if (isStaticCityLike && root.userData.colliderType === 'box') {
+      root.userData.colliderType = 'mesh'
+      root.userData.colliderOffset = [0, 0, 0]
+      console.info('[Engine] Colisor de cenário atualizado automaticamente para malha estática:', root.name)
     }
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
