@@ -384,6 +384,7 @@ const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
   { value: 'quadruped', label: 'Quadrúpede / cavalo / animal' },
   { value: 'chain', label: 'Corrente genérica / objeto orgânico' },
   { value: 'modular', label: 'Por peças / robôs / veículos / objetos articulados' },
+  { value: 'ai', label: 'Rig gerado por IA' },
 ]
 watch(selectedRigBone, bone => {
   if (!bone) return
@@ -1889,7 +1890,7 @@ async function runSkinTokensRigging() {
     let detectedBones: THREE.Bone[] = []
     let generatedPreset: AutoRigPreset = skinTokensResolvedClass.value === 'humanoid'
       ? 'humanoid'
-      : skinTokensResolvedClass.value === 'quadruped' ? 'quadruped' : 'modular'
+      : skinTokensResolvedClass.value === 'quadruped' ? 'quadruped' : 'ai'
 
     if (operation === 'rig') {
       loaded.userData.importRigGenerated = true
