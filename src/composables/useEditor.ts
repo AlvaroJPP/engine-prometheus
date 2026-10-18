@@ -90,6 +90,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const renderDynamicResolutionTargetFps = ref(45)
   const renderDynamicResolutionMinScale = ref(0.5)
   const grassVisible = ref(true)
+  const grassUseDetailedModel = ref(true)
   const grassDensityPercent = ref(100)
   const grassRenderDistanceMode = ref<'global' | 'all' | 'custom'>('global')
   const grassRenderDistance = ref(72)
@@ -412,6 +413,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         dynamicResolutionTargetFps: renderDynamicResolutionTargetFps.value,
         dynamicResolutionMinScale: renderDynamicResolutionMinScale.value,
         grassVisible: grassVisible.value,
+        grassUseDetailedModel: grassUseDetailedModel.value,
         grassDensityPercent: grassDensityPercent.value,
         grassRenderDistanceMode: grassRenderDistanceMode.value,
         grassRenderDistance: grassRenderDistance.value,
@@ -493,6 +495,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function applyGrassRenderSettings() {
     engine?.setGrassRenderOptions({
       visible: grassVisible.value,
+      useDetailedModel: grassUseDetailedModel.value,
       densityPercent: grassDensityPercent.value,
       renderDistanceMode: grassRenderDistanceMode.value,
       renderDistance: grassRenderDistance.value,
@@ -506,6 +509,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function setGrassVisible(enabled: boolean) {
     grassVisible.value = enabled
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassUseDetailedModel(enabled: boolean) {
+    grassUseDetailedModel.value = enabled
     applyGrassRenderSettings()
     persistRenderSettings()
   }
@@ -575,6 +584,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         dynamicResolutionTargetFps?: unknown
         dynamicResolutionMinScale?: unknown
         grassVisible?: unknown
+        grassUseDetailedModel?: unknown
         grassDensityPercent?: unknown
         grassRenderDistanceMode?: unknown
         grassRenderDistance?: unknown
@@ -608,6 +618,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         renderDynamicResolutionMinScale.value = Math.round(Math.max(0.5, Math.min(0.9, settings.dynamicResolutionMinScale)) * 100) / 100
       }
       if (typeof settings.grassVisible === 'boolean') grassVisible.value = settings.grassVisible
+      if (typeof settings.grassUseDetailedModel === 'boolean') grassUseDetailedModel.value = settings.grassUseDetailedModel
       if (typeof settings.grassDensityPercent === 'number' && [25, 40, 60, 80, 100].includes(settings.grassDensityPercent)) grassDensityPercent.value = settings.grassDensityPercent
       if (settings.grassRenderDistanceMode === 'global' || settings.grassRenderDistanceMode === 'all' || settings.grassRenderDistanceMode === 'custom') {
         grassRenderDistanceMode.value = settings.grassRenderDistanceMode
@@ -1617,6 +1628,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     renderDynamicResolutionTargetFps,
     renderDynamicResolutionMinScale,
     grassVisible,
+    grassUseDetailedModel,
     grassDensityPercent,
     grassRenderDistanceMode,
     grassRenderDistance,
@@ -1667,6 +1679,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setRenderDynamicResolutionTargetFps,
     setRenderDynamicResolutionMinScale,
     setGrassVisible,
+    setGrassUseDetailedModel,
     setGrassDensityPercent,
     setGrassRenderDistance,
     setGrassDetailDistance,
