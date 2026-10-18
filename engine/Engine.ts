@@ -1194,6 +1194,14 @@ export class Engine {
   private updateVeilborneEnemyAI(dt: number, player: VeilborneCombatant): void {
     const playerPosition = this.avatar.mesh.position
     const step = Math.max(0, Math.min(dt, 0.1))
+    if (!player.alive) {
+      for (const { instance, object } of this.getVeilborneHostilePackages()) {
+        this.setVeilborneAIState(instance, 'idle')
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller) controller.setState('idle')
+      }
+      return
+    }
     const profileDefaults: Record<string, {
       attackRange: number
       moveSpeed: number
@@ -1311,6 +1319,8 @@ export class Engine {
           const silenced = targetState.statuses.some(status => status.id === 'silence')
           if (!(profile.ranged && silenced)) {
             this.veilborneCooldowns.set('ai-attack:' + instance.ownerObjectId, attackCooldown)
+            const attackController = getAnimationControllerFromObject(object.mesh)
+            if (attackController) attackController.playOneShot(profile.ranged ? 'ability_1' : 'primary_action')
             this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_attack')
             const result = this.applyVeilborneIncomingDamage(attackDamage, attackType, postureDamage, instance.ownerObjectId)
             const colorByType: Record<VeilborneDamageType, number> = {
