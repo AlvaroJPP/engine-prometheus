@@ -100,7 +100,7 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
   const isBackward = /backward|backwards|reverse|walkback|moveback|backward|backleft|backright|backwarddiagonal|tras|atras/.test(normalized)
   const isLeft = /left|izquierda|esquerda|strafeleft|sideleft/.test(normalized)
   const isRight = /right|derecha|direita|straferight|sideright/.test(normalized)
-  const explicitlyDiagonal = /diagonal|diag|backleft|backright|backwardleft|backwardright/.test(normalized)
+  const explicitlyDiagonal = /diagonal|diag|backleft|backright|backwardleft|backwardright|forwardleft|forwardright|frontleft|frontright|leftforward|rightforward|sideways|strafe/.test(normalized)
 
   if (isMovement) {
     const family = isRun ? 'run' : 'walk'
