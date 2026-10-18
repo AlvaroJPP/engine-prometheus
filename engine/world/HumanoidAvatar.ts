@@ -530,6 +530,7 @@ export class HumanoidAvatar {
       }
       const direction = displacement
       const oldFeetY = this.mesh.position.y
+      const horizontalMovementBounds = this.getHorizontalMovementBounds()
 
       // Faça a varredura horizontal em incrementos pequenos. Um único teste no
       // ponto final pode saltar uma perna ou uma face low-poly quando o quadro
@@ -544,8 +545,8 @@ export class HumanoidAvatar {
         for (let index = 1; index <= steps; index += 1) {
           const coordinate = THREE.MathUtils.clamp(
             origin + delta * index / steps,
-            -49,
-            49,
+            axis === 'x' ? horizontalMovementBounds.minX : horizontalMovementBounds.minZ,
+            axis === 'x' ? horizontalMovementBounds.maxX : horizontalMovementBounds.maxZ,
           )
           this.mesh.position[axis] = coordinate
 
@@ -2407,6 +2408,36 @@ export class HumanoidAvatar {
       if (Array.isArray(material)) material.forEach((item) => item.dispose())
       else material.dispose()
     })
+  }
+
+  /**
+   * Mantém o limite padrão do editor para o terreno comum, mas deixa o jogador
+   * explorar toda a extensão de cenários importados com colisor de malha estática.
+   */
+  private getHorizontalMovementBounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    let minX = -49
+    let maxX = 49
+    let minZ = -49
+    let maxZ = 49
+
+    for (const object of this.world.list()) {
+      const mesh = object.mesh
+      if (
+        !mesh.visible ||
+        mesh.userData.importedModel !== true ||
+        mesh.userData.colliderType !== 'mesh'
+      ) continue
+      const collisionData = getStaticMeshCollisionData(mesh)
+      if (!collisionData || collisionData.localBounds.isEmpty()) continue
+      mesh.updateWorldMatrix(true, true)
+      const bounds = collisionData.localBounds.clone().applyMatrix4(mesh.matrixWorld)
+      minX = Math.min(minX, bounds.min.x - 2)
+      maxX = Math.max(maxX, bounds.max.x + 2)
+      minZ = Math.min(minZ, bounds.min.z - 2)
+      maxZ = Math.max(maxZ, bounds.max.z + 2)
+    }
+
+    return { minX, maxX, minZ, maxZ }
   }
 
   private playerBox(): THREE.Box3 {
