@@ -181,13 +181,26 @@ const emit = defineEmits<{
   'open-model-import': []
   'open-components': []
   'use-animation-source': [id: string]
+  'collapse-sidebar': []
 }>()
 </script>
 
 <template>
   <aside class="panel left">
     <div class="panel-head">
-      <div>
+      <button
+        class="sidebar-collapse-button"
+        type="button"
+        aria-label="Recolher painel lateral"
+        title="Recolher hierarquia e biblioteca"
+        @click="emit('collapse-sidebar')"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+          <path d="m13 7-3 3 3 3" />
+        </svg>
+      </button>
+      <div class="panel-head-title">
         <div class="eyebrow">WORKSPACE</div>
         <div class="h">{{ activeTab === 'hierarchy' ? 'Hierarquia' : 'Componentes' }}</div>
       </div>
