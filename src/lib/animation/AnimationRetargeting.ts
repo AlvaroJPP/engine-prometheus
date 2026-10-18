@@ -50,7 +50,7 @@ export function getTransformTrackPath(track: THREE.KeyframeTrack): TransformTrac
 
 /** Resolve nomes glTF/Mixamo e caminhos simples sem assumir uma hierarquia específica. */
 export function findAnimationNode(root: THREE.Object3D, name: string): THREE.Object3D | null {
-  const found = THREE.PropertyBinding.findNode(root, name)
+  const found = THREE.PropertyBinding.findNode(root, name) as THREE.Object3D | null
   if (found) return found
   const leaf = name.split(/[./|:]/).filter(Boolean).pop()
   if (!leaf) return null
@@ -115,7 +115,7 @@ export function createReusableAnimationAsset(
 
 /** Lê um clipe salvo no formato JSON utilizado pelo próprio Three.js. */
 export function parseReusableAnimationClip(asset: ReusableAnimationAsset): THREE.AnimationClip {
-  return THREE.AnimationClip.parse(asset.clipJson as Parameters<typeof THREE.AnimationClip.parse>[0])
+  return THREE.AnimationClip.parse(asset.clipJson as unknown as Parameters<typeof THREE.AnimationClip.parse>[0])
 }
 
 function safeRestVector(values: number[], fallback: THREE.Vector3): THREE.Vector3 {
