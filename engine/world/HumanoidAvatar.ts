@@ -2508,6 +2508,8 @@ export class HumanoidAvatar {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled
     this.pressed.clear()
+    this.jumpRequested = false
+    this.mountedJumpRequested = false
     if (!enabled) {
       this.mixer?.stopAllAction()
       this.activeAnimation = ''
