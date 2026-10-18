@@ -86,6 +86,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const renderFpsLimit = ref(0)
   const renderFogEnabled = ref(true)
   const renderFogDistanceScale = ref(1)
+  const renderDynamicResolution = ref(false)
+  const renderDynamicResolutionTargetFps = ref(45)
+  const renderDynamicResolutionMinScale = ref(0.5)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
   const skyTextureDataUrl = ref('')
@@ -396,6 +399,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         fpsLimit: renderFpsLimit.value,
         fogEnabled: renderFogEnabled.value,
         fogDistanceScale: renderFogDistanceScale.value,
+        dynamicResolution: renderDynamicResolution.value,
+        dynamicResolutionTargetFps: renderDynamicResolutionTargetFps.value,
+        dynamicResolutionMinScale: renderDynamicResolutionMinScale.value,
       }))
     } catch (error) {
       console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização.', error)
@@ -445,6 +451,27 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     persistRenderSettings()
   }
 
+  function setRenderDynamicResolution(enabled: boolean) {
+    renderDynamicResolution.value = enabled
+    engine?.setRenderOptions({ dynamicResolution: enabled })
+    persistRenderSettings()
+  }
+
+  function setRenderDynamicResolutionTargetFps(value: number) {
+    const allowed = [30, 45, 60, 90]
+    if (!allowed.includes(value)) return
+    renderDynamicResolutionTargetFps.value = value
+    engine?.setRenderOptions({ dynamicResolutionTargetFps: value })
+    persistRenderSettings()
+  }
+
+  function setRenderDynamicResolutionMinScale(value: number) {
+    if (!Number.isFinite(value)) return
+    renderDynamicResolutionMinScale.value = Math.round(Math.max(0.5, Math.min(0.9, value)) * 100) / 100
+    engine?.setRenderOptions({ dynamicResolutionMinScale: renderDynamicResolutionMinScale.value })
+    persistRenderSettings()
+  }
+
   function loadRenderSettings() {
     try {
       const raw = window.localStorage.getItem(RENDER_SETTINGS_KEY) ?? window.localStorage.getItem(LEGACY_GRASS_RENDER_SETTINGS_KEY)
@@ -458,6 +485,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         fpsLimit?: unknown
         fogEnabled?: unknown
         fogDistanceScale?: unknown
+        dynamicResolution?: unknown
+        dynamicResolutionTargetFps?: unknown
+        dynamicResolutionMinScale?: unknown
       }
       if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
         renderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
@@ -474,6 +504,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       if (typeof settings.fogEnabled === 'boolean') renderFogEnabled.value = settings.fogEnabled
       if (typeof settings.fogDistanceScale === 'number' && Number.isFinite(settings.fogDistanceScale)) {
         renderFogDistanceScale.value = Math.round(Math.max(0.5, Math.min(2, settings.fogDistanceScale)) * 100) / 100
+      }
+      if (typeof settings.dynamicResolution === 'boolean') renderDynamicResolution.value = settings.dynamicResolution
+      if (typeof settings.dynamicResolutionTargetFps === 'number' && [30, 45, 60, 90].includes(settings.dynamicResolutionTargetFps)) {
+        renderDynamicResolutionTargetFps.value = settings.dynamicResolutionTargetFps
+      }
+      if (typeof settings.dynamicResolutionMinScale === 'number' && Number.isFinite(settings.dynamicResolutionMinScale)) {
+        renderDynamicResolutionMinScale.value = Math.round(Math.max(0.5, Math.min(0.9, settings.dynamicResolutionMinScale)) * 100) / 100
       }
       // Migra as preferências antigas, salvas como renderização somente da grama.
       if (
@@ -573,6 +610,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     e.setRenderOptions({
       resolutionScale: renderResolutionScale.value === 0 ? null : renderResolutionScale.value,
       fpsLimit: renderFpsLimit.value === 0 ? null : renderFpsLimit.value,
+      dynamicResolution: renderDynamicResolution.value,
+      dynamicResolutionTargetFps: renderDynamicResolutionTargetFps.value,
+      dynamicResolutionMinScale: renderDynamicResolutionMinScale.value,
     })
     e.setFogEnabled(renderFogEnabled.value)
     e.setFogDistanceScale(renderFogDistanceScale.value)
@@ -1466,6 +1506,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     renderFpsLimit,
     renderFogEnabled,
     renderFogDistanceScale,
+    renderDynamicResolution,
+    renderDynamicResolutionTargetFps,
+    renderDynamicResolutionMinScale,
     playerModelName,
     playerModelCustom,
     setPlayerModelFile,
@@ -1504,6 +1547,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setRenderFpsLimit,
     setRenderFogEnabled,
     setRenderFogDistanceScale,
+    setRenderDynamicResolution,
+    setRenderDynamicResolutionTargetFps,
+    setRenderDynamicResolutionMinScale,
     togglePolygonLines,
     removeSelected,
     onRename,
