@@ -43,6 +43,15 @@ function matrixSignature(matrix: THREE.Matrix4): string {
   return matrix.elements.map(value => value.toFixed(5)).join(',')
 }
 
+function isVisibleWithinRoot(node: THREE.Object3D, root: THREE.Object3D): boolean {
+  let current: THREE.Object3D | null = node
+  while (current && current !== root) {
+    if (!current.visible) return false
+    current = current.parent
+  }
+  return current === root && root.visible
+}
+
 /**
  * Compila as malhas estáticas filhas em uma única estrutura côncava.
  * Cada triângulo continua sendo uma superfície independente; o BVH só acelera
@@ -65,7 +74,7 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
   let totalIndices = 0
 
   root.traverse((child) => {
-    if (!(child instanceof THREE.Mesh) || !child.visible) return
+    if (!(child instanceof THREE.Mesh) || !isVisibleWithinRoot(child, root)) return
     if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
     // A raiz dos modelos colocados no mundo é apenas o proxy de edição.
     if (child === root && root.userData.importedModel === true) return
@@ -108,7 +117,11 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
 
   const signature = signatureParts.join('|')
   const previous = cache.get(root)
-  if (previous?.signature === signature) return previous
+  if (previous?.signature === signature) {
+    root.userData.staticMeshColliderDirty = false
+    unsupportedRoots.delete(root)
+    return previous
+  }
   unsupportedRoots.delete(root)
 
   const positions = new Float32Array(totalVertices * 3)
