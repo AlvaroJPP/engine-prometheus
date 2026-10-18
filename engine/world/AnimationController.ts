@@ -324,6 +324,7 @@ export class AnimationController {
     if (!this.oneShotRole || (role && role !== this.oneShotRole)) return false
     const completedRole = this.oneShotRole
     this.oneShotRole = null
+    this.holdOneShotAtEndRole = null
     const action = this.actions.get(completedRole)
     if (action) {
       action.stopFading()
