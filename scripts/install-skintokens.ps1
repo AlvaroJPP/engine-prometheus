@@ -10,6 +10,7 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
 
 $Root = Join-Path $env:LOCALAPPDATA "EnginePrometheus\tools\skintokens"
 $RepoUrl = "https://github.com/chris-straka/skintokens.git"
+$PinnedCommit = "3ed8c2d9b352da97208a859ef20a5954751d65f0"
 $WeightsUrl = "https://huggingface.co/VAST-AI/SkinTokens/resolve/79736cad0fd84de384d5eede659b4ebd24effe33/experiments/articulation_xl_quantization_256_token_4/grpo_1400.ckpt"
 $ExpectedSha256 = "f4e4706a11cfb520cdde65156a0358545e4fbf8f36237aca01ea5e79d5cb5692"
 $WeightsDir = Join-Path $Root "weights"
@@ -27,12 +28,16 @@ if (Test-Path $Root) {
     if (-not (Test-Path (Join-Path $Root ".git"))) {
         throw "O diretório já existe, mas não é um clone Git. Renomeie-o manualmente e tente novamente: $Root"
     }
-    git -C $Root pull --ff-only
-    if ($LASTEXITCODE -ne 0) { throw "Não foi possível atualizar o repositório SkinTokens." }
+    git -C $Root fetch origin $PinnedCommit
+    if ($LASTEXITCODE -ne 0) { throw "Não foi possível buscar a versão fixada do SkinTokens." }
+    git -C $Root checkout --detach $PinnedCommit
+    if ($LASTEXITCODE -ne 0) { throw "Não foi possível selecionar a versão testada do SkinTokens." }
 } else {
     New-Item -ItemType Directory -Force -Path (Split-Path $Root -Parent) | Out-Null
     git clone $RepoUrl $Root
     if ($LASTEXITCODE -ne 0) { throw "Não foi possível baixar o código SkinTokens." }
+    git -C $Root checkout --detach $PinnedCommit
+    if ($LASTEXITCODE -ne 0) { throw "Não foi possível selecionar a versão testada do SkinTokens." }
 }
 
 Write-Host ""
