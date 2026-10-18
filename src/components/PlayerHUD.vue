@@ -309,19 +309,27 @@ function moveHudImage(event: PointerEvent): void {
 }
 
 function finishHudImageDrag(): void {
+  const hadActiveDrag = hudImageDrag.value !== null
   hudImageDrag.value = null
   window.removeEventListener('pointermove', moveHudImage)
   window.removeEventListener('pointerup', finishHudImageDrag)
   window.removeEventListener('pointercancel', finishHudImageDrag)
+  if (hadActiveDrag) persistHudSettings()
 }
 
-watch(settings, (value) => {
+function persistHudSettings(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   } catch {
     // HUD preferences remain usable for this session if storage is unavailable.
   }
-}, { deep: true })
+}
+
+watch(settings, () => {
+  // Dragging updates coordinates many times per second; save when the drag ends.
+  if (hudImageDrag.value) return
+  persistHudSettings()
+}, { deep: true, flush: 'sync' })
 
 function keyLabel(code?: string): string {
   if (!code) return '—'
@@ -339,7 +347,9 @@ function keyLabel(code?: string): string {
 }
 
 function resetSettings() {
-  Object.assign(settings, defaults, { quickSlots: [...defaults.quickSlots] })
+  const savedImages = settings.images.map(layer => ({ ...layer }))
+  Object.assign(settings, defaults, { quickSlots: [...defaults.quickSlots], images: savedImages })
+  activeHudImageId.value = null
   showControls.value = true
 }
 </script>
@@ -521,7 +531,7 @@ function resetSettings() {
   padding:calc(clamp(12px, 2vw, 26px) * var(--hud-scale)); color:#f1f3f6; pointer-events:none;
   font-family:'IBM Plex Sans','Segoe UI',sans-serif; text-shadow:0 1px 2px #0008;
 }
-.hud-topline,.hud-bottomline { display:flex; align-items:flex-start; justify-content:space-between; gap:calc(16px * var(--hud-scale)); }
+.hud-topline,.hud-bottomline { position:relative; z-index:24; display:flex; align-items:flex-start; justify-content:space-between; gap:calc(16px * var(--hud-scale)); }
 .topline-reverse { flex-direction:row-reverse; }
 .hud-player-card,.hud-session-card,.hud-controls,.hud-action-button,.hud-exit-button,.hud-settings-panel,.hud-quick-slots {
   border:1px solid #ffffff20; background:linear-gradient(135deg,#111820ef,#11151be8); box-shadow:0 8px 26px #0003; backdrop-filter:blur(12px);
@@ -561,7 +571,7 @@ function resetSettings() {
 .settings-field>small { color:#8996a6; line-height:1.4; }
 .settings-footer { display:flex; justify-content:space-between; gap:8px; margin-top:16px; }
 .settings-footer .settings-done { border-color:#f5b64c66; background:#f5b64c18; color:#ffd17b; }
-.hud-crosshair { position:absolute; top:50%; left:50%; width:18px; height:18px; transform:translate(-50%,-50%); opacity:.9; }
+.hud-crosshair { position:absolute; z-index:24; top:50%; left:50%; width:18px; height:18px; transform:translate(-50%,-50%); opacity:.9; }
 .hud-crosshair span,.hud-crosshair i,.hud-crosshair b,.hud-crosshair em { position:absolute; display:block; width:4px; height:4px; border:1px solid #fff; border-radius:1px; }
 .hud-crosshair span { top:0; left:7px; } .hud-crosshair i { bottom:0; left:7px; } .hud-crosshair b { top:7px; left:0; } .hud-crosshair em { top:7px; right:0; }
 .hud-bottomline { align-items:flex-end; }
@@ -587,7 +597,7 @@ function resetSettings() {
 .hud-action-button>span:nth-child(2),.hud-exit-button>span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:3px; min-width:0; }
 .hud-action-button small,.hud-exit-button small { color:#9ba7b6; font-size:8px; font-weight:700; }
 .hud-action-button strong,.hud-exit-button strong { font-size:10px; font-weight:600; white-space:nowrap; }
-.hud-quick-slots { position:absolute; bottom:calc(20px * var(--hud-scale)); left:50%; display:flex; gap:7px; transform:translateX(-50%); padding:7px; border-radius:8px; pointer-events:none; }
+.hud-quick-slots { position:absolute; z-index:24; bottom:calc(20px * var(--hud-scale)); left:50%; display:flex; gap:7px; transform:translateX(-50%); padding:7px; border-radius:8px; pointer-events:none; }
 .quick-slot { display:flex; align-items:center; gap:7px; min-width:94px; max-width:140px; padding:7px; border:1px solid #ffffff17; border-radius:5px; color:#dce2e9; font-size:10px; }
 .quick-slot span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media(max-width:620px) {
