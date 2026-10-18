@@ -347,8 +347,12 @@ export function retargetAnimationClip(
       if (path.property === 'position') {
         const sourceRole = signatureForBoneName(path.nodeName).role
         const targetRole = signatureForBoneName(targetBone.name).role
-        const isRootTrack = sourceRole === 'root' && ['root', 'pelvis'].includes(targetRole)
-        const isPelvisTrack = sourceRole === 'pelvis' && ['pelvis', 'root'].includes(targetRole)
+        // Alguns rigs nomeiam o osso que carrega o movimento como RootNode,
+        // Motion ou Bone.001. Se ele foi mapeado para a raiz/pelve, o mapeamento
+        // explícito deve permitir transferir sua translação mesmo sem nome padrão.
+        const sourceCanCarryRootMotion = ['root', 'pelvis', ''].includes(sourceRole)
+        const isRootTrack = sourceCanCarryRootMotion && ['root', 'pelvis'].includes(targetRole)
+        const isPelvisTrack = sourceCanCarryRootMotion && ['pelvis', 'root'].includes(targetRole)
         // Retargeting entre rigs diferentes não deve reposicionar juntas locais
         // de pernas, braços ou coluna: isso altera o comprimento da cadeia e pode
         // colapsar/deslocar a metade inferior inteira. Só transferimos movimento
