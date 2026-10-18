@@ -299,13 +299,17 @@ export class World {
     if (ok(patch.rotationX)) m.rotation.x = (patch.rotationX * Math.PI) / 180
     if (ok(patch.rotationY)) m.rotation.y = (patch.rotationY * Math.PI) / 180
     if (ok(patch.rotationZ)) m.rotation.z = (patch.rotationZ * Math.PI) / 180
+    // Modelos importados (GLB/GLTF) podem precisar de escala muito maior
+    // que primitivas criadas no editor. Mantenha o limite antigo nas primitivas
+    // e permita escala de até 10.000 nos modelos importados.
+    const maxScale = m.userData.importedModel === true ? 10000 : 20
     if (ok(patch.scale)) {
-      const s = clamp(patch.scale, 0.1, 20)
+      const s = clamp(patch.scale, 0.1, maxScale)
       m.scale.set(s, s, s)
     }
-    if (ok(patch.scaleX)) m.scale.x = clamp(patch.scaleX, 0.1, 20)
-    if (ok(patch.scaleY)) m.scale.y = clamp(patch.scaleY, 0.1, 20)
-    if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, 20)
+    if (ok(patch.scaleX)) m.scale.x = clamp(patch.scaleX, 0.1, maxScale)
+    if (ok(patch.scaleY)) m.scale.y = clamp(patch.scaleY, 0.1, maxScale)
+    if (ok(patch.scaleZ)) m.scale.z = clamp(patch.scaleZ, 0.1, maxScale)
     if (ok(patch.color)) {
       m.userData.baseColor = patch.color
       if (m.userData.importedModel === true) {
