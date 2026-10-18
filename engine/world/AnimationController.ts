@@ -246,8 +246,9 @@ export class AnimationController {
     const nextRole = this.resolveRole(role)
     const nextTargets = nextRole ? new Map([[nextRole, 1]]) : new Map<string, number>()
     if (this.oneShotRole && !force) {
+      // Apenas enfileira o estado solicitado. currentState continua indicando
+      // o clipe que está realmente tocando até a ação pontual terminar.
       this.queuedTargets = nextTargets
-      this.activeRole = role
       return nextTargets.size > 0
     }
     if (force && this.oneShotRole) this.cancelOneShot()
