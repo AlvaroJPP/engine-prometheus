@@ -26,10 +26,13 @@ type ImportModelStateDraft = {
   visibleWhenMatched: boolean
 }
 
-const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft> } | null }>()
+const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
+const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
+const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
+
 const emit = defineEmits<{
   close: []
-  import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string }]
+  import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string; componentId?: string }]
   'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
 }>()
 
@@ -592,7 +595,7 @@ function formatControlKey(code: string): string {
 }
 
 function startControlBindingCapture(action: ControlBindingAction) {
-  if (!model.value || props.initialAsset) return
+  if (!model.value || isReadOnlyPreview.value) return
   listeningForBinding.value = action
   error.value = ''
 }
@@ -614,7 +617,7 @@ function captureControlBindingKey(event: KeyboardEvent) {
 }
 
 function resetControlBindings() {
-  if (!model.value || props.initialAsset) return
+  if (!model.value || isReadOnlyPreview.value) return
   controlBindings.value = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   model.value.userData.importControlBindings = { ...controlBindings.value }
 }
@@ -1064,7 +1067,7 @@ function updateImportPackageVariable(
   variable: BehaviorPackageDefinition['variables'][number],
   event: Event,
 ) {
-  if (props.initialAsset || variable.readOnly) return
+  if (isReadOnlyPreview.value || variable.readOnly) return
   const target = event.target as HTMLInputElement
   let value: PackageScalar
   if (variable.type === 'boolean') {
@@ -1089,7 +1092,7 @@ function importPackageConfigValue(packageId: string, key: string, fallback: Pack
 }
 
 function updateImportPackageConfigValue(packageId: string, key: string, value: PackageJsonValue) {
-  if (props.initialAsset) return
+  if (isReadOnlyPreview.value) return
   const draft = ensureImportBehaviorPackageDraft(packageId)
   selectedBehaviorPackageSettings.value = {
     ...selectedBehaviorPackageSettings.value,
@@ -1107,7 +1110,7 @@ function formatPackageConfigLabel(key: string): string {
 }
 
 function updateImportPackageConfigScalar(packageId: string, key: string, fallback: PackageJsonValue, event: Event) {
-  if (props.initialAsset) return
+  if (isReadOnlyPreview.value) return
   const target = event.target as HTMLInputElement
   const raw = target.value.trim()
   if (typeof fallback === 'number') {
@@ -1146,7 +1149,7 @@ function importPackageVectorValue(packageId: string, key: string, axis: 0 | 1 | 
 }
 
 function setImportPackageVector(packageId: string, key: string, axis: 0 | 1 | 2, event: Event) {
-  if (props.initialAsset) return
+  if (isReadOnlyPreview.value) return
   const target = event.target as HTMLInputElement
   const parsed = Number(target.value.trim().replace(',', '.'))
   if (!Number.isFinite(parsed)) return
@@ -1168,7 +1171,7 @@ function importPackageControlBindingValue(packageId: string, key: keyof ModelCon
 }
 
 function setImportPackageControlBinding(packageId: string, key: keyof ModelControlBindings, event: Event) {
-  if (props.initialAsset) return
+  if (isReadOnlyPreview.value) return
   const value = (event.target as HTMLInputElement).value.trim()
   if (!value) return
   const current = importPackageConfigValue(packageId, 'controlBindings', {})
@@ -1234,7 +1237,7 @@ function writeImportPackageModelStates(packageId: string, states: ImportModelSta
 }
 
 function addImportPackageModelState(packageId: string) {
-  if (props.initialAsset || !previewPackageModelNodes.value.length) return
+  if (isReadOnlyPreview.value || !previewPackageModelNodes.value.length) return
   const definition = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === packageId)
   if (!definition) return
   const variable = definition.variables.find(item => item.name === 'mounted') ?? definition.variables[0]
@@ -1641,9 +1644,12 @@ watch(() => props.open, async (open) => {
           BEHAVIOR_PACKAGE_DEFINITIONS.some(definition => definition.id === id),
         ))]
         selectedBehaviorPackageSettings.value = structuredClone(props.initialAsset.behaviorPackageSettings ?? {})
+        componentName.value = props.initialAsset.name
+        customThumbnail.value = props.initialAsset.thumbnail ?? null
+        customThumbnailFileName.value = props.initialAsset.thumbnail ? 'Miniatura salva' : ''
         for (const packageId of selectedBehaviorPackageIds.value) ensureImportBehaviorPackageDraft(packageId)
       } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Não foi possível abrir o componente para pré-visualização.'
+        error.value = e instanceof Error ? e.message : 'Não foi possível abrir o componente para edição.'
       } finally { loading.value = false }
     }
   } else {
@@ -1887,7 +1893,7 @@ function confirmImport() {
   previewMixer = null
   scene?.remove(root)
   model.value = null
-  emit('import', { name: chosenName, model: imported, height: importedHeight, thumbnail })
+  emit('import', { name: chosenName, model: imported, height: importedHeight, thumbnail, componentId: props.initialAsset?.id })
   emit('close')
 }
 
@@ -1901,7 +1907,7 @@ onBeforeUnmount(() => {
   <div v-if="open" class="model-import-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
     <section class="model-import-dialog" role="dialog" aria-modal="true" aria-labelledby="model-import-title">
       <header class="model-import-header">
-        <div class="model-import-brand"><span class="model-import-brand-icon">P</span><div><span class="model-import-kicker">ENGINE PROMETHEUS / MODEL WORKSPACE</span><h2 id="model-import-title">Configurar modelo 3D</h2></div></div>
+        <div class="model-import-brand"><span class="model-import-brand-icon">P</span><div><span class="model-import-kicker">ENGINE PROMETHEUS / MODEL WORKSPACE</span><h2 id="model-import-title">{{ isEditingSavedComponent ? 'Editar componente 3D' : 'Configurar modelo 3D' }}</h2></div></div>
         <div class="model-import-header-status"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span>{{ loading ? 'Processando arquivo…' : model ? 'Prévia pronta' : 'Aguardando arquivo' }}</div>
         <button class="model-import-close" aria-label="Fechar" title="Fechar janela" @click="emit('close')">×</button>
       </header>
@@ -2006,14 +2012,14 @@ onBeforeUnmount(() => {
                   type="button"
                   class="model-control-key"
                   :class="{ listening: listeningForBinding === binding.key }"
-                  :disabled="!model || !!props.initialAsset"
+                  :disabled="!model || isReadOnlyPreview"
                   @click="startControlBindingCapture(binding.key)"
                 >{{ listeningForBinding === binding.key ? 'Pressione…' : formatControlKey(controlBindings[binding.key]) }}</button>
               </div>
             </div>
             <p v-if="listeningForBinding" class="model-control-capture-tip">Aguardando tecla para “{{ controlBindingFields.find(item => item.key === listeningForBinding)?.label }}”. Pressione Esc para cancelar.</p>
             <p class="model-control-note">Padrão: W/A/S/D movimentam, Shift corre, Espaço pula e E interage. As setas continuam aceitas para movimento. A tecla de interação também é usada para desmontar.</p>
-            <button type="button" class="model-control-reset" :disabled="!model || !!props.initialAsset" title="Descarta as alterações e restaura as teclas de movimento padrão para este modelo." @click="resetControlBindings">Restaurar teclas padrão</button>
+            <button type="button" class="model-control-reset" :disabled="!model || isReadOnlyPreview" title="Descarta as alterações e restaura as teclas de movimento padrão para este modelo." @click="resetControlBindings">Restaurar teclas padrão</button>
           </section>
 
           <section v-if="activeSetupTab === 'animations'" class="model-panel-section model-animation-section">
@@ -2027,7 +2033,7 @@ onBeforeUnmount(() => {
                 </div>
                 <select
                   :value="animationRoles[String(index)] ?? 'ignore'"
-                  :disabled="!!props.initialAsset"
+                  :disabled="isReadOnlyPreview"
                   :aria-label="'Função para ' + (clip.name || ('Animação ' + (index + 1)))"
                   @change="setAnimationRole(index, ($event.target as HTMLSelectElement).value as AnimationRole)"
                 >
@@ -2120,7 +2126,7 @@ onBeforeUnmount(() => {
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
             <div class="model-panel-heading"><span>04</span> NOME DO COMPONENTE</div>
             <label class="model-component-name-field">Nome na biblioteca
-              <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model || !!props.initialAsset" />
+              <input v-model.trim="componentName" maxlength="80" placeholder="Ex.: Taverna medieval" :disabled="!model || isReadOnlyPreview" />
             </label>
             <p class="model-panel-hint">Esse nome será usado na biblioteca e nas novas cópias colocadas no mundo.</p>
           </section>
@@ -2139,7 +2145,7 @@ onBeforeUnmount(() => {
                 <input
                   type="checkbox"
                   :checked="selectedBehaviorPackageIds.includes(definition.id)"
-                  :disabled="!model || !!props.initialAsset"
+                  :disabled="!model || isReadOnlyPreview"
                   @change="toggleImportBehaviorPackage(definition.id, ($event.target as HTMLInputElement).checked)"
                 />
                 <span class="model-behavior-package-check" aria-hidden="true">{{ selectedBehaviorPackageIds.includes(definition.id) ? '✓' : '' }}</span>
@@ -2168,7 +2174,7 @@ onBeforeUnmount(() => {
                     <input
                       type="checkbox"
                       :checked="importPackageVariableValue(definition.id, variable.name, variable.defaultValue) === true"
-                      :disabled="variable.readOnly === true || !!props.initialAsset"
+                      :disabled="variable.readOnly === true || isReadOnlyPreview"
                       @change="updateImportPackageVariable(definition.id, variable, $event)"
                     />
                     <span><strong>{{ variable.label }}</strong><small>{{ variable.description }}</small></span>
@@ -2181,7 +2187,7 @@ onBeforeUnmount(() => {
                       :min="variable.min"
                       :max="variable.max"
                       :step="variable.step"
-                      :disabled="variable.readOnly === true || !!props.initialAsset"
+                      :disabled="variable.readOnly === true || isReadOnlyPreview"
                       @change="updateImportPackageVariable(definition.id, variable, $event)"
                     />
                   </label>
@@ -2193,7 +2199,7 @@ onBeforeUnmount(() => {
                     <span><strong>Tecla para montar / desmontar</strong><small>Também atualiza o comando de interação do pacote.</small></span>
                     <select
                       :value="String(importPackageConfigValue(definition.id, 'interactionKey', 'KeyE'))"
-                      :disabled="!!props.initialAsset"
+                      :disabled="isReadOnlyPreview"
                       @change="setImportPackageInteractionKey(definition.id, ($event.target as HTMLSelectElement).value)"
                     >
                       <option value="KeyE">E</option><option value="KeyF">F</option><option value="KeyR">R</option><option value="KeyQ">Q</option><option value="KeyG">G</option>
@@ -2202,9 +2208,9 @@ onBeforeUnmount(() => {
                   <div class="model-package-subheading">POSIÇÃO DO JOGADOR</div>
                   <p class="model-panel-hint">Deslocamento relativo ao centro da montaria. Ajuste para posicionar o jogador sobre a sela.</p>
                   <div class="model-package-vector">
-                    <label>X<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 0, 0)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 0, $event)" /></label>
-                    <label>Y<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 1, 0.55)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 1, $event)" /></label>
-                    <label>Z<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 2, 0)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 2, $event)" /></label>
+                    <label>X<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 0, 0)" :disabled="isReadOnlyPreview" @change="setImportPackageVector(definition.id, 'seatOffset', 0, $event)" /></label>
+                    <label>Y<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 1, 0.55)" :disabled="isReadOnlyPreview" @change="setImportPackageVector(definition.id, 'seatOffset', 1, $event)" /></label>
+                    <label>Z<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 2, 0)" :disabled="isReadOnlyPreview" @change="setImportPackageVector(definition.id, 'seatOffset', 2, $event)" /></label>
                   </div>
 
                   <div class="model-package-subheading">MAPEAMENTO DAS TECLAS DA MONTARIA</div>
@@ -2214,7 +2220,7 @@ onBeforeUnmount(() => {
                       <input
                         :value="importPackageControlBindingValue(definition.id, binding.key)"
                         maxlength="32"
-                        :disabled="!!props.initialAsset"
+                        :disabled="isReadOnlyPreview"
                         :placeholder="DEFAULT_MODEL_CONTROL_BINDINGS[binding.key]"
                         @change="setImportPackageControlBinding(definition.id, binding.key, $event)"
                       />
@@ -2228,33 +2234,33 @@ onBeforeUnmount(() => {
                   <div v-for="state in importPackageModelStates(definition.id)" :key="state.id" class="model-package-state">
                     <label class="model-package-field">
                       <span><strong>Parte / grupo do GLB</strong></span>
-                      <select :value="state.nodePath" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { nodePath: ($event.target as HTMLSelectElement).value })">
+                      <select :value="state.nodePath" :disabled="isReadOnlyPreview" @change="updateImportPackageModelState(definition.id, state.id, { nodePath: ($event.target as HTMLSelectElement).value })">
                         <option v-for="node in previewPackageModelNodes" :key="node.path" :value="node.path">{{ node.name }} · {{ node.meshCount }} malha(s)</option>
                       </select>
                     </label>
                     <label class="model-package-field">
                       <span><strong>Variável da condição</strong></span>
-                      <select :value="state.variable" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { variable: ($event.target as HTMLSelectElement).value })">
+                      <select :value="state.variable" :disabled="isReadOnlyPreview" @change="updateImportPackageModelState(definition.id, state.id, { variable: ($event.target as HTMLSelectElement).value })">
                         <option v-for="variable in definition.variables" :key="variable.name" :value="variable.name">{{ variable.name }}</option>
                       </select>
                     </label>
                     <div class="model-package-state-grid">
                       <label class="model-package-field">
                         <span><strong>Comparação</strong></span>
-                        <select :value="state.operator" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { operator: ($event.target as HTMLSelectElement).value as 'equals' | 'not_equals' })">
+                        <select :value="state.operator" :disabled="isReadOnlyPreview" @change="updateImportPackageModelState(definition.id, state.id, { operator: ($event.target as HTMLSelectElement).value as 'equals' | 'not_equals' })">
                           <option value="equals">Igual a</option><option value="not_equals">Diferente de</option>
                         </select>
                       </label>
                       <label class="model-package-field">
                         <span><strong>Valor esperado</strong></span>
-                        <input type="text" :value="String(state.value)" :disabled="!!props.initialAsset" @change="onImportPackageModelStateValueChange(definition.id, state.id, $event)" />
+                        <input type="text" :value="String(state.value)" :disabled="isReadOnlyPreview" @change="onImportPackageModelStateValueChange(definition.id, state.id, $event)" />
                       </label>
                     </div>
                     <label class="model-package-toggle">
-                      <input type="checkbox" :checked="state.visibleWhenMatched" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { visibleWhenMatched: ($event.target as HTMLInputElement).checked })" />
+                      <input type="checkbox" :checked="state.visibleWhenMatched" :disabled="isReadOnlyPreview" @change="updateImportPackageModelState(definition.id, state.id, { visibleWhenMatched: ($event.target as HTMLInputElement).checked })" />
                       <span><strong>Exibir quando a condição for verdadeira</strong></span>
                     </label>
-                    <button type="button" class="model-package-remove-state" :disabled="!!props.initialAsset" @click="removeImportPackageModelState(definition.id, state.id)">Remover estado ×</button>
+                    <button type="button" class="model-package-remove-state" :disabled="isReadOnlyPreview" @click="removeImportPackageModelState(definition.id, state.id)">Remover estado ×</button>
                   </div>
                 </template>
 
@@ -2264,7 +2270,7 @@ onBeforeUnmount(() => {
                     <input
                       :type="typeof defaultValue === 'number' ? 'number' : 'text'"
                       :value="String(importPackageConfigValue(definition.id, configKey, defaultValue))"
-                      :disabled="!!props.initialAsset"
+                      :disabled="isReadOnlyPreview"
                       @change="updateImportPackageConfigScalar(definition.id, configKey, defaultValue, $event)"
                     />
                   </label>
@@ -2291,8 +2297,8 @@ onBeforeUnmount(() => {
                 <strong :title="customThumbnailFileName">{{ customThumbnailFileName || 'Prévia 3D automática' }}</strong>
                 <small>{{ customThumbnail ? 'Esta imagem aparecerá na biblioteca de componentes.' : 'Escolha uma imagem para usar no cartão do componente.' }}</small>
                 <div class="model-preview-image-actions">
-                  <button type="button" :disabled="!model || !!props.initialAsset" title="Escolhe uma imagem JPG, PNG ou WEBP do computador para o cartão do componente." @click="thumbnailFileInput?.click()">Escolher imagem</button>
-                  <button v-if="customThumbnail" type="button" :disabled="!!props.initialAsset" title="Remove a imagem escolhida e volta a gerar a miniatura a partir da prévia 3D." @click="clearCustomThumbnail">Usar 3D</button>
+                  <button type="button" :disabled="!model || isReadOnlyPreview" title="Escolhe uma imagem JPG, PNG ou WEBP do computador para o cartão do componente." @click="thumbnailFileInput?.click()">Escolher imagem</button>
+                  <button v-if="customThumbnail" type="button" :disabled="isReadOnlyPreview" title="Remove a imagem escolhida e volta a gerar a miniatura a partir da prévia 3D." @click="clearCustomThumbnail">Usar 3D</button>
                 </div>
               </div>
             </div>
@@ -2409,13 +2415,13 @@ onBeforeUnmount(() => {
           </details>
           </section>
           <p v-if="error" class="model-import-error">{{ error }}</p>
-          <p class="model-import-tip">{{ props.initialAsset ? 'Modo de pré-visualização: explore as abas, os clipes e os controles salvos. Nenhuma alteração será aplicada ao mundo.' : 'Configure o modelo, os controles e os clipes. A prévia não altera o mundo; salvar cria um componente reutilizável na biblioteca.' }}</p>
+          <p class="model-import-tip">{{ isEditingSavedComponent ? 'Modo de edição: nome, controles, papéis de animação, miniatura e pacotes serão salvos no componente existente. A malha original será preservada.' : props.initialAsset ? 'Modo de pré-visualização: explore as abas, os clipes e os controles salvos. Nenhuma alteração será aplicada ao mundo.' : 'Configure o modelo, os controles e os clipes. A prévia não altera o mundo; salvar cria um componente reutilizável na biblioteca.' }}</p>
         </aside>
       </div>
 
       <footer class="model-import-footer">
-        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" title="Salva o modelo e suas configurações como componente reutilizável." @click="confirmImport"><span>＋</span> Salvar componente</button></div>
+        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ isEditingSavedComponent ? 'Editando componente existente' : props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
+        <div class="model-footer-actions"><button class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset || isEditingSavedComponent" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" :title="isEditingSavedComponent ? 'Salva as alterações no componente existente, sem criar uma cópia.' : 'Salva o modelo e suas configurações como componente reutilizável.'" @click="confirmImport"><span>{{ isEditingSavedComponent ? '✓' : '＋' }}</span> {{ isEditingSavedComponent ? 'Salvar alterações' : 'Salvar componente' }}</button></div>
       </footer>
     </section>
   </div>
