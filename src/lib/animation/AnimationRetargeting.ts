@@ -1124,6 +1124,25 @@ export function suggestAutonomousBoneMappingsDetailed(
     if (source.role === 'toe' && target.role === 'foot') return true
     if (source.role === 'root' && target.role === 'pelvis') return true
     if (source.role === 'pelvis' && target.role === 'root') return true
+
+    // Rigs mais simples podem não ter uma junta própria para a coluna lombar.
+    // Nesses casos, a rotação da parte inferior da coluna deve ser combinada
+    // com a pelve, em vez de ser descartada. A verificação de ancestralidade
+    // abaixo ainda exige que a junta pertença ao mesmo ramo anatômico.
+    if (
+      source.role === 'spine' &&
+      target.role === 'pelvis' &&
+      (source.level === null || source.level <= 1 || /lumbar|lower.?spine|spine.?low/i.test(sourceName))
+    ) return true
+
+    // Se o rig não possuir pelve dedicada, preserva o movimento de quadril
+    // na primeira junta de coluna disponível, sem o associar à coluna superior.
+    if (
+      source.role === 'pelvis' &&
+      target.role === 'spine' &&
+      (target.level === null || target.level <= 1)
+    ) return true
+
     return false
   }
   const collapsedPending = sourceNames
