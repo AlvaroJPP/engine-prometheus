@@ -1163,7 +1163,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
           id,
           name: entry.name.trim() || 'Modelo 3D',
           height: entry.height,
-          colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
+          colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'mesh' || colliderType === 'none' ? colliderType : 'box',
           colliderSize: Array.isArray(rawSize) && rawSize.length === 3
             ? [...rawSize] as [number, number, number]
             : [1, 1, 1],
@@ -1264,7 +1264,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
           : (existing.libraryType ?? 'object'),
         height: Number.isFinite(payload.height) && payload.height > 0 ? payload.height : existing.height,
         bytes: exported,
-        colliderType: rawColliderType === 'sphere' || rawColliderType === 'capsule' || rawColliderType === 'none'
+        colliderType: rawColliderType === 'sphere' || rawColliderType === 'capsule' || rawColliderType === 'mesh' || rawColliderType === 'none'
           ? rawColliderType
           : 'box',
         colliderSize: validColliderSize,
@@ -1337,7 +1337,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       id,
       name: payload.name.trim() || 'Modelo 3D',
       height: payload.height,
-      colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
+      colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'mesh' || colliderType === 'none' ? colliderType : 'box',
       colliderSize: Array.isArray(size) && size.length === 3 ? [...size] as [number, number, number] : [1, 1, 1],
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
@@ -2076,6 +2076,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     <label class="field">Tipo de colisor
                       <select :value="selected.colliderType" @change="onColliderChange(selected.id, $event)">
                         <option value="auto">Automático (malha)</option>
+                        <option value="mesh">Malha estática (cidade / terreno · BVH)</option>
                         <option value="box">Caixa (Box)</option>
                         <option value="sphere">Esfera (Sphere)</option>
                         <option value="capsule">Cápsula (Capsule)</option>
@@ -2084,8 +2085,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     </label>
                     <button class="ghost collider-visibility-button" :class="{ active: colliderDebugVisible }" title="Mostra ou esconde a forma física usada para colisões no mundo." @click="toggleColliderDebug">{{ colliderDebugVisible ? 'Ocultar' : 'Ver no mundo' }}</button>
                   </div>
-                  <p class="component-note">Caixa, esfera e cápsula usam formas simplificadas. As dimensões abaixo personalizam o colisor em unidades do mundo.</p>
-<div class="transform-property-row collider-vector-row">
+                  <p class="component-note">Malha estática usa os triângulos reais e um BVH espacial, ideal para cidades e terrenos não animados. Preserva ruas e espaços vazios entre prédios. Caixa, esfera e cápsula usam formas simplificadas.</p>
+<div v-if="selected.colliderType !== 'mesh'" class="transform-property-row collider-vector-row">
                     <span class="transform-property-label">Tamanho</span>
                     <div class="transform-axis-grid">
                       <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 0, $event)" /></label>
@@ -2093,7 +2094,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                       <label class="axis-value axis-z"><span>Z</span><input class="mono" type="number" min="0.05" step="0.1" :value="selected.colliderSize[2].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" @change="onColliderVectorChange(selected.id, 'colliderSize', 2, $event)" /></label>
                     </div>
                   </div>
-                  <div class="transform-property-row collider-vector-row">
+                  <div v-if="selected.colliderType !== 'mesh'" class="transform-property-row collider-vector-row">
                     <span class="transform-property-label">Deslocar</span>
                     <div class="transform-axis-grid">
                       <label class="axis-value axis-x"><span>X</span><input class="mono" type="number" step="0.1" :value="selected.colliderOffset[0].toFixed(2)" @input="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" @change="onColliderVectorChange(selected.id, 'colliderOffset', 0, $event)" /></label>
