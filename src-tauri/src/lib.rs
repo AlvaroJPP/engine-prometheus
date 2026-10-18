@@ -306,8 +306,14 @@ fn skintokens_executable(path: &str) -> Result<PathBuf, String> {
 
 fn skintokens_command(executable: &Path) -> Command {
     let mut command = Command::new(executable);
-    if let Some(checkpoint) = skintokens_checkpoint_for(executable) {
-        command.env("SKINTOKENS_CKPT", checkpoint);
+    // Keep the cache/lock in the backend installation directory instead of
+    // depending on HOME being defined for a Windows desktop application.
+    if let Some(root) = executable.parent().and_then(Path::parent).and_then(Path::parent) {
+        command.env("SKINTOKENS_HOME", root);
+        let checkpoint = root.join("weights").join("grpo_1400.ckpt");
+        if checkpoint.is_file() {
+            command.env("SKINTOKENS_CKPT", checkpoint);
+        }
     }
     command
 }
