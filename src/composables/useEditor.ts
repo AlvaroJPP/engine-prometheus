@@ -102,6 +102,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const grassWindPercent = ref(100)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
+  const playerModelHeight = ref(1.8)
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -921,6 +922,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       await eng.setPlayerModel(bytes, file.name)
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
+      playerModelHeight.value = eng.getPlayerModelHeight()
       dirty.value = true
       say(`Modelo do jogador alterado para "${playerModelName.value}". Salve o projeto para manter essa configuração.`)
     } catch (error) {
@@ -932,6 +934,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     bytes: ArrayBuffer,
     name: string,
     animationRoles?: Record<string, import('@engine').AnimationRole>,
+    height = 1.8,
   ): Promise<void> {
     const eng = engine
     if (!eng) return
@@ -943,9 +946,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const cleanName = `${baseName}.glb`
     try {
       say(`Aplicando ativo do Model Workspace ao jogador: ${cleanName}…`)
-      await eng.setPlayerModel(bytes, cleanName, animationRoles)
+      await eng.setPlayerModel(bytes, cleanName, animationRoles, height)
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
+      playerModelHeight.value = eng.getPlayerModelHeight()
       dirty.value = true
       say(`Modelo do jogador configurado a partir do Model Workspace: "${playerModelName.value}". Salve o projeto para preservar a configuração.`)
     } catch (error) {
@@ -960,6 +964,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       await eng.resetPlayerModel()
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
+      playerModelHeight.value = eng.getPlayerModelHeight()
       dirty.value = true
       say('Modelo padrão do jogador restaurado. Salve o projeto para manter a alteração.')
     } catch (error) {
@@ -1470,6 +1475,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       eng.newProject()
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
+      playerModelHeight.value = eng.getPlayerModelHeight()
       // worldReset é emitido antes de o motor limpar as regras; atualize a interface
       // depois que o estado inteiro do projeto novo já estiver redefinido.
       refresh()
@@ -1509,6 +1515,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         })
         playerModelName.value = eng.getPlayerModelName()
         playerModelCustom.value = eng.hasCustomPlayerModel()
+        playerModelHeight.value = eng.getPlayerModelHeight()
         // Projetos antigos podem ter salvo wireframe ligado por padrão.
         // A visualização das linhas começa desligada, mas pode ser reativada na toolbar.
         polygonLinesVisible.value = false
@@ -1669,6 +1676,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     grassWindPercent,
     playerModelName,
     playerModelCustom,
+    playerModelHeight,
     setPlayerModelFile,
     setPlayerModelAsset,
     resetPlayerModel,
