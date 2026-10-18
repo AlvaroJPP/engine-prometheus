@@ -2839,6 +2839,17 @@ export class HumanoidAvatar {
     // momentâneas de grounded trocar a corrida pela pose idle. Nessa situação,
     // o ciclo de locomoção continua acompanhando o movimento horizontal.
     const hasJumpClip = this.animationActions.has('jump')
+    // A animação de salto também pode ser acionada diretamente pelo mapa de
+    // controles como ação de um disparo. Se o jogador aterrissa antes do clipe
+    // terminar, não deixe o bloqueio de one-shot impedir a retomada da locomoção.
+    if (this.grounded && this.activeOneShotAnimation === 'jump') {
+      const jumpAction = this.animationActions.get('jump')
+      if (jumpAction?.isScheduled()) {
+        jumpAction.stopFading()
+        jumpAction.fadeOut(0.1)
+      }
+      this.activeOneShotAnimation = null
+    }
     const movingNow = moving && (this.grounded || !hasJumpClip)
     const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
     this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
