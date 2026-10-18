@@ -17,6 +17,18 @@ const GRASS_FAR_STRIDE = 4
 
 export type GrassPerformancePreset = 'quality' | 'balanced' | 'economy'
 
+export interface GrassRenderOptions {
+  visible?: boolean
+  densityPercent?: number
+  renderDistanceMode?: 'global' | 'all' | 'custom'
+  renderDistance?: number
+  nearDetailDistance?: number | null
+  middleDetailDistance?: number | null
+  occlusionEnabled?: boolean
+  occlusionIntervalMs?: number
+  windPercent?: number
+}
+
 /**
  * Menos grama distante costuma reduzir muito mais triângulos do que reduzir a
  * resolução da tela. Modos leves reduzem o alcance efetivo, a área em alta densidade
@@ -296,6 +308,14 @@ export class GrassLayer {
   private lastRingCenter: THREE.Vector3 | null = null
   private renderDirty = true
   private configuredRenderDistance: number | null = GRASS_VIEW_DISTANCE
+  private grassRenderDistanceMode: 'global' | 'all' | 'custom' = 'global'
+  private grassCustomRenderDistance = GRASS_VIEW_DISTANCE
+  private grassDensityPercent = 100
+  private nearDetailDistanceOverride: number | null = null
+  private middleDetailDistanceOverride: number | null = null
+  private grassOcclusionEnabled = true
+  private grassOcclusionRecheckIntervalMs = GRASS_OCCLUSION_RECHECK_INTERVAL_MS
+  private grassWindPercent = 100
   private performancePreset: GrassPerformancePreset = 'quality'
   private loadingPainted = false
   private renderRebuildInProgress = false
@@ -1038,9 +1058,14 @@ export class GrassLayer {
   }
 
   private distanceBandIndex(x: number, z: number, center: THREE.Vector3): number {
-    const distance = Math.hypot(x - center.x, z - center.z)
+    // As comparações só precisam ordenar o alcance; evitar sqrt em cada tufo
+    // economiza CPU nos rebuilds de grama pintada muito densa.
+    const dx = x - center.x
+    const dz = z - center.z
+    const distanceSquared = dx * dx + dz * dz
     for (let index = 0; index < this.renderBands.length; index += 1) {
-      if (distance <= this.renderBands[index]!.maxDistance) return index
+      const maxDistance = this.renderBands[index]!.maxDistance
+      if (distanceSquared <= maxDistance * maxDistance) return index
     }
     return -1
   }
@@ -1113,6 +1138,7 @@ export class GrassLayer {
   }
 
   private getOcclusionData(roots: readonly THREE.Object3D[]): GrassOcclusionData | null {
+    if (!this.grassOcclusionEnabled) return null
     if (!this.occlusionDataDirty && this.cachedOcclusionRoots === roots) {
       return this.cachedOcclusionData
     }
@@ -1426,7 +1452,7 @@ export class GrassLayer {
       this.grassOcclusionNeedsEvaluation
       || !this.hasGrassOcclusionEvaluationPosition
       || (occlusionCameraMoved
-        && occlusionNow - this.lastGrassOcclusionEvaluationAt >= GRASS_OCCLUSION_RECHECK_INTERVAL_MS)
+        && occlusionNow - this.lastGrassOcclusionEvaluationAt >= this.grassOcclusionRecheckIntervalMs)
     )
     if (shouldEvaluateGrassOcclusion) {
       this.grassOcclusionNeedsEvaluation = false
@@ -1860,7 +1886,7 @@ export class GrassLayer {
 
   /**
    * Altera a densidade visual sem modificar os dados pintados no projeto.
-   * O ajuste só afeta as malhas renderizadas; salvar/reabrir conserva a grama original.
+   * O ajuste afeta somente as instâncias desenhadas, não os dados salvos.
    */
   setPerformancePreset(preset: GrassPerformancePreset): void {
     if (this.performancePreset === preset) return
@@ -1868,10 +1894,7 @@ export class GrassLayer {
     this.applyRenderSettings()
   }
 
-  /**
-   * Configura o raio máximo de renderização. null significa renderizar todo o mapa.
-   * O preset altera densidade e detalhe local sem sobrescrever a preferência de alcance.
-   */
+  /** O limite geral controla a grama quando o usuário escolhe "seguir global". */
   setRenderDistance(distance: number | null): void {
     if (distance !== null && !Number.isFinite(distance)) return
     this.configuredRenderDistance = distance === null
@@ -1880,31 +1903,122 @@ export class GrassLayer {
     this.applyRenderSettings()
   }
 
+  /** Ajusta as tecnologias de redução de custo da grama de forma independente. */
+  setRenderOptions(options: GrassRenderOptions): void {
+    let rebuild = false
+    let visibilityChanged = false
+
+    if (options.visible !== undefined && options.visible !== this.mesh.visible) {
+      this.mesh.visible = options.visible
+      visibilityChanged = true
+    }
+    if (options.densityPercent !== undefined && Number.isFinite(options.densityPercent)) {
+      const next = Math.round(THREE.MathUtils.clamp(options.densityPercent, 10, 100))
+      if (next !== this.grassDensityPercent) {
+        this.grassDensityPercent = next
+        rebuild = true
+      }
+    }
+    if (options.renderDistanceMode !== undefined && options.renderDistanceMode !== this.grassRenderDistanceMode) {
+      this.grassRenderDistanceMode = options.renderDistanceMode
+      rebuild = true
+    }
+    if (options.renderDistance !== undefined && Number.isFinite(options.renderDistance)) {
+      const next = THREE.MathUtils.clamp(options.renderDistance, 10, 5000)
+      if (next !== this.grassCustomRenderDistance) {
+        this.grassCustomRenderDistance = next
+        rebuild = true
+      }
+    }
+    if (options.nearDetailDistance !== undefined) {
+      const next = options.nearDetailDistance === null
+        ? null
+        : Number.isFinite(options.nearDetailDistance)
+          ? THREE.MathUtils.clamp(options.nearDetailDistance, 5, 40)
+          : this.nearDetailDistanceOverride
+      if (next !== this.nearDetailDistanceOverride) {
+        this.nearDetailDistanceOverride = next
+        rebuild = true
+      }
+    }
+    if (options.middleDetailDistance !== undefined) {
+      const next = options.middleDetailDistance === null
+        ? null
+        : Number.isFinite(options.middleDetailDistance)
+          ? THREE.MathUtils.clamp(options.middleDetailDistance, 10, 80)
+          : this.middleDetailDistanceOverride
+      if (next !== this.middleDetailDistanceOverride) {
+        this.middleDetailDistanceOverride = next
+        rebuild = true
+      }
+    }
+    if (options.occlusionEnabled !== undefined && options.occlusionEnabled !== this.grassOcclusionEnabled) {
+      this.grassOcclusionEnabled = options.occlusionEnabled
+      this.occlusionDataDirty = true
+      this.grassOcclusionNeedsEvaluation = options.occlusionEnabled
+      if (!options.occlusionEnabled) {
+        this.occludedChunks.clear()
+        this.occludedCells.clear()
+      }
+      rebuild = true
+    }
+    if (options.occlusionIntervalMs !== undefined && Number.isFinite(options.occlusionIntervalMs)) {
+      const allowed = [250, 400, 800, 1200]
+      const next = allowed.includes(options.occlusionIntervalMs) ? options.occlusionIntervalMs : 400
+      if (next !== this.grassOcclusionRecheckIntervalMs) {
+        this.grassOcclusionRecheckIntervalMs = next
+        rebuild = true
+      }
+    }
+    if (options.windPercent !== undefined && Number.isFinite(options.windPercent)) {
+      const next = Math.round(THREE.MathUtils.clamp(options.windPercent, 0, 100))
+      if (next !== this.grassWindPercent) {
+        this.grassWindPercent = next
+        this.windUniforms.uGrassWindStrength.value = 0.11 * (next / 100)
+      }
+    }
+
+    if (rebuild) this.applyRenderSettings()
+    if (this.mesh.visible && (rebuild || (visibilityChanged && options.visible))) {
+      this.requestRenderRebuild()
+    }
+  }
+
   private applyRenderSettings(): void {
     const settings = GRASS_PERFORMANCE_PRESETS[this.performancePreset]
-    this.renderBands[0]!.stride = settings.nearStride
-    this.renderBands[1]!.stride = settings.middleStride
-    this.renderBands[2]!.stride = settings.farStride
+    const densityScale = this.grassDensityPercent / 100
+    this.renderBands[0]!.stride = Math.min(64, Math.max(1, Math.ceil(settings.nearStride / densityScale)))
+    this.renderBands[1]!.stride = Math.min(64, Math.max(1, Math.ceil(settings.middleStride / densityScale)))
+    this.renderBands[2]!.stride = Math.min(64, Math.max(1, Math.ceil(settings.farStride / densityScale)))
 
-    if (this.configuredRenderDistance === null) {
-      this.renderBands[0]!.maxDistance = settings.nearDistance
-      this.renderBands[1]!.maxDistance = settings.middleDistance
+    const baseNearDistance = this.nearDetailDistanceOverride ?? settings.nearDistance
+    const nearDistance = Math.min(baseNearDistance, this.middleDetailDistanceOverride ?? settings.middleDistance)
+    const middleDistance = Math.max(nearDistance + 1, this.middleDetailDistanceOverride ?? settings.middleDistance)
+    const configuredDistance = this.grassRenderDistanceMode === 'all'
+      ? null
+      : this.grassRenderDistanceMode === 'custom'
+        ? this.grassCustomRenderDistance
+        : this.configuredRenderDistance
+
+    if (configuredDistance === null) {
+      this.renderBands[0]!.maxDistance = nearDistance
+      this.renderBands[1]!.maxDistance = middleDistance
       this.renderBands[2]!.maxDistance = Number.POSITIVE_INFINITY
     } else {
-      const safeDistance = this.configuredRenderDistance
+      const safeDistance = configuredDistance
       const effectiveDistance = safeDistance * settings.viewScale
       this.renderBands[0]!.maxDistance = Math.min(
-        safeDistance * (settings.nearDistance / settings.viewDistance),
+        safeDistance * (nearDistance / settings.viewDistance),
         effectiveDistance,
       )
       this.renderBands[1]!.maxDistance = Math.min(
-        safeDistance * (settings.middleDistance / settings.viewDistance),
+        safeDistance * (middleDistance / settings.viewDistance),
         effectiveDistance,
       )
       this.renderBands[2]!.maxDistance = effectiveDistance
     }
 
-    // Um único rebuild na próxima atualização junta mudanças de alcance e densidade.
+    // Um único rebuild na próxima atualização junta alcance, LOD e densidade.
     this.renderDirty = true
   }
 
@@ -1923,7 +2037,7 @@ export class GrassLayer {
     if (playerPosition) this.windUniforms.uGrassPlayerPosition.value.copy(playerPosition)
     else this.windUniforms.uGrassPlayerPosition.value.set(100000, 0, 100000)
 
-    if (this.loadingPainted) return
+    if (this.loadingPainted || !this.mesh.visible) return
 
     const cameraMoved = !this.lastOcclusionRebuildCameraPosition
       || this.lastOcclusionRebuildCameraPosition.distanceToSquared(cameraPosition)
