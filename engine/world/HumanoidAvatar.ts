@@ -20,8 +20,11 @@ const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
 // Considera rampas e degraus com inclinação acentuada caminháveis, mas continua
 // tratando faces quase verticais como paredes.
-const WALKABLE_SURFACE_NORMAL_Y = 0.32
-const MAX_WALK_OFF_DROP = 0.72
+const WALKABLE_SURFACE_NORMAL_Y = 0.24
+// Degraus/guia de cidade podem ultrapassar o limite antigo de 0,52 u.
+// A parede continua bloqueando; este limite só se aplica se houver piso caminhável acima.
+const MAX_WALK_STEP_UP = 0.68
+const MAX_WALK_OFF_DROP = 1.1
 const LEDGE_EDGE_TOP_TOLERANCE = 0.045
 const LEDGE_EDGE_FLOOR_TOLERANCE = 0.28
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
@@ -661,10 +664,9 @@ export class HumanoidAvatar {
 
     const canLandOnObject = landing !== null &&
       this.verticalVelocity <= 0 &&
-      landing >= newGroundY &&
       (
         nextY <= landing + 0.05 ||
-        (wasGrounded && length > 0 && landing >= oldY - MAX_WALK_OFF_DROP && landing <= oldY + 0.52) ||
+        (wasGrounded && length > 0 && landing >= oldY - MAX_WALK_OFF_DROP && landing <= oldY + MAX_WALK_STEP_UP) ||
         canFollowObjectSlopeDown
       )
 
@@ -1683,7 +1685,7 @@ export class HumanoidAvatar {
         if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
 
         const rise = hit.point.y - feetY
-        if (rise < -0.12 || rise > 0.52) continue
+        if (rise < -0.12 || rise > MAX_WALK_STEP_UP) continue
         if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
         break
       }
@@ -1691,7 +1693,7 @@ export class HumanoidAvatar {
       for (const object of staticCandidates) {
         const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, height + 1.15, candidate => {
           const rise = candidate.point.y - feetY
-          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 && rise <= 0.52
+          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 && rise <= MAX_WALK_STEP_UP
         })
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
       }
@@ -2521,7 +2523,7 @@ export class HumanoidAvatar {
     leadingAxis?: 'x' | 'z',
     leadingDirection = 0,
   ): Array<{ x: number; z: number }> {
-    const leadingOffset = THREE.MathUtils.clamp(leadingDirection, -1, 1) * PLAYER_RADIUS * 0.16
+    const leadingOffset = THREE.MathUtils.clamp(leadingDirection, -1, 1) * PLAYER_RADIUS * 0.85
     return PLAYER_SUPPORT_PROBE_FACTORS.map(([factorX, factorZ]) => ({
       x: x + factorX * PLAYER_RADIUS + (leadingAxis === 'x' ? leadingOffset : 0),
       z: z + factorZ * PLAYER_RADIUS + (leadingAxis === 'z' ? leadingOffset : 0),
@@ -2885,7 +2887,7 @@ export class HumanoidAvatar {
       const rise = surfaceY - oldY
       // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
       // também reconhece uma superfície estreita que cruzou entre dois frames.
-      const canStepOntoSurface = this.grounded && rise >= -MAX_WALK_OFF_DROP && rise <= 0.52
+      const canStepOntoSurface = this.grounded && rise >= -MAX_WALK_OFF_DROP && rise <= MAX_WALK_STEP_UP
       const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
       return canStepOntoSurface || crossedSurface
     }
