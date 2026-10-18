@@ -126,13 +126,13 @@ export async function loadAssetFile(file: File, packageContext?: AssetImportPack
       const source = new TextDecoder().decode(buffer)
       let materialCreator: ReturnType<MTLLoader['parse']> | undefined
       if (packageContext) {
-        const materialReferences = [...source.matchAll(/^\\s*mtllib\\s+(.+?)\\s*$/gim)]
+        const materialReferences = [...source.matchAll(/^\s*mtllib\s+(.+?)\s*$/gim)]
           .map(match => match[1]?.trim())
           .filter((value): value is string => Boolean(value))
         for (const reference of materialReferences) {
           const expectedPath = normalizePackagePath(packageDirectory(packageContext.primaryPath) + reference)
           const referencePath = normalizePackagePath(reference)
-          const referenceName = normalizePackagePath(reference.split(/[\\\\/]/).pop() ?? reference)
+          const referenceName = normalizePackagePath(reference.split(/[\\/]/).pop() ?? reference)
           const materialFile = packageContext.files.find(entry => {
             const entryPath = normalizePackagePath(entry.path)
             return entryPath === expectedPath || entryPath === referencePath ||
