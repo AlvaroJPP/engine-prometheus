@@ -29,6 +29,7 @@ import {
   suggestAutonomousBoneMappingsDetailed,
 } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
+import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vue'
 
 type ImportBehaviorPackageDraft = {
   variables: Record<string, PackageScalar>
@@ -106,6 +107,7 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const fileName = ref('')
 const error = ref('')
 const loading = ref(false)
+const starterAssetCatalogOpen = ref(false)
 const modelHeight = ref(2)
 const originalHeight = ref(0)
 const dimensions = ref<[number, number, number]>([0, 0, 0])
@@ -2384,6 +2386,65 @@ async function importBlendZip() {
     loading.value = false
   }
 }
+async function loadCatalogAsset(asset: {
+  name: string
+  bytes: ArrayBuffer
+  role: 'player' | 'enemy' | 'loot' | 'object'
+  height: number
+  itemId?: string
+  aiProfile?: string
+  sourceName?: string
+}) {
+  starterAssetCatalogOpen.value = false
+  loading.value = true
+  error.value = ''
+  const chosenFileName = asset.name.replace(/\\.glb$/i, '') + '.glb'
+  fileName.value = chosenFileName
+  try {
+    const sourceBytes = asset.bytes.slice(0)
+    const loaded = await parseGlbBytes(sourceBytes)
+    loaded.userData.importSourceGlbBytes = sourceBytes.slice(0)
+    await showLoadedModel(loaded, chosenFileName, asset.height)
+    fileName.value = chosenFileName
+    componentName.value = asset.name
+    selectedBehaviorPackageIds.value = []
+    selectedBehaviorPackageSettings.value = {}
+
+    if (asset.role === 'enemy' || asset.role === 'loot') {
+      selectedBehaviorPackageIds.value = ['veilborne_rpg']
+      const draft = ensureImportBehaviorPackageDraft('veilborne_rpg')
+      draft.variables.entity_role = asset.role === 'enemy' ? 'combatant' : 'loot'
+      draft.variables.faction = asset.role === 'enemy' ? 'hostile' : 'neutral'
+      draft.variables.ai_enabled = asset.role === 'enemy'
+      draft.variables.ai_custom_stats = false
+      if (asset.role === 'enemy') {
+        draft.variables.ai_profile = asset.aiProfile ?? 'melee'
+      } else {
+        draft.variables.loot_item_id = asset.itemId ?? 'lesser_vitality_vial'
+        draft.variables.loot_quantity = 1
+      }
+      selectedBehaviorPackageSettings.value = {
+        ...selectedBehaviorPackageSettings.value,
+        veilborne_rpg: {
+          variables: { ...draft.variables },
+          config: clonePackageJsonRecord(draft.config),
+        },
+      }
+    }
+
+    activeSetupTab.value = 'model'
+    if (asset.sourceName) {
+      error.value = ''
+    }
+  } catch (cause) {
+    error.value = 'Não foi possível carregar o modelo inicial: ' + (cause instanceof Error ? cause.message : String(cause || 'erro desconhecido'))
+    fileName.value = ''
+    clearLoadedModel()
+  } finally {
+    loading.value = false
+  }
+}
+
 async function chooseFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
@@ -3739,6 +3800,7 @@ onBeforeUnmount(() => {
 
       <div class="model-import-toolbar">
         <div class="model-import-toolbar-group">
+          <button class="model-toolbar-button" :disabled="loading || !!props.initialAsset" title="Abre modelos animados de exemplo e itens preparados para VEILBORNE." @click="starterAssetCatalogOpen = true"><span>✦</span> Modelos iniciais</button>
           <button class="model-toolbar-button model-toolbar-primary" :disabled="loading" title="Abre um arquivo para visualizar, inspecionar e importar um modelo ou textura." @click="fileInput?.click()"><span>＋</span> Abrir arquivo</button>
           <button class="model-toolbar-button" :disabled="loading" title="Importa um ZIP com GLB, glTF, FBX, OBJ/MTL, STL, PLY, DAE ou 3DS e resolve recursos auxiliares incluídos." @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3ds,.png,.jpg,.jpeg,.webp,.svg" @change="chooseFile" />
@@ -4429,6 +4491,11 @@ onBeforeUnmount(() => {
       </footer>
     </section>
   </div>
+  <StarterAssetCatalogDialog
+    :open="starterAssetCatalogOpen"
+    @close="starterAssetCatalogOpen = false"
+    @load-model="loadCatalogAsset"
+  />
 </template>
 
 <style>
