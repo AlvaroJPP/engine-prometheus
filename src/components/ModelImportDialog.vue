@@ -1235,10 +1235,10 @@ function getPreviewModelNodePath(node: THREE.Object3D, rootOverride?: THREE.Obje
     current = parent
   }
   if (current !== root) return ''
-  // O Engine coloca o GLB sob ImportedVisualPivot e inclui esse pivô e o nó
-  // raiz do modelo nos caminhos usados pelas regras de estado visual.
-  const modelLabel = root.name.trim() || root.type
-  return ['ImportedVisualPivot', modelLabel, ...segments].join('/')
+  // O nome da raiz é apenas um rótulo de importação e pode mudar ao salvar
+  // o GLB original. Omita-o do caminho para manter a regra estável entre sessões.
+  // O Engine mantém ImportedVisualPivot como a raiz visual do modelo importado.
+  return ['ImportedVisualPivot', ...segments].join('/')
 }
 
 function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
