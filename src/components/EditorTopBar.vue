@@ -12,6 +12,9 @@ const props = defineProps<{
   renderFpsLimit: number
   renderFogEnabled: boolean
   renderFogDistanceScale: number
+  renderDynamicResolution: boolean
+  renderDynamicResolutionTargetFps: number
+  renderDynamicResolutionMinScale: number
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
   objects: Array<{ id: string; name: string }>
@@ -33,6 +36,9 @@ const emit = defineEmits<{
   'render-fps-limit-change': [value: number]
   'render-fog-enabled-change': [value: boolean]
   'render-fog-distance-scale-change': [value: number]
+  'render-dynamic-resolution-change': [value: boolean]
+  'render-dynamic-resolution-target-fps-change': [value: number]
+  'render-dynamic-resolution-min-scale-change': [value: number]
   'open-control-maps': []
   'run-world': []
   'edit-world': []
@@ -204,6 +210,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <label class="render-settings-everything"><input type="checkbox" :checked="renderFogEnabled" @change="emit('render-fog-enabled-change', ($event.target as HTMLInputElement).checked)" /><span><strong>Ativar neblina</strong><small>Ajuda a disfarçar o horizonte e o limite de visão.</small></span></label>
           <label class="render-settings-field render-settings-fog-field"><span>Alcance da neblina</span><strong class="render-settings-output">{{ Math.round(renderFogDistanceScale * 100) }}%</strong></label>
           <input class="render-settings-range" type="range" min="50" max="200" step="5" :value="Math.round(renderFogDistanceScale * 100)" :disabled="!renderFogEnabled" @input="emit('render-fog-distance-scale-change', Number(($event.target as HTMLInputElement).value) / 100)" />
+        </div>
+        <div class="render-settings-section">
+          <div class="render-settings-section-title">Resolução dinâmica adaptativa</div>
+          <label class="render-settings-everything">
+            <input type="checkbox" :checked="renderDynamicResolution" @change="emit('render-dynamic-resolution-change', ($event.target as HTMLInputElement).checked)" />
+            <span><strong>Ajustar resolução automaticamente</strong><small>Reduz a escala quando o FPS fica abaixo da meta e recupera qualidade quando há folga. Funciona com GPUs NVIDIA, AMD e Intel.</small></span>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Meta de desempenho</span>
+            <select class="render-settings-select" :value="renderDynamicResolutionTargetFps" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-target-fps-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option>
+            </select>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Escala mínima permitida</span>
+            <select class="render-settings-select" :value="renderDynamicResolutionMinScale" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-min-scale-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0.5">50%</option><option value="0.6">60%</option><option value="0.7">70%</option><option value="0.8">80%</option><option value="0.9">90%</option>
+            </select>
+          </label>
+          <p class="render-settings-help">A escala muda em passos pequenos e com intervalo para evitar oscilações bruscas. É uma otimização adaptativa multiplataforma, não DLSS ou FSR oficial.</p>
         </div>
         <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
       </div>
