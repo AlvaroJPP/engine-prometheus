@@ -1116,7 +1116,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const value = (ev.target as HTMLSelectElement).value
     if (!engine || !objects.value.some(object => object.id === id)) return
     if (value !== 'auto' && value !== 'box' && value !== 'sphere' && value !== 'capsule' && value !== 'mesh' && value !== 'none') return
-    engine.updateObject(id, { colliderType: value })
+    engine.updateObject(id, value === 'mesh'
+      ? { colliderType: value, colliderOffset: [0, 0, 0] }
+      : { colliderType: value })
     dirty.value = true
     refresh()
     const labels = { auto: 'automático', box: 'caixa', sphere: 'esfera', capsule: 'cápsula', mesh: 'malha estática', none: 'desativado' }
