@@ -3380,8 +3380,11 @@ input[type='range'] { accent-color: #e98524; }
    clicks intended for the 3D canvas. */
 .app.is-running .player-hud { pointer-events:none !important; }
 .app.is-running .player-hud .hud-settings-panel,
+.app.is-running .player-hud .hud-settings-panel *,
 .app.is-running .player-hud .hud-controls,
+.app.is-running .player-hud .hud-controls *,
 .app.is-running .player-hud .hud-actions,
+.app.is-running .player-hud .hud-actions *,
 .app.is-running .player-hud button,
 .app.is-running .player-hud input {
   pointer-events:auto !important;
