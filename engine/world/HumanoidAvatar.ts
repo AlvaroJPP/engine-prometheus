@@ -1031,6 +1031,8 @@ export class HumanoidAvatar {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
+    resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
+    this.mountedDirectionalRoot = root
     // A física mantém a raiz/colisor nivelados. Somente o pivô visual do GLB
     // pode inclinar para acompanhar o plano da rampa sem girar a caixa física.
     this.mountedVisualPivot = root.getObjectByName('ImportedVisualPivot') ?? null
@@ -1135,6 +1137,8 @@ export class HumanoidAvatar {
 
     this.mountedRoot = null
     this.mountSettings = null
+    resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
+    this.mountedDirectionalRoot = null
     this.mountedMovementState = 'idle'
     this.mountedJumpRequested = false
     this.mountedAirborne = false
@@ -1508,6 +1512,8 @@ export class HumanoidAvatar {
     if (!root || !settings) return
 
     const length = Math.hypot(forwardInput, sideInput)
+    const movementStartX = root.position.x
+    const movementStartZ = root.position.z
     this.mountedSupportProbeElapsed += dt
     const shouldJump = this.mountedJumpRequested && !this.mountedAirborne
     this.mountedJumpRequested = false
@@ -1583,7 +1589,8 @@ export class HumanoidAvatar {
 
       moveAxis('x', direction.x)
       moveAxis('z', direction.z)
-      root.rotation.y = Math.atan2(direction.x, direction.z)
+      const targetYaw = Math.atan2(direction.x, direction.z)
+      root.rotation.y = smoothTurnYaw(root.rotation.y, targetYaw, dt, running ? 7.5 : 5.5)
       root.updateWorldMatrix(true, true)
 
       if (forwardInput !== 0 && sideInput !== 0) {
@@ -1649,12 +1656,58 @@ export class HumanoidAvatar {
     this.placeAvatarAtMountSeat()
     const previousState = this.mountedMovementState
     this.mountedMovementState = state
+
+    const importedActions = root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
+    const mountActions = new Map<string, THREE.AnimationAction>(
+      Object.entries(importedActions ?? {}).filter((entry): entry is [string, THREE.AnimationAction] => Boolean(entry[1])),
+    )
+    const canBlendMountedDirection = length > 0 && !this.mountedAirborne && mountActions.size > 0
+    let usedMountedDirectionalBlend = false
+    if (canBlendMountedDirection) {
+      if (this.mountedDirectionalRoot !== root) {
+        resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
+        this.mountedDirectionalRoot = root
+      }
+      const targetWeights = getCircularDirectionalWeights(
+        mountActions,
+        forwardInput,
+        sideInput,
+        this.getCameraYaw(),
+        root.rotation.y,
+        running,
+      )
+      if (targetWeights.size > 0) {
+        const actualMountSpeed = Math.hypot(
+          root.position.x - movementStartX,
+          root.position.z - movementStartZ,
+        ) / Math.max(dt, 1e-4)
+        const nominalMountSpeed = settings.speed * (running ? settings.runMultiplier : walkingSlow ? 0.48 : 1)
+        const dominantRole = applyCircularDirectionalBlend(
+          mountActions,
+          this.mountedDirectionalBlendState,
+          targetWeights,
+          dt,
+          actualMountSpeed / Math.max(0.1, nominalMountSpeed),
+          String(root.userData.importAnimationState ?? state),
+        )
+        if (dominantRole) {
+          root.userData.importAnimationTransition = undefined
+          root.userData.importAnimationState = dominantRole
+          usedMountedDirectionalBlend = true
+        }
+      }
+    }
+
     if (shouldJump) {
+      resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
       this.playMountAnimation(root, 'jump', true)
-    } else if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
-      this.playMountAnimation(root, 'run_stop', true)
-    } else {
-      this.playMountAnimation(root, state)
+    } else if (!usedMountedDirectionalBlend) {
+      resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
+      if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
+        this.playMountAnimation(root, 'run_stop', true)
+      } else {
+        this.playMountAnimation(root, state)
+      }
     }
     this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
     this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
@@ -2704,6 +2757,10 @@ export class HumanoidAvatar {
   }
 
   private getLocomotionAnimationRole(forwardInput: number, sideInput: number, running: boolean): AnimationRole {
+    if (forwardInput < 0 && sideInput !== 0) {
+      if (running) return sideInput < 0 ? 'run_backward_diagonal_left' : 'run_backward_diagonal_right'
+      return sideInput < 0 ? 'walk_backward_diagonal_left' : 'walk_backward_diagonal_right'
+    }
     if (forwardInput > 0 && Math.abs(sideInput) > 0) {
       if (running) return sideInput < 0 ? 'run_diagonal_left' : 'run_diagonal_right'
       return sideInput < 0 ? 'walk_diagonal_left' : 'walk_diagonal_right'
@@ -2714,7 +2771,14 @@ export class HumanoidAvatar {
     return running ? 'run' : 'walk'
   }
 
-  private updateAvatarAnimation(dt: number, moving: boolean, running: boolean, forwardInput: number, sideInput: number): void {
+  private updateAvatarAnimation(
+    dt: number,
+    moving: boolean,
+    running: boolean,
+    forwardInput: number,
+    sideInput: number,
+    actualHorizontalSpeed: number,
+  ): void {
     // Retira a pose procedural do quadro anterior antes de o mixer avançar.
     // Assim, alternar entre agachado e em pé não acumula rotações nos ossos.
     this.clearPosturePoseOffsets()
@@ -2743,7 +2807,48 @@ export class HumanoidAvatar {
           : !moving ? 'idle'
             : this.walkToggled && !running ? 'walk_slow'
               : this.getLocomotionAnimationRole(forwardInput, sideInput, running)
-    this.playAnimation(state)
+
+    const canBlendDirection = movingNow &&
+      this.posture === 'standing' &&
+      !(this.walkToggled && !running) &&
+      this.maneuver === null &&
+      this.activeOneShotAnimation === null &&
+      this.animationActions.size > 0
+    let usedDirectionalBlend = false
+
+    if (canBlendDirection) {
+      const targetWeights = getCircularDirectionalWeights(
+        this.animationActions,
+        forwardInput,
+        sideInput,
+        this.getCameraYaw(),
+        this.mesh.rotation.y,
+        running,
+      )
+      if (targetWeights.size > 0) {
+        const nominalSpeed = running ? WALK_SPEED * RUN_MULTIPLIER : WALK_SPEED
+        const speedFactor = actualHorizontalSpeed / Math.max(0.1, nominalSpeed)
+        const dominantRole = applyCircularDirectionalBlend(
+          this.animationActions,
+          this.playerDirectionalBlendState,
+          targetWeights,
+          dt,
+          speedFactor,
+          this.activeAnimation,
+        )
+        if (dominantRole) {
+          this.activeAnimation = dominantRole
+          usedDirectionalBlend = true
+        }
+      }
+    }
+
+    if (!usedDirectionalBlend) {
+      // Estados como salto, agachado, ações e idle retornam ao fluxo de transição
+      // padrão, que encerra os pesos direcionais e aplica seus fades normalmente.
+      resetDirectionalAnimationBlend(this.playerDirectionalBlendState)
+      this.playAnimation(state)
+    }
     this.mixer?.update(dt)
 
     // Alguns clipes de corrida animam novamente os ossos da cabeça depois
@@ -2757,7 +2862,7 @@ export class HumanoidAvatar {
 
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
-    const hasStateClip = [state, ...(ANIMATION_FALLBACKS[state] ?? [])]
+    const hasStateClip = usedDirectionalBlend || [state, ...(ANIMATION_FALLBACKS[state] ?? [])]
       .some(role => this.animationActions.has(role))
     if (hasStateClip || this.activeOneShotAnimation) {
       if (!this.activeOneShotAnimation) this.applyFallbackCrouchPose()
