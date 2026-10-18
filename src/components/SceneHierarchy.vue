@@ -18,6 +18,7 @@ interface ComponentEntry {
 
 const activeTab = ref<'hierarchy' | 'components'>('hierarchy')
 const activeLibraryCategory = ref<'object' | 'animated-model' | 'animation-source'>('object')
+const libraryCategories: Array<'object' | 'animated-model' | 'animation-source'> = ['object', 'animated-model', 'animation-source']
 const libraryCategoryLabels: Record<'object' | 'animated-model' | 'animation-source', string> = {
   object: 'Objetos',
   'animated-model': 'Animações modificadas',
@@ -260,7 +261,7 @@ const emit = defineEmits<{
       </div>
 
       <nav class="imported-category-tabs" aria-label="Categorias de importados">
-        <button v-for="category in (['object', 'animated-model', 'animation-source'] as const)" :key="category"
+        <button v-for="category in libraryCategories" :key="category"
           :class="{ active: activeLibraryCategory === category }"
           :title="libraryCategoryLabels[category]"
           @click="activeLibraryCategory = category; componentSearch = ''">
