@@ -1,0 +1,294 @@
+{
+  "id": "veilborne_rpg",
+  "name": "VEILBORNE — Dark Fantasy RPG Framework",
+  "version": "0.1.0",
+  "engine": "Engine Prometheus",
+  "description": "Base modular de RPG medieval sombrio: combate de magos guerreiros, armas, feitiços, sigilos, atributos, inimigos e progressão.",
+  "status": "framework_foundation",
+  "mechanics": {
+    "combat": {
+      "enabled": true,
+      "targetLock": true,
+      "quickAttack": true,
+      "heavyAttack": true,
+      "chargedAttack": true,
+      "combos": true,
+      "dodge": {
+        "enabled": true,
+        "invulnerabilitySeconds": 0.22,
+        "staminaCost": 22,
+        "cooldownSeconds": 0.35
+      },
+      "parry": {
+        "enabled": true,
+        "windowSeconds": 0.2,
+        "postureDamageMultiplier": 2
+      },
+      "guard": {
+        "enabled": true,
+        "staminaDrain": 12
+      },
+      "posture": {
+        "enabled": true,
+        "recoveryPerSecond": 8,
+        "staggerOnBreak": true
+      },
+      "finisher": {
+        "enabled": true,
+        "requiresStagger": true
+      }
+    },
+    "resources": {
+      "vitality": {
+        "currentVariable": "vida",
+        "maxVariable": "vida_max",
+        "defaultMax": 100
+      },
+      "ether": {
+        "currentVariable": "eter",
+        "maxVariable": "eter_max",
+        "defaultMax": 100
+      },
+      "stamina": {
+        "currentVariable": "vigor",
+        "maxVariable": "vigor_max",
+        "defaultMax": 100
+      },
+      "posture": {
+        "currentVariable": "postura",
+        "maxVariable": "postura_max",
+        "defaultMax": 100
+      }
+    },
+    "attributes": [
+      {
+        "id": "strength",
+        "label": "Força",
+        "affects": [
+          "heavy_weapon_damage",
+          "physical_scaling"
+        ]
+      },
+      {
+        "id": "dexterity",
+        "label": "Destreza",
+        "affects": [
+          "quick_weapon_damage",
+          "attack_speed"
+        ]
+      },
+      {
+        "id": "intellect",
+        "label": "Intelecto",
+        "affects": [
+          "spell_power",
+          "ether_capacity"
+        ]
+      },
+      {
+        "id": "will",
+        "label": "Vontade",
+        "affects": [
+          "sigil_power",
+          "status_resistance"
+        ]
+      },
+      {
+        "id": "vigor",
+        "label": "Vigor",
+        "affects": [
+          "stamina_capacity",
+          "physical_defense"
+        ]
+      },
+      {
+        "id": "resistance",
+        "label": "Resistência",
+        "affects": [
+          "vitality_capacity",
+          "elemental_defense"
+        ]
+      }
+    ],
+    "weaponCategories": [
+      "sword",
+      "greatsword",
+      "dagger",
+      "spear",
+      "hammer",
+      "staff",
+      "arcane_blade",
+      "rune_focus"
+    ],
+    "magicSchools": [
+      {
+        "id": "fire",
+        "label": "Chama",
+        "effects": [
+          "burn",
+          "area_damage"
+        ]
+      },
+      {
+        "id": "frost",
+        "label": "Geada",
+        "effects": [
+          "slow",
+          "freeze_build_up"
+        ]
+      },
+      {
+        "id": "storm",
+        "label": "Tempestade",
+        "effects": [
+          "shock",
+          "chain_damage"
+        ]
+      },
+      {
+        "id": "blood",
+        "label": "Sangue",
+        "effects": [
+          "life_drain",
+          "bleed"
+        ]
+      },
+      {
+        "id": "shadow",
+        "label": "Sombra",
+        "effects": [
+          "blind",
+          "curse"
+        ]
+      },
+      {
+        "id": "spirit",
+        "label": "Espírito",
+        "effects": [
+          "summon",
+          "ward"
+        ]
+      },
+      {
+        "id": "gravity",
+        "label": "Gravidade",
+        "effects": [
+          "pull",
+          "stagger"
+        ]
+      },
+      {
+        "id": "arcane",
+        "label": "Arcano",
+        "effects": [
+          "projectile",
+          "barrier",
+          "blink"
+        ]
+      }
+    ],
+    "spellFields": [
+      "id",
+      "name",
+      "school",
+      "targeting",
+      "range",
+      "castTime",
+      "etherCost",
+      "cooldown",
+      "damage",
+      "radius",
+      "projectileSpeed",
+      "statusEffects",
+      "animationRole",
+      "vfxId",
+      "sfxId"
+    ],
+    "sigils": {
+      "preparationSlots": 4,
+      "categories": [
+        "offensive",
+        "defensive",
+        "trap",
+        "utility",
+        "movement"
+      ],
+      "examples": [
+        "ward",
+        "blast",
+        "hunter_mark",
+        "slow_field",
+        "silence_seal"
+      ],
+      "fields": [
+        "id",
+        "shape",
+        "placementMode",
+        "trigger",
+        "radius",
+        "duration",
+        "etherCost",
+        "cooldown",
+        "effectId"
+      ]
+    },
+    "statusEffects": [
+      "burn",
+      "bleed",
+      "poison",
+      "frost",
+      "shock",
+      "curse",
+      "silence",
+      "slow",
+      "stagger",
+      "life_drain"
+    ],
+    "enemyAI": {
+      "states": [
+        "idle",
+        "patrol",
+        "investigate",
+        "chase",
+        "attack",
+        "recover",
+        "retreat",
+        "search",
+        "dead"
+      ],
+      "perception": [
+        "sight",
+        "distance",
+        "noise",
+        "magic"
+      ],
+      "bossPhases": true,
+      "telegraphedAttacks": true,
+      "resistancesAndWeaknesses": true
+    },
+    "progression": {
+      "leveling": true,
+      "experience": true,
+      "equipment": true,
+      "lootTables": true,
+      "quests": true,
+      "dialogueChoices": true,
+      "checkpoints": true,
+      "deathResourceRecovery": true,
+      "persistence": true
+    },
+    "world": {
+      "shrines": true,
+      "interactables": [
+        "doors",
+        "keys",
+        "levers",
+        "chests",
+        "secret_passages",
+        "npc"
+      ],
+      "dayNightEvents": true,
+      "regionThreat": true
+    }
+  }
+}
