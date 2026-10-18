@@ -2,6 +2,11 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
 import {
+  blendAnimationActions,
+  getAnimationBlendDuration,
+  isLocomotionAnimation,
+} from './AnimationTransitions'
+import {
   getStaticMeshCollisionData,
   raycastStaticMesh,
   visitStaticMeshTriangles,
@@ -176,6 +181,8 @@ export class HumanoidAvatar {
   private activeOneShotAnimation: AnimationRole | null = null
   private playerMountTransition: 'mount' | null = null
   private animationTime = 0
+  private proceduralLocomotionBlend = 0
+  private proceduralRunBlend = 0
   private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
   private readonly world: World
@@ -1069,15 +1076,25 @@ export class HumanoidAvatar {
         if (idle) {
           idle.setLoop(THREE.LoopRepeat, Infinity)
           idle.clampWhenFinished = false
-          idle.reset().fadeIn(0.15).play()
           const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-          if (fallbackAction && fallbackAction !== idle && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
-          for (const action of Object.values(actions)) {
-            if (action && action !== idle && action.isRunning()) action.fadeOut(0.15)
-          }
-          root.userData.importAnimationState = idle === actions.idle ? 'idle'
+          const idleRole: AnimationRole = idle === actions.idle ? 'idle'
             : idle === actions.walk ? 'walk' : idle === actions.run ? 'run'
               : idle === actions.walk_diagonal_left ? 'walk_diagonal_left' : 'walk_diagonal_right'
+          const currentRole = root.userData.importAnimationState as AnimationRole | undefined
+          const currentAction = (currentRole ? actions[currentRole] : undefined)
+            ?? fallbackAction
+            ?? Object.values(actions).find(action => action?.isRunning())
+          blendAnimationActions(
+            [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
+            currentAction,
+            idle,
+            {
+              duration: getAnimationBlendDuration(currentRole, idleRole),
+              synchronizePhase: isLocomotionAnimation(currentRole) && isLocomotionAnimation(idleRole),
+              restart: true,
+            },
+          )
+          root.userData.importAnimationState = idleRole
         } else {
           const currentRole = root.userData.importAnimationState as AnimationRole | undefined
           const current = currentRole ? actions[currentRole] : undefined
@@ -1091,8 +1108,11 @@ export class HumanoidAvatar {
     }
 
     const currentRole = root.userData.importAnimationState as AnimationRole | undefined
-    const current = currentRole ? actions[currentRole] : undefined
-    if (current === next && next.isRunning()) return
+    const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+    const current = (currentRole ? actions[currentRole] : undefined)
+      ?? fallbackAction
+      ?? Object.values(actions).find(action => action?.isRunning())
+    if (current === next && next.isRunning() && !oneShot) return
 
     if (oneShot) {
       next.setLoop(THREE.LoopOnce, 1)
@@ -1103,13 +1123,18 @@ export class HumanoidAvatar {
       next.clampWhenFinished = false
       root.userData.importAnimationTransition = undefined
     }
-    next.reset().fadeIn(0.15).play()
-    const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-    if (fallbackAction && fallbackAction !== next && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
-    for (const action of Object.values(actions)) {
-      if (action && action !== next && action.isRunning()) action.fadeOut(0.15)
-    }
-    root.userData.importAnimationState = role
+    const transitionDuration = getAnimationBlendDuration(currentRole, nextRole ?? role, oneShot)
+    blendAnimationActions(
+      [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
+      current,
+      next,
+      {
+        duration: transitionDuration,
+        synchronizePhase: !oneShot && isLocomotionAnimation(currentRole) && isLocomotionAnimation(nextRole ?? role),
+        restart: true,
+      },
+    )
+    root.userData.importAnimationState = nextRole ?? role
   }
 
   /**
@@ -2387,10 +2412,11 @@ export class HumanoidAvatar {
     const nextRole = [role, ...(ANIMATION_FALLBACKS[role] ?? [])]
       .find(candidate => this.animationActions.has(candidate))
     const next = nextRole ? this.animationActions.get(nextRole) : undefined
-
-    // Evita reiniciar o mesmo clipe a cada troca de estado (por exemplo, run -> walk
-    // quando os dois papéis compartilham o mesmo ativo) e mistura as poses suavemente.
     const current = this.animationActions.get(this.activeAnimation)
+      ?? [...this.animationActions.values()].find(action => action.isRunning() && action !== next)
+
+    // Se dois estados reutilizam o mesmo clipe de fallback, mantém o ciclo atual
+    // em vez de reiniciar a passada toda vez que muda a direção solicitada.
     if (!oneShot && current && current === next) {
       this.activeAnimation = state
       return
@@ -2404,13 +2430,21 @@ export class HumanoidAvatar {
         next.setLoop(THREE.LoopRepeat, Infinity)
         next.clampWhenFinished = false
       }
-      next.reset().fadeIn(0.2).play()
+      const blendDuration = getAnimationBlendDuration(this.activeAnimation, state, oneShot)
+      blendAnimationActions(this.animationActions.values(), current, next, {
+        duration: blendDuration,
+        synchronizePhase: !oneShot &&
+          isLocomotionAnimation(this.activeAnimation) &&
+          isLocomotionAnimation(nextRole ?? state),
+        restart: true,
+      })
       if (oneShot) this.activeOneShotAnimation = role
     } else if (oneShot) {
       return
-    }
-    for (const action of this.animationActions.values()) {
-      if (action !== next && action.isRunning()) action.fadeOut(0.2)
+    } else {
+      for (const action of this.animationActions.values()) {
+        if (action.isRunning()) action.fadeOut(getAnimationBlendDuration(this.activeAnimation, state))
+      }
     }
     this.activeAnimation = state
   }
@@ -2458,7 +2492,19 @@ export class HumanoidAvatar {
       return
     }
     const movingNow = moving && this.grounded
-    const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
+    const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
+    this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
+      this.proceduralLocomotionBlend,
+      movingNow ? 1 : 0,
+      blendRate,
+    )
+    this.proceduralRunBlend = THREE.MathUtils.lerp(
+      this.proceduralRunBlend,
+      movingNow && running ? 1 : 0,
+      blendRate,
+    )
+    const amplitude = 0.035
+      + this.proceduralLocomotionBlend * (0.385 + this.proceduralRunBlend * 0.33)
     const swing = Math.sin(this.animationTime) * amplitude
     if (this.proceduralLimbs) {
       const limbs = this.proceduralLimbs
