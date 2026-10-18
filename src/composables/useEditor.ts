@@ -1211,6 +1211,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say('Edições do terreno removidas.')
   }
 
+  // Snapshot de variáveis globais do runtime para sistemas reativos externos, como o HUD.
+  function readRuntimeGlobalVariables(): Record<string, boolean | number | string> {
+    return engine ? engine.logicVariables() : { ...globalLogicVariables.value }
+  }
+
   // ---- motor de regras ----
   function createLogicVariable(name: string, rawValue: string, scope: 'global' | 'object' = 'object', requestedType: 'string' | 'number' | 'boolean' = 'boolean') {
     if (!engine) return
@@ -1680,7 +1685,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setPlayerModelFile,
     setPlayerModelAsset,
     resetPlayerModel,
-    logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
+    logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
