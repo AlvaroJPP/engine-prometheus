@@ -188,12 +188,13 @@ export function applyVeilborneDamage(
   const vitalityDamage = Math.max(0, Math.round(rawDamage * (1 - resistance / 100) * critical))
   const postureDamage = Math.max(0, Number.isFinite(packet.postureDamage) ? packet.postureDamage! : 0)
   const previousPosture = target.resources.posture
-  target.resources.vitality = clamp(target.resources.vitality - vitalityDamage, 0, target.resources.maxVitality)
+  const previousVitality = target.resources.vitality
+  target.resources.vitality = clamp(previousVitality - vitalityDamage, 0, target.resources.maxVitality)
   target.resources.posture = clamp(previousPosture + postureDamage, 0, target.resources.maxPosture)
   const killed = target.resources.vitality <= 0
   const postureBroken = previousPosture < target.resources.maxPosture && target.resources.posture >= target.resources.maxPosture
   target.alive = !killed
-  return { vitalityDamage: Math.min(vitalityDamage, target.resources.vitality + vitalityDamage), postureDamage, killed, postureBroken }
+  return { vitalityDamage: Math.min(vitalityDamage, previousVitality), postureDamage, killed, postureBroken }
 }
 
 export function applyVeilborneStatus(
