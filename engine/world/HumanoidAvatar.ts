@@ -60,16 +60,232 @@ const ANIMATION_FALLBACKS: Partial<Record<AnimationRole, AnimationRole[]>> = {
   walk_right: ['walk_diagonal_right', 'walk', 'idle'],
   walk_diagonal_left: ['walk_left', 'walk', 'idle'],
   walk_diagonal_right: ['walk_right', 'walk', 'idle'],
+  walk_backward_diagonal_left: ['walk_backward', 'walk_left', 'walk', 'idle'],
+  walk_backward_diagonal_right: ['walk_backward', 'walk_right', 'walk', 'idle'],
   run_backward: ['run', 'walk', 'idle'],
   run_left: ['run_diagonal_left', 'run', 'walk', 'idle'],
   run_right: ['run_diagonal_right', 'run', 'walk', 'idle'],
   run_diagonal_left: ['run_left', 'run', 'walk_diagonal_left', 'walk', 'idle'],
   run_diagonal_right: ['run_right', 'run', 'walk_diagonal_right', 'walk', 'idle'],
+  run_backward_diagonal_left: ['run_backward', 'run_left', 'run', 'walk_backward', 'walk', 'idle'],
+  run_backward_diagonal_right: ['run_backward', 'run_right', 'run', 'walk_backward', 'walk', 'idle'],
   crouch: ['idle'],
   crouch_walk: ['crouch', 'walk', 'idle'],
   prone: ['idle'],
   prone_crawl: ['prone', 'walk', 'idle'],
   jump: ['idle'],
+}
+
+const CIRCULAR_LOCOMOTION_SECTORS: ReadonlyArray<{
+  walk: AnimationRole
+  run: AnimationRole
+}> = [
+  { walk: 'walk', run: 'run' },
+  { walk: 'walk_diagonal_right', run: 'run_diagonal_right' },
+  { walk: 'walk_right', run: 'run_right' },
+  { walk: 'walk_backward_diagonal_right', run: 'run_backward_diagonal_right' },
+  { walk: 'walk_backward', run: 'run_backward' },
+  { walk: 'walk_backward_diagonal_left', run: 'run_backward_diagonal_left' },
+  { walk: 'walk_left', run: 'run_left' },
+  { walk: 'walk_diagonal_left', run: 'run_diagonal_left' },
+]
+
+const CIRCULAR_LOCOMOTION_ROLE_SET = new Set<AnimationRole>(
+  CIRCULAR_LOCOMOTION_SECTORS.flatMap(sector => [sector.walk, sector.run]),
+)
+
+interface DirectionalAnimationBlendState {
+  active: boolean
+  blend: number
+  weights: Map<AnimationRole, number>
+}
+
+function resetDirectionalAnimationBlend(state: DirectionalAnimationBlendState): void {
+  state.active = false
+  state.blend = 0
+  state.weights.clear()
+}
+
+/**
+ * Converte o vetor mundial de movimento para o referencial local do modelo e
+ * calcula uma interpolação circular entre os dois setores direcionais vizinhos.
+ * O ângulo é contínuo nos 0/360°, portanto direita/frente-esquerda não saltam
+ * abruptamente de uma animação para outra.
+ */
+function getCircularDirectionalWeights(
+  actions: ReadonlyMap<string, THREE.AnimationAction>,
+  forwardInput: number,
+  sideInput: number,
+  cameraYaw: number,
+  facingYaw: number,
+  running: boolean,
+): Map<AnimationRole, number> {
+  const result = new Map<AnimationRole, number>()
+  if (Math.hypot(forwardInput, sideInput) < 1e-5) return result
+
+  const worldX = sideInput * Math.cos(cameraYaw) - forwardInput * Math.sin(cameraYaw)
+  const worldZ = -sideInput * Math.sin(cameraYaw) - forwardInput * Math.cos(cameraYaw)
+  const localX = worldX * Math.cos(facingYaw) - worldZ * Math.sin(facingYaw)
+  const localZ = worldX * Math.sin(facingYaw) + worldZ * Math.cos(facingYaw)
+  let angle = Math.atan2(localX, localZ)
+  if (angle < 0) angle += Math.PI * 2
+
+  const sectorPosition = angle / (Math.PI / 4)
+  const sectorIndex = Math.floor(sectorPosition) % CIRCULAR_LOCOMOTION_SECTORS.length
+  const nextIndex = (sectorIndex + 1) % CIRCULAR_LOCOMOTION_SECTORS.length
+  const fraction = sectorPosition - Math.floor(sectorPosition)
+  const familyRole = running ? 'run' : 'walk'
+
+  const resolveRole = (requested: AnimationRole): AnimationRole | null => {
+    const candidates = [
+      requested,
+      ...(ANIMATION_FALLBACKS[requested] ?? []).filter(role => role !== 'idle'),
+      familyRole,
+      running ? 'walk' : 'run',
+    ]
+    return candidates.find(role =>
+      CIRCULAR_LOCOMOTION_ROLE_SET.has(role) && actions.has(role),
+    ) ?? null
+  }
+
+  const addWeight = (index: number, weight: number): void => {
+    if (weight <= 1e-5) return
+    const sector = CIRCULAR_LOCOMOTION_SECTORS[index]!
+    const requested = running ? sector.run : sector.walk
+    const actual = resolveRole(requested)
+    if (!actual) return
+    result.set(actual, (result.get(actual) ?? 0) + weight)
+  }
+
+  addWeight(sectorIndex, 1 - fraction)
+  addWeight(nextIndex, fraction)
+
+  const total = [...result.values()].reduce((sum, weight) => sum + weight, 0)
+  if (total > 1e-5 && Math.abs(total - 1) > 1e-5) {
+    for (const [role, weight] of result) result.set(role, weight / total)
+  }
+  return result
+}
+
+/**
+ * Reproduz mais de um clipe simultaneamente com pesos contínuos, mantendo a fase
+ * dos passos alinhada e sincronizando a escala temporal. Os clipes ausentes usam
+ * fallbacks próximos, sem exigir que todo modelo possua as oito direções.
+ */
+function applyCircularDirectionalBlend(
+  actions: ReadonlyMap<string, THREE.AnimationAction>,
+  state: DirectionalAnimationBlendState,
+  targetWeights: ReadonlyMap<AnimationRole, number>,
+  dt: number,
+  speedFactor: number,
+  preferredSourceRole = '',
+): AnimationRole | null {
+  if (targetWeights.size === 0) return null
+
+  const entries = [...actions.entries()]
+  const entering = !state.active
+  const source = actions.get(preferredSourceRole)
+    ?? entries.find(([role, action]) =>
+      CIRCULAR_LOCOMOTION_ROLE_SET.has(role as AnimationRole) &&
+      action.isScheduled() &&
+      action.getEffectiveWeight() > 0.01,
+    )?.[1]
+    ?? entries.find(([, action]) => action.isScheduled() && action.getEffectiveWeight() > 0.01)?.[1]
+  const sourceDuration = source?.getClip().duration ?? 0
+  const sourcePhase = source && sourceDuration > 1e-5
+    ? (((source.time % sourceDuration) + sourceDuration) % sourceDuration) / sourceDuration
+    : 0
+
+  if (entering) {
+    // O idle/estado anterior sai gradualmente enquanto os clipes direcionais
+    // entram. Não reinicia o ciclo toda vez que o jogador troca de direção.
+    for (const [role, action] of entries) {
+      if (CIRCULAR_LOCOMOTION_ROLE_SET.has(role as AnimationRole) || !action.isScheduled()) continue
+      action.stopFading()
+      action.fadeOut(0.18)
+    }
+    state.active = true
+    state.blend = 0
+    state.weights.clear()
+  }
+
+  const weightSmoothing = 1 - Math.exp(-Math.max(0, dt) * 15)
+  const blendSmoothing = 1 - Math.exp(-Math.max(0, dt) * 13)
+  state.blend = THREE.MathUtils.lerp(state.blend, 1, blendSmoothing)
+
+  let referenceDuration = 0
+  let referenceWeight = 0
+  for (const [role, weight] of targetWeights) {
+    const duration = actions.get(role)?.getClip().duration ?? 0
+    if (duration > 1e-5) {
+      referenceDuration += duration * weight
+      referenceWeight += weight
+    }
+  }
+  referenceDuration = referenceWeight > 1e-5 ? referenceDuration / referenceWeight : 1
+  referenceDuration = Math.max(0.12, referenceDuration)
+
+  const rolesToUpdate = new Set<AnimationRole>([
+    ...CIRCULAR_LOCOMOTION_ROLE_SET,
+    ...state.weights.keys(),
+    ...targetWeights.keys(),
+  ])
+  let dominantRole: AnimationRole | null = null
+  let dominantWeight = -1
+
+  for (const role of rolesToUpdate) {
+    const action = actions.get(role)
+    if (!action) continue
+
+    const target = targetWeights.get(role) ?? 0
+    const previous = state.weights.get(role) ?? 0
+    const nextWeight = THREE.MathUtils.lerp(previous, target, weightSmoothing)
+
+    if (target > 1e-4) {
+      action.stopFading()
+      action.stopWarping()
+      action.setLoop(THREE.LoopRepeat, Infinity)
+      action.clampWhenFinished = false
+
+      if (!action.isScheduled()) {
+        action.reset()
+        if (source && source !== action && sourcePhase > 0) {
+          action.time = sourcePhase * action.getClip().duration
+        }
+        action.enabled = true
+        action.paused = false
+        action.setEffectiveWeight(0)
+        action.play()
+      } else if (entering && source && source !== action && sourcePhase > 0) {
+        action.time = sourcePhase * action.getClip().duration
+      }
+    }
+
+    state.weights.set(role, nextWeight)
+    if (action.isScheduled()) {
+      action.stopFading()
+      const duration = Math.max(0.01, action.getClip().duration)
+      action.timeScale = (referenceDuration / duration) * THREE.MathUtils.clamp(speedFactor, 0.55, 1.55)
+      action.setEffectiveWeight(nextWeight * state.blend)
+
+      if (nextWeight > dominantWeight) {
+        dominantWeight = nextWeight
+        dominantRole = role
+      }
+    }
+
+    if (target <= 1e-4 && nextWeight < 0.002) {
+      action.stop()
+      state.weights.delete(role)
+    }
+  }
+
+  return dominantRole
+}
+
+function smoothTurnYaw(currentYaw: number, targetYaw: number, dt: number, response: number): number {
+  const difference = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw))
+  return currentYaw + difference * (1 - Math.exp(-Math.max(0, dt) * response))
 }
 
 type PlayerPosture = 'standing' | 'crouching' | 'prone'
@@ -178,6 +394,13 @@ export class HumanoidAvatar {
   private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
   private activeAnimation = ''
+  private readonly playerDirectionalBlendState: DirectionalAnimationBlendState = {
+    active: false, blend: 0, weights: new Map(),
+  }
+  private readonly mountedDirectionalBlendState: DirectionalAnimationBlendState = {
+    active: false, blend: 0, weights: new Map(),
+  }
+  private mountedDirectionalRoot: THREE.Mesh | null = null
   private activeOneShotAnimation: AnimationRole | null = null
   private playerMountTransition: 'mount' | null = null
   private animationTime = 0
@@ -669,7 +892,17 @@ export class HumanoidAvatar {
 
       moveAxis('x', direction.x)
       moveAxis('z', direction.z)
-      if (direction.lengthSq() > 1e-8) this.mesh.rotation.y = Math.atan2(direction.x, direction.z)
+      if (direction.lengthSq() > 1e-8) {
+        const targetYaw = Math.atan2(direction.x, direction.z)
+        // A rotação tem aceleração angular; o blend direcional consegue passar
+        // pelas diagonais durante curvas sem dar um salto de 90°/180° na pose.
+        this.mesh.rotation.y = smoothTurnYaw(
+          this.mesh.rotation.y,
+          targetYaw,
+          step,
+          running ? 10.5 : 8,
+        )
+      }
     }
 
     // A correção de altura feita durante o movimento horizontal precisa
@@ -744,7 +977,14 @@ export class HumanoidAvatar {
     )
     const movementEpsilon = Math.max(0.001, this.getBodyScale() * 0.0015)
     const actuallyMoving = actualHorizontalDistance > movementEpsilon
-    this.updateAvatarAnimation(step, actuallyMoving || this.maneuver !== null, running, forwardInput, sideInput)
+    this.updateAvatarAnimation(
+      step,
+      actuallyMoving || this.maneuver !== null,
+      running,
+      forwardInput,
+      sideInput,
+      actualHorizontalDistance / Math.max(step, 1e-4),
+    )
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     if (this.firstPersonMode) {
@@ -2380,6 +2620,7 @@ export class HumanoidAvatar {
     // Assim, um GLB inválido não deixa o jogador invisível nem remove o fallback.
     this.mixer?.stopAllAction()
     this.animationActions.clear()
+    resetDirectionalAnimationBlend(this.playerDirectionalBlendState)
     this.mixer = nextMixer
     this.animationActions = nextActions
     this.activeOneShotAnimation = null
