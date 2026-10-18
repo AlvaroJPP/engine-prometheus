@@ -7,6 +7,7 @@ const props = defineProps<{
   fps: number
   controlMapName: string
   firstPerson: boolean
+  worldFullscreen: boolean
   bindings: Record<string, string>
 }>()
 
@@ -95,7 +96,7 @@ function resetSettings() {
 </script>
 
 <template>
-  <section class="player-hud" :style="hudStyle" aria-label="Interface do jogador">
+  <section class="player-hud" :class="{ 'hud-world-fullscreen': worldFullscreen }" :style="hudStyle" aria-label="Interface do jogador">
     <div class="hud-topline" :class="{ 'topline-reverse': settings.dock === 'right' }">
       <div v-if="settings.showPlayer" class="hud-player-card">
         <div class="hud-avatar" aria-hidden="true"><span>P</span></div>
@@ -302,4 +303,34 @@ function resetSettings() {
   .hud-action-button,.hud-exit-button { min-height:42px; }
   .hud-settings-panel { top:72px; max-height:calc(100dvh - 150px); }
 }
+
+/* In fullscreen, keep the runtime/session card and its HUD-edit button out of
+   the upper-right viewport toolbar's hit area. Stack it below the player card. */
+.player-hud.hud-world-fullscreen .hud-topline {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(10px * var(--hud-scale));
+}
+.player-hud.hud-world-fullscreen .hud-settings-panel {
+  top: calc(158px * var(--hud-scale));
+  left: clamp(10px, 2vw, 26px);
+  right: auto;
+  max-height: calc(100dvh - 182px);
+}
+@media(max-width:620px) {
+  .player-hud.hud-world-fullscreen .hud-settings-panel {
+    top: 108px;
+    left: 9px;
+    width: min(350px, calc(100vw - 18px));
+    max-height: calc(100dvh - 130px);
+  }
+}
+@media(max-height:520px) {
+  .player-hud.hud-world-fullscreen .hud-topline { gap: 5px; }
+  .player-hud.hud-world-fullscreen .hud-settings-panel {
+    top: 112px;
+    max-height: calc(100dvh - 132px);
+  }
+}
+
 </style>
