@@ -12,7 +12,7 @@ import {
 } from '@engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
-import { AnimationController } from '@engine/world/AnimationController'
+import { AnimationController, inferAnimationRole } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
@@ -465,46 +465,9 @@ const previewComponentDimensions = computed(() => {
 })
 
 function guessedAnimationRole(name: string): AnimationRole {
-  const normalized = name.toLowerCase().replace(/[\s._-]+/g, '')
-  if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
-  if (/mounting|mount|gettingon|riding/.test(normalized)) return 'mount'
-  if (/jump|leap|hop|saut|salto|pular/.test(normalized)) return 'jump'
-  if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
-  if (/crouch|squat|agachar/.test(normalized)) return 'crouch'
-  if (/prone|crawl|rastejar/.test(normalized)) return 'prone_crawl'
-  if (/dodge|evade|esquiva/.test(normalized)) return 'dodge'
-  if (/slide|sliding|deslizar/.test(normalized)) return 'slide'
-  if (/roll|rolling|somersault|rolamento/.test(normalized)) return 'roll'
-  if (/reload|reloading/.test(normalized)) return 'reload'
-  if (/inventory|inventario/.test(normalized)) return 'inventory'
-  if (/useitem|consume|drinking|eating|usaritem/.test(normalized)) return 'use_item'
-  if (/ability1|skill1|spell1/.test(normalized)) return 'ability_1'
-  if (/ability2|skill2|spell2/.test(normalized)) return 'ability_2'
-  if (/ability3|skill3|spell3/.test(normalized)) return 'ability_3'
-  if (/ability4|skill4|spell4/.test(normalized)) return 'ability_4'
-  if (/secondaryaction|secondaryattack|block|parry|defend/.test(normalized)) return 'secondary_action'
-  if (/primaryaction|attack|strike|punch|slash|shoot|melee/.test(normalized)) return 'primary_action'
-  if (/interact|interaction|useobject/.test(normalized)) return 'interact'
-  if (/emote|gesture|dance|wave/.test(normalized)) return 'emote'
-  const isRun = /gallop|canter|sprint|running|run/.test(normalized)
-  const left = /left|esquerda|izquierda/.test(normalized)
-  const right = /right|direita|derecha/.test(normalized)
-  const backward = /backward|backwards|reverse|walkback|moveback|backward|tras|atr.s/.test(normalized)
-  const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalized)
-  const lateral = /diagonal|diag|strafe|sidestep|sideways/.test(normalized) ||
-    (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalized))
-  if (movementClip && backward && (left || right)) {
-    if (isRun) return left ? 'run_backward_diagonal_left' : 'run_backward_diagonal_right'
-    return left ? 'walk_backward_diagonal_left' : 'walk_backward_diagonal_right'
-  }
-  if (movementClip && backward) return isRun ? 'run_backward' : 'walk_backward'
-  if (lateral && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
-  if (lateral && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
-  if (isRun) return 'run'
-  if (/walk|trot|locomotion|move/.test(normalized)) return 'walk'
-  if (/idle|stand|rest|breath|neutral/.test(normalized)) return 'idle'
-  return 'ignore'
+  return inferAnimationRole(name)
 }
+
 function setAnimationRole(index: number, role: AnimationRole) {
   if (!previewAnimations.value[index]) return
   animationRoles.value = { ...animationRoles.value, [String(index)]: role }
