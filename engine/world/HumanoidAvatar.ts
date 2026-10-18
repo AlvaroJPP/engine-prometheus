@@ -23,7 +23,7 @@ const PLAYER_HEIGHT = 1.8
 const WALKABLE_SURFACE_NORMAL_Y = 0.32
 const MAX_WALK_OFF_DROP = 0.72
 const LEDGE_EDGE_TOP_TOLERANCE = 0.045
-const LEDGE_EDGE_FLOOR_TOLERANCE = 0.18
+const LEDGE_EDGE_FLOOR_TOLERANCE = 0.28
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
   [0.48, 0], [-0.48, 0], [0, 0.48], [0, -0.48],
@@ -664,7 +664,7 @@ export class HumanoidAvatar {
       landing >= newGroundY &&
       (
         nextY <= landing + 0.05 ||
-        (wasGrounded && length > 0 && landing >= oldY - 0.38 && landing <= oldY + 0.52) ||
+        (wasGrounded && length > 0 && landing >= oldY - MAX_WALK_OFF_DROP && landing <= oldY + 0.52) ||
         canFollowObjectSlopeDown
       )
 
@@ -2885,7 +2885,7 @@ export class HumanoidAvatar {
       const rise = surfaceY - oldY
       // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
       // também reconhece uma superfície estreita que cruzou entre dois frames.
-      const canStepOntoSurface = this.grounded && rise >= -0.40 && rise <= 0.52
+      const canStepOntoSurface = this.grounded && rise >= -MAX_WALK_OFF_DROP && rise <= 0.52
       const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
       return canStepOntoSurface || crossedSurface
     }
