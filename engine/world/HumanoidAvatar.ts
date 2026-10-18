@@ -203,13 +203,20 @@ function applyCircularDirectionalBlend(
 
   const entries = [...actions.entries()]
   const entering = !state.active
-  const source = actions.get(preferredSourceRole)
-    ?? entries.find(([role, action]) =>
+  // Never synchronize a run/walk cycle to the jump or idle clip's phase.
+  // Using the jump clip's normalized time as the run phase is visibly jarring
+  // when the player lands while still holding a movement direction.
+  const preferredRole = preferredSourceRole as AnimationRole
+  const preferredAction = CIRCULAR_LOCOMOTION_ROLE_SET.has(preferredRole)
+    ? actions.get(preferredRole)
+    : undefined
+  const source = preferredAction?.isScheduled() && preferredAction.getEffectiveWeight() > 0.01
+    ? preferredAction
+    : entries.find(([role, action]) =>
       CIRCULAR_LOCOMOTION_ROLE_SET.has(role as AnimationRole) &&
       action.isScheduled() &&
       action.getEffectiveWeight() > 0.01,
     )?.[1]
-    ?? entries.find(([, action]) => action.isScheduled() && action.getEffectiveWeight() > 0.01)?.[1]
   const sourceDuration = source?.getClip().duration ?? 0
   const sourcePhase = source && sourceDuration > 1e-5
     ? (((source.time % sourceDuration) + sourceDuration) % sourceDuration) / sourceDuration
@@ -432,6 +439,8 @@ export class HumanoidAvatar {
   private readonly cameraTarget: THREE.Vector3
   private readonly getCameraYaw: () => number
   private readonly pressed = new Set<string>()
+  /** Salto por borda de tecla: segurar espaço não deve disparar saltos repetidos. */
+  private jumpRequested = false
   private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
   private verticalVelocity = 0
@@ -666,8 +675,9 @@ export class HumanoidAvatar {
       }
     }
 
-    if (event.code === bindings.jump && this.mountedRoot && !event.repeat) {
-      this.mountedJumpRequested = true
+    if (event.code === bindings.jump && !event.repeat) {
+      if (this.mountedRoot) this.mountedJumpRequested = true
+      else this.jumpRequested = true
     }
 
     if (!event.repeat && mappedAnimation) {
@@ -687,7 +697,11 @@ export class HumanoidAvatar {
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     this.pressed.delete(event.code)
   }
-  private readonly onBlur = (): void => this.pressed.clear()
+  private readonly onBlur = (): void => {
+    this.pressed.clear()
+    this.jumpRequested = false
+    this.mountedJumpRequested = false
+  }
 
   constructor(world: World, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
     this.world = world
@@ -786,7 +800,11 @@ export class HumanoidAvatar {
     const animationStartX = this.mesh.position.x
     const animationStartZ = this.mesh.position.z
 
-    if (this.pressed.has(bindings.jump) && this.grounded) {
+    // Consumir somente o pressionamento inicial evita que manter a tecla de
+    // salto force um novo salto ao tocar o chão e interrompa a corrida continuamente.
+    const requestedJump = this.jumpRequested
+    this.jumpRequested = false
+    if (requestedJump && this.grounded) {
       this.verticalVelocity = JUMP_SPEED * Math.sqrt(this.getBodyScale())
       this.grounded = false
     }
@@ -2512,6 +2530,8 @@ export class HumanoidAvatar {
   }
 
   resetVerticalState(): void {
+    this.jumpRequested = false
+    this.mountedJumpRequested = false
     this.verticalVelocity = 0
     this.grounded = true
     this.pressed.clear()
@@ -2531,6 +2551,8 @@ export class HumanoidAvatar {
   }
 
   reset(): void {
+    this.jumpRequested = false
+    this.mountedJumpRequested = false
     this.mesh.position.set(0, this.world.terrain.heightAt(0, 0), 0)
     this.verticalVelocity = 0
     this.grounded = true
