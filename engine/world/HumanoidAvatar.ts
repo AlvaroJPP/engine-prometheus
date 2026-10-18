@@ -1,6 +1,11 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
+import {
+  getStaticMeshCollisionData,
+  raycastStaticMesh,
+  visitStaticMeshTriangles,
+} from './StaticMeshCollider'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
 import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
 import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
@@ -54,6 +59,10 @@ function getColliderBounds(mesh: THREE.Mesh): THREE.Box3 | null {
   if (type === 'none') return null
 
   mesh.updateWorldMatrix(true, false)
+  if (type === 'mesh') {
+    const staticData = getStaticMeshCollisionData(mesh)
+    if (staticData) return staticData.localBounds.clone().applyMatrix4(mesh.matrixWorld)
+  }
   const configuredSize = mesh.userData.colliderSize
   const hasManualSize = Array.isArray(configuredSize) &&
     configuredSize.length === 3 &&
@@ -875,11 +884,18 @@ export class HumanoidAvatar {
     let supportY: number | null = terrainY
     const originY = Math.max(referenceFeetY + PLAYER_HEIGHT + 2, terrainY + PLAYER_HEIGHT + 2)
     const lowestAllowedY = terrainY - 0.15
-    const candidates = this.world.list().filter(object =>
+    const allCandidates = this.world.list().filter(object =>
       object.mesh !== ignoredRoot &&
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
+    const staticCandidates = allCandidates.filter(object =>
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    const staticIds = new Set(staticCandidates.map(object => object.id))
+    const candidates = allCandidates.filter(object => !staticIds.has(object.id))
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(x, originY, z),
       new THREE.Vector3(0, -1, 0),
@@ -904,6 +920,15 @@ export class HumanoidAvatar {
 
       if (supportY === null || hit.point.y > supportY) supportY = hit.point.y
       break
+    }
+
+    for (const object of staticCandidates) {
+      const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, Math.max(1, originY - lowestAllowedY), candidate =>
+        candidate.normal.y >= 0.45 &&
+        candidate.point.y <= referenceFeetY + 0.45 &&
+        candidate.point.y >= lowestAllowedY,
+      )
+      if (hit) supportY = supportY === null ? hit.point.y : Math.max(supportY, hit.point.y)
     }
 
     // Primitivas com colisor configurado também têm uma face superior válida
@@ -1327,6 +1352,21 @@ export class HumanoidAvatar {
       // sendo decidido pelos raycasts de superfície.
       if (rampSurfaceUnderMount || flatPlatformUnderMount) continue
 
+      if (obstacle.userData.importedModel === true && configuredCollider === 'mesh') {
+        const staticData = getStaticMeshCollisionData(obstacle)
+        if (staticData) {
+          const blocked = visitStaticMeshTriangles(obstacle, mountBounds, (triangle) => {
+            triangle.getNormal(normal).normalize()
+            // Horizontal faces are walkable floors/ceilings; lateral and steep
+            // faces are physical walls for a moving mount.
+            if (Math.abs(normal.y) >= 0.82) return false
+            return mountBounds.intersectsTriangle(triangle)
+          })
+          if (blocked) return true
+          continue
+        }
+      }
+
       if (
         obstacle.userData.importedModel === true &&
         configuredCollider !== undefined &&
@@ -1411,10 +1451,26 @@ export class HumanoidAvatar {
       obstacle.updateWorldMatrix(true, true)
 
       const configuredCollider = obstacle.userData.colliderType
+      if (obstacle.userData.importedModel === true && configuredCollider === 'mesh') {
+        const staticData = getStaticMeshCollisionData(obstacle)
+        if (staticData) {
+          const headBounds = new THREE.Box3(
+            new THREE.Vector3(currentBounds.min.x, currentBounds.max.y - 0.12, currentBounds.min.z),
+            new THREE.Vector3(currentBounds.max.x, currentBounds.max.y + 0.02, currentBounds.max.z),
+          )
+          const blocked = visitStaticMeshTriangles(obstacle, headBounds, triangle => {
+            triangle.getNormal(normal).normalize()
+            return Math.abs(normal.y) >= 0.45 && headBounds.intersectsTriangle(triangle)
+          })
+          if (blocked) return true
+          continue
+        }
+      }
+
       if (
         obstacle.userData.importedModel === true &&
         (
-          (configuredCollider !== undefined && configuredCollider !== 'auto') ||
+          (configuredCollider !== undefined && configuredCollider !== 'auto' && configuredCollider !== 'mesh') ||
           (configuredCollider === 'auto' && this.getImportedTriangleCount(obstacle) > MAX_EXACT_MOUNT_COLLISION_TRIANGLES)
         )
       ) {
@@ -2329,10 +2385,38 @@ export class HumanoidAvatar {
       // Esses tipos simplificados usam o volume físico calculado pela raiz; apenas
       // "auto" segue a geometria triangular real.
       const configuredCollider = root.userData.colliderType
+      if (root.userData.importedModel === true && configuredCollider === 'mesh') {
+        const staticData = getStaticMeshCollisionData(root)
+        if (staticData) {
+          const queryBox = blockCeilings
+            ? new THREE.Box3(
+                new THREE.Vector3(playerBox.min.x, playerBox.max.y - 0.12, playerBox.min.z),
+                new THREE.Vector3(playerBox.max.x, playerBox.max.y + 0.02, playerBox.max.z),
+              )
+            : playerBox
+          const blocked = visitStaticMeshTriangles(root, queryBox, triangle => {
+            triangle.getNormal(normal).normalize()
+            if (blockCeilings) {
+              // A head-volume query blocks ceilings independently of triangle winding.
+              return Math.abs(normal.y) >= 0.45 && queryBox.intersectsTriangle(triangle)
+            }
+            // Ignore horizontal floor/roof faces during horizontal movement; the
+            // landing solver uses downward BVH raycasts to find their real height.
+            if (Math.abs(normal.y) >= 0.82) return false
+            return queryBox.intersectsTriangle(triangle)
+          })
+          if (blocked) return true
+          continue
+        }
+        // Non-static geometry (e.g. a skinned/morph model) falls back to the
+        // normal model path instead of building a stale BVH.
+      }
+
       if (
         root.userData.importedModel === true &&
         configuredCollider !== undefined &&
-        configuredCollider !== 'auto'
+        configuredCollider !== 'auto' &&
+        configuredCollider !== 'mesh'
       ) {
         const colliderBounds = getColliderBounds(root)
         if (colliderBounds && this.hasVolumeOverlap(playerBox, colliderBounds)) return true
@@ -2447,30 +2531,46 @@ export class HumanoidAvatar {
       0,
       playerHeight + 1.15,
     )
-    const candidates = this.world.list().filter((object) =>
+    const allCandidates = this.world.list().filter(object =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
     )
+    const staticCandidates = allCandidates.filter(object =>
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    const staticIds = new Set(staticCandidates.map(object => object.id))
+    const candidates = allCandidates.filter(object => !staticIds.has(object.id))
     const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    let bestSurface: number | null = null
+
     for (const hit of hits) {
       if (!hit.face) continue
       const root = candidates.find(object =>
         object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
       )
       if (!root) continue
-      // Modelos importados não são degraus: permitir step-up pela malha visual
-      // faz o jogador subir pela lateral do animal e dá a impressão de que a caixa
-      // colide apenas por cima. A colisão lateral é tratada pelo colisor da raiz.
+      // Importados não são degraus físicos genéricos: seus pisos são tratados
+      // separadamente a partir do BVH, mas não se sobe pela lateral de um objeto.
       if (root.mesh.userData.importedModel === true) continue
       const normal = hit.face.normal.clone()
         .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
         .normalize()
       if (normal.y < 0.45) continue
       const rise = hit.point.y - feetY
-      // Só permite subir um degrau alcançável; não teleporta o jogador para
-      // plataformas altas nem usa a face inferior/lateral como piso.
-      if (rise >= -0.12 && rise <= 0.5) return hit.point.y
+      if (rise >= -0.12 && rise <= 0.5 && (bestSurface === null || hit.point.y > bestSurface)) {
+        bestSurface = hit.point.y
+      }
     }
-    return null
+
+    for (const object of staticCandidates) {
+      const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, playerHeight + 1.15, candidate => {
+        const rise = candidate.point.y - feetY
+        return candidate.normal.y >= 0.45 && rise >= -0.12 && rise <= 0.5
+      })
+      if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
+    }
+    return bestSurface
   }
 
   private findObjectLanding(oldY: number, nextY: number): number | null {
@@ -2485,12 +2585,20 @@ export class HumanoidAvatar {
     // nos objetos cuja raiz está rotacionada. Rampas também podem ser construídas
     // com várias plataformas individuais, e suas faces superiores precisam sustentar
     // o jogador mesmo quando cada plataforma tem rotação zero.
-    const slopeCandidates = this.world.list().filter((object) =>
+    const allSlopeCandidates = this.world.list().filter((object) =>
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
+    const staticCandidates = allSlopeCandidates.filter(object =>
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    const staticIds = new Set(staticCandidates.map(object => object.id))
+    const slopeCandidates = allSlopeCandidates.filter(object => !staticIds.has(object.id))
+    const rayOriginY = Math.max(oldY, nextY) + PLAYER_HEIGHT + 2
+    raycaster.ray.origin.set(this.mesh.position.x, rayOriginY, this.mesh.position.z)
     if (slopeCandidates.length > 0) {
-      raycaster.ray.origin.set(this.mesh.position.x, Math.max(oldY, nextY) + PLAYER_HEIGHT + 2, this.mesh.position.z)
       const hits = raycaster.intersectObjects(slopeCandidates.map(object => object.mesh), true)
       for (const hit of hits) {
         if (!hit.face) continue
@@ -2518,10 +2626,23 @@ export class HumanoidAvatar {
       }
     }
 
+    // Cidades e terrenos estáticos consultam somente os triângulos que cruzam
+    // o raio vertical; os demais triângulos da cidade não são visitados.
+    for (const object of staticCandidates) {
+      const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, Number.POSITIVE_INFINITY, candidate => {
+        if (candidate.normal.y < 0.45) return false
+        const rise = candidate.point.y - oldY
+        const canStepOntoSlope = this.grounded && rise >= -0.3 && rise <= 0.5
+        const crossedSurface = nextY <= candidate.point.y && oldY >= candidate.point.y - 0.75
+        return canStepOntoSlope || crossedSurface
+      })
+      if (hit && (landing === null || hit.point.y > landing)) landing = hit.point.y
+    }
+
     // Objetos não inclinados continuam usando o colisor configurado.
     if (nextY > oldY) return landing
     for (const object of this.world.list()) {
-      if (!object.mesh.visible) continue
+      if (!object.mesh.visible || object.mesh.userData.colliderType === 'mesh') continue
       const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
       if (rotatedRamp) continue
       const box = getColliderBounds(object.mesh)
