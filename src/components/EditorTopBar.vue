@@ -149,8 +149,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </div>
 
         <div class="mode-segment" aria-label="Modo do editor">
-      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">Editar</button>
-      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena" data-tooltip="Executa a cena para testar o jogador, as colisões e os eventos.">Jogar</button>
+      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z" /></svg><span>Editar</span>
+      </button>
+      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena" data-tooltip="Executa a cena para testar o jogador, as colisões e os eventos.">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 3v10l8-5z" /></svg><span>Jogar</span>
+      </button>
     </div>
 
     <div class="topbar-right">
@@ -1021,7 +1025,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 }
 .topbar .topbar-fullscreen svg { display:block; width:16px; height:16px; }
 .topbar .topbar-fullscreen:hover,.topbar .topbar-fullscreen.active { border-color:#3c372f; background:#26231e; }
-.app.world-fullscreen .viewport-tools-overlay { top:12px; }
+:global(.app.world-fullscreen) .viewport-tools-overlay { top:12px; }
 @media(max-width:1180px) {
   .topbar { gap:8px; }
   .topbar-left,.topbar-right { gap:6px; }
