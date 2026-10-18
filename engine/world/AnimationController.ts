@@ -220,6 +220,13 @@ export class AnimationController {
 
   setState(role: string, force = false): boolean {
     if (this.disposed) return false
+    if (!force && ONE_SHOT_ANIMATION_ROLES.has(role as AnimationRole)) {
+      if (this.oneShotRole === role && this.actions.get(role)?.isRunning()) return true
+      // Não reinicie um clipe pontual a cada quadro se ele já terminou; um novo
+      // estado intermediário (por exemplo, pouso em idle) libera um próximo disparo.
+      if (this.requestedRole === role && this.oneShotRole === null) return true
+      return this.playOneShot(role, false)
+    }
     this.requestedRole = role
     const nextRole = this.resolveRole(role)
     const nextTargets = nextRole ? new Map([[nextRole, 1]]) : new Map<string, number>()
@@ -422,3 +429,33 @@ export class AnimationController {
     this.disposed = true
   }
 }
+
+/** Obtém o controlador runtime de um objeto importado ou migra um objeto legado. */
+export function getAnimationControllerFromObject(root: THREE.Object3D): AnimationController | null {
+  const existing = root.userData.importAnimationController
+  if (existing instanceof AnimationController) return existing
+
+  const mixer = root.userData.importAnimationMixer as THREE.AnimationMixer | undefined
+  if (!mixer) return null
+  const source = root.userData.importAnimationActions as Partial<Record<string, THREE.AnimationAction>> | undefined
+  const actions = new Map<string, THREE.AnimationAction>(
+    Object.entries(source ?? {}).filter((entry): entry is [string, THREE.AnimationAction] => Boolean(entry[1])),
+  )
+  const legacyFallback = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
+  if (legacyFallback && ![...actions.values()].includes(legacyFallback)) actions.set('__fallback__', legacyFallback)
+
+  const controller = new AnimationController(mixer, actions, {
+    genericFallback: actions.has('__fallback__'),
+  })
+  const previousState = root.userData.importAnimationState
+  if (typeof previousState === 'string' && previousState && controller.hasState(previousState)) {
+    controller.setState(previousState)
+  } else {
+    const initialRole = ['idle', 'walk', 'run', 'walk_diagonal_left', 'walk_diagonal_right', '__fallback__']
+      .find(role => controller.hasRole(role))
+    if (initialRole) controller.setState(initialRole)
+  }
+  root.userData.importAnimationController = controller
+  return controller
+}
+
