@@ -1026,7 +1026,22 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 }
 .topbar .topbar-fullscreen svg { display:block; width:16px; height:16px; }
 .topbar .topbar-fullscreen:hover,.topbar .topbar-fullscreen.active { border-color:#3c372f; background:#26231e; }
-:global(.app.world-fullscreen) .viewport-tools-overlay { top:12px; }
+:global(.app.world-fullscreen) .viewport-tools-overlay {
+  top: 12px !important;
+  right: 12px !important;
+  left: auto !important;
+  width: max-content;
+  max-width: calc(100vw - 24px) !important;
+  transform: none !important;
+  flex-wrap: wrap;
+}
+:global(.app.world-fullscreen) .viewport-tools-overlay .render-settings-popover {
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 @media(max-width:1180px) {
   .topbar { gap:8px; }
   .viewport-tools-overlay { right:215px; }
