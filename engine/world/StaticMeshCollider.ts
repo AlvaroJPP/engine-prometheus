@@ -96,11 +96,13 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
 
   if (parts.length === 0 || totalIndices < 3) {
     unsupportedRoots.add(root)
+    root.userData.staticMeshColliderDirty = false
     return null
   }
   const triangleCount = Math.floor(totalIndices / 3)
   if (triangleCount > MAX_STATIC_COLLIDER_TRIANGLES) {
     unsupportedRoots.add(root)
+    root.userData.staticMeshColliderDirty = false
     return null
   }
 
@@ -164,6 +166,7 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
 
   previous?.geometry.dispose()
   cache.set(root, compiled)
+  root.userData.staticMeshColliderDirty = false
   return compiled
 }
 
