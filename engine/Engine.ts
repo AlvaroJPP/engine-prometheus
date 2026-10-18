@@ -634,10 +634,12 @@ export class Engine {
       })
     }
     this.syncVeilborneTarget(instance, target)
-    if (result.postureBroken) {
+    if (result.postureBroken && !result.killed) {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'posture_broken')
     }
     if (result.killed) {
+      this.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
+      this.notifyBehaviorPackageChanged(instance.ownerObjectId)
       this.veilborneTargetStates.delete(instance.ownerObjectId)
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
     }
@@ -814,7 +816,7 @@ export class Engine {
     if (playerPostureBroken) {
       player.resources.posture = 0
       this.veilbornePlayerStaggerRemainingSeconds = Math.max(this.veilbornePlayerStaggerRemainingSeconds, 0.85)
-      this.avatar.setCombatStagger(0.85)
+      this.avatar.setCombatStagger(this.veilbornePlayerStaggerRemainingSeconds)
       this.logic.setVariable('jogador_atordoado', true)
       this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffb26b, 0.9, 0.4)
     }
