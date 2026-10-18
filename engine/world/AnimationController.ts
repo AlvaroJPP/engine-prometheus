@@ -234,12 +234,13 @@ export class AnimationController {
 
   setState(role: string, force = false): boolean {
     if (this.disposed) return false
-    if (!force && ONE_SHOT_ANIMATION_ROLES.has(role as AnimationRole)) {
-      if (this.oneShotRole === role && this.actions.get(role)?.isRunning()) return true
+    if (ONE_SHOT_ANIMATION_ROLES.has(role as AnimationRole)) {
+      if (!force && this.oneShotRole === role && this.actions.get(role)?.isRunning()) return true
       // Não reinicie um clipe pontual a cada quadro se ele já terminou; um novo
       // estado intermediário (por exemplo, pouso em idle) libera um próximo disparo.
-      if (this.requestedRole === role && this.oneShotRole === null) return true
-      return this.playOneShot(role, false)
+      if (!force && this.requestedRole === role && this.oneShotRole === null) return true
+      // "force" reinicia a ação, mas continua usando o ciclo de vida one-shot do controlador.
+      return this.playOneShot(role, force)
     }
     this.requestedRole = role
     const nextRole = this.resolveRole(role)
