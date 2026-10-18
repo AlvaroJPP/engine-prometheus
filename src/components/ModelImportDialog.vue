@@ -1900,7 +1900,13 @@ async function confirmImport() {
   // Aguarda o salvamento antes de fechar. Em caso de erro, a prévia continua
   // aberta e a mensagem fica visível para corrigir e tentar novamente.
   const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
-  const sourceGlbBytes = imported === root && root.userData.importNeedsReexport !== true
+  const sourceMetadata = root.userData.importGltfMetadata as { images?: Array<{ uri?: string }> } | undefined
+  const hasOnlyEmbeddedTextures = (sourceMetadata?.images ?? []).every(image =>
+    !image.uri || image.uri.startsWith('data:image/'),
+  )
+  const sourceGlbBytes = imported === root
+    && root.userData.importNeedsReexport !== true
+    && hasOnlyEmbeddedTextures
     && root.userData.importSourceGlbBytes instanceof ArrayBuffer
     ? root.userData.importSourceGlbBytes.slice(0)
     : undefined
