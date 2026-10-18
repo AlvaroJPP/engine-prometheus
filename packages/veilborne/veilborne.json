@@ -304,7 +304,8 @@
       "sigilActivate": "useItem (H in the default WASD profile)",
       "block": "block (R in the default WASD profile; hold)",
       "parry": "parry (Y by default; costs 14 stamina; a successful parry refunds 12 and triggers a weapon-scaled counterattack)",
-      "targetLock": "targetLock (O default for WASD/arrows/ESDF; M for IJKL profile)"
+      "targetLock": "targetLock (O default for WASD/arrows/ESDF; M for IJKL profile)",
+      "inventory": "inventory (Tab default; opens/closes the runtime Arsenal do Véu panel)"
     },
     "playerGlobalVariables": [
       "vida",
@@ -345,7 +346,13 @@
       "alvo_travado",
       "alvo_veilborne_id",
       "carregando_ataque",
-      "carga_ataque"
+      "carga_ataque",
+      "sigilo_1",
+      "sigilo_2",
+      "sigilo_3",
+      "sigilo_4",
+      "sigilo_selecionado",
+      "sigilo_ativo"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -385,7 +392,11 @@
       "chargeable_heavy_attack",
       "heavy_attack_charge_state_globals",
       "player_attack_animation_requests",
-      "player_posture_break_stagger"
+      "player_posture_break_stagger",
+      "runtime_arsenal_loadout_panel",
+      "equipped_weapon_switching",
+      "spell_slot_configuration_from_hud",
+      "prepared_sigil_slot_configuration_from_hud"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -395,7 +406,10 @@
       "production_vfx_sfx",
       "checkpoints_and_death_recovery",
       "quest_and_dialogue_runtime",
-      "boss_unique_attack_patterns"
+      "boss_unique_attack_patterns",
+      "collectable_inventory_and_consumables",
+      "loot_and_equipment_drop_system",
+      "persistent_loadout_and_character_save"
     ],
     "enemyAIProfiles": [
       "melee",
