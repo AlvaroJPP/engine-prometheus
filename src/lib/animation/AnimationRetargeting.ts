@@ -240,35 +240,284 @@ export function retargetAnimationClip(
   return { clip: retargeted, mappedTracks: tracks.length, skippedTracks }
 }
 
-/** Sugere correspondências por nome, ignorando prefixos comuns de exportadores. */
-export function suggestTargetBone(sourceName: string, targetBones: THREE.Bone[]): string {
-  const normalize = (name: string) => name
+type BoneNameSignature = {
+  original: string
+  normalized: string
+  compact: string
+  tokens: string[]
+  role: string
+  side: 'left' | 'right' | null
+  zone: 'front' | 'hind' | null
+  level: number | null
+  digit: string | null
+  specificity: number
+}
+
+const BONE_PREFIX_TOKENS = new Set([
+  'mixamorig', 'armature', 'skeleton', 'skel', 'rig', 'deform', 'deformer',
+  'def', 'org', 'bip001', 'bip01', 'bone', 'bones', 'joint', 'jnt', 'bn',
+  'reference', 'rootnode',
+])
+
+function signatureForBoneName(name: string): BoneNameSignature {
+  // O nome do canal pode vir qualificado como Armature|mixamorig:Hips.
+  // Para comparar, usamos o segmento final e preservamos sufixos .001 como índices.
+  const leaf = name.split(/[|/:]/).filter(Boolean).pop() ?? name
+  const expanded = leaf
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/mixamorig|armature|skeleton|bip001|bip01|rig[_ .-]*/g, '')
-    .replace(/left/g, 'l')
-    .replace(/right/g, 'r')
-    .replace(/[^a-z0-9]/g, '')
-  const source = normalize(sourceName)
-  if (!source) return ''
-  const exact = targetBones.find(bone => normalize(bone.name) === source)
-  if (exact) return exact.name
+    .replace(/[.]+(?=\d+$)/g, ' ')
+  const rawTokens = expanded.split(/[^a-z0-9]+/).filter(Boolean)
+  const tokens = rawTokens.filter(token => !BONE_PREFIX_TOKENS.has(token))
+  const compact = tokens.join('')
+  const normalized = tokens.join('_')
 
-  const aliases: Record<string, string[]> = {
-    hips: ['pelvis', 'hip', 'root', 'rigroot'],
-    pelvis: ['hips', 'hip'],
-    spine: ['spine1', 'spine01', 'torso'],
-    chest: ['spine2', 'spine02', 'upperchest'],
-    neck: ['neck1'],
-    head: ['headtop'],
-    upperarm_l: ['leftarm', 'arm_l', 'upperarml'],
-    upperarm_r: ['rightarm', 'arm_r', 'upperarmr'],
-    thigh_l: ['upleg_l', 'leftupleg', 'leg_l'],
-    thigh_r: ['upleg_r', 'rightupleg', 'legr'],
+  const has = (...values: string[]) => values.some(value =>
+    tokens.includes(value) || compact.includes(value),
+  )
+  const tokenIndex = (...values: string[]) => tokens.find(token =>
+    values.some(value => token === value || token.startsWith(value)),
+  )
+
+  let side: BoneNameSignature['side'] = null
+  if (
+    has('left', 'lhs', 'lft', 'gauche', 'links', 'izquierdo', 'izquierda', 'esquerdo', 'esquerda') ||
+    /^(l)(?=(arm|leg|hand|foot|shoulder|clavicle|thigh|calf|forearm|upperarm|lowerarm|toe|finger|eye))/.test(compact) ||
+    /(?:^|_)(l|left)$/.test(normalized)
+  ) side = 'left'
+  else if (
+    has('right', 'rhs', 'rgt', 'droite', 'rechts', 'derecho', 'derecha', 'direito', 'direita') ||
+    /^(r)(?=(arm|leg|hand|foot|shoulder|clavicle|thigh|calf|forearm|upperarm|lowerarm|toe|finger|eye))/.test(compact) ||
+    /(?:^|_)(r|right)$/.test(normalized)
+  ) side = 'right'
+
+  let zone: BoneNameSignature['zone'] = null
+  if (has('front', 'fore', 'foreleg', 'forelimb', 'frontleg', 'frontlimb')) zone = 'front'
+  else if (has('hind', 'hindleg', 'hindlimb', 'rear', 'backleg', 'backlimb')) zone = 'hind'
+
+  const numericSuffix = (value: string): number | null => {
+    const match = value.match(/(?:^|[^a-z])(?:spine|neck|tail|finger|phalange|toe|thumb|index|middle|ring|pinky|little)[ _-]*0*(\d+)$/) ??
+      value.match(/(?:spine|neck|tail|finger|phalange|toe|thumb|index|middle|ring|pinky|little)0*(\d+)$/)
+    return match ? Number(match[1]) : null
   }
-  const aliasTargets = aliases[source] ?? []
-  const aliasMatch = targetBones.find(bone => aliasTargets.includes(normalize(bone.name)))
-  if (aliasMatch) return aliasMatch.name
+  let level = numericSuffix(normalized)
 
-  const starts = targetBones.filter(bone => normalize(bone.name).endsWith(source) || source.endsWith(normalize(bone.name)))
-  return starts.length === 1 ? starts[0]!.name : ''
+  let digit: string | null = null
+  if (has('thumb', 'pollex')) digit = 'thumb'
+  else if (has('index', 'pointer', 'forefinger', 'digit2')) digit = 'index'
+  else if (has('middle', 'medius', 'digit3')) digit = 'middle'
+  else if (has('ring', 'digit4')) digit = 'ring'
+  else if (has('pinky', 'littlefinger', 'little', 'digit5')) digit = 'little'
+
+  let role = ''
+  if (has('pelvis', 'hips', 'hip', 'waist', 'bassin')) role = 'pelvis'
+  else if (has('root', 'master', 'origin', 'worldroot')) role = 'root'
+  else if (has('clavicle', 'collar', 'shoulder', 'shoulderjoint')) role = 'shoulder'
+  else if (has('neck', 'cervical')) role = 'neck'
+  else if (has('head', 'skull', 'cranium', 'headtop')) role = 'head'
+  else if (has('jaw', 'mandible')) role = 'jaw'
+  else if (has('eye', 'eyeball', 'eyelid')) role = 'eye'
+  else if (has('thumb', 'pollex', 'index', 'pointer', 'forefinger', 'middle', 'medius', 'ring', 'pinky', 'littlefinger', 'little', 'phalange', 'finger', 'digit2', 'digit3', 'digit4', 'digit5')) role = 'finger'
+  else if (has('wrist', 'hand', 'palm')) role = 'hand'
+  else if (has('forearm', 'lowerarm', 'armdown', 'elbow', 'ulna', 'radius')) role = 'lower_arm'
+  else if (has('upperarm', 'uparm', 'armup', 'bicep', 'biceps', 'humerus') || /^(left|right|l|r)?arm$/.test(compact)) role = 'upper_arm'
+  else if (has('thigh', 'upleg', 'upperleg', 'femur', 'hipjoint')) role = 'thigh'
+  else if (has('calf', 'shin', 'lowerleg', 'legdown', 'knee', 'tibia', 'fibula', 'kneecap')) role = 'lower_leg'
+  else if (has('ankle', 'foot', 'heel', 'paw', 'hoof')) role = 'foot'
+  else if (has('toe', 'toes', 'ball')) role = 'toe'
+  else if (has('tail', 'tailbase', 'tailtip')) role = 'tail'
+  else if (has('chest', 'upperchest', 'thorax', 'ribcage', 'torso')) {
+    role = 'spine'
+    level = level ?? (has('upperchest') ? 3 : has('chest', 'thorax') ? 2 : null)
+  } else if (has('spine', 'vertebra', 'lumbar', 'backbone')) role = 'spine'
+  else if (has('leg', 'limb', 'foreleg', 'hindleg')) role = 'leg'
+  else if (has('arm', 'limbarm')) role = 'upper_arm'
+  else if (has('finger')) role = 'finger'
+
+  // "Spine2", "Spine_02" e "spine.002" passam a ter a mesma assinatura.
+  if (role === 'spine' && level === null) {
+    const joined = tokens.join('_')
+    if (/upper[_]?spine|spine[_]?upper/.test(joined)) level = 2
+    else if (/lower[_]?spine|spine[_]?lower/.test(joined)) level = 1
+  }
+  // Em rigs quadrúpedes alguns ossos são chamados FrontLeg/HindLeg sem segmento.
+  if (!role && zone && has('leg', 'limb')) role = 'leg'
+
+  const meaningful = tokens.filter(token =>
+    !['left', 'right', 'l', 'r', 'front', 'fore', 'hind', 'rear', 'back'].includes(token) &&
+    !/^\d+$/.test(token),
+  )
+  const specificity =
+    (role ? 3 : 0) +
+    (side ? 2 : 0) +
+    (zone ? 2 : 0) +
+    (level !== null ? 1 : 0) +
+    (digit ? 1 : 0)
+
+  return { original: name, normalized, compact, tokens: meaningful, role, side, zone, level, digit, specificity }
+}
+
+function tokenSimilarity(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0
+  const left = new Set(a)
+  const right = new Set(b)
+  let overlap = 0
+  for (const token of left) if (right.has(token)) overlap += 1
+  const union = new Set([...left, ...right]).size
+  return union ? overlap / union : 0
+}
+
+function ancestorSignatures(node: THREE.Object3D | null | undefined): BoneNameSignature[] {
+  const result: BoneNameSignature[] = []
+  let current = node?.parent ?? null
+  while (current && result.length < 6) {
+    if (current.name) {
+      const signature = signatureForBoneName(current.name)
+      if (signature.role) result.push(signature)
+    }
+    current = current.parent
+  }
+  return result
+}
+
+function ancestorContextScore(source: BoneNameSignature[], target: BoneNameSignature[]): number {
+  let score = 0
+  const count = Math.min(source.length, target.length, 4)
+  for (let index = 0; index < count; index += 1) {
+    const a = source[index]!
+    const b = target[index]!
+    if (a.role && a.role === b.role) {
+      score += 7
+      if (a.side && b.side && a.side === b.side) score += 3
+      if (a.zone && b.zone && a.zone === b.zone) score += 3
+    } else if (a.role && b.role) {
+      // Se o mesmo nível da hierarquia representa outra parte anatômica, isso
+      // é sinal de que a correspondência pode estar cruzando ramos do esqueleto.
+      score -= 5
+    }
+  }
+  return THREE.MathUtils.clamp(score, -15, 24)
+}
+
+function scoreBonePair(
+  source: BoneNameSignature,
+  target: BoneNameSignature,
+  sourceAncestors: BoneNameSignature[],
+  targetAncestors: BoneNameSignature[],
+): number {
+  if (source.side && target.side && source.side !== target.side) return Number.NEGATIVE_INFINITY
+  if (source.zone && target.zone && source.zone !== target.zone) return Number.NEGATIVE_INFINITY
+  if (source.digit && target.digit && source.digit !== target.digit) return Number.NEGATIVE_INFINITY
+
+  if (source.role && target.role && source.role !== target.role) {
+    // "Spine" e "Chest" foram canonizados na mesma família; outros papéis
+    // anatômicos não devem ser combinados só porque os nomes parecem próximos.
+    return Number.NEGATIVE_INFINITY
+  }
+
+  let score = 0
+  if (source.normalized === target.normalized || source.compact === target.compact) score += 120
+  if (source.role && source.role === target.role) score += 72
+  else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
+
+  if (source.side && target.side && source.side === target.side) score += 24
+  else if (!source.side && target.side) score -= 7
+
+  if (source.zone && target.zone && source.zone === target.zone) score += 20
+  else if (!source.zone && target.zone) score -= 4
+
+  if (source.level !== null && target.level !== null) {
+    score += source.level === target.level ? 18 : -22
+  } else if (source.level !== null || target.level !== null) {
+    score -= 2
+  }
+  if (source.digit && target.digit && source.digit === target.digit) score += 18
+
+  const similarity = tokenSimilarity(source.tokens, target.tokens)
+  score += similarity * 24
+  if (source.compact.length >= 4 && target.compact.length >= 4) {
+    if (source.compact.endsWith(target.compact) || target.compact.endsWith(source.compact)) score += 8
+  }
+  score += ancestorContextScore(sourceAncestors, targetAncestors)
+  return score
+}
+
+/**
+ * Gera mapeamentos automáticos globais e um-para-um. Combina semântica anatômica,
+ * lado, região, nível do osso e contexto da hierarquia em vez de depender só do nome.
+ * Associações ambíguas ficam sem preencher para evitar transferir movimento ao osso errado.
+ */
+export function suggestTargetBoneMappings(
+  sourceNames: string[],
+  targetBones: THREE.Bone[],
+  sourceRoot?: THREE.Object3D | null,
+): Record<string, string> {
+  if (!sourceNames.length || !targetBones.length) return {}
+
+  const targetSignatures = targetBones.map(bone => signatureForBoneName(bone.name))
+  const targetAncestors = targetBones.map(bone => ancestorSignatures(bone))
+  const sourceSignatures = sourceNames.map(name => signatureForBoneName(name))
+  const sourceAncestors = sourceNames.map(name => ancestorSignatures(sourceRoot ? findAnimationNode(sourceRoot, name) : null))
+
+  const ranked = sourceSignatures.map((source, sourceIndex) => {
+    const candidates = targetBones.map((bone, targetIndex) => ({
+      targetName: bone.name,
+      targetIndex,
+      score: scoreBonePair(source, targetSignatures[targetIndex]!, sourceAncestors[sourceIndex]!, targetAncestors[targetIndex]!),
+      exactName: source.normalized === targetSignatures[targetIndex]!.normalized ||
+        source.compact === targetSignatures[targetIndex]!.compact,
+    }))
+      .filter(candidate => Number.isFinite(candidate.score) && candidate.score >= 48)
+      .sort((a, b) => b.score - a.score || a.targetIndex - b.targetIndex)
+
+    const best = candidates[0]
+    if (!best) return { sourceName: source.original, sourceIndex, candidates: [] as typeof candidates }
+
+    const second = candidates[1]
+    const closeAmbiguity = !!second && best.score - second.score < 11
+    // Uma correspondência de nome exata supera a ambiguidade apenas quando há
+    // um alvo exato único; nomes genéricos como "Arm" não escolhem lado ao acaso.
+    if (closeAmbiguity && !best.exactName) {
+      return { sourceName: source.original, sourceIndex, candidates: [] as typeof candidates }
+    }
+
+    return {
+      sourceName: source.original,
+      sourceIndex,
+      candidates: candidates.filter(candidate => candidate.score >= best.score - 16),
+    }
+  })
+
+  // Prioriza candidatos mais confiáveis, sem permitir que dois canais conduzam
+  // o mesmo osso de destino. As associações conflitantes ficam para ajuste manual.
+  const proposals = ranked.flatMap(entry => entry.candidates.map(candidate => ({
+    sourceName: entry.sourceName,
+    sourceIndex: entry.sourceIndex,
+    ...candidate,
+    sourceSpecificity: sourceSignatures[entry.sourceIndex]!.specificity,
+  }))).sort((a, b) =>
+    b.score - a.score ||
+    b.sourceSpecificity - a.sourceSpecificity ||
+    a.sourceIndex - b.sourceIndex ||
+    a.targetIndex - b.targetIndex,
+  )
+
+  const result: Record<string, string> = {}
+  const claimedSources = new Set<string>()
+  const claimedTargets = new Set<string>()
+  for (const proposal of proposals) {
+    if (claimedSources.has(proposal.sourceName) || claimedTargets.has(proposal.targetName)) continue
+    result[proposal.sourceName] = proposal.targetName
+    claimedSources.add(proposal.sourceName)
+    claimedTargets.add(proposal.targetName)
+  }
+  return result
+}
+
+/** Compatibilidade para chamadas individuais: agora usa a mesma lógica semântica. */
+export function suggestTargetBone(sourceName: string, targetBones: THREE.Bone[]): string {
+  return suggestTargetBoneMappings([sourceName], targetBones)[sourceName] ?? ''
 }
