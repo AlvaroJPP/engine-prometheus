@@ -75,6 +75,8 @@ if ($NeedsDownload) {
 
 Write-Host ""
 Write-Host "Testando o backend..." -ForegroundColor Yellow
+$env:SKINTOKENS_HOME = $Root
+$env:SKINTOKENS_CKPT = $Checkpoint
 & $Executable doctor
 if ($LASTEXITCODE -ne 0) {
     throw "SkinTokens foi compilado, mas o teste de diagnóstico falhou. Veja as mensagens acima."
