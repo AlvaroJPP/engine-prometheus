@@ -21,9 +21,32 @@ Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetiv
 
 ## Estado da implementação
 
-Esta primeira base registra o pacote no catálogo, cria suas variáveis, fornece um catálogo inicial de conteúdo e implementa regras puras de combate/recursos. O pacote já fica disponível no editor como componente de comportamento. Porém, os controles de combate, projéteis e VFX, detecção/ativação de sigilos, IA, inventário, chefes por fases e salvamento **ainda precisam ser ligados ao ciclo de jogo e à interface do Engine Prometheus**; a presença dos dados não os torna automaticamente jogáveis.
+### Já conectado ao runtime
+
+- O pacote é registrado em `engine/script/packages.ts` e pode ser adicionado a objetos importados ou da cena.
+- Enquanto um projeto com o pacote ativo está em execução, `F` (ação primária por padrão) executa ataque rápido e `G` (ação secundária) executa ataque pesado; as teclas reais vêm do mapa de controles ativo.
+- As quatro teclas de habilidade lançam os feitiços configurados em `magia_1` a `magia_4`; os padrões são Dardo do Véu, Explosão de Brasa, Corrente Glacial e Dreno Rubro.
+- Armas e feitiços aplicam dano calculado por atributos, respeitam resistências elementais do alvo, consomem vigor/éter, acumulam postura e podem matar.
+- Feitiços têm tempo de conjuração e recarga; Explosão de Brasa e outros feitiços de área podem acertar múltiplos alvos; estados de queimadura, sangramento e veneno causam dano periódico.
+- Dreno Rubro recupera vida a partir do dano causado; Passo Entre Véus faz um deslocamento curto com consulta de raio contra a geometria da cena.
+- O personagem do jogador usa variáveis globais `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos e `arma_equipada`. Isso permite usar os valores no Visual Script e na HUD já configurável.
+- Para se tornar alvo do combate inicial, um objeto precisa ter o componente VEILBORNE instalado. A variável do pacote `faction` usa `hostile` como padrão; `neutral` ou `player` exclui o objeto do alvo automático. Resistências podem ser ajustadas nas variáveis do componente.
+
+### Ainda em implementação
+
+A primeira integração não equivale a um RPG completo. Ainda faltam IA hostil ligada a movimento/ataques, colisores de armas e hitboxes de animação, sigilos ativados no mundo, inventário/equipamento com interface, chefes em fases, checkpoints e persistência entre sessões. Os efeitos visuais atuais são protótipos geométricos e precisam ser trocados por VFX/SFX de produção.
 
 ## Próximas etapas de implementação
+
+1. Consumir vigor também em esquivas/bloqueios e adicionar aparo com janela de tempo real.
+2. Ligar hitboxes a clipes de animação, combos, atordoamento e execução.
+3. Conectar feitiços a projéteis, colisão e VFX/SFX substituíveis.
+4. Criar colocação e ativação de sigilos no terreno, em alvos e por gatilhos.
+5. Inventário, equipamento e progressão persistente.
+6. IA de inimigos, chefes por fases, checkpoints e recuperação de recursos.
+7. HUD VEILBORNE com barra de vigor, estados e recargas.
+8. Build, testes de integração e validação de desempenho.
+
 
 1. Runtime de atributos, dano, resistência, postura e morte.
 2. Controlador de combate: ataques, combos, esquiva, aparo e stamina.
