@@ -258,20 +258,22 @@ async function applyAlquimiaHudPreset(): Promise<void> {
   hudImageError.value = ''
   hudImageNotice.value = ''
   const presets = [
-    { key: 'nameplate', name: 'Alquimia Escarlate · Placa do jogador', x: 2, y: 2, width: 33 },
-    { key: 'sigil', name: 'Alquimia Escarlate · Sigilo mágico', x: 78, y: 3, width: 18 },
-    { key: 'statusbar', name: 'Alquimia Escarlate · Barras decorativas', x: 27, y: 85, width: 46 },
+    { key: 'nameplate', id: 'hud-alquimia-nameplate', name: 'Alquimia Escarlate · Placa do jogador', x: 2, y: 2, width: 33 },
+    { key: 'sigil', id: 'hud-alquimia-sigil', name: 'Alquimia Escarlate · Sigilo mágico', x: 78, y: 3, width: 18 },
+    { key: 'statusbar', id: 'hud-alquimia-statusbar', name: 'Alquimia Escarlate · Barras decorativas', x: 27, y: 85, width: 46 },
   ]
   const added: HudImageLayer[] = []
   const urls = { ...hudImageUrls.value }
+  const createdUrls: string[] = []
   try {
     for (const preset of presets) {
-      const id = 'hud-alquimia-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
       const blob = createAlquimiaSvg(preset.key)
-      await storeHudImage(id, blob)
-      urls[id] = URL.createObjectURL(blob)
+      await storeHudImage(preset.id, blob)
+      const url = URL.createObjectURL(blob)
+      urls[preset.id] = url
+      createdUrls.push(url)
       added.push({
-        id,
+        id: preset.id,
         name: preset.name,
         x: preset.x,
         y: preset.y,
@@ -281,21 +283,46 @@ async function applyAlquimiaHudPreset(): Promise<void> {
         fitScreen: false,
       })
     }
-    hudImageUrls.value = urls
+
+    // Remove previous copies of the theme only after all new artwork was stored.
+    const oldThemeLayers = settings.images.filter(layer =>
+      layer.name.startsWith('Alquimia Escarlate ·') && !presets.some(preset => preset.id === layer.id),
+    )
+    for (const layer of oldThemeLayers) {
+      const oldUrl = urls[layer.id]
+      if (oldUrl) URL.revokeObjectURL(oldUrl)
+      delete urls[layer.id]
+      try { await deleteHudImage(layer.id) } catch { /* remove a camada mesmo se o blob antigo já não existir */ }
+    }
+
+    // Stable IDs make applying the preset repeatable instead of stacking duplicates.
+    const presetIds = new Set(presets.map(preset => preset.id))
+    settings.images = settings.images.filter(layer => !presetIds.has(layer.id))
     settings.images.push(...added)
+    hudImageUrls.value = urls
     activeHudImageId.value = null
     persistHudSettings()
-    hudImageNotice.value = 'Tema Alquimia Escarlate aplicado com ' + added.length + ' peças independentes. Você pode mover, redimensionar, ocultar e ajustar a opacidade de cada uma.'
+    hudImageNotice.value = 'Tema Alquimia Escarlate aplicado. As três peças foram atualizadas sem duplicar camadas anteriores; você pode mover, redimensionar, ocultar e ajustar a opacidade.'
   } catch (error) {
-    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível aplicar o tema Alquimia Escarlate.'
-    for (const layer of added) {
-      const url = urls[layer.id]
-      if (url) URL.revokeObjectURL(url)
-      delete urls[layer.id]
-      try { await deleteHudImage(layer.id) } catch { /* mantém o erro original */ }
+    for (const url of createdUrls) URL.revokeObjectURL(url)
+    for (const preset of presets) {
+      try { await deleteHudImage(preset.id) } catch { /* preserva o erro principal */ }
     }
-    hudImageUrls.value = urls
+    // Restore the previous URL map; current layer metadata remains unchanged on failure.
+    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível aplicar o tema Alquimia Escarlate.'
   }
+}
+
+async function removeAlquimiaHudPreset(): Promise<void> {
+  const themeLayers = settings.images.filter(layer => layer.name.startsWith('Alquimia Escarlate ·'))
+  if (!themeLayers.length) {
+    hudImageNotice.value = 'O tema Alquimia Escarlate não está aplicado.'
+    hudImageError.value = ''
+    return
+  }
+  for (const layer of themeLayers) await removeHudImage(layer.id)
+  hudImageError.value = ''
+  hudImageNotice.value = 'Tema Alquimia Escarlate removido. As outras imagens personalizadas foram mantidas.'
 }
 
 function chooseHudImage(): void {
@@ -955,8 +982,12 @@ function resetSettings() {
         <span>Imagens personalizadas do HUD</span>
         <button type="button" class="hud-alquimia-apply" @click="applyAlquimiaHudPreset">
           <span aria-hidden="true">✦</span>
-          <span><strong>Aplicar tema Alquimia Escarlate</strong><small>Adiciona placa, sigilo e barras decorativas como camadas editáveis</small></span>
+          <span><strong>Aplicar tema Alquimia Escarlate</strong><small>Adiciona ou atualiza as 3 peças sem criar duplicatas</small></span>
           <span aria-hidden="true">＋</span>
+        </button>
+        <button type="button" class="hud-alquimia-remove" @click="removeAlquimiaHudPreset">
+          <span aria-hidden="true">×</span>
+          <span><strong>Remover tema Alquimia Escarlate</strong><small>Remove apenas as peças do tema e preserva suas outras imagens</small></span>
         </button>
         <a class="hud-alquimia-library" :href="alquimiaLibraryUrl" target="_blank" rel="noreferrer">
           <span aria-hidden="true">✦</span>
@@ -1361,6 +1392,25 @@ function resetSettings() {
 .hud-color-key-controls input[type=color] { width:100%; height:30px; padding:2px; border:1px solid #ffffff20; border-radius:4px; background:#0b1016; }
 .hud-color-key-controls input[type=range] { width:100%; accent-color:#e8572b; }
 .hud-color-key-controls.disabled { opacity:.5; }
+
+.hud-alquimia-remove {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  padding:10px 12px;
+  border:1px solid #49302e;
+  border-radius:8px;
+  background:rgba(35,22,27,.72);
+  color:#e6c9c2;
+  text-align:left;
+  cursor:pointer;
+}
+.hud-alquimia-remove:hover { border-color:#a45a55; background:rgba(65,30,35,.72); }
+.hud-alquimia-remove > span:first-child { display:grid; place-items:center; width:24px; height:24px; flex:none; border:1px solid #75464a; border-radius:6px; color:#e59a91; font-size:18px; }
+.hud-alquimia-remove > span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:3px; min-width:0; }
+.hud-alquimia-remove strong { font-size:12px; font-weight:600; }
+.hud-alquimia-remove small { color:#bda4a5; font-size:10px; line-height:1.4; }
 .hud-alquimia-apply { display:flex; align-items:center; gap:9px; width:100%; min-width:0; padding:10px; border:1px solid #bd765a88; border-radius:6px; background:linear-gradient(135deg,#251b2d,#101c2a); color:#edc6a4; text-align:left; cursor:pointer; }
 .hud-alquimia-apply:hover { border-color:#d69a71; background:linear-gradient(135deg,#342033,#17283a); }
 .hud-alquimia-apply>span:first-child { color:#e49a67; font-size:20px; }
