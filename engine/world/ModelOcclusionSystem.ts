@@ -5,9 +5,9 @@ import type { GameObject } from '../model/object/GameObject'
 
 // A oclusão usa raycasts contra a geometria real; intervalos maiores evitam
 // que uma órbita rápida monopolize a CPU com dezenas de avaliações por segundo.
-const MIN_RECHECK_INTERVAL_MS = 220
+const MIN_RECHECK_INTERVAL_MS = 500
 const CAMERA_MOVE_THRESHOLD_SQ = 0.12 * 0.12
-const CAMERA_ROTATION_DOT_THRESHOLD = 0.00008
+const CAMERA_ROTATION_DOT_THRESHOLD = 0.0003
 const ENTER_OCCLUSION_MARGIN = 0.65
 const STAY_OCCLUSION_MARGIN = 0.12
 const SELF_OCCLUSION_MARGIN = 0.12
@@ -558,8 +558,11 @@ export class ModelOcclusionSystem {
       return false
     }
 
+    // Preserve a visibilidade ocluída entre avaliações. Reexibir todas as malhas
+    // e ocultá-las de novo a cada passe causa pop visual e trabalho extra.
     const previousCulled = new Set(this.culledMeshes.keys())
-    this.restoreCulledMeshes()
+    const mustRebuildRoots = this.rootsDirty || !this.cachedPreparedRoots
+    if (mustRebuildRoots) this.restoreCulledMeshes()
     this.dirty = false
     this.lastEvaluationAt = now
     this.hasLastCamera = true
@@ -601,7 +604,10 @@ export class ModelOcclusionSystem {
       const eligibleTargets = targetRoot.meshes.filter(target => this.isEligibleTarget(target, targetRoot.root))
       if (eligibleTargets.length > 0) eligibleTargetsByRoot.set(targetRoot, eligibleTargets)
     }
-    if (eligibleTargetsByRoot.size === 0) return previousCulled.size > 0
+    if (eligibleTargetsByRoot.size === 0) {
+      this.restoreCulledMeshes()
+      return previousCulled.size > 0
+    }
 
     let hasPotentialOccluder = false
     for (const [targetRoot, eligibleTargets] of eligibleTargetsByRoot) {
@@ -619,7 +625,10 @@ export class ModelOcclusionSystem {
       }
       if (hasPotentialOccluder) break
     }
-    if (!hasPotentialOccluder) return previousCulled.size > 0
+    if (!hasPotentialOccluder) {
+      this.restoreCulledMeshes()
+      return previousCulled.size > 0
+    }
 
     const pendingCulled = new Map<THREE.Mesh, boolean>()
     for (const [targetRoot, eligibleTargets] of eligibleTargetsByRoot) {
@@ -647,17 +656,28 @@ export class ModelOcclusionSystem {
           }
         }
 
-        if (fullyOccluded) pendingCulled.set(target.mesh, target.mesh.visible)
+        if (fullyOccluded) {
+          // Para malhas que já estavam ocultas, mantenha o estado original
+          // salvo no mapa; não grave novamente visible=false.
+          pendingCulled.set(target.mesh, this.culledMeshes.get(target.mesh) ?? target.mesh.visible)
+        }
       }
     }
 
-    // Aplique visibilidade somente depois de testar todos os alvos. Durante os
-    // raycasts nenhuma malha que possa ser um bloqueador desaparece no meio do passe.
+    // Só restaure submalhas que deixaram de estar completamente bloqueadas.
+    // As malhas previamente ocultas continuam invisíveis entre avaliações,
+    // reduzindo pop visual e evitando reconstruir o mesmo estado a cada passe.
+    for (const [mesh, visibleBeforeCull] of this.culledMeshes) {
+      if (!pendingCulled.has(mesh)) mesh.visible = visibleBeforeCull
+    }
+
+    const nextCulled = new Map<THREE.Mesh, boolean>()
     for (const [mesh, visibleBeforeCull] of pendingCulled) {
-      if (!mesh.visible) continue
-      this.culledMeshes.set(mesh, visibleBeforeCull)
+      nextCulled.set(mesh, visibleBeforeCull)
       mesh.visible = false
     }
+    this.culledMeshes.clear()
+    for (const [mesh, visibleBeforeCull] of nextCulled) this.culledMeshes.set(mesh, visibleBeforeCull)
 
     if (previousCulled.size !== this.culledMeshes.size) return true
     for (const mesh of previousCulled) {
