@@ -23,7 +23,7 @@ export interface AnimationActionSetOptions {
   genericFallback?: boolean
 }
 
-const FALLBACK_ROLES: Partial<Record<AnimationRole, AnimationRole[]>> = {
+export const ANIMATION_ROLE_FALLBACKS: Partial<Record<AnimationRole, AnimationRole[]>> = {
   run: ['walk'],
   walk_slow: ['walk'],
   walk_backward: ['walk'],
@@ -186,7 +186,7 @@ export class AnimationController {
 
   private resolveRole(role: string): string | null {
     if (this.actions.has(role)) return role
-    for (const fallback of FALLBACK_ROLES[role as AnimationRole] ?? []) {
+    for (const fallback of ANIMATION_ROLE_FALLBACKS[role as AnimationRole] ?? []) {
       if (this.actions.has(fallback)) return fallback
     }
     if (this.genericFallback && this.actions.has('__fallback__')) return '__fallback__'
