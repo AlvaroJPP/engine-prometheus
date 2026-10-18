@@ -86,7 +86,9 @@ export function blendAnimationActions(
   else next.fadeIn(duration)
 
   for (const action of actions) {
-    if (action === next || !action.isRunning()) continue
+    // A LoopOnce com clampWhenFinished fica pausada na última pose: não está
+    // "running", mas segue agendada no mixer e precisa fazer fade-out também.
+    if (action === next || !action.isScheduled()) continue
     action.stopFading()
     if (duration <= 1e-4) action.stop()
     else action.fadeOut(duration)
