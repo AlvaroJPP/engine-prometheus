@@ -2606,8 +2606,13 @@ function applyRetargetedAnimation() {
       retargetCollapsedSourceNames.value,
     )
     const currentClips = [...((root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? previewAnimations.value)]
-    const newIndex = currentClips.length
-    currentClips.push(result.clip)
+    const normalizedClipName = result.clip.name.trim().toLocaleLowerCase()
+    const existingClipIndex = normalizedClipName
+      ? currentClips.findIndex(existing => existing.name.trim().toLocaleLowerCase() === normalizedClipName)
+      : -1
+    const newIndex = existingClipIndex >= 0 ? existingClipIndex : currentClips.length
+    if (existingClipIndex >= 0) currentClips[existingClipIndex] = result.clip
+    else currentClips.push(result.clip)
     const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
     root.userData.importNeedsReexport = true
     root.userData.importAnimations = currentClips
@@ -2739,14 +2744,14 @@ async function runAutonomousRetargeting() {
     if (guessedRole !== 'ignore') rigClipRole.value = guessedRole
 
     retargetAutonomousStage.value = 'Etapa 3/3 · Adaptando a animação e validando as trilhas transferidas'
-    const previousClips = (targetRoot.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    const previousClipCount = previousClips.length
+    const revisionBeforeTransfer = animationClipRevision.value
     applyRetargetedAnimation()
 
     const finalRoot = model.value
     const finalClips = (finalRoot?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    if (finalClips.length <= previousClipCount) {
-      throw new Error(retargetMessage.value || 'A transferência não gerou um clipe válido. Nenhuma nova animação foi adicionada.')
+    // A transferência pode atualizar um clipe existente em vez de aumentar a lista.
+    if (animationClipRevision.value === revisionBeforeTransfer || finalClips.length === 0) {
+      throw new Error(retargetMessage.value || 'A transferência não gerou nem atualizou um clipe válido.')
     }
 
     const transferReport = retargetMessage.value
