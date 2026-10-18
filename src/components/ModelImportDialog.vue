@@ -2306,6 +2306,65 @@ async function chooseRetargetAnimationSource(event: Event) {
   }
 }
 
+function saveRetargetSourceToLibrary() {
+  const root = retargetSourceRoot.value
+  const bytes = retargetSourceBytes.value
+    ?? (root?.userData.importSourceGlbBytes instanceof ArrayBuffer ? root.userData.importSourceGlbBytes : null)
+  if (!root || !bytes || bytes.byteLength <= 20) {
+    retargetMessage.value = 'Não há um GLB original disponível para salvar como fonte de animação.'
+    return
+  }
+  root.updateMatrixWorld(true)
+  const bounds = new THREE.Box3().setFromObject(root)
+  const height = bounds.isEmpty() ? 2 : Math.max(0.1, bounds.getSize(new THREE.Vector3()).y)
+  const name = retargetSourceFileName.value.replace(/\\.glb$/i, '').trim() || root.name || 'Fonte de animação'
+  emit('save-animation-source', { name, bytes: bytes.slice(0), height })
+  retargetMessage.value = `"${name}" enviado à biblioteca de importados como fonte de animações. Ele não será inserido no mundo.`
+}
+
+async function loadSavedAnimationSource(asset: NonNullable<typeof props.animationSourceAsset>) {
+  retargetLoading.value = true
+  try {
+    const bytes = asset.bytes.slice(0)
+    const loaded = await parseGlbBytes(bytes)
+    loaded.userData.importSourceGlbBytes = bytes.slice(0)
+    loaded.updateWorldMatrix(true, true)
+    const clips = (loaded.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    if (clips.length === 0) {
+      disposeModel(loaded)
+      throw new Error('Esta fonte não contém clipes de animação válidos.')
+    }
+
+    // O arquivo da biblioteca é apenas a origem (modelo B). Nunca substitui o
+    // modelo A que já está aberto no importador.
+    const target = model.value
+    if (target) {
+      restorePreviewVisibility()
+      restoreModelRenderableMeshes(target)
+      if (scene && target.parent !== scene) scene.add(target)
+      target.updateMatrixWorld(true)
+      if (target.parent === scene) fitCamera(target)
+      updateColliderPreview()
+    }
+    clearRetargetSource()
+    retargetSourceRoot.value = loaded
+    retargetSourceBytes.value = bytes
+    retargetSourceFileName.value = asset.name + '.glb'
+    retargetSourceClipIndex.value = 0
+    retargetClipName.value = clips[0]?.name?.trim() || asset.name
+    activeSetupTab.value = 'rigging'
+    retargetMessage.value = `Fonte "${asset.name}" carregada. O modelo A permanece como destino; escolha a animação e execute o retargeting.`
+    await nextTick()
+    ensureRetargetPreviewStages()
+    refreshRetargetSourcePreview()
+    refreshRetargetTargetPreview()
+  } catch (cause) {
+    retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível carregar a fonte de animação.'
+  } finally {
+    retargetLoading.value = false
+  }
+}
+
 function onRetargetSourceClipChanged() {
   const clip = retargetSourceClip.value
   if (clip) retargetClipName.value = clip.name?.trim() || 'Animação reutilizada'
@@ -2929,6 +2988,15 @@ function autoMapRetargetBones() {
   retargetBoneMap.value = Object.fromEntries(sourceNames.map(name => [name, mapping[name] ?? '']))
   retargetMessage.value = `Mapeamento automático: ${Object.keys(mapping).length}/${sourceNames.length}; ${result.directMappedCount} associação(ões) direta(s) e ${result.collapsedSourceNames.length} junta(s) recolhida(s) em ossos compatíveis. As linhas ignoradas têm sugestões candidatas; confira antes de aplicar.`
 }
+
+watch(
+  () => props.animationSourceAsset?.id ?? '',
+  async id => {
+    const asset = props.animationSourceAsset
+    if (!id || !asset || asset.libraryType !== 'animation-source') return
+    await loadSavedAnimationSource(asset)
+  },
+)
 
 watch(
   () => [
