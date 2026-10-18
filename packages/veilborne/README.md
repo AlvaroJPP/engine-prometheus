@@ -11,6 +11,12 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 - `engine/Engine.ts`: combate, sigilos, aparo/bloqueio, pipeline de dano recebido e primeira IA hostil.
 - `engine/input/ControlMaps.ts` e `src/components/ControlMapsDialog.vue`: teclas de bloqueio e aparo configuráveis.
 
+## Catálogo de modelos iniciais
+
+No importador 3D, clique em **Modelos iniciais** para carregar o Autômato Expressivo animado, a Raposa Errante (com IA de flanqueamento) ou itens protótipos gerados pelo próprio editor. Os inimigos e consumíveis recebem o pacote VEILBORNE com os valores iniciais adequados; salve-os como componente, coloque-os na cena e execute o mundo.
+
+O catálogo também possui links oficiais para pacotes de personagens de fantasia, monstros e props. Os modelos externos baixados do pacote podem ser importados por **Importar pacote ZIP** ou **Abrir arquivo**. Veja fontes, licenças, créditos e instruções em [docs/STARTER_ASSETS.md](../../docs/STARTER_ASSETS.md).
+
 ## Controles padrão (perfil WASD)
 
 | Tecla | Ação VEILBORNE |
