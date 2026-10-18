@@ -30,6 +30,20 @@ import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountP
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
+import {
+  applyVeilborneDamage,
+  applyVeilborneStatus,
+  calculateVeilborneSpellDamage,
+  calculateVeilborneWeaponDamage,
+  createVeilborneCombatant,
+  restoreVeilborneResource,
+  spendVeilborneResource,
+  tickVeilborneStatuses,
+  VEILBORNE_DEFAULT_SPELL_SLOTS,
+  VEILBORNE_RUNTIME_SPELLS,
+  VEILBORNE_RUNTIME_WEAPONS,
+} from './script/VeilborneCombat'
+import type { VeilborneCombatant, VeilborneDamageType, VeilborneStatusId } from './script/VeilborneCombat'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
@@ -104,6 +118,18 @@ export class Engine {
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
+  private readonly veilborneCooldowns = new Map<string, number>()
+  private readonly veilborneEffects = new Map<THREE.Mesh, { remaining: number; duration: number }>()
+  private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
+  private readonly veilborneStatusTickTimers = new Map<string, number>()
+  private veilbornePlayerState: VeilborneCombatant | null = null
+  private veilbornePlayerStateReady = false
+  private veilbornePendingCast: {
+    spellId: string
+    remainingSeconds: number
+    targetId: string | null
+    impactPosition: THREE.Vector3
+  } | null = null
   private readonly viewportInvalidationOffs: Array<() => void> = []
 
   constructor(canvas: HTMLCanvasElement) {
@@ -246,6 +272,7 @@ export class Engine {
         if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
       }
       this.avatar.update(dt)
+      this.updateVeilborneRuntime(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
       const mountedMovementState = this.avatar.getMountedMovementState()
       if (mountedObjectId && mountedMovementState && this.activeMountPackageId) {
@@ -353,6 +380,469 @@ export class Engine {
   getEntity(id: string): Entity | null { return this.world.getEntity(id) }
   /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
+
+  private isVeilborneEnabled(): boolean {
+    return this.logic.listPackages().some(instance => instance.enabled && instance.packageId === 'veilborne_rpg')
+  }
+
+  private ensureVeilbornePlayerVariables(): void {
+    if (!this.isVeilborneEnabled()) return
+    const defaults: Array<[string, boolean | number | string]> = [
+      ['vida', 100], ['vida_max', 100], ['eter', 100], ['eter_max', 100],
+      ['vigor', 100], ['vigor_max', 100], ['postura', 0], ['postura_max', 100],
+      ['forca', 10], ['destreza', 10], ['intelecto', 10], ['vontade', 10], ['resistencia', 10],
+      ['ecos', 0], ['morto', false], ['arma_equipada', 'starter_arcane_sword'],
+      ['magia_1', VEILBORNE_DEFAULT_SPELL_SLOTS[0]],
+      ['magia_2', VEILBORNE_DEFAULT_SPELL_SLOTS[1]],
+      ['magia_3', VEILBORNE_DEFAULT_SPELL_SLOTS[2]],
+      ['magia_4', VEILBORNE_DEFAULT_SPELL_SLOTS[3]],
+    ]
+    for (const [name, value] of defaults) {
+      if (this.logic.getVariable(name) === undefined) this.logic.setVariable(name, value)
+    }
+    this.veilbornePlayerStateReady = true
+  }
+
+  private readVeilborneNumber(name: string, fallback: number): number {
+    const value = this.logic.getVariable(name)
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  }
+
+  private readVeilborneString(name: string, fallback: string): string {
+    const value = this.logic.getVariable(name)
+    return typeof value === 'string' && value.trim() ? value : fallback
+  }
+
+  private getVeilbornePlayerCombatant(): VeilborneCombatant {
+    this.ensureVeilbornePlayerVariables()
+    const resources = {
+      vitality: this.readVeilborneNumber('vida', 100),
+      maxVitality: Math.max(1, this.readVeilborneNumber('vida_max', 100)),
+      ether: this.readVeilborneNumber('eter', 100),
+      maxEther: Math.max(1, this.readVeilborneNumber('eter_max', 100)),
+      stamina: this.readVeilborneNumber('vigor', 100),
+      maxStamina: Math.max(1, this.readVeilborneNumber('vigor_max', 100)),
+      posture: this.readVeilborneNumber('postura', 0),
+      maxPosture: Math.max(1, this.readVeilborneNumber('postura_max', 100)),
+    }
+    const player = this.veilbornePlayerState ?? createVeilborneCombatant('veilborne-player', resources)
+    player.resources = {
+      vitality: Math.max(0, Math.min(resources.maxVitality, resources.vitality)),
+      maxVitality: resources.maxVitality,
+      ether: Math.max(0, Math.min(resources.maxEther, resources.ether)),
+      maxEther: resources.maxEther,
+      stamina: Math.max(0, Math.min(resources.maxStamina, resources.stamina)),
+      maxStamina: resources.maxStamina,
+      posture: Math.max(0, Math.min(resources.maxPosture, resources.posture)),
+      maxPosture: resources.maxPosture,
+    }
+    player.attributes = {
+      strength: this.readVeilborneNumber('forca', 10),
+      dexterity: this.readVeilborneNumber('destreza', 10),
+      intellect: this.readVeilborneNumber('intelecto', 10),
+      will: this.readVeilborneNumber('vontade', 10),
+      resistance: this.readVeilborneNumber('resistencia', 10),
+    }
+    player.alive = player.resources.vitality > 0 && this.logic.getVariable('morto') !== true
+    this.veilbornePlayerState = player
+    return player
+  }
+
+  private syncVeilbornePlayerCombatant(player: VeilborneCombatant): void {
+    this.logic.setVariable('vida', player.resources.vitality)
+    this.logic.setVariable('eter', player.resources.ether)
+    this.logic.setVariable('vigor', player.resources.stamina)
+    this.logic.setVariable('postura', player.resources.posture)
+    if (player.resources.vitality <= 0) {
+      this.logic.setVariable('morto', true)
+    } else if (this.logic.getVariable('morto') === true) {
+      this.logic.setVariable('morto', false)
+    }
+  }
+
+  private getVeilborneHostilePackages(): Array<{ instance: BehaviorPackageInstance; object: ReturnType<World['get']> }> {
+    return this.logic.listPackages()
+      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg')
+      .filter(instance => instance.variables.faction === undefined || instance.variables.faction === 'hostile')
+      .filter(instance => instance.variables.morto !== true && (typeof instance.variables.vida !== 'number' || instance.variables.vida > 0))
+      .map(instance => ({ instance, object: this.world.get(instance.ownerObjectId) }))
+      .filter((entry): entry is { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> } =>
+        entry.object !== undefined && this.world.isObjectVisible(entry.object),
+      )
+  }
+
+  private findVeilborneTarget(maxRange: number): { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>>; distance: number } | null {
+    const playerPosition = this.avatar.mesh.position
+    const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
+    let best: { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>>; distance: number; score: number } | null = null
+
+    for (const candidate of this.getVeilborneHostilePackages()) {
+      const delta = candidate.object.mesh.position.clone().sub(playerPosition)
+      delta.y = 0
+      const distance = delta.length()
+      if (distance > maxRange || distance < 0.001) continue
+      const facing = forward.dot(delta.normalize())
+      if (facing < -0.15) continue
+      const score = distance + (1 - facing) * 1.2
+      if (!best || score < best.score) best = { ...candidate, distance, score }
+    }
+    return best ? { instance: best.instance, object: best.object, distance: best.distance } : null
+  }
+
+  private getVeilborneTargetCombatant(instance: BehaviorPackageInstance): VeilborneCombatant {
+    const variables = instance.variables
+    const number = (name: string, fallback: number): number => {
+      const value = variables[name]
+      return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+    }
+    const maxVitality = Math.max(1, number('vida_max', 100))
+    const maxEther = Math.max(1, number('eter_max', 100))
+    const maxStamina = Math.max(1, number('vigor_max', 100))
+    const maxPosture = Math.max(1, number('postura_max', 100))
+    const current: Partial<VeilborneCombatant['resources']> = {
+      vitality: number('vida', maxVitality), maxVitality,
+      ether: number('eter', maxEther), maxEther,
+      stamina: number('vigor', maxStamina), maxStamina,
+      posture: number('postura', 0), maxPosture,
+    }
+    const state = this.veilborneTargetStates.get(instance.ownerObjectId) ??
+      createVeilborneCombatant(instance.ownerObjectId, current)
+    state.resources = {
+      vitality: Math.max(0, Math.min(maxVitality, current.vitality ?? maxVitality)),
+      maxVitality,
+      ether: Math.max(0, Math.min(maxEther, current.ether ?? maxEther)),
+      maxEther,
+      stamina: Math.max(0, Math.min(maxStamina, current.stamina ?? maxStamina)),
+      maxStamina,
+      posture: Math.max(0, Math.min(maxPosture, current.posture ?? 0)),
+      maxPosture,
+    }
+    state.attributes = {
+      strength: number('forca', 10),
+      dexterity: number('destreza', 10),
+      intellect: number('intelecto', 10),
+      will: number('vontade', 10),
+      resistance: number('resistencia', 10),
+    }
+    const resistance = (name: string): number => number(name, 0)
+    state.resistances = {
+      physical: resistance('res_fisica'),
+      fire: resistance('res_chama'),
+      frost: resistance('res_geada'),
+      storm: resistance('res_tempestade'),
+      blood: resistance('res_sangue'),
+      shadow: resistance('res_sombra'),
+      spirit: resistance('res_espirito'),
+      arcane: resistance('res_arcano'),
+    }
+    state.alive = state.resources.vitality > 0 && variables.morto !== true
+    this.veilborneTargetStates.set(instance.ownerObjectId, state)
+    return state
+  }
+
+  private syncVeilborneTarget(instance: BehaviorPackageInstance, target: VeilborneCombatant, notify = true): void {
+    this.logic.setPackageVariable(instance.id, 'vida', target.resources.vitality)
+    this.logic.setPackageVariable(instance.id, 'postura', target.resources.posture)
+    if (target.resources.vitality <= 0) {
+      this.logic.setPackageVariable(instance.id, 'morto', true)
+      target.alive = false
+    }
+    if (notify) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
+  }
+
+  private applyVeilborneHit(
+    instance: BehaviorPackageInstance,
+    amount: number,
+    damageType: VeilborneDamageType,
+    postureDamage: number,
+    status?: { id: VeilborneStatusId; potency: number; durationSeconds: number },
+  ): { damage: number; killed: boolean } {
+    const target = this.getVeilborneTargetCombatant(instance)
+    if (!target.alive) return { damage: 0, killed: true }
+    const result = applyVeilborneDamage(target, { amount, type: damageType, postureDamage })
+    if (status && target.alive) {
+      applyVeilborneStatus(target, {
+        id: status.id,
+        potency: status.potency,
+        remainingSeconds: status.durationSeconds,
+        stacks: 1,
+      })
+    }
+    this.syncVeilborneTarget(instance, target)
+    if (result.killed) {
+      this.veilborneTargetStates.delete(instance.ownerObjectId)
+      this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
+    }
+    return { damage: result.vitalityDamage, killed: result.killed }
+  }
+
+  private getVeilborneWorldPoint(objectId: string): THREE.Vector3 | null {
+    const object = this.world.get(objectId)
+    if (!object) return null
+    const point = object.mesh.getWorldPosition(new THREE.Vector3())
+    point.y += 0.65
+    return point
+  }
+
+  private spawnVeilborneEffect(position: THREE.Vector3, color: number, scale: number, duration = 0.32, slash = false): void {
+    const geometry = slash
+      ? new THREE.TorusGeometry(Math.max(0.2, scale), 0.045, 5, 20, Math.PI * 1.35)
+      : new THREE.SphereGeometry(Math.max(0.06, scale), 12, 10)
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const effect = new THREE.Mesh(geometry, material)
+    effect.position.copy(position)
+    effect.rotation.x = slash ? Math.PI / 2 : 0
+    effect.renderOrder = 20
+    this.world.scene.add(effect)
+    this.veilborneEffects.set(effect, { remaining: duration, duration })
+  }
+
+  private clearVeilborneEffects(): void {
+    for (const [effect] of this.veilborneEffects) {
+      this.world.scene.remove(effect)
+      effect.geometry.dispose()
+      const material = effect.material
+      if (Array.isArray(material)) material.forEach(item => item.dispose())
+      else material.dispose()
+    }
+    this.veilborneEffects.clear()
+  }
+
+  private tickVeilborneEffects(dt: number): void {
+    for (const [effect, state] of this.veilborneEffects) {
+      state.remaining -= Math.max(0, dt)
+      const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
+      const material = effect.material
+      if (!Array.isArray(material) && material instanceof THREE.MeshBasicMaterial) {
+        material.opacity = 0.82 * (1 - progress)
+      }
+      effect.scale.setScalar(1 + progress * 1.25)
+      if (state.remaining <= 0) {
+        this.world.scene.remove(effect)
+        effect.geometry.dispose()
+        if (Array.isArray(material)) material.forEach(item => item.dispose())
+        else material.dispose()
+        this.veilborneEffects.delete(effect)
+      }
+    }
+  }
+
+  private handleVeilborneControl(code: string): boolean {
+    if (!this.cameraStateBeforeRun || !this.isVeilborneEnabled()) return false
+    const bindings = this.playerControlBindings
+    if (code === bindings.primaryAction) {
+      this.performVeilborneWeaponAttack(false)
+      return true
+    }
+    if (code === bindings.secondaryAction) {
+      this.performVeilborneWeaponAttack(true)
+      return true
+    }
+    const slots = [bindings.ability1, bindings.ability2, bindings.ability3, bindings.ability4]
+    const slotIndex = slots.indexOf(code)
+    if (slotIndex >= 0) {
+      this.beginVeilborneSpellCast(slotIndex)
+      return true
+    }
+    return false
+  }
+
+  private performVeilborneWeaponAttack(heavy: boolean): void {
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return
+    const weaponId = this.readVeilborneString('arma_equipada', 'starter_arcane_sword')
+    const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
+    const cooldownKey = heavy ? 'attack:heavy' : 'attack:quick'
+    if ((this.veilborneCooldowns.get(cooldownKey) ?? 0) > 0) return
+    const cost = weapon.staminaCost * (heavy ? 1.65 : 1)
+    if (!spendVeilborneResource(player, 'stamina', cost)) return
+
+    const target = this.findVeilborneTarget(weapon.range)
+    const damage = calculateVeilborneWeaponDamage(weapon, player.attributes, {
+      heavy,
+      critical: !!target && target.instance.variables.morto !== true &&
+        this.readTargetPosture(target.instance) >= this.readTargetPostureMax(target.instance) * 0.72,
+    })
+    this.veilborneCooldowns.set(cooldownKey, heavy ? 0.62 : 0.28)
+    this.syncVeilbornePlayerCombatant(player)
+    const effectPosition = target
+      ? this.getVeilborneWorldPoint(target.object.id) ?? target.object.mesh.position.clone()
+      : this.avatar.mesh.position.clone().add(new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0.9, Math.cos(this.avatar.mesh.rotation.y)).multiplyScalar(Math.min(weapon.range * 0.7, 1.8)))
+    this.spawnVeilborneEffect(effectPosition, weapon.damageType === 'arcane' ? 0x9c77ff : 0xd3d8e8, heavy ? 0.95 : 0.7, 0.24, true)
+
+    if (target) {
+      const hit = this.applyVeilborneHit(target.instance, damage, weapon.damageType, weapon.postureDamage * (heavy ? 1.6 : 1))
+      if (hit.damage > 0) this.spawnVeilborneEffect(effectPosition, 0xffd09a, 0.35 + Math.min(0.5, hit.damage / 100), 0.28)
+    }
+    this.viewport.invalidate()
+  }
+
+  private readTargetPosture(instance: BehaviorPackageInstance): number {
+    const value = instance.variables.postura
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  }
+
+  private readTargetPostureMax(instance: BehaviorPackageInstance): number {
+    const value = instance.variables.postura_max
+    return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, value) : 100
+  }
+
+  private beginVeilborneSpellCast(slotIndex: number): void {
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive || this.veilbornePendingCast) return
+    const slotName = 'magia_' + (slotIndex + 1)
+    const spellId = this.readVeilborneString(slotName, VEILBORNE_DEFAULT_SPELL_SLOTS[slotIndex] ?? 'arcane_bolt')
+    const spell = VEILBORNE_RUNTIME_SPELLS[spellId] ??
+      VEILBORNE_RUNTIME_SPELLS[VEILBORNE_DEFAULT_SPELL_SLOTS[slotIndex] ?? 'arcane_bolt']!
+    const cooldownKey = 'spell:' + spell.id
+    if ((this.veilborneCooldowns.get(cooldownKey) ?? 0) > 0) return
+    if (!spendVeilborneResource(player, 'ether', spell.etherCost)) return
+
+    const target = this.findVeilborneTarget(spell.range)
+    const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
+    const impactPosition = target
+      ? target.object.mesh.position.clone()
+      : this.avatar.mesh.position.clone().addScaledVector(forward, Math.min(spell.range * 0.45, 7))
+    impactPosition.y += 0.7
+    this.veilbornePendingCast = {
+      spellId: spell.id,
+      remainingSeconds: spell.castTimeSeconds,
+      targetId: target?.object.id ?? null,
+      impactPosition,
+    }
+    this.veilborneCooldowns.set(cooldownKey, spell.cooldownSeconds)
+    this.syncVeilbornePlayerCombatant(player)
+    this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)), spell.visualColor, 0.32, Math.max(0.2, spell.castTimeSeconds + 0.08))
+    if (spell.castTimeSeconds <= 0) this.resolveVeilborneSpellCast()
+  }
+
+  private resolveVeilborneSpellCast(): void {
+    const pending = this.veilbornePendingCast
+    this.veilbornePendingCast = null
+    if (!pending) return
+    const spell = VEILBORNE_RUNTIME_SPELLS[pending.spellId]
+    if (!spell) return
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return
+
+    if (spell.id === 'blink_step') {
+      const origin = this.avatar.mesh.position.clone()
+      const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
+      const rayOrigin = origin.clone().add(new THREE.Vector3(0, 0.8, 0))
+      const raycaster = new THREE.Raycaster(rayOrigin, forward, 0, spell.range)
+      const roots = this.world.list().map(object => object.mesh)
+      const firstHit = raycaster.intersectObjects(roots, true).find(hit => hit.distance > 0.12)
+      const travel = Math.max(0, Math.min(spell.range, firstHit ? firstHit.distance - 0.75 : spell.range))
+      if (travel > 0.4) {
+        this.avatar.mesh.position.addScaledVector(forward, travel)
+        this.avatar.resetVerticalState()
+        this.spawnVeilborneEffect(origin.add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.48, 0.38)
+        this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.62, 0.42)
+      }
+      this.viewport.invalidate()
+      return
+    }
+
+    const target = pending.targetId
+      ? this.getVeilborneHostilePackages().find(candidate => candidate.object.id === pending.targetId)
+      : undefined
+    const center = target
+      ? target.object.mesh.position.clone()
+      : pending.impactPosition.clone()
+    this.spawnVeilborneEffect(center.clone().add(new THREE.Vector3(0, 0.55, 0)), spell.visualColor, spell.radius > 0 ? Math.max(0.45, spell.radius * 0.45) : 0.45, 0.42)
+    const candidates = spell.targeting === 'area' && spell.radius > 0
+      ? this.getVeilborneHostilePackages().filter(candidate =>
+        Math.hypot(candidate.object.mesh.position.x - center.x, candidate.object.mesh.position.z - center.z) <= spell.radius,
+      )
+      : target ? [target] : []
+
+    let totalDamage = 0
+    for (const candidate of candidates) {
+      const damage = calculateVeilborneSpellDamage(spell, player.attributes)
+      const hit = this.applyVeilborneHit(
+        candidate.instance,
+        damage,
+        spell.damageType,
+        spell.postureDamage ?? 0,
+        spell.statusEffect
+          ? { id: spell.statusEffect, potency: spell.statusPotency ?? 1, durationSeconds: spell.statusDurationSeconds ?? 2 }
+          : undefined,
+      )
+      totalDamage += hit.damage
+      const point = this.getVeilborneWorldPoint(candidate.object.id)
+      if (point) this.spawnVeilborneEffect(point, spell.visualColor, 0.34, 0.3)
+    }
+    if (spell.id === 'blood_siphon' && totalDamage > 0) {
+      restoreVeilborneResource(player, 'vitality', totalDamage * 0.55)
+      this.syncVeilbornePlayerCombatant(player)
+    }
+    this.viewport.invalidate()
+  }
+
+  private updateVeilborneRuntime(dt: number): void {
+    this.tickVeilborneEffects(dt)
+    for (const [key, remaining] of this.veilborneCooldowns) {
+      const next = Math.max(0, remaining - Math.max(0, dt))
+      if (next <= 0) this.veilborneCooldowns.delete(key)
+      else this.veilborneCooldowns.set(key, next)
+    }
+
+    if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return
+    this.ensureVeilbornePlayerVariables()
+    const step = Math.max(0, Math.min(dt, 0.1))
+    if (this.veilbornePendingCast) {
+      this.veilbornePendingCast.remainingSeconds -= step
+      if (this.veilbornePendingCast.remainingSeconds <= 0) this.resolveVeilborneSpellCast()
+    }
+
+    const player = this.getVeilbornePlayerCombatant()
+    if (player.alive) {
+      restoreVeilborneResource(player, 'stamina', 16 * step)
+      restoreVeilborneResource(player, 'ether', 1.6 * step)
+      player.resources.posture = Math.max(0, player.resources.posture - 8 * step)
+      this.syncVeilbornePlayerCombatant(player)
+    }
+
+    const activeIds = new Set<string>()
+    for (const { instance } of this.getVeilborneHostilePackages()) {
+      activeIds.add(instance.ownerObjectId)
+      const target = this.getVeilborneTargetCombatant(instance)
+      if (!target.alive) continue
+      const statusesBeforeTick = target.statuses.map(status => ({ ...status }))
+      for (const status of statusesBeforeTick) {
+        if (status.id !== 'burn' && status.id !== 'bleed' && status.id !== 'poison') continue
+        const key = instance.ownerObjectId + ':' + status.id
+        let timer = (this.veilborneStatusTickTimers.get(key) ?? 0) + step
+        while (timer >= 1 && target.alive) {
+          const type: VeilborneDamageType = status.id === 'burn' ? 'fire' : status.id === 'bleed' ? 'blood' : 'shadow'
+          applyVeilborneDamage(target, { amount: status.potency * Math.max(1, status.stacks), type })
+          timer -= 1
+        }
+        this.veilborneStatusTickTimers.set(key, timer)
+      }
+      const statusIds = new Set(statusesBeforeTick.map(status => status.id))
+      tickVeilborneStatuses(target, step)
+      for (const statusId of statusIds) {
+        if (!target.statuses.some(status => status.id === statusId)) this.veilborneStatusTickTimers.delete(instance.ownerObjectId + ':' + statusId)
+      }
+      const wasAlive = instance.variables.morto !== true && (typeof instance.variables.vida !== 'number' || instance.variables.vida > 0)
+      this.syncVeilborneTarget(instance, target, false)
+      if (wasAlive && !target.alive) {
+        this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
+      }
+    }
+    for (const id of this.veilborneTargetStates.keys()) {
+      if (!activeIds.has(id)) this.veilborneTargetStates.delete(id)
+    }
+    this.viewport.invalidate()
+  }
+
   private notifyBehaviorPackageChanged(ownerObjectId: string): void {
     this.events.emit('behaviorPackageChanged', { ownerObjectId })
   }
@@ -595,6 +1085,8 @@ export class Engine {
     }
 
     this.runtimeModeActive = false
+    this.veilbornePendingCast = null
+    this.clearVeilborneEffects()
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
@@ -774,6 +1266,10 @@ export class Engine {
         return
       }
     }
+
+    // VEILBORNE reutiliza o mesmo mapa de controles do jogador e mantém os gatilhos
+    // do Visual Script funcionando depois de processar ataques ou conjurações.
+    this.handleVeilborneControl(event.code)
 
     // Mantém o sistema de eventos existente funcionando para as outras teclas.
     const executed = this.logic.triggerKeyPressed(event.code)
@@ -1680,6 +2176,7 @@ export class Engine {
 
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
+    this.clearVeilborneEffects()
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.dispose()
