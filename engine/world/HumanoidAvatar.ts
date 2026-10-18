@@ -597,12 +597,12 @@ export class HumanoidAvatar {
             : null
           if (stepUp !== null) {
             const previousY = this.mesh.position.y
-            // Uma folga vertical mínima permite atravessar emendas coplanares e
-            // pequenas bordas de triangulação sem deixar o personagem preso.
-            // A descida é resolvida logo depois pelas sondas de chão.
-            const candidateY = stepUp >= previousY - 0.015 && stepUp <= previousY + 0.035
-              ? previousY + 0.035
-              : stepUp
+            // Primeiro levantamos o volume físico ligeiramente acima da face
+            // superior. Sem essa folga, o AABB ainda intersecta a aresta do espelho
+            // da escada e a própria colisão lateral cancela a subida.
+            // findObjectLanding repõe os pés exatamente sobre o triângulo do degrau
+            // no fim deste mesmo frame.
+            const candidateY = Math.max(previousY, stepUp) + 0.065
             this.mesh.position.y = candidateY
             if (!this.collidesWithObjects()) {
               horizontalStepY = candidateY
@@ -2781,7 +2781,7 @@ export class HumanoidAvatar {
           const rise = hit.point.y - feetY
           // A amostra pode estar na borda do pé, mas não pode içar o jogador
           // para uma parede ou plataforma alta que só aparece mais adiante.
-          if (rise < -0.12 || rise > 0.52) continue
+          if (rise < -0.04 || rise > MAX_WALK_STEP_UP) continue
           if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
           break
         }
@@ -2796,7 +2796,7 @@ export class HumanoidAvatar {
           candidate => {
             const rise = candidate.point.y - feetY
             return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
-              rise >= -0.12 && rise <= 0.52
+              rise >= -0.04 && rise <= MAX_WALK_STEP_UP
           },
         )
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
