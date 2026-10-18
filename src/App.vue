@@ -20,6 +20,29 @@ import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveCompo
 import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 import { generateComponentThumbnail } from '@/lib/assets/ComponentThumbnail'
 
+function clonePackageJsonValue(value: PackageJsonValue): PackageJsonValue {
+  if (Array.isArray(value)) return value.map(clonePackageJsonValue)
+  if (value !== null && typeof value === 'object') {
+    const copy: Record<string, PackageJsonValue> = {}
+    for (const [key, nested] of Object.entries(value)) copy[key] = clonePackageJsonValue(nested)
+    return copy
+  }
+  return value
+}
+
+function clonePackageJsonRecord(record: Record<string, PackageJsonValue>): Record<string, PackageJsonValue> {
+  return clonePackageJsonValue(record) as Record<string, PackageJsonValue>
+}
+
+function cloneSavedBehaviorPackageSettings(
+  settings: NonNullable<SavedComponent['behaviorPackageSettings']>,
+): NonNullable<SavedComponent['behaviorPackageSettings']> {
+  return Object.fromEntries(Object.entries(settings).map(([id, draft]) => [id, {
+    variables: { ...draft.variables },
+    config: clonePackageJsonRecord(draft.config),
+  }]))
+}
+
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
@@ -1136,7 +1159,7 @@ async function placeSavedComponent(id: string) {
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
     model.userData.importedModelHeight = component.height
     model.userData.importBehaviorPackageIds = [...(component.behaviorPackageIds ?? [])]
-    model.userData.importBehaviorPackageSettings = structuredClone(component.behaviorPackageSettings ?? {})
+    model.userData.importBehaviorPackageSettings = cloneSavedBehaviorPackageSettings(component.behaviorPackageSettings ?? {})
     model.userData.importColliderType = component.colliderType
     model.userData.importColliderSize = [...component.colliderSize]
     model.userData.importColliderOffset = [...component.colliderOffset]
