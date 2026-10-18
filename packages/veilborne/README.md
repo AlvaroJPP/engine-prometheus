@@ -1,61 +1,53 @@
 # VEILBORNE — Dark Fantasy RPG Framework
 
-Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetivo é combinar combate exigente, magos guerreiros, armas físicas, feitiços, sigilos preparados, progressão, inimigos e exploração.
+Pacote de mecânicas modulares de RPG medieval sombrio para o Engine Prometheus: magos guerreiros que combinam armas físicas, feitiços, sigilos preparados e recursos de combate.
 
 ## Conteúdo
 
-- `veilborne.json`: manifesto geral de mecânicas e sistemas.
-- `content.json`: conteúdo inicial de 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 inimigos/chefes, efeitos de estado e regras de progressão.
-- `engine/script/VeilborneCombat.ts`: funções puras reutilizáveis para atributos, dano de armas, dano mágico, gastos/restauração de recursos, resistências, postura, efeitos de estado, esquiva e janela de aparo.
-- Registro em `engine/script/packages.ts`: disponibiliza **VEILBORNE — RPG Sombrio** no catálogo de pacotes de comportamento do editor.
-- Variáveis iniciais por instância: vida, éter, vigor, postura, atributos e nível.
+- `veilborne.json`: manifesto de sistemas e estado da integração.
+- `content.json`: catálogo inicial com 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 perfis de inimigos/chefes, efeitos de estado e progressão.
+- `engine/script/packages.ts`: registro do componente **VEILBORNE — RPG Sombrio** no editor.
+- `engine/script/VeilborneCombat.ts`: cálculos reutilizáveis de dano, escalamento por atributos, resistências, recursos, postura, efeitos de estado, esquiva, aparo e catálogos iniciais de combate.
+- `engine/Engine.ts`: integração inicial dos comandos e dos efeitos de combate ao runtime.
 
-## Direção de design
+## Controles padrão (perfil WASD)
 
-- Combate deliberado: ataques rápidos/pesados, esquiva, aparo, postura, atordoamento e janelas de vulnerabilidade.
-- Mago combatente: qualquer arquétipo pode combinar arma, catalisador, feitiços e sigilos.
-- Sigilos preparados: equipar um conjunto antes da luta e ativar efeitos com custo, alcance, duração e recarga.
-- Dados primeiro: armas, magias, sigilos, efeitos, inimigos e recompensas devem ser configuráveis, evitando lógica exclusiva para cada item.
-- Integração com o motor: entidades e colisões do mundo, animações importadas, mapas de controle, variáveis globais/por objeto, regras visuais e HUD.
-- Não depende de assets proprietários de Bloodborne ou The Witcher; usa apenas referências gerais de gênero e mecânicas.
+| Tecla | Ação VEILBORNE |
+|---|---|
+| F | Ataque rápido |
+| G | Ataque pesado |
+| 1–4 | Lançar o feitiço configurado em `magia_1` até `magia_4` |
+| T | Ciclar o sigilo preparado |
+| H | Ativar o sigilo selecionado |
+| R (segurar) | Bloquear / defender |
+| Y | Aparo com janela de 0,2 s |
+| V | Esquiva rápida (custo de vigor) |
+| X | Deslizar (custo de vigor) |
+| B | Rolamento (custo de vigor) |
 
-## Estado da implementação
+As teclas são configuráveis em **Configurações → Mapas de controles**. O VEILBORNE usa o mapa ativo do jogador em vez de forçar um conjunto paralelo de teclas.
 
-### Já conectado ao runtime
+## Sistemas já conectados
 
-- O pacote é registrado em `engine/script/packages.ts` e pode ser adicionado a objetos importados ou da cena.
-- Enquanto um projeto com o pacote ativo está em execução, `F` (ação primária por padrão) executa ataque rápido e `G` (ação secundária) executa ataque pesado; as teclas reais vêm do mapa de controles ativo.
-- As quatro teclas de habilidade lançam os feitiços configurados em `magia_1` a `magia_4`; os padrões são Dardo do Véu, Explosão de Brasa, Corrente Glacial e Dreno Rubro.
-- Armas e feitiços aplicam dano calculado por atributos, respeitam resistências elementais do alvo, consomem vigor/éter, acumulam postura e podem matar.
-- Feitiços têm tempo de conjuração e recarga; Explosão de Brasa e outros feitiços de área podem acertar múltiplos alvos; estados de queimadura, sangramento e veneno causam dano periódico.
-- Os sigilos podem ser selecionados por `T` (ciclar sigilo, por padrão) e ativados por `H` (usar item, por padrão). Selo de Ruptura explode quando inimigos entram no círculo; Lentidão e Silêncio aplicam seus estados; Marca do Caçador aumenta em 20% o dano recebido pelo alvo marcado.
-- Selo Guardião cria uma proteção visual temporária e expõe `ward_remaining` e `ward_absorption`; o consumo real da absorção será conectado quando o sistema de ataques recebidos/IA estiver pronto.
-- Dreno Rubro recupera vida a partir do dano causado; Passo Entre Véus faz um deslocamento curto com consulta de raio contra a geometria da cena.
-- O personagem do jogador usa variáveis globais `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos e `arma_equipada`. Isso permite usar os valores no Visual Script e na HUD já configurável.
-- As esquivas, rolamentos e deslizes existentes agora podem cobrar vigor quando o VEILBORNE está ativo: esquiva 22, rolamento 30 e deslize 24. Sem o pacote, o callback de admissão libera o comportamento normal do avatar.
-- Para se tornar alvo do combate inicial, um objeto precisa ter o componente VEILBORNE instalado. A variável do pacote `faction` usa `hostile` como padrão; `neutral` ou `player` exclui o objeto do alvo automático. Resistências podem ser ajustadas nas variáveis do componente.
+- **Componente de personagem/alvo:** instale `VEILBORNE — RPG Sombrio` no objeto que deve participar do combate. Alvos recebem dano quando seu pacote está habilitado e `faction` é `hostile` (ou não definida). Use `neutral` ou `player` para excluí-los do alvo hostil automático.
+- **Combate corpo a corpo:** ataques rápidos e pesados com custo de vigor, alcance aproximado, direção do personagem, escalamento por Força/Destreza/Intelecto/Vontade, dano de postura e crítico em alvo próximo da quebra de postura.
+- **Magias:** slots 1–4, custo de éter, conjuração, recarga, dano único ou em área, resistências elementais, efeitos visuais provisórios; Dreno Rubro recupera parte da vida causada e Passo Entre Véus executa deslocamento curto com raycast.
+- **Sigilos:** Selo Guardião, Selo de Ruptura, Marca do Caçador, Círculo de Lentidão e Selo do Silêncio. As armadilhas no terreno disparam quando alvos hostis entram no raio. Marca do Caçador aumenta em 20% o dano recebido.
+- **Recursos:** vida, éter, vigor e postura são expostos em variáveis globais; o HUD existente pode ler `vida`, `vida_max`, `eter`, `eter_max`, `vigor` e `vigor_max`.
+- **Manobras:** esquiva (22 vigor), rolamento (30) e deslize (24) consultam o sistema de recursos enquanto VEILBORNE está ativo.
+- **Aparo, bloqueio e escudo:** bloqueio reduz o dano restante e consome vigor; o aparo tem janela de 0,2 s, custa vigor, nega o golpe bem-aparado e abre uma oportunidade de contra-ataque. O Selo Guardião absorve dano através da mesma entrada de dano.
+- **Entrada para dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` permite que futuros controladores de IA e ataques invoquem o pipeline de resistência, escudo, bloqueio, aparo e morte.
 
-### Ainda em implementação
+## Limitações atuais — importante
 
-A integração inicial já possui ataques físicos, conjuração e ativação básica de sigilos, mas ainda não equivale a um RPG completo. Faltam IA hostil ligada a movimento e ataques recebidos, consumo da absorção do Selo Guardião, colisores de armas/hitboxes ligados a animações, inventário/equipamento com interface, chefes em fases, checkpoints e persistência entre sessões. Os efeitos visuais atuais são protótipos geométricos e precisam ser trocados por VFX/SFX de produção.
+O fluxo de dano recebido está implementado como método público, mas **o motor ainda não possui uma IA hostil que se aproxime e ataque automaticamente o jogador** para acionar esse método no gameplay. Portanto, bloqueio, aparo e absorção do escudo precisam dessa integração para serem testados contra ataques reais de inimigos.
 
-## Próximas etapas de implementação
+Os ataques do jogador selecionam alvos VEILBORNE próximos e à frente por distância/direção aproximadas; hitboxes alinhadas a clipes de animação ainda não estão conectadas. Os efeitos visuais são protótipos geométricos. Ainda faltam inventário/equipamento com interface, progressão persistente, checkpoints, chefes com fases em execução e testes de gameplay visual.
 
-1. Adicionar aparo com janela de tempo real e ligar bloqueios à redução de dano.
-2. Ligar hitboxes a clipes de animação, combos, atordoamento e execução.
-3. Conectar feitiços a projéteis, colisão e VFX/SFX substituíveis.
-4. Criar colocação e ativação de sigilos no terreno, em alvos e por gatilhos.
-5. Inventário, equipamento e progressão persistente.
-6. IA de inimigos, chefes por fases, checkpoints e recuperação de recursos.
-7. HUD VEILBORNE com barra de vigor, estados e recargas.
-8. Build, testes de integração e validação de desempenho.
+## Próximas etapas
 
-
-1. Runtime de atributos, dano, resistência, postura e morte.
-2. Controlador de combate: ataques, combos, esquiva, aparo e stamina.
-3. Runtime de feitiços e projéteis com custos, recarga e efeitos.
-4. Runtime de sigilos com colocação, detecção de alvos e disparo.
-5. Equipamento/inventário e progressão persistente.
-6. IA de inimigos, chefes por fases, checkpoints e recuperação de recursos.
-7. HUD VEILBORNE e painel de configuração visual no editor.
-8. Testes de integração e validação de desempenho.
+1. Ligar hitboxes e janelas de dano a clipes de animação; completar combos, atordoamento e execução.
+2. Criar IA hostil com patrulha, percepção, perseguição e ataques que chamem `applyVeilborneIncomingDamage`.
+3. Trocar os efeitos geométricos por VFX/SFX substituíveis.
+4. Criar inventário e equipamento persistentes, progressão, checkpoints e recuperação de recursos.
+5. Criar HUD VEILBORNE para vigor, recargas, estados e sigilos; validar tudo com testes de execução.
