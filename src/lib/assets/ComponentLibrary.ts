@@ -68,12 +68,28 @@ export async function listSavedComponents(): Promise<Array<Omit<SavedComponent, 
 }
 
 export async function saveComponentAsset(component: SavedComponent): Promise<void> {
+  if (!component.id.trim()) throw new Error('O componente precisa ter um identificador antes de ser salvo.')
+  if (!(component.bytes instanceof ArrayBuffer) || component.bytes.byteLength === 0) {
+    throw new Error('O arquivo 3D está vazio ou não é um GLB válido.')
+  }
+
   const db = await openDatabase()
   try {
     await new Promise<void>((resolve, reject) => {
-      const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(component)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error ?? new Error('Não foi possível salvar o componente.'))
+      const transaction = db.transaction(STORE_NAME, 'readwrite')
+      const request = transaction.objectStore(STORE_NAME).put(component)
+      let requestError: DOMException | null = null
+
+      request.onerror = () => {
+        requestError = request.error
+      }
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(
+        transaction.error ?? requestError ?? new Error('A gravação da biblioteca falhou.'),
+      )
+      transaction.onabort = () => reject(
+        transaction.error ?? requestError ?? new Error('A gravação do componente foi cancelada pelo armazenamento local.'),
+      )
     })
   } finally {
     db.close()
