@@ -307,7 +307,12 @@ export function retargetAnimationClip(
         }
         const sourceRestVector = safeRestVector(sourceRest.position, new THREE.Vector3())
         const targetRestVector = targetBone.position.clone()
-        const maxOffset = Math.max(0.05, targetSourceHeight * (isRootTrack ? 2 : 0.15))
+        // A pelve normalmente carrega o deslocamento do corpo em animações como
+        // salto, aterrissagem, esquiva e passos laterais. O limite anterior de
+        // 15% da altura descartava justamente esses movimentos. Mantemos um
+        // limite amplo, relativo à escala do personagem, e validamos todos os
+        // frames abaixo para não propagar offsets absurdos de rigs incompatíveis.
+        const maxOffset = Math.max(0.05, targetSourceHeight * (isRootTrack ? 2 : 1.25))
         let unsafePosition = false
         for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
