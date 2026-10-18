@@ -2183,7 +2183,9 @@ function capturePreviewThumbnail(): string | undefined {
   if (!source || !renderer || !scene || !camera || source.width < 1 || source.height < 1) return undefined
 
   // Não inclua a visualização de colisão nem as linhas de rig na imagem da biblioteca.
-  const helpers = [colliderPreview, rigHelper].filter((item): item is THREE.Object3D => item !== null)
+  const helpers: THREE.Object3D[] = []
+  if (colliderPreview) helpers.push(colliderPreview)
+  if (rigHelper) helpers.push(rigHelper)
   const previousVisibility = helpers.map(item => item.visible)
   try {
     helpers.forEach(item => { item.visible = false })
