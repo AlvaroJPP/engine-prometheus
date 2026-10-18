@@ -289,9 +289,13 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       fail(`${label}: dados do modelo do jogador inválidos ou grandes demais (limite aproximado de 30 MB por GLB).`)
     }
     const animationRoles = parseAnimationRoleMap(obj.playerModel.animationRoles)
+    const playerHeight = isNum(obj.playerModel.height) && obj.playerModel.height >= 0.1 && obj.playerModel.height <= 10000
+      ? obj.playerModel.height
+      : undefined
     playerModel = {
       name: name.trim(),
       glbData,
+      ...(playerHeight !== undefined ? { height: playerHeight } : {}),
       ...(animationRoles ? { animationRoles } : {}),
     }
   }
