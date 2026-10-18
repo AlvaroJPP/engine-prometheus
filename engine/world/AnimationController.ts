@@ -401,8 +401,9 @@ export class AnimationController {
         const cycleScale = isOneShot ? 1 : this.targetCycleScale
         action.timeScale = this.playbackRate * cycleScale
         if (!isOneShot && isLocomotionAnimation(role) && sourceRole && sourceRole !== role) {
-          const sourceDuration = this.actions.get(sourceRole)?.getClip().duration ?? duration
-          action.timeScale = this.playbackRate * cycleScale * sourceDuration / duration
+          const sourceDuration = Math.max(0.01, this.actions.get(sourceRole)?.getClip().duration ?? duration)
+          // Equal normalized phase speed: cycles of different duration must finish together.
+          action.timeScale = this.playbackRate * cycleScale * duration / sourceDuration
         }
         action.setEffectiveWeight(current)
       }
