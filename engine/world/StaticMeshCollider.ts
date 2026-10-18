@@ -30,6 +30,7 @@ export interface StaticMeshRayHit {
 
 const cache = new WeakMap<THREE.Object3D, CachedStaticMesh>()
 const rootsByObjectId = new Map<string, THREE.Object3D>()
+const unsupportedRoots = new WeakSet<THREE.Object3D>()
 
 function trackRoot(root: THREE.Object3D): void {
   const id = root.userData.id
@@ -54,12 +55,12 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
   trackRoot(root)
   const cachedData = cache.get(root)
   if (cachedData && root.userData.staticMeshColliderDirty !== true) return cachedData
+  if (unsupportedRoots.has(root) && root.userData.staticMeshColliderDirty !== true) return null
 
   root.updateWorldMatrix(true, true)
   const inverseRoot = root.matrixWorld.clone().invert()
   const parts: SourcePart[] = []
   const signatureParts: string[] = []
-  let dynamicGeometry = false
   let totalVertices = 0
   let totalIndices = 0
 
@@ -68,10 +69,9 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
     if (child.userData.editorOverlay === true || child.name === 'collider-debug-wireframe') return
     // A raiz dos modelos colocados no mundo é apenas o proxy de edição.
     if (child === root && root.userData.importedModel === true) return
-    if (child instanceof THREE.SkinnedMesh || (child.geometry.morphAttributes.position?.length ?? 0) > 0) {
-      dynamicGeometry = true
-      return
-    }
+    // Não inclua peças animadas dentro da malha estática. O restante do
+    // cenário continua acelerado, mesmo que uma árvore/objeto decorativo tenha morphs.
+    if (child instanceof THREE.SkinnedMesh || (child.geometry.morphAttributes.position?.length ?? 0) > 0) return
 
     const position = child.geometry.getAttribute('position')
     if (!position || position.count < 3) return
@@ -94,13 +94,20 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
     totalIndices += indexCount
   })
 
-  if (dynamicGeometry || parts.length === 0 || totalIndices < 3) return null
+  if (parts.length === 0 || totalIndices < 3) {
+    unsupportedRoots.add(root)
+    return null
+  }
   const triangleCount = Math.floor(totalIndices / 3)
-  if (triangleCount > MAX_STATIC_COLLIDER_TRIANGLES) return null
+  if (triangleCount > MAX_STATIC_COLLIDER_TRIANGLES) {
+    unsupportedRoots.add(root)
+    return null
+  }
 
   const signature = signatureParts.join('|')
   const previous = cache.get(root)
   if (previous?.signature === signature) return previous
+  unsupportedRoots.delete(root)
 
   const positions = new Float32Array(totalVertices * 3)
   const indices = new Uint32Array(totalIndices)
@@ -233,7 +240,8 @@ export function invalidateStaticMeshCollider(root: THREE.Object3D): void {
   const existing = cache.get(root)
   if (existing) existing.geometry.dispose()
   cache.delete(root)
-  root.userData.staticMeshColliderDirty = false
+  unsupportedRoots.delete(root)
+  root.userData.staticMeshColliderDirty = true
 }
 
 /** Limpa o cache geométrico quando o modelo deixa de existir no mundo. */
