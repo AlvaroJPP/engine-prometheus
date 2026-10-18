@@ -297,7 +297,7 @@ async function applyAlquimiaHudPreset(): Promise<void> {
 
     // Stable IDs make applying the preset repeatable instead of stacking duplicates.
     const presetIds = new Set(presets.map(preset => preset.id))
-    settings.images = settings.images.filter(layer => !presetIds.has(layer.id))
+    settings.images = settings.images.filter(layer => !presetIds.has(layer.id) && !layer.name.startsWith('Alquimia Escarlate ·'))
     settings.images.push(...added)
     hudImageUrls.value = urls
     activeHudImageId.value = null
