@@ -203,7 +203,7 @@ export class CollisionSystem {
 
   /**
    * Define o colisor por objeto via mesh.userData.colliderType:
-   * 'auto' (padrão), 'box', 'sphere', 'capsule' ou 'none'.
+   * 'auto' (padrão), 'box', 'sphere', 'capsule', 'mesh' (malha côncava/BVH) ou 'none'.
    * Para box/sphere/capsule, dimensões e escala vêm da geometria local original.
    */
   private colliderType(object: GameObject): ColliderType {
@@ -803,7 +803,7 @@ export class CollisionSystem {
   }
 
   private isStaticMeshCollider(object: GameObject): boolean {
-    return this.colliderType(object) === 'mesh'
+    return object.mesh.userData.importedModel === true && this.colliderType(object) === 'mesh'
   }
 
   /**
