@@ -28,6 +28,22 @@ A análise funciona offline para arquivos `.glb` e `.gltf`; no `.gltf`, basta o 
 
 ## Rigging adaptativo e transferência de animações
 
+### IA de rigging local sem plano pago
+
+O importador 3D integra o [SkinTokens](https://github.com/VAST-AI-Research/SkinTokens) por meio de um executável local. O Engine Prometheus não chama serviços de inferência na nuvem e não precisa de API key, assinatura nem créditos.
+
+No Windows, a instalação inicial exige Git, Rust/Cargo e ferramentas de compilação MSVC. Na raiz do repositório do Engine Prometheus, execute no PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-skintokens.ps1
+```
+
+O script baixa o código-fonte de [chris-straka/skintokens](https://github.com/chris-straka/skintokens), compila o backend sem recursos GPU e baixa uma vez o checkpoint público (~1,1 GB), validando o SHA-256 antes de usá-lo. A inferência roda no computador, via CPU; com isso não depende dos 14 GB de VRAM exigidos pelo runtime oficial Python. Em uma máquina sem muita RAM ou CPU rápida, a execução pode demorar.
+
+Depois da instalação, abra o Engine Prometheus como aplicativo desktop Tauri, vá à aba **Rig & keyframes**, informe o caminho de `skintokens.exe` impresso pelo instalador e clique em **Testar backend local**. Selecione **Gerar esqueleto + pesos** para modelos sem rig, ou **Melhorar pesos do rig existente** quando a malha já possui esqueleto. A classe automática sugere humanoide, quadrúpede ou outro modelo; revise sempre o resultado visual antes de salvar.
+
+A operação é local. O checkpoint precisa ser baixado apenas uma vez, mas o executável e seus pesos não são incluídos no repositório nem no instalador do Engine Prometheus. Isso evita downloads gigantes durante o build do editor e evita redistribuir inadvertidamente um binário de terceiros. O repositório Rust usado como backend documenta que o executável compilado liga um componente GPL-3.0; consulte a licença e a proveniência desse projeto antes de redistribuí-lo com o Engine Prometheus.
+
 Na aba **Rig & keyframes** do importador 3D, o modo **Detectar automaticamente** analisa o nome do modelo, proporções e estrutura das malhas para sugerir um ponto de partida. Também é possível escolher manualmente:
 
 - **Humanoide**: esqueleto inicial para personagens verticais.
