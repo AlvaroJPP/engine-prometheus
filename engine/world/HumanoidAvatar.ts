@@ -287,6 +287,7 @@ export class HumanoidAvatar {
   private maneuver: PlayerManeuver = null
   private maneuverRemaining = 0
   private maneuverCooldown = 0
+  private maneuverAdmission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null = null
   private maneuverSpeed = 0
   private readonly maneuverDirection = new THREE.Vector3()
   private postureBeforeSlide: PlayerPosture = 'standing'
@@ -330,6 +331,11 @@ export class HumanoidAvatar {
     this.dodgeRequested = false
     this.slideRequested = false
     this.rollRequested = false
+  }
+
+  /** Permite ao sistema de jogo validar/cobrar recursos antes de iniciar manobras. */
+  setManeuverAdmission(admission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null): void {
+    this.maneuverAdmission = admission
   }
 
   private getStandingPlayerHeight(): number {
@@ -495,14 +501,23 @@ export class HumanoidAvatar {
         return
       }
       if (event.code === bindings.dodge) {
+        if (this.maneuverCooldown > 0 || this.maneuver !== null || !this.grounded) return
+        if (this.maneuverAdmission && !this.maneuverAdmission('dodge')) return
         this.dodgeRequested = true
         return
       }
       if (event.code === bindings.slide) {
+        if (this.maneuverCooldown > 0 || this.maneuver !== null || !this.grounded) return
+        const hasMovementIntent = this.pressed.has(bindings.forward) || this.pressed.has(bindings.backward) ||
+          this.pressed.has(bindings.left) || this.pressed.has(bindings.right)
+        if (!hasMovementIntent) return
+        if (this.maneuverAdmission && !this.maneuverAdmission('slide')) return
         this.slideRequested = true
         return
       }
       if (event.code === bindings.roll) {
+        if (this.maneuverCooldown > 0 || this.maneuver !== null || !this.grounded) return
+        if (this.maneuverAdmission && !this.maneuverAdmission('roll')) return
         this.rollRequested = true
         return
       }
