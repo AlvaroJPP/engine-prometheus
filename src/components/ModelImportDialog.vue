@@ -1235,10 +1235,9 @@ function getPreviewModelNodePath(node: THREE.Object3D, rootOverride?: THREE.Obje
     current = parent
   }
   if (current !== root) return ''
-  // O nome da raiz é apenas um rótulo de importação e pode mudar ao salvar
-  // o GLB original. Omita-o do caminho para manter a regra estável entre sessões.
-  // O Engine mantém ImportedVisualPivot como a raiz visual do modelo importado.
-  return ['ImportedVisualPivot', ...segments].join('/')
+  // Prefixo versionado: o nome da raiz do GLB pode mudar quando o importador
+  // conserva os bytes originais. A versão 2 identifica caminhos relativos à raiz visual.
+  return ['@v2', 'ImportedVisualPivot', ...segments].join('/')
 }
 
 function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
