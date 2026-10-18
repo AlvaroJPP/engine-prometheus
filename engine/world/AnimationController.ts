@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
 import type { AnimationRole } from '../script/packages'
-import { getAnimationBlendDuration, isLocomotionAnimation } from './AnimationTransitions'
+import { isLocomotionAnimation } from './AnimationTransitions'
 
 export type AnimationActionCollection =
   | ReadonlyMap<string, THREE.AnimationAction>
@@ -77,6 +77,14 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
   if (/interact|interaction|useobject/.test(normalized)) return 'interact'
   if (/emote|gesture|dance|wave/.test(normalized)) return 'emote'
 
+  // Classifique postura antes de procurar "walk": nomes como "Crouch Walk"
+  // devem continuar sendo caminhada agachada, não um ciclo de caminhada em pé.
+  if (/crouchwalk|squatwalk|crouchedwalk/.test(normalized)) return 'crouch_walk'
+  if (/crouch|squat|kneel/.test(normalized)) return 'crouch'
+  if (/pronecrawl|crawl|crawling/.test(normalized)) return 'prone_crawl'
+  if (/prone|lying|lie/.test(normalized)) return 'prone'
+  if (/walkslow|slowwalk|walktired/.test(normalized)) return 'walk_slow'
+
   const isRun = /gallop|canter|sprint|running|run|jog|dash/.test(normalized)
   const isWalk = /walk|locomotion|move|stride|trot|step|strafe|sidestep|sideways/.test(normalized)
   const isMovement = isRun || isWalk
@@ -101,10 +109,6 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
     return family
   }
 
-  if (/crouchwalk|squatwalk|crouchedwalk/.test(normalized)) return 'crouch_walk'
-  if (/crouch|squat|kneel/.test(normalized)) return 'crouch'
-  if (/pronecrawl|crawl|crawling/.test(normalized)) return 'prone_crawl'
-  if (/prone|lying|lie/.test(normalized)) return 'prone'
   if (/idle|stand|rest|breath|neutral|stationary|wait/.test(normalized)) return 'idle'
   return 'ignore'
 }
