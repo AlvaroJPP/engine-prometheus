@@ -944,14 +944,14 @@ export class HumanoidAvatar {
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
-    const staticMeshColliderIds = new Set(allCandidates
-      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
-      .map(object => object.id))
     const staticCandidates = allCandidates.filter(object =>
-      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
     )
-    // Não mande cenários estáticos gigantes para o Raycaster comum caso não
-    // caibam no limite de compilação BVH; o terreno base fica como fallback de piso.
+    const staticMeshColliderIds = new Set(staticCandidates.map(object => object.id))
+    // Se uma malha exceder o limite BVH, mantenha-a nas consultas comuns de
+    // superfície em vez de removê-la do cálculo de piso e degraus.
     const candidates = allCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(x, originY, z),
@@ -2577,14 +2577,8 @@ export class HumanoidAvatar {
       const configuredCollider = root.userData.colliderType
       if (root.userData.importedModel === true && configuredCollider === 'mesh') {
         const staticData = getStaticMeshCollisionData(root)
-        if (!staticData) {
-          // Modelos legados fora do limite BVH não devem desencadear uma varredura
-          // de milhões de triângulos a cada subpasso. Usa fallback conservador.
-          const fallbackBounds = getColliderBounds(root)
-          if (fallbackBounds && this.hasVolumeOverlap(playerBox, fallbackBounds)) return true
-          continue
-        }
-        const queryBox = blockCeilings
+        if (staticData) {
+          const queryBox = blockCeilings
           ? new THREE.Box3(
               new THREE.Vector3(playerBox.min.x, playerBox.max.y - 0.12, playerBox.min.z),
               new THREE.Vector3(playerBox.max.x, playerBox.max.y + 0.02, playerBox.max.z),
@@ -2607,9 +2601,12 @@ export class HumanoidAvatar {
             if (isLowLedgeFace) return false
           }
           return queryBox.intersectsTriangle(triangle)
-        })
-        if (blocked) return true
-        continue
+          })
+          if (blocked) return true
+          continue
+        }
+        // Se não for possível gerar o BVH, não transforme a cidade numa caixa sólida.
+        // Deixe a consulta por malhas visíveis determinar o contato local.
       }
 
       if (
@@ -2754,12 +2751,12 @@ export class HumanoidAvatar {
     const allCandidates = this.world.list().filter(object =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
     )
-    const staticMeshColliderIds = new Set(allCandidates
-      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
-      .map(object => object.id))
     const staticCandidates = allCandidates.filter(object =>
-      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
     )
+    const staticMeshColliderIds = new Set(staticCandidates.map(object => object.id))
     const candidates = allCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const points = this.getFootProbePoints(x, z, leadingAxis, leadingDirection)
     let bestSurface: number | null = null
@@ -2872,12 +2869,12 @@ export class HumanoidAvatar {
     const allSlopeCandidates = this.world.list().filter(object =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
     )
-    const staticMeshColliderIds = new Set(allSlopeCandidates
-      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
-      .map(object => object.id))
     const staticCandidates = allSlopeCandidates.filter(object =>
-      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
     )
+    const staticMeshColliderIds = new Set(staticCandidates.map(object => object.id))
     const slopeCandidates = allSlopeCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const rayOriginY = Math.max(oldY, nextY) + this.getPlayerHeight() + 2
     const probes = this.getFootProbePoints(this.mesh.position.x, this.mesh.position.z)
