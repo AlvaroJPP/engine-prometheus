@@ -31,6 +31,7 @@ type ModelImportPayload = {
   height: number
   thumbnail?: string
   componentId?: string
+  sourceGlbBytes?: ArrayBuffer
 }
 
 const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
@@ -384,6 +385,7 @@ function createRig() {
     rigFrameTime.value = 0
     rigDuration.value = 1
     rigMessage.value = result.message
+    root.userData.importNeedsReexport = true
     root.userData.importRigPreset = result.preset
     root.userData.importRigGenerated = result.created || (
       result.bones.length > 0 && result.bones.every(bone => bone.userData.generatedRigBone === true)
@@ -402,6 +404,7 @@ function applySelectedBoneTransform() {
   if (!bone) return
   previewMixer?.stopAllAction()
   const root = model.value
+  if (root) root.userData.importNeedsReexport = true
   const positionChanged = Math.abs(bone.position.x - bonePositionDraft.value.x) > 1e-5 ||
     Math.abs(bone.position.y - bonePositionDraft.value.y) > 1e-5 ||
     Math.abs(bone.position.z - bonePositionDraft.value.z) > 1e-5
@@ -539,6 +542,7 @@ function createRigAnimation() {
   const clips = [...previewAnimations.value, clip]
   const newIndex = clips.length - 1
   const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
+  root.userData.importNeedsReexport = true
   root.userData.importAnimations = clips
   root.userData.importAnimationRoles = nextRoles
   animationRoles.value = nextRoles
@@ -879,6 +883,7 @@ function restorePreviewVisibility() {
 function deletePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (!model.value || !part.object.parent) return
   part.object.removeFromParent()
+  model.value.userData.importNeedsReexport = true
   model.value.updateMatrixWorld(true)
   refreshPreviewParts()
   refreshModelDiagnostics()
@@ -926,6 +931,7 @@ async function applyRecoveredColorTexture(materialIndex: number) {
     const applied = (root.userData.importRecoveredColorTextures as Record<string, number> | undefined) ?? {}
     applied[String(materialIndex)] = imageIndex
     root.userData.importRecoveredColorTextures = applied
+    root.userData.importNeedsReexport = true
     recoveredTextures.push(texture)
     root.userData.importRecoveredTextures = recoveredTextures
     textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialInfo.name || materialIndex}. O mapa normal e os demais mapas foram preservados.`
@@ -1436,6 +1442,7 @@ async function parseFile(file: File) {
         // GLTFLoader mantém as animações separadas da hierarquia da cena; guarde-as
         // no root para transferi-las junto com o modelo ao confirmar a importação.
         gltf.scene.userData.importAnimations = gltf.animations ?? []
+        if (ext === 'glb') gltf.scene.userData.importSourceGlbBytes = buffer.slice(0)
         // Preserve metadata from the original glTF JSON so we can distinguish
         // an embedded image from a texture actually assigned to baseColorTexture.
         gltf.scene.userData.importGltfMetadata = {
@@ -1893,6 +1900,10 @@ async function confirmImport() {
   // Aguarda o salvamento antes de fechar. Em caso de erro, a prévia continua
   // aberta e a mensagem fica visível para corrigir e tentar novamente.
   const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
+  const sourceGlbBytes = imported === root && root.userData.importNeedsReexport !== true
+    && root.userData.importSourceGlbBytes instanceof ArrayBuffer
+    ? root.userData.importSourceGlbBytes.slice(0)
+    : undefined
   loading.value = true
   try {
     const saved = await props.saveModel({
@@ -1901,6 +1912,7 @@ async function confirmImport() {
       height: importedHeight,
       thumbnail,
       componentId: props.initialAsset?.id,
+      sourceGlbBytes,
     })
     if (!saved) {
       error.value = 'O salvamento não foi concluído. Verifique se outra operação está em andamento e tente novamente.'
