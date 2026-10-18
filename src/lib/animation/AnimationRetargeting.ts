@@ -259,6 +259,7 @@ export function retargetAnimationClip(
     const legacyMotionContainer = !asset.sourceBoneNames?.includes(path.nodeName) &&
       /^(scene|armature|skeleton|rig|root|rootnode|modelroot|characterroot)$/i.test(sourceLeafName)
     const isSourceMotionContainer = asset.sourceMotionNodeNames?.includes(path.nodeName) || legacyMotionContainer
+    const sourceRole = signatureForBoneName(path.nodeName).role
     // Um container animado não deve ser associado acidentalmente a um osso pelo
     // mapeamento automático; sua translação move o personagem inteiro.
     const targetName = isSourceMotionContainer ? undefined : boneMap[path.nodeName]
@@ -278,7 +279,16 @@ export function retargetAnimationClip(
       continue
     }
 
-    if (targetRoot && isSourceMotionContainer && path.property === 'position' && stride === 3) {
+    const targetRole = targetBone ? signatureForBoneName(targetBone.name).role : ''
+    const isRootMotionBone = path.property === 'position' &&
+      (['root', 'pelvis'].includes(sourceRole) ||
+        (!sourceRole && ['root', 'pelvis'].includes(targetRole)))
+    // Em muitos clips (incluindo animações Mixamo) o deslocamento do salto ou
+    // da locomoção só está em Hips.position/Root.position, não no objeto Armature.
+    // Convertemos essa trilha em movimento global para que o personagem viaje no
+    // ambiente, em vez de deslocar apenas a pelve dentro do esqueleto.
+    if (targetRoot && path.property === 'position' && stride === 3 &&
+        (isSourceMotionContainer || isRootMotionBone)) {
       const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
       const sourceParentWorld = parentRest && parentRest.length === 4
         ? new THREE.Quaternion(...parentRest).normalize()
@@ -552,9 +562,7 @@ export function retargetAnimationClip(
   }
 
   if (targetRoot && rootMotionContributions.length) {
-    const outputTimes = rootMotionContributions.length === 1
-      ? Array.from(rootMotionContributions[0]!.track.times)
-      : [...new Set(rootMotionContributions.flatMap(item => Array.from(item.track.times)))].sort((a, b) => a - b)
+    const outputTimes = [...new Set(rootMotionContributions.flatMap(item => Array.from(item.track.times)))].sort((a, b) => a - b)
     if (outputTimes.length) {
       const rootBasePosition = targetRoot.position.clone()
       const targetParentWorld = new THREE.Quaternion()
@@ -566,44 +574,97 @@ export function retargetAnimationClip(
           createInterpolant: () => { evaluate: (time: number) => ArrayLike<number> }
         }).createInterpolant(),
       }))
-      const values: number[] = []
-      let invalidRootMotion = false
-      for (const time of outputTimes) {
-        const combinedOffset = new THREE.Vector3()
-        for (const item of interpolants) {
-          const sourceValue = item.interpolant.evaluate(time) as ArrayLike<number>
-          if (sourceValue.length < 3 || !Number.isFinite(sourceValue[0]) ||
-              !Number.isFinite(sourceValue[1]) || !Number.isFinite(sourceValue[2])) {
-            invalidRootMotion = true
-            break
+      const deltaAt = (item: typeof interpolants[number], time: number): THREE.Vector3 | null => {
+        const sourceValue = item.interpolant.evaluate(time) as ArrayLike<number>
+        if (sourceValue.length < 3 || !Number.isFinite(sourceValue[0]) ||
+            !Number.isFinite(sourceValue[1]) || !Number.isFinite(sourceValue[2])) return null
+        const delta = new THREE.Vector3(
+          sourceValue[0]! - item.contribution.sourceRestPosition.x,
+          sourceValue[1]! - item.contribution.sourceRestPosition.y,
+          sourceValue[2]! - item.contribution.sourceRestPosition.z,
+        )
+        if (item.contribution.sourceParentWorld) delta.applyQuaternion(item.contribution.sourceParentWorld)
+        delta.applyQuaternion(inverseTargetParentWorld).multiplyScalar(scaleRatio)
+        return [delta.x, delta.y, delta.z].every(Number.isFinite) ? delta : null
+      }
+
+      // Root motion pode estar distribuído: a raiz leva o personagem adiante,
+      // enquanto Hips carrega a elevação do salto. Escolhemos por eixo a trilha
+      // com maior movimento para não somar duas vezes o mesmo deslocamento quando
+      // o rig anima simultaneamente Armature, Root e Hips.
+      const axisPeaks = [0, 1, 2]
+      const invalidItems = new Set<number>()
+      for (let index = 0; index < interpolants.length; index += 1) {
+        const item = interpolants[index]!
+        for (const time of item.contribution.track.times) {
+          const delta = deltaAt(item, time)
+          if (!delta) {
+            invalidItems.add(index)
+            continue
           }
-          const delta = new THREE.Vector3(
-            sourceValue[0]! - item.contribution.sourceRestPosition.x,
-            sourceValue[1]! - item.contribution.sourceRestPosition.y,
-            sourceValue[2]! - item.contribution.sourceRestPosition.z,
-          )
-          if (item.contribution.sourceParentWorld) delta.applyQuaternion(item.contribution.sourceParentWorld)
-          delta.applyQuaternion(inverseTargetParentWorld).multiplyScalar(scaleRatio)
-          if (![delta.x, delta.y, delta.z].every(Number.isFinite)) {
-            invalidRootMotion = true
-            break
-          }
-          combinedOffset.add(delta)
+          axisPeaks[0] = Math.max(axisPeaks[0]!, Math.abs(delta.x))
+          axisPeaks[1] = Math.max(axisPeaks[1]!, Math.abs(delta.y))
+          axisPeaks[2] = Math.max(axisPeaks[2]!, Math.abs(delta.z))
         }
-        if (invalidRootMotion) break
+      }
+      const perCandidatePeaks = interpolants.map((item, index) => {
+        const peaks = [0, 0, 0]
+        if (invalidItems.has(index)) return peaks
+        for (const time of item.contribution.track.times) {
+          const delta = deltaAt(item, time)
+          if (!delta) continue
+          peaks[0] = Math.max(peaks[0]!, Math.abs(delta.x))
+          peaks[1] = Math.max(peaks[1]!, Math.abs(delta.y))
+          peaks[2] = Math.max(peaks[2]!, Math.abs(delta.z))
+        }
+        return peaks
+      })
+      const selectedByAxis = [0, 1, 2].map(axis => {
+        let bestIndex = -1
+        let bestPeak = Math.max(1e-5, targetSourceHeight * 1e-4)
+        for (let index = 0; index < perCandidatePeaks.length; index += 1) {
+          if (invalidItems.has(index)) continue
+          const peak = perCandidatePeaks[index]![axis]!
+          if (peak > bestPeak) {
+            bestPeak = peak
+            bestIndex = index
+          }
+        }
+        return bestIndex
+      })
+
+      const values: number[] = []
+      let invalidRootMotion = selectedByAxis.every(index => index < 0)
+      const maxRootOffset = Math.max(1, targetSourceHeight * 100)
+      for (const time of outputTimes) {
+        const offset = new THREE.Vector3()
+        for (let axis = 0; axis < 3; axis += 1) {
+          const candidateIndex = selectedByAxis[axis]!
+          if (candidateIndex < 0) continue
+          const delta = deltaAt(interpolants[candidateIndex]!, time)
+          if (!delta) {
+            invalidRootMotion = true
+            break
+          }
+          offset.setComponent(axis, delta.getComponent(axis))
+        }
+        if (invalidRootMotion || offset.length() > maxRootOffset) {
+          invalidRootMotion = true
+          break
+        }
         values.push(
-          rootBasePosition.x + combinedOffset.x,
-          rootBasePosition.y + combinedOffset.y,
-          rootBasePosition.z + combinedOffset.z,
+          rootBasePosition.x + offset.x,
+          rootBasePosition.y + offset.y,
+          rootBasePosition.z + offset.z,
         )
       }
       if (!invalidRootMotion && values.length === outputTimes.length * 3) {
         const rootNodeName = targetRoot.name || 'Scene'
-        const interpolation = rootMotionContributions.length === 1
-          ? rootMotionContributions[0]!.track.getInterpolation()
+        const interpolation = interpolants.length === 1
+          ? interpolants[0]!.contribution.track.getInterpolation()
           : THREE.InterpolateLinear
         tracks.push(new THREE.VectorKeyframeTrack(rootNodeName + '.position', outputTimes, values, interpolation))
-        rootMotionTracks = 1
+        rootMotionTracks = selectedByAxis.filter(index => index >= 0).length
       } else {
         for (const item of rootMotionContributions) skipTrack(item.track, invalidTracks)
       }
