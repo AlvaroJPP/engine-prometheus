@@ -927,7 +927,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   position:fixed;
   z-index:45;
   top:68px;
-  right:12px;
+  right:264px;
   display:flex;
   align-items:center;
   gap:6px;
@@ -1028,6 +1028,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 :global(.app.world-fullscreen) .viewport-tools-overlay { top:12px; }
 @media(max-width:1180px) {
   .topbar { gap:8px; }
+  .viewport-tools-overlay { right:215px; }
   .topbar-left,.topbar-right { gap:6px; }
   .topbar .pname { width:112px; }
   .topbar .global-search-wrap { width:200px; flex-basis:200px; }
@@ -1050,7 +1051,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .topbar .pname { width:76px; min-width:58px; }
   .topbar .global-search-wrap { width:120px; flex-basis:120px; min-width:100px; }
   .topbar .mode-segment button { padding-inline:7px; font-size:11px; }
-  .viewport-tools-overlay { right:6px; gap:2px; padding:3px; transform:scale(.92); transform-origin:top right; }
+  .viewport-tools-overlay { right:187px; gap:2px; padding:3px; transform:scale(.92); transform-origin:top right; }
   .viewport-tool { gap:4px; padding-inline:7px; font-size:11px; }
 }
 
