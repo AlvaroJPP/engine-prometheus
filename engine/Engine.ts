@@ -1173,6 +1173,188 @@ export class Engine {
     if (this.logic.getVariable('ward_absorption') !== undefined) this.logic.setVariable('ward_absorption', 0)
   }
 
+
+  private setVeilborneAIState(instance: BehaviorPackageInstance, nextState: string): void {
+    const previous = typeof instance.variables.ai_state === 'string' ? instance.variables.ai_state : 'idle'
+    if (previous === nextState) return
+    this.logic.setPackageVariable(instance.id, 'ai_state', nextState)
+    this.notifyBehaviorPackageChanged(instance.ownerObjectId)
+    if (nextState === 'pursue' && previous === 'idle') {
+      this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_spotted')
+    } else if (nextState === 'idle' && (previous === 'pursue' || previous === 'attack' || previous === 'recover')) {
+      this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_lost_target')
+    }
+  }
+
+  /**
+   * IA inicial para alvos VEILBORNE. A movimentação acontece no plano XZ e a resolução
+   * de colisões do mundo corrige o contato no frame seguinte; navegação por caminho ainda
+   * não faz parte desta primeira versão.
+   */
+  private updateVeilborneEnemyAI(dt: number, player: VeilborneCombatant): void {
+    const playerPosition = this.avatar.mesh.position
+    const step = Math.max(0, Math.min(dt, 0.1))
+    const profileDefaults: Record<string, {
+      attackRange: number
+      moveSpeed: number
+      damage: number
+      cooldown: number
+      damageType: VeilborneDamageType
+      postureDamage: number
+      ranged: boolean
+    }> = {
+      melee: { attackRange: 2, moveSpeed: 2.8, damage: 12, cooldown: 1.4, damageType: 'physical', postureDamage: 8, ranged: false },
+      ranged_caster: { attackRange: 9, moveSpeed: 2.3, damage: 18, cooldown: 1.8, damageType: 'arcane', postureDamage: 6, ranged: true },
+      flanker: { attackRange: 1.8, moveSpeed: 4, damage: 10, cooldown: 1.05, damageType: 'physical', postureDamage: 7, ranged: false },
+      guard_breaker: { attackRange: 2.7, moveSpeed: 1.7, damage: 24, cooldown: 2, damageType: 'physical', postureDamage: 20, ranged: false },
+      boss_phases: { attackRange: 3.2, moveSpeed: 2.3, damage: 28, cooldown: 1.7, damageType: 'shadow', postureDamage: 24, ranged: false },
+    }
+
+    for (const { instance, object } of this.getVeilborneHostilePackages()) {
+      const previousState = typeof instance.variables.ai_state === 'string' ? instance.variables.ai_state : 'idle'
+      if (instance.variables.ai_enabled === false) {
+        this.setVeilborneAIState(instance, 'idle')
+        continue
+      }
+      if (!player.alive) {
+        this.setVeilborneAIState(instance, 'idle')
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller && (controller.currentState === 'walk' || controller.currentState === 'run')) controller.setState('idle')
+        continue
+      }
+
+      const profileName = typeof instance.variables.ai_profile === 'string'
+        ? instance.variables.ai_profile.trim().toLowerCase()
+        : 'melee'
+      const profile = profileDefaults[profileName] ?? profileDefaults.melee!
+      const customStats = instance.variables.ai_custom_stats === true
+      const number = (name: string, fallback: number): number => {
+        const value = instance.variables[name]
+        return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+      }
+      const attackRange = Math.max(0.5, customStats ? number('attack_range', profile.attackRange) : profile.attackRange)
+      const moveSpeed = Math.max(0, customStats ? number('move_speed', profile.moveSpeed) : profile.moveSpeed)
+      let attackDamage = Math.max(0, customStats ? number('attack_damage', profile.damage) : profile.damage)
+      const attackCooldown = Math.max(0.2, customStats ? number('attack_cooldown', profile.cooldown) : profile.cooldown)
+      const postureDamage = Math.max(0, customStats ? number('attack_posture_damage', profile.postureDamage) : profile.postureDamage)
+      const attackTypeValue = customStats && typeof instance.variables.attack_damage_type === 'string'
+        ? instance.variables.attack_damage_type
+        : profile.damageType
+      const damageTypes = new Set<VeilborneDamageType>(['physical', 'fire', 'frost', 'storm', 'blood', 'shadow', 'spirit', 'arcane'])
+      const attackType: VeilborneDamageType = damageTypes.has(attackTypeValue as VeilborneDamageType)
+        ? attackTypeValue as VeilborneDamageType
+        : profile.damageType
+      const perceptionRange = Math.max(1, number('perception_range', 18))
+      const dx = playerPosition.x - object.mesh.position.x
+      const dz = playerPosition.z - object.mesh.position.z
+      const distance = Math.hypot(dx, dz)
+      if (distance > perceptionRange || distance < 0.001) {
+        this.setVeilborneAIState(instance, 'idle')
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller && (controller.currentState === 'walk' || controller.currentState === 'run')) controller.setState('idle')
+        continue
+      }
+
+      if (profileName === 'boss_phases') {
+        const target = this.getVeilborneTargetCombatant(instance)
+        const ratio = target.resources.vitality / Math.max(1, target.resources.maxVitality)
+        const phase = ratio <= 0.25 ? 3 : ratio <= 0.6 ? 2 : 1
+        if (instance.variables.boss_phase !== phase) this.logic.setPackageVariable(instance.id, 'boss_phase', phase)
+        if (phase === 2) attackDamage *= 1.2
+        if (phase === 3) attackDamage *= 1.45
+      }
+
+      const directionX = dx / distance
+      const directionZ = dz / distance
+      const targetYaw = Math.atan2(directionX, directionZ)
+      const rotationYDegrees = targetYaw * 180 / Math.PI
+      const movingToward = distance > attackRange * 0.94
+      const movingAway = profile.ranged && distance < attackRange * 0.62
+      let nextX = object.mesh.position.x
+      let nextZ = object.mesh.position.z
+      let moving = false
+
+      const targetState = this.getVeilborneTargetCombatant(instance)
+      const slowStatus = targetState.statuses.find(status => status.id === 'slow')
+      const slowMultiplier = slowStatus ? Math.max(0.2, 1 - slowStatus.potency) : 1
+      if ((movingToward || movingAway) && moveSpeed > 0) {
+        const sign = movingAway ? -1 : 1
+        const stepDistance = Math.min(moveSpeed * slowMultiplier * step, Math.max(0, Math.abs(distance - attackRange * (movingAway ? 0.72 : 0.94))))
+        nextX -= directionX * stepDistance * (movingAway ? -1 : 1)
+        nextZ -= directionZ * stepDistance * (movingAway ? -1 : 1)
+        nextX = Math.max(-49, Math.min(49, nextX))
+        nextZ = Math.max(-49, Math.min(49, nextZ))
+        moving = stepDistance > 1e-5
+      }
+      const currentRotation = object.mesh.rotation.y
+      if (moving || Math.abs(currentRotation - targetYaw) > 0.01) {
+        const bounds = new THREE.Box3().setFromObject(object.mesh)
+        const bottomOffset = object.mesh.position.y - bounds.min.y
+        const groundY = this.world.terrain.heightAt(nextX, nextZ)
+        const nextY = groundY + bottomOffset
+        this.world.update(object.id, {
+          x: nextX,
+          y: nextY,
+          z: nextZ,
+          rotationY: rotationYDegrees,
+        })
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller) controller.setState(moving ? 'run' : 'idle')
+      }
+
+      if (distance <= attackRange) {
+        const state = (this.veilborneCooldowns.get('ai-attack:' + instance.ownerObjectId) ?? 0) > 0
+          ? 'recover'
+          : 'attack'
+        this.setVeilborneAIState(instance, state)
+        if (state === 'attack') {
+          const silenced = targetState.statuses.some(status => status.id === 'silence')
+          if (!(profile.ranged && silenced)) {
+            this.veilborneCooldowns.set('ai-attack:' + instance.ownerObjectId, attackCooldown)
+            this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_attack')
+            const result = this.applyVeilborneIncomingDamage(attackDamage, attackType, postureDamage, instance.ownerObjectId)
+            const colorByType: Record<VeilborneDamageType, number> = {
+              physical: 0xd3d8e8, fire: 0xff713b, frost: 0x79ddff, storm: 0xffe77a,
+              blood: 0xd82e55, shadow: 0x8b6ee8, spirit: 0x8bf7d1, arcane: 0x8c7cff,
+            }
+            const source = object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0))
+            this.spawnVeilborneEffect(source, colorByType[attackType], 0.35, 0.28)
+            if (result.damage > 0 || result.absorbedByWard > 0) {
+              this.spawnVeilborneEffect(
+                this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
+                colorByType[attackType],
+                result.blocked ? 0.38 : 0.52,
+                0.3,
+              )
+            }
+            if (result.parried) {
+              const weaponId = this.readVeilborneString('arma_equipada', 'starter_arcane_sword')
+              const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
+              const counterDamage = Math.round(calculateVeilborneWeaponDamage(weapon, player.attributes) * 0.8)
+              this.applyVeilborneHit(instance, counterDamage, weapon.damageType, weapon.postureDamage * 1.5)
+              this.spawnVeilborneEffect(
+                this.getVeilborneWorldPoint(object.id) ?? object.mesh.position.clone(),
+                0xe3f5ff,
+                0.8,
+                0.34,
+              )
+            }
+          } else {
+            this.veilborneCooldowns.set('ai-attack:' + instance.ownerObjectId, Math.min(0.4, attackCooldown))
+            this.setVeilborneAIState(instance, 'recover')
+          }
+        }
+      } else {
+        this.setVeilborneAIState(instance, 'pursue')
+      }
+
+      if (moving && movingToward && previousState === 'idle') {
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller) controller.setState('run')
+      }
+    }
+  }
+
   private updateVeilborneRuntime(dt: number): void {
     this.tickVeilborneEffects(dt)
     for (const [key, remaining] of this.veilborneCooldowns) {
@@ -1199,6 +1381,7 @@ export class Engine {
       this.syncVeilbornePlayerCombatant(player)
     }
 
+    this.updateVeilborneEnemyAI(step, player)
     const activeIds = new Set<string>()
     for (const { instance } of this.getVeilborneHostilePackages()) {
       activeIds.add(instance.ownerObjectId)
