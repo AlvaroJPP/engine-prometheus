@@ -1792,7 +1792,7 @@ onBeforeUnmount(() => {
           </section>
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'model'" class="model-panel-section model-behavior-packages-section">
-            <div class="model-panel-heading"><span>04</span> PACOTES DE COMPORTAMENTO <b>{{ selectedBehaviorPackageIds.length }}</b></div>
+            <div class="model-panel-heading"><span>04B</span> PACOTES DE COMPORTAMENTO <b>{{ selectedBehaviorPackageIds.length }}</b></div>
             <p class="model-panel-hint">Selecione os sistemas que este componente deve receber automaticamente quando for colocado no mundo. Os pacotes usam as variáveis e configurações padrão e podem ser ajustados depois no painel Pacotes.</p>
             <div v-if="BEHAVIOR_PACKAGE_DEFINITIONS.length" class="model-behavior-package-list">
               <label
@@ -1806,7 +1806,7 @@ onBeforeUnmount(() => {
                   v-model="selectedBehaviorPackageIds"
                   type="checkbox"
                   :value="definition.id"
-                  :disabled="!!props.initialAsset"
+                  :disabled="!model || !!props.initialAsset"
                 />
                 <span class="model-behavior-package-check" aria-hidden="true">{{ selectedBehaviorPackageIds.includes(definition.id) ? '✓' : '' }}</span>
                 <span class="model-behavior-package-copy">
