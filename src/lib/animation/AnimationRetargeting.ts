@@ -623,7 +623,10 @@ export function retargetAnimationClip(
         const peaks = [0, 0, 0]
         for (const time of item.contribution.track.times) {
           const delta = deltaAt(item, time)
-          if (!delta) continue
+          if (!delta) {
+            invalidItems.add(index)
+            break
+          }
           peaks[0] = Math.max(peaks[0]!, Math.abs(delta.x))
           peaks[1] = Math.max(peaks[1]!, Math.abs(delta.y))
           peaks[2] = Math.max(peaks[2]!, Math.abs(delta.z))
@@ -670,7 +673,7 @@ export function retargetAnimationClip(
         )
       }
       if (!invalidRootMotion && values.length === outputTimes.length * 3) {
-        const rootNodeName = targetRoot.name || 'Scene'
+        const rootNodeName = targetRoot.name || 'root'
         const interpolation = interpolants.length === 1
           ? interpolants[0]!.contribution.track.getInterpolation()
           : THREE.InterpolateLinear
