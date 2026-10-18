@@ -303,7 +303,7 @@
       "sigilCycle": "reload (T in the default WASD profile)",
       "sigilActivate": "useItem (H in the default WASD profile)",
       "block": "block (R in the default WASD profile; hold)",
-      "parry": "parry (Y in the default WASD profile; press)"
+      "parry": "parry (Y by default; costs 14 stamina; a successful parry refunds 12 and triggers a weapon-scaled counterattack)"
     },
     "playerGlobalVariables": [
       "vida",
@@ -339,7 +339,8 @@
       "res_sangue",
       "res_sombra",
       "res_espirito",
-      "res_arcano"
+      "res_arcano",
+      "jogador_atordoado"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -370,7 +371,11 @@
       "enemy_attack_animation_role_requests",
       "boss_phase_damage_scaling",
       "parry_counterattack_scaled_by_equipped_weapon",
-      "elemental_resistance_globals_initialized"
+      "elemental_resistance_globals_initialized",
+      "enemy_posture_break_stagger_and_recovery",
+      "player_posture_break_stagger_lock",
+      "enemy_ai_custom_stats_and_profiles",
+      "enemy_spotted_attack_and_lost_target_events"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -411,7 +416,9 @@
       "limitations": [
         "no_pathfinding",
         "distance_based_perception_no_line_of_sight"
-      ]
+      ],
+      "staggerDurationSeconds": 1.15,
+      "customStatsRequiresToggle": true
     }
   }
 }
