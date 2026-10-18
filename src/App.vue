@@ -5207,9 +5207,18 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   z-index:10005 !important;
   pointer-events:auto !important;
 }
+/* Keep the exit control away from the render popover in fullscreen. */
 .app.world-fullscreen .world-fullscreen-exit {
-  top:64px !important;
-  right:12px !important;
+  top:12px !important;
+  left:170px !important;
+  right:auto !important;
+}
+@media(max-width:760px) {
+  .app.world-fullscreen .world-fullscreen-exit {
+    top:98px !important;
+    left:12px !important;
+    right:auto !important;
+  }
 }
 
 
