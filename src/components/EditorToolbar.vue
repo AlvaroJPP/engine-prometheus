@@ -20,6 +20,7 @@ const emit = defineEmits<{
   'set-tool': [tool: ToolMode]
   'set-transform': [transform: TransformMode]
   'toggle-graph': []
+  'open-model-import': []
   'add-primitive': [type: 'cube' | 'platform']
   'add-spawn-platform': []
   'add-clickable-example': []
@@ -59,6 +60,7 @@ function toolTooltip(item: ToolOption): string {
     </div>
     <span class="toolbar-separator" />
     <div class="toolbar-group">
+      <button class="tool" title="Adicionar modelo 3D" data-tooltip="Importa um modelo 3D, configura suas opções e prepara o componente para ser colocado no mundo." aria-label="Adicionar modelo 3D" @click="emit('open-model-import')"><span class="tool-ico" aria-hidden="true">▧</span><span class="tool-label">Modelo 3D</span></button>
       <button class="tool" :class="{ active: props.graphOpen }" title="Visual Script" data-tooltip="Abre o grafo de eventos para configurar gatilhos, condições e ações do objeto selecionado." aria-label="Visual Script" @click="emit('toggle-graph')"><span class="tool-ico" aria-hidden="true">⌘</span><span class="tool-label">Visual Script</span></button>
       <button v-if="props.inspectorMode === 'environment'" class="tool" title="Adicionar cubo" data-tooltip="Adiciona um cubo simples ao mundo." aria-label="Adicionar cubo" @click="emit('add-primitive', 'cube')"><span class="tool-ico" aria-hidden="true">◇</span><span class="tool-label">Cubo</span></button>
       <button v-if="props.inspectorMode === 'environment'" class="tool" title="Adicionar plataforma" data-tooltip="Adiciona uma plataforma retangular ao mundo." aria-label="Adicionar plataforma" @click="emit('add-primitive', 'platform')"><span class="tool-ico" aria-hidden="true">▱</span><span class="tool-label">Plataforma</span></button>
