@@ -285,23 +285,49 @@ export function retargetAnimationClip(
         (!sourceRole && ['root', 'pelvis'].includes(targetRole)))
     // Em muitos clips (incluindo animações Mixamo) o deslocamento do salto ou
     // da locomoção só está em Hips.position/Root.position, não no objeto Armature.
-    // Convertemos essa trilha em movimento global para que o personagem viaje no
-    // ambiente, em vez de deslocar apenas a pelve dentro do esqueleto.
+    // Raiz/contêineres podem carregar deslocamentos pequenos; para a pelve, exigimos
+    // uma excursão maior para não transformar o balanço normal da caminhada em
+    // movimento global e apagar sua animação local.
     if (targetRoot && path.property === 'position' && stride === 3 &&
         (isSourceMotionContainer || isRootMotionBone)) {
       const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
       const sourceParentWorld = parentRest && parentRest.length === 4
         ? new THREE.Quaternion(...parentRest).normalize()
         : null
-      rootMotionContributions.push({
-        track,
-        sourceName: path.nodeName,
-        sourceRestPosition: safeRestVector(sourceRest.position, new THREE.Vector3()),
-        sourceParentWorld,
-        order: trackIndex,
-      })
-      mappedSourceTracks += 1
-      continue
+      const targetParentWorld = new THREE.Quaternion()
+      if (targetRoot.parent) targetRoot.parent.getWorldQuaternion(targetParentWorld)
+      const inverseTargetParentWorld = targetParentWorld.clone().invert()
+      const sourceRestPosition = safeRestVector(sourceRest.position, new THREE.Vector3())
+      const peaks = [0, 0, 0]
+      for (let frame = 0; frame < times.length; frame += 1) {
+        const offset = frame * 3
+        const delta = new THREE.Vector3(
+          sourceValues[offset]! - sourceRestPosition.x,
+          sourceValues[offset + 1]! - sourceRestPosition.y,
+          sourceValues[offset + 2]! - sourceRestPosition.z,
+        )
+        if (sourceParentWorld) delta.applyQuaternion(sourceParentWorld)
+        delta.applyQuaternion(inverseTargetParentWorld).multiplyScalar(scaleRatio)
+        peaks[0] = Math.max(peaks[0]!, Math.abs(delta.x))
+        peaks[1] = Math.max(peaks[1]!, Math.abs(delta.y))
+        peaks[2] = Math.max(peaks[2]!, Math.abs(delta.z))
+      }
+      const rootLikeChannel = isSourceMotionContainer || sourceRole === 'root'
+      const horizontalThreshold = Math.max(0.01, targetSourceHeight * (rootLikeChannel ? 0.001 : 0.035))
+      const verticalThreshold = Math.max(0.01, targetSourceHeight * (rootLikeChannel ? 0.001 : 0.08))
+      const hasEnvironmentalMotion = peaks[0]! > horizontalThreshold ||
+        peaks[2]! > horizontalThreshold || peaks[1]! > verticalThreshold
+      if (hasEnvironmentalMotion) {
+        rootMotionContributions.push({
+          track,
+          sourceName: path.nodeName,
+          sourceRestPosition,
+          sourceParentWorld,
+          order: trackIndex,
+        })
+        mappedSourceTracks += 1
+        continue
+      }
     }
 
     if (!targetBone) {
