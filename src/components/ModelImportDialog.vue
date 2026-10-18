@@ -2127,7 +2127,7 @@ onBeforeUnmount(() => {
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'model'" class="model-panel-section model-behavior-packages-section">
             <div class="model-panel-heading"><span>04B</span> PACOTES DE COMPORTAMENTO <b>{{ selectedBehaviorPackageIds.length }}</b></div>
-            <p class="model-panel-hint">Selecione os sistemas que este componente deve receber automaticamente quando for colocado no mundo. Os pacotes usam as variáveis e configurações padrão e podem ser ajustados depois no painel Pacotes.</p>
+            <p class="model-panel-hint">Selecione os sistemas que este componente deve receber e configure aqui suas variáveis, controles, posição e estados visuais. As configurações também poderão ser ajustadas depois no painel Pacotes.</p>
             <div v-if="BEHAVIOR_PACKAGE_DEFINITIONS.length" class="model-behavior-package-list">
               <label
                 v-for="definition in BEHAVIOR_PACKAGE_DEFINITIONS"
