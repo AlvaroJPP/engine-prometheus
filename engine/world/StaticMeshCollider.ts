@@ -272,6 +272,9 @@ export function raycastStaticMesh(
     const normal = hit.face.normal.clone()
       .applyMatrix3(new THREE.Matrix3().getNormalMatrix(root.matrixWorld))
       .normalize()
+    // Consultas de suporte do personagem são raios descendentes: orientar a normal
+    // contra o raio evita que pisos com winding invertido sejam tratados como tetos.
+    if (normal.dot(worldRay.direction) > 0) normal.negate()
     const candidate = { point, normal, distance, faceIndex: hit.faceIndex ?? -1 }
     if (accept && !accept(candidate)) continue
     nearest = candidate
