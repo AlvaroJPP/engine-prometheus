@@ -934,15 +934,17 @@ function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
   const hasAnimationClips = Array.isArray(clips) && clips.length > 0
   if (hasAnimatedGeometry || hasAnimationClips || meshCount === 0) return false
 
-  // As dimensões são capturadas antes da normalização da altura para o preview.
-  const [width, , depth] = dimensions.value
+  // A biblioteca salva modelos já normalizados pela altura final. Para que
+  // cidades importadas anteriormente também sejam reconhecidas, use proporção e
+  // detalhe além da extensão absoluta, que pode ter diminuído após a normalização.
+  const [width, height, depth] = dimensions.value
   const footprint = Math.max(width, depth)
-  // Cidades com prédios altos também contam como cenários grandes; não exija
-  // que a extensão horizontal seja maior que a altura do modelo.
-  const wideLandscape = footprint >= 18
-  const detailedScene = triangleCount >= 1_000 || meshCount >= 12
+  const aspectRatio = footprint / Math.max(height, 0.1)
+  const detailedScene = triangleCount >= 800 || meshCount >= 12
+  const wideLandscape = footprint >= 18 && detailedScene
   const manyIndependentParts = meshCount >= 36 && footprint >= 8
-  return (wideLandscape && detailedScene) || manyIndependentParts
+  const scaleNormalizedCity = footprint >= 8 && aspectRatio >= 3 && triangleCount >= 800
+  return wideLandscape || manyIndependentParts || scaleNormalizedCity
 }
 
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
