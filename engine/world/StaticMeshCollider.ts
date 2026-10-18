@@ -29,6 +29,12 @@ export interface StaticMeshRayHit {
 }
 
 const cache = new WeakMap<THREE.Object3D, CachedStaticMesh>()
+const rootsByObjectId = new Map<string, THREE.Object3D>()
+
+function trackRoot(root: THREE.Object3D): void {
+  const id = root.userData.id
+  if (typeof id === 'string' && id.length > 0) rootsByObjectId.set(id, root)
+}
 const MAX_STATIC_COLLIDER_TRIANGLES = 1_500_000
 const QUERY_EPSILON = 0.003
 
@@ -45,6 +51,7 @@ function matrixSignature(matrix: THREE.Matrix4): string {
  * armazenadas nesta estrutura estática.
  */
 export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshCollisionData | null {
+  trackRoot(root)
   const cachedData = cache.get(root)
   if (cachedData && root.userData.staticMeshColliderDirty !== true) return cachedData
 
@@ -231,5 +238,21 @@ export function invalidateStaticMeshCollider(root: THREE.Object3D): void {
 
 /** Limpa o cache geométrico quando o modelo deixa de existir no mundo. */
 export function releaseStaticMeshCollider(root: THREE.Object3D): void {
+  const id = root.userData.id
+  if (typeof id === 'string' && rootsByObjectId.get(id) === root) rootsByObjectId.delete(id)
   invalidateStaticMeshCollider(root)
+}
+
+/** Libera o BVH pelo ID mesmo se o World já removeu o objeto da lista. */
+export function releaseStaticMeshColliderById(id: string): void {
+  const root = rootsByObjectId.get(id)
+  if (!root) return
+  rootsByObjectId.delete(id)
+  invalidateStaticMeshCollider(root)
+}
+
+/** Libera os BVHs registrados por objetos do mundo ao reiniciar/descartar a cena. */
+export function clearStaticMeshColliderCache(): void {
+  for (const root of rootsByObjectId.values()) invalidateStaticMeshCollider(root)
+  rootsByObjectId.clear()
 }
