@@ -285,6 +285,25 @@ const rigDuration = ref(1)
 const rigClipName = ref('Animacao personalizada')
 const rigClipRole = ref<AnimationRole>('mount')
 const rigMessage = ref('')
+type SkinTokensOperation = 'rig' | 'skin'
+type SkinTokensClassChoice = 'auto' | 'humanoid' | 'quadruped' | 'custom'
+const skinTokensExecutablePath = ref(typeof localStorage !== 'undefined' ? localStorage.getItem('engine-prometheus.skintokens.executable') ?? '' : '')
+const skinTokensOperation = ref<SkinTokensOperation>('rig')
+const skinTokensClassChoice = ref<SkinTokensClassChoice>('auto')
+const skinTokensLoading = ref(false)
+const skinTokensMessage = ref('')
+const skinTokensClassOptions: Array<{ value: SkinTokensClassChoice; label: string }> = [
+  { value: 'auto', label: 'Detectar classe automaticamente' },
+  { value: 'humanoid', label: 'Humanoide' },
+  { value: 'quadruped', label: 'Quadrúpede' },
+  { value: 'custom', label: 'Outro modelo / anatomia' },
+]
+watch(skinTokensExecutablePath, value => {
+  if (typeof localStorage !== 'undefined') {
+    if (value.trim()) localStorage.setItem('engine-prometheus.skintokens.executable', value.trim())
+    else localStorage.removeItem('engine-prometheus.skintokens.executable')
+  }
+})
 
 // Biblioteca de animações reutilizáveis. Armazena clipes e poses de repouso,
 // sem guardar a geometria do modelo de origem.
@@ -343,6 +362,22 @@ const boneRotationDraft = ref({ x: 0, y: 0, z: 0 })
 const bonePositionDraft = ref({ x: 0, y: 0, z: 0 })
 const selectedRigBone = computed(() => rigBones.value.find(bone => bone.name === selectedRigBoneName.value) ?? null)
 const rigInputAnalysis = computed(() => model.value ? analyzeRiggingInput(model.value) : null)
+const skinTokensResolvedClass = computed<'humanoid' | 'quadruped' | 'custom'>(() => {
+  if (skinTokensClassChoice.value !== 'auto') return skinTokensClassChoice.value
+  const guess = rigInputAnalysis.value?.recommendedPreset
+  return guess === 'humanoid' ? 'humanoid' : guess === 'quadruped' ? 'quadruped' : 'custom'
+})
+const skinTokensRigCompatible = computed(() => {
+  const root = model.value
+  if (!root || props.initialAsset) return false
+  let hasStaticMesh = false
+  let hasSkinnedMesh = false
+  root.traverse(node => {
+    if (node instanceof THREE.SkinnedMesh) hasSkinnedMesh = true
+    else if (node instanceof THREE.Mesh && node.geometry.getAttribute('position')?.count) hasStaticMesh = true
+  })
+  return skinTokensOperation.value === 'rig' ? hasStaticMesh && !hasSkinnedMesh : hasSkinnedMesh
+})
 const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
   { value: 'auto', label: 'Detectar automaticamente (recomendado)' },
   { value: 'humanoid', label: 'Humanoide / personagem' },
@@ -1722,6 +1757,156 @@ async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
       resolve(gltf.scene)
     }, reject)
   })
+}
+
+function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize)))
+  }
+  return btoa(binary)
+}
+
+function decodeBase64ArrayBuffer(value: string): ArrayBuffer {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes.buffer
+}
+
+async function chooseSkinTokensExecutable() {
+  if (!isTauri()) {
+    skinTokensMessage.value = 'O backend local exige o aplicativo desktop Tauri; não pode ser executado na prévia do navegador.'
+    return
+  }
+  try {
+    const selected = await openNativeDialog({
+      multiple: false,
+      directory: false,
+      title: 'Selecionar executável local SkinTokens',
+      filters: [{ name: 'Executável SkinTokens', extensions: ['exe'] }],
+    })
+    if (typeof selected === 'string' && selected) {
+      skinTokensExecutablePath.value = selected
+      skinTokensMessage.value = 'Executável selecionado. Clique em “Testar backend local” para verificar o modelo e o checkpoint.'
+    }
+  } catch (cause) {
+    skinTokensMessage.value = cause instanceof Error ? cause.message : 'Não foi possível selecionar o executável.'
+  }
+}
+
+async function testSkinTokensBackend() {
+  if (!isTauri()) {
+    skinTokensMessage.value = 'O backend local exige o aplicativo desktop Tauri.'
+    return
+  }
+  if (!skinTokensExecutablePath.value.trim()) {
+    skinTokensMessage.value = 'Instale o backend gratuito e selecione o executável skintokens.exe.'
+    return
+  }
+  skinTokensLoading.value = true
+  skinTokensMessage.value = 'Verificando o executável e o checkpoint local...'
+  try {
+    const result = await invoke<string>('skintokens_doctor', { executablePath: skinTokensExecutablePath.value.trim() })
+    skinTokensMessage.value = 'Backend local disponível. ' + result
+  } catch (cause) {
+    skinTokensMessage.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    skinTokensLoading.value = false
+  }
+}
+
+async function runSkinTokensRigging() {
+  const root = model.value
+  if (!root || skinTokensLoading.value) return
+  if (!isTauri()) {
+    skinTokensMessage.value = 'Abra o Engine Prometheus como aplicativo desktop Tauri para executar IA local.'
+    return
+  }
+  if (!skinTokensExecutablePath.value.trim()) {
+    skinTokensMessage.value = 'Instale o backend gratuito usando scripts/install-skintokens.ps1 e informe o caminho de skintokens.exe.'
+    return
+  }
+  if (!skinTokensRigCompatible.value) {
+    skinTokensMessage.value = skinTokensOperation.value === 'rig'
+      ? 'Para gerar um rig novo, importe um modelo sem malha esquelética. Se o modelo já tiver rig, selecione “Melhorar pesos do rig atual”.'
+      : 'A operação de pesos exige um modelo que já tenha pelo menos uma malha SkinnedMesh com esqueleto.'
+    return
+  }
+
+  skinTokensLoading.value = true
+  skinTokensMessage.value = 'Preparando o GLB e executando SkinTokens localmente. A primeira execução pode demorar; o arquivo não é enviado para um serviço remoto.'
+  try {
+    const operation = skinTokensOperation.value
+    const sourceClips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const exportRoot = cloneSkinnedModel(root)
+    exportRoot.userData = { ...exportRoot.userData }
+    for (const key of [
+      'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
+      'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
+      'importAnimationRoles', 'importControlBindings', 'importColliderType',
+      'importColliderSize', 'importColliderOffset', 'importRigPreset',
+      'importRigGenerated', 'importRigBoneNames', 'importSourceGlbBytes',
+      'importNeedsReexport',
+    ]) delete exportRoot.userData[key]
+    exportRoot.updateMatrixWorld(true)
+    const exporter = new GLTFExporter()
+    const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: sourceClips })
+    if (!(exported instanceof ArrayBuffer)) throw new Error('Não foi possível exportar o modelo para GLB.')
+    if (exported.byteLength > 300 * 1024 * 1024) throw new Error('O GLB excede o limite de 300 MB para processamento local.')
+
+    const outputBase64 = await invoke<string>('run_skintokens_glb', {
+      executablePath: skinTokensExecutablePath.value.trim(),
+      glbBase64: encodeArrayBufferBase64(exported),
+      operation,
+      modelClass: skinTokensResolvedClass.value,
+    })
+    const outputBytes = decodeBase64ArrayBuffer(outputBase64)
+    const loaded = await parseGlbBytes(outputBytes)
+    const displayName = fileName.value || root.name || 'Modelo com rig de IA'
+    const targetHeight = Math.max(0.1, modelHeight.value)
+    let detectedBones: THREE.Bone[] = []
+    let generatedPreset: AutoRigPreset = skinTokensResolvedClass.value === 'humanoid'
+      ? 'humanoid'
+      : skinTokensResolvedClass.value === 'quadruped' ? 'quadruped' : 'modular'
+
+    if (operation === 'rig') {
+      loaded.userData.importRigGenerated = true
+      loaded.userData.importRigPreset = generatedPreset
+      loaded.userData.importNeedsReexport = true
+      loaded.traverse(node => {
+        if (!(node instanceof THREE.Bone)) return
+        node.userData.generatedRigBone = true
+        node.userData.generatedRigPreset = generatedPreset
+        detectedBones.push(node)
+      })
+      if (!detectedBones.length) throw new Error('A IA terminou, mas o GLB resultante não contém ossos reconhecíveis.')
+    } else {
+      loaded.userData.importNeedsReexport = true
+    }
+
+    await showLoadedModel(loaded, displayName, targetHeight)
+    if (operation === 'rig') {
+      rigPreset.value = generatedPreset
+      rigBones.value = detectedBones
+      selectedRigBoneName.value = detectedBones[0]?.name ?? ''
+      rigRestPose.value = captureRigPose(detectedBones)
+      rigKeyframes.value = []
+      rigFrameTime.value = 0
+      rigDuration.value = 1
+      rigMessage.value = 'Rig criado pela IA local. Revise a posição dos ossos e teste a deformação antes de criar animações.'
+      refreshRigHelper()
+    }
+    skinTokensMessage.value = operation === 'rig'
+      ? 'Rig por IA concluído: ' + detectedBones.length + ' ossos. O modelo agora está na prévia; confira juntas, pesos e pose antes de salvar.'
+      : 'Pesos de deformação recalculados pela IA local. O esqueleto do modelo foi preservado; confira as deformações antes de salvar.'
+  } catch (cause) {
+    skinTokensMessage.value = cause instanceof Error ? cause.message : 'O processamento de IA local falhou.'
+  } finally {
+    skinTokensLoading.value = false
+  }
 }
 
 async function importBlendZip() {
