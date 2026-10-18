@@ -12,6 +12,7 @@ import {
 } from '@engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
+import { AnimationController } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
@@ -563,7 +564,7 @@ function createRig() {
   if (!root || props.initialAsset || loading.value) return
   error.value = ''
   try {
-    previewMixer?.stopAllAction()
+    previewAnimationController?.stop()
     const rigRoot = ensureGroupRootForRig()
     if (!rigRoot) return
     root = rigRoot
@@ -593,7 +594,7 @@ function createRig() {
 function applySelectedBoneTransform() {
   const bone = selectedRigBone.value
   if (!bone) return
-  previewMixer?.stopAllAction()
+  previewAnimationController?.stop()
   const root = model.value
   if (root) root.userData.importNeedsReexport = true
   const positionChanged = Math.abs(bone.position.x - bonePositionDraft.value.x) > 1e-5 ||
@@ -632,7 +633,7 @@ function applySelectedBoneTransform() {
 
 function resetRigPose() {
   if (!rigBones.value.length) return
-  previewMixer?.stopAllAction()
+  previewAnimationController?.stop()
   applyRigPose(rigBones.value, rigRestPose.value)
   if (selectedRigBone.value) {
     boneRotationDraft.value = {
@@ -655,7 +656,7 @@ function recordRigKeyframe() {
     rigMessage.value = 'O tempo do quadro precisa ser zero ou positivo.'
     return
   }
-  previewMixer?.stopAllAction()
+  previewAnimationController?.stop()
   const time = Number(rigFrameTime.value.toFixed(3))
   const pose = captureRigPose(rigBones.value)
   const existing = rigKeyframes.value.findIndex(frame => Math.abs(frame.time - time) < 0.001)
@@ -994,6 +995,43 @@ let frame = 0
 let resizeObserver: ResizeObserver | null = null
 let currentObjectUrl = ''
 let previewMixer: THREE.AnimationMixer | null = null
+let previewAnimationController: AnimationController | null = null
+let previewAnimationRoot: THREE.Object3D | null = null
+
+function previewRoleForClip(clip: THREE.AnimationClip): string {
+  return `preview:${clip.uuid}`
+}
+
+/** O editor usa o mesmo controlador de pesos/transições, inclusive ao trocar clipes. */
+function ensurePreviewAnimationController(root: THREE.Object3D, clips: readonly THREE.AnimationClip[]): AnimationController {
+  if (!previewMixer || !previewAnimationController || previewAnimationRoot !== root) {
+    previewAnimationController?.dispose()
+    previewMixer?.stopAllAction()
+    previewMixer = new THREE.AnimationMixer(root)
+    const actions = new Map<string, THREE.AnimationAction>()
+    for (const clip of clips) actions.set(previewRoleForClip(clip), previewMixer.clipAction(clip))
+    previewAnimationController = new AnimationController(previewMixer, actions)
+    previewAnimationRoot = root
+  } else {
+    // Rigging/retargeting pode adicionar novos clipes durante a sessão; registre-os
+    // no mixer existente sem recriar a pose do modelo.
+    for (const clip of clips) {
+      const role = previewRoleForClip(clip)
+      if (!previewAnimationController.hasRole(role)) {
+        previewAnimationController.actions.set(role, previewMixer.clipAction(clip))
+      }
+    }
+  }
+  return previewAnimationController
+}
+
+function clearPreviewAnimationController(): void {
+  previewAnimationController?.dispose()
+  previewAnimationController = null
+  previewAnimationRoot = null
+  previewMixer = null
+}
+
 type RetargetRestPose = ReturnType<typeof captureRigPose>
 const retargetRestPoseByModel = new WeakMap<THREE.Object3D, RetargetRestPose>()
 
@@ -1732,8 +1770,7 @@ function clearLoadedModel(preserveRetargetSource = false) {
   partSearch.value = ''
   componentName.value = ''
   selectedBehaviorPackageIds.value = []
-  previewMixer?.stopAllAction()
-  previewMixer = null
+  clearPreviewAnimationController()
   previewAnimationIndex.value = 0
   previewPlaying.value = true
   animationRoles.value = {}
@@ -1836,7 +1873,7 @@ function initPreview() {
   const animate = () => {
     frame = requestAnimationFrame(animate)
     controls?.update()
-    if (previewPlaying.value) previewMixer?.update(Math.min(previewClock.getDelta(), 0.1))
+    if (previewPlaying.value) previewAnimationController?.update(Math.min(previewClock.getDelta(), 0.1))
     if (scene && camera && renderer) renderer.render(scene, camera)
   }
   animate()
@@ -1966,8 +2003,8 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   previewAnimationIndex.value = 0
   previewPlaying.value = true
   if (clips?.length) {
-    previewMixer = new THREE.AnimationMixer(loaded)
-    previewMixer.clipAction(clips[0]!).reset().play()
+    const controller = ensurePreviewAnimationController(loaded, clips)
+    controller.setState(previewRoleForClip(clips[0]!))
     previewClock.start()
   }
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -3040,7 +3077,7 @@ function applyRetargetedAnimation() {
   }
 
   try {
-    previewMixer?.stopAllAction()
+    previewAnimationController?.stop()
     const hasStoredTargetRestPose = restoreRetargetRestPose(root, targetBones)
     if (!hasStoredTargetRestPose && rigBones.value.length && Object.keys(rigRestPose.value).length > 0) {
       applyRigPose(targetBones, rigRestPose.value)
@@ -3323,11 +3360,11 @@ watch(
 
 function selectPreviewAnimation(index: number) {
   previewAnimationIndex.value = index
-  if (!previewMixer || !model.value) return
-  previewMixer.stopAllAction()
+  const root = model.value
   const clip = previewAnimations.value[index]
-  if (!clip) return
-  previewMixer.clipAction(clip).reset().play()
+  if (!root || !clip) return
+  const controller = ensurePreviewAnimationController(root, previewAnimations.value)
+  controller.setState(previewRoleForClip(clip), true)
   previewPlaying.value = true
   previewClock.start()
 }
@@ -3710,8 +3747,7 @@ async function confirmImport() {
       return
     }
 
-    previewMixer?.stopAllAction()
-    previewMixer = null
+    clearPreviewAnimationController()
     scene?.remove(root)
     if (imported === root) model.value = null
     emit('close')
