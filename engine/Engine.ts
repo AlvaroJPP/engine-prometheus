@@ -36,6 +36,7 @@ import {
   calculateVeilborneSpellDamage,
   calculateVeilborneWeaponDamage,
   createVeilborneCombatant,
+  isVeilborneParrySuccessful,
   restoreVeilborneResource,
   spendVeilborneResource,
   tickVeilborneStatuses,
