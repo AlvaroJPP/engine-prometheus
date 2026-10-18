@@ -29,9 +29,12 @@ const LEDGE_EDGE_TOP_TOLERANCE = 0.045
 const LEDGE_EDGE_FLOOR_TOLERANCE = MAX_WALK_OFF_DROP + 0.12
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
+  // Interior probes stabilize broad floors; outer probes catch narrow step lips.
   [0.48, 0], [-0.48, 0], [0, 0.48], [0, -0.48],
   [0.82, 0], [-0.82, 0], [0, 0.82], [0, -0.82],
+  [0.96, 0], [-0.96, 0], [0, 0.96], [0, -0.96],
   [0.58, 0.58], [0.58, -0.58], [-0.58, 0.58], [-0.58, -0.58],
+  [0.68, 0.68], [0.68, -0.68], [-0.68, 0.68], [-0.68, -0.68],
 ]
 const DODGE_SPEED = 10
 const DODGE_DURATION = 0.22
