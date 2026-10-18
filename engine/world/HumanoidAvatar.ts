@@ -168,6 +168,8 @@ export class HumanoidAvatar {
   readonly mesh = new THREE.Group()
   private readonly visualRoot = new THREE.Group()
   private disposed = false
+  /** Altura física normalizada do avatar, em unidades do mundo. */
+  private standingPlayerHeight = PLAYER_HEIGHT
   private modelLoadRevision = 0
   private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
@@ -239,10 +241,38 @@ export class HumanoidAvatar {
     this.rollRequested = false
   }
 
+  private getStandingPlayerHeight(): number {
+    return this.standingPlayerHeight
+  }
+
+  private getBodyScale(): number {
+    return this.standingPlayerHeight / PLAYER_HEIGHT
+  }
+
+  private getPlayerRadius(): number {
+    return Math.max(0.01, PLAYER_RADIUS * this.getBodyScale())
+  }
+
+  private getMaxWalkStepUp(): number {
+    return Math.max(0.015, MAX_WALK_STEP_UP * this.getBodyScale())
+  }
+
+  private getMaxWalkOffDrop(): number {
+    return Math.max(0.025, MAX_WALK_OFF_DROP * this.getBodyScale())
+  }
+
+  private getLedgeEdgeTopTolerance(): number {
+    return Math.max(0.005, LEDGE_EDGE_TOP_TOLERANCE * this.getBodyScale())
+  }
+
+  private getLedgeEdgeFloorTolerance(): number {
+    return this.getMaxWalkOffDrop() + 0.12 * this.getBodyScale()
+  }
+
   private getPlayerHeight(): number {
-    if (this.posture === 'prone') return 0.62
-    if (this.posture === 'crouching') return 1.12
-    return PLAYER_HEIGHT
+    if (this.posture === 'prone') return Math.max(0.05, this.standingPlayerHeight * (0.62 / PLAYER_HEIGHT))
+    if (this.posture === 'crouching') return Math.max(0.05, this.standingPlayerHeight * (1.12 / PLAYER_HEIGHT))
+    return this.standingPlayerHeight
   }
 
   private setPosture(posture: PlayerPosture): void {
@@ -555,7 +585,7 @@ export class HumanoidAvatar {
       const moveAxis = (axis: 'x' | 'z', delta: number): void => {
         if (Math.abs(delta) < 1e-8) return
         const origin = this.mesh.position[axis]
-        const maxSubstep = Math.min(0.05, PLAYER_RADIUS * 0.16)
+        const maxSubstep = Math.max(0.005, Math.min(0.05, this.getPlayerRadius() * 0.16))
         const steps = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
         let lastSafe = origin
 
@@ -669,7 +699,7 @@ export class HumanoidAvatar {
       this.verticalVelocity <= 0 &&
       (
         nextY <= landing + 0.05 ||
-        (wasGrounded && length > 0 && landing >= oldY - MAX_WALK_OFF_DROP && landing <= oldY + MAX_WALK_STEP_UP) ||
+        (wasGrounded && length > 0 && landing >= oldY - this.getMaxWalkOffDrop() && landing <= oldY + this.getMaxWalkStepUp()) ||
         canFollowObjectSlopeDown
       )
 
@@ -824,7 +854,7 @@ export class HumanoidAvatar {
     const halfWidth = Math.max(0.45, bounds.getSize(new THREE.Vector3()).x * 0.5)
     const side = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion).setY(0).normalize()
     if (side.lengthSq() < 1e-8) side.set(1, 0, 0)
-    const dismountDistance = halfWidth + PLAYER_RADIUS + 0.4
+    const dismountDistance = halfWidth + this.getPlayerRadius() + 0.4 * this.getBodyScale()
     const forward = new THREE.Vector3(0, 0, 1)
       .applyQuaternion(root.quaternion)
       .setY(0)
@@ -940,7 +970,7 @@ export class HumanoidAvatar {
   ): number | null {
     const terrainY = this.world.terrain.heightAt(x, z)
     let supportY: number | null = terrainY
-    const originY = Math.max(referenceFeetY + PLAYER_HEIGHT + 2, terrainY + PLAYER_HEIGHT + 2)
+    const originY = Math.max(referenceFeetY + this.getStandingPlayerHeight() + 2 * this.getBodyScale(), terrainY + this.getStandingPlayerHeight() + 2 * this.getBodyScale())
     const lowestAllowedY = terrainY - 0.15
     const allCandidates = this.world.list().filter(object =>
       object.mesh !== ignoredRoot &&
@@ -1217,7 +1247,7 @@ export class HumanoidAvatar {
       const moveAxis = (axis: 'x' | 'z', delta: number): void => {
         if (Math.abs(delta) < 1e-8) return
         const origin = root.position[axis]
-        const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
+        const maxSubstep = Math.max(0.005, Math.min(0.08, this.getPlayerRadius() * 0.25))
         const count = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
         let lastSafe = origin
         let lastSafeY = root.position.y
@@ -1688,7 +1718,7 @@ export class HumanoidAvatar {
         if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
 
         const rise = hit.point.y - feetY
-        if (rise < -0.12 || rise > MAX_WALK_STEP_UP) continue
+        if (rise < -0.12 * this.getBodyScale() || rise > this.getMaxWalkStepUp()) continue
         if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
         break
       }
@@ -1696,7 +1726,7 @@ export class HumanoidAvatar {
       for (const object of staticCandidates) {
         const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, height + 1.15, candidate => {
           const rise = candidate.point.y - feetY
-          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 && rise <= MAX_WALK_STEP_UP
+          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 * this.getBodyScale() && rise <= this.getMaxWalkStepUp()
         })
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
       }
@@ -2189,6 +2219,7 @@ export class HumanoidAvatar {
   async setCustomModel(
     data: ArrayBuffer,
     animationRoles?: Record<string, AnimationRole>,
+    targetHeight = PLAYER_HEIGHT,
   ): Promise<void> {
     if (this.disposed) throw new Error('O jogador já foi descarregado.')
     if (!(data instanceof ArrayBuffer) || data.byteLength < 20) {
@@ -2196,7 +2227,7 @@ export class HumanoidAvatar {
     }
 
     const revision = ++this.modelLoadRevision
-    const installed = await this.parseAndInstallModel(data.slice(0), revision, animationRoles)
+    const installed = await this.parseAndInstallModel(data.slice(0), revision, animationRoles, targetHeight)
     if (!installed) throw new Error('O carregamento do modelo foi substituído por outra operação.')
   }
 
@@ -2237,7 +2268,7 @@ export class HumanoidAvatar {
     return this.parseAndInstallModel(archive.slice(dataStart, dataStart + compressedSize), revision)
   }
 
-  private async parseAndInstallModel(data: ArrayBuffer, revision: number, animationRoles?: Record<string, AnimationRole>): Promise<boolean> {
+  private async parseAndInstallModel(data: ArrayBuffer, revision: number, animationRoles?: Record<string, AnimationRole>, targetHeight = PLAYER_HEIGHT): Promise<boolean> {
     const loader = new GLTFLoader()
     const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
       loader.parse(data, '', resolve, reject)
@@ -2255,8 +2286,14 @@ export class HumanoidAvatar {
       throw new Error('O modelo não possui altura válida. Verifique se o GLB contém malhas visíveis.')
     }
 
-    // Padroniza todos os modelos para 1,8 m e apoia os pés na origem local.
-    gltf.scene.scale.multiplyScalar(PLAYER_HEIGHT / size.y)
+    // A altura definida no Importador 3D passa a controlar o visual e o corpo físico.
+    // O fator usa as dimensões efetivas do GLB, mesmo que ele já venha escalado no arquivo.
+    const normalizedTargetHeight = THREE.MathUtils.clamp(
+      Number.isFinite(targetHeight) ? targetHeight : PLAYER_HEIGHT,
+      0.1,
+      10000,
+    )
+    gltf.scene.scale.multiplyScalar(normalizedTargetHeight / size.y)
     gltf.scene.updateMatrixWorld(true)
     const normalizedBounds = new THREE.Box3().setFromObject(gltf.scene)
     const center = normalizedBounds.getCenter(new THREE.Vector3())
@@ -2312,6 +2349,8 @@ export class HumanoidAvatar {
     this.visualRoot.clear()
     this.proceduralLimbs = null
     this.visualRoot.add(gltf.scene)
+    this.standingPlayerHeight = normalizedTargetHeight
+    this.setPosture(this.posture)
     this.setFirstPersonMode(this.firstPersonMode)
     this.activeAnimation = ''
     this.playAnimation('idle')
@@ -2512,7 +2551,7 @@ export class HumanoidAvatar {
     const height = this.getPlayerHeight()
     return new THREE.Box3().setFromCenterAndSize(
       new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + height / 2, this.mesh.position.z),
-      new THREE.Vector3(PLAYER_RADIUS * 2, height, PLAYER_RADIUS * 2),
+      new THREE.Vector3(this.getPlayerRadius() * 2, height, this.getPlayerRadius() * 2),
     )
   }
 
@@ -2528,10 +2567,11 @@ export class HumanoidAvatar {
     leadingAxis?: 'x' | 'z',
     leadingDirection = 0,
   ): Array<{ x: number; z: number }> {
-    const leadingOffset = THREE.MathUtils.clamp(leadingDirection, -1, 1) * PLAYER_RADIUS * 0.85
+    const playerRadius = this.getPlayerRadius()
+    const leadingOffset = THREE.MathUtils.clamp(leadingDirection, -1, 1) * playerRadius * 0.85
     return PLAYER_SUPPORT_PROBE_FACTORS.map(([factorX, factorZ]) => ({
-      x: x + factorX * PLAYER_RADIUS + (leadingAxis === 'x' ? leadingOffset : 0),
-      z: z + factorZ * PLAYER_RADIUS + (leadingAxis === 'z' ? leadingOffset : 0),
+      x: x + factorX * playerRadius + (leadingAxis === 'x' ? leadingOffset : 0),
+      z: z + factorZ * playerRadius + (leadingAxis === 'z' ? leadingOffset : 0),
     }))
   }
 
@@ -2550,9 +2590,10 @@ export class HumanoidAvatar {
   ): boolean {
     const playerBox = this.playerBox()
     const playerHeight = this.getPlayerHeight()
-    const sampleY = blockCeilings ? Math.max(0.1, playerHeight - PLAYER_RADIUS) : playerHeight * 0.5
+    const playerRadius = this.getPlayerRadius()
+    const sampleY = blockCeilings ? Math.max(0.05, playerHeight - playerRadius) : playerHeight * 0.5
     const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + sampleY, this.mesh.position.z)
-    const radiusSq = PLAYER_RADIUS * PLAYER_RADIUS
+    const radiusSq = playerRadius * playerRadius
     const triangle = new THREE.Triangle()
     const closest = new THREE.Vector3()
     const normal = new THREE.Vector3()
@@ -2566,7 +2607,7 @@ export class HumanoidAvatar {
         this.mesh.position.z,
       ),
     )
-    const contactRadiusSq = (PLAYER_RADIUS * 1.05) ** 2
+    const contactRadiusSq = (playerRadius * 1.05) ** 2
     const triangleBounds = new THREE.Box3()
 
     const collisionRoots = this.world.list().map((object) => object.mesh)
@@ -2601,8 +2642,8 @@ export class HumanoidAvatar {
           if (walkOffEdge) {
             const topY = Math.max(triangle.a.y, triangle.b.y, triangle.c.y)
             const bottomY = Math.min(triangle.a.y, triangle.b.y, triangle.c.y)
-            const isLowLedgeFace = topY <= walkOffEdge.topY + LEDGE_EDGE_TOP_TOLERANCE &&
-              bottomY >= walkOffEdge.floorY - LEDGE_EDGE_FLOOR_TOLERANCE
+            const isLowLedgeFace = topY <= walkOffEdge.topY + this.getLedgeEdgeTopTolerance() &&
+              bottomY >= walkOffEdge.floorY - this.getLedgeEdgeFloorTolerance()
             if (isLowLedgeFace) return false
           }
           return queryBox.intersectsTriangle(triangle)
@@ -2645,12 +2686,13 @@ export class HumanoidAvatar {
         // Primeiro, descarta malhas distantes usando o bound de repouso ampliado.
         // Ossos/morph targets podem mover vértices para fora da caixa original.
         const coarseBounds = geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
-        coarseBounds.min.x -= PLAYER_RADIUS + 0.75
-        coarseBounds.max.x += PLAYER_RADIUS + 0.75
-        coarseBounds.min.y -= PLAYER_HEIGHT + 0.75
+        const broadphasePadding = this.getStandingPlayerHeight() * 0.42
+        coarseBounds.min.x -= this.getPlayerRadius() + broadphasePadding
+        coarseBounds.max.x += this.getPlayerRadius() + broadphasePadding
+        coarseBounds.min.y -= this.getStandingPlayerHeight() + broadphasePadding
         coarseBounds.max.y += 0.75
-        coarseBounds.min.z -= PLAYER_RADIUS + 0.75
-        coarseBounds.max.z += PLAYER_RADIUS + 0.75
+        coarseBounds.min.z -= this.getPlayerRadius() + broadphasePadding
+        coarseBounds.max.z += this.getPlayerRadius() + broadphasePadding
         if (!playerBox.intersectsBox(coarseBounds)) continue
 
         // getVertexPosition aplica morph targets e, em SkinnedMesh, os ossos.
@@ -2667,7 +2709,7 @@ export class HumanoidAvatar {
         // A consulta de distância abaixo usa o raio físico do jogador em torno
         // do eixo central; ampliar o bound evita descartar esses contatos antes
         // que o teste de proximidade de triângulos possa executá-los.
-        deformedBounds.expandByScalar(PLAYER_RADIUS * 1.05)
+        deformedBounds.expandByScalar(this.getPlayerRadius() * 1.05)
         if (!playerBox.intersectsBox(deformedBounds)) continue
 
         const index = geometry.getIndex()
@@ -2706,7 +2748,7 @@ export class HumanoidAvatar {
 
             // Complementa o teste da caixa com pontos ao longo do corpo. Isso
             // evita atravessar faces triangulares estreitas entre passos de movimento.
-            triangleBounds.setFromPoints([a, b, c]).expandByScalar(PLAYER_RADIUS)
+            triangleBounds.setFromPoints([a, b, c]).expandByScalar(this.getPlayerRadius())
             if (!triangleBounds.intersectsBox(playerBox)) continue
             for (const sample of playerContactPoints) {
               triangle.closestPointToPoint(sample, closest)
@@ -2784,7 +2826,7 @@ export class HumanoidAvatar {
           const rise = hit.point.y - feetY
           // A amostra pode estar na borda do pé, mas não pode içar o jogador
           // para uma parede ou plataforma alta que só aparece mais adiante.
-          if (rise < -0.04 || rise > MAX_WALK_STEP_UP) continue
+          if (rise < -0.04 * this.getBodyScale() || rise > this.getMaxWalkStepUp()) continue
           if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
           break
         }
@@ -2799,7 +2841,7 @@ export class HumanoidAvatar {
           candidate => {
             const rise = candidate.point.y - feetY
             return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
-              rise >= -0.04 && rise <= MAX_WALK_STEP_UP
+              rise >= -0.04 * this.getBodyScale() && rise <= this.getMaxWalkStepUp()
           },
         )
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
@@ -2828,10 +2870,11 @@ export class HumanoidAvatar {
     )
     if (candidates.length === 0) return null
 
-    const lateralOffset = PLAYER_RADIUS * 0.82
+    const lateralOffset = this.getPlayerRadius() * 0.82
     // Verifica mais de uma distância à frente. Uma única sonda pode ainda cair
     // sobre a calçada superior quando o personagem encosta numa borda estreita.
-    const forwardOffsets = [PLAYER_RADIUS + 0.04, PLAYER_RADIUS + 0.18, PLAYER_RADIUS + 0.32]
+    const bodyScale = this.getBodyScale()
+    const forwardOffsets = [this.getPlayerRadius() + 0.04 * bodyScale, this.getPlayerRadius() + 0.18 * bodyScale, this.getPlayerRadius() + 0.32 * bodyScale]
     const lateralOffsets = [-lateralOffset, 0, lateralOffset]
     const points: Array<{ x: number; z: number }> = []
     for (const forwardOffset of forwardOffsets) {
@@ -2848,7 +2891,7 @@ export class HumanoidAvatar {
     )
     const raycaster = new THREE.Raycaster()
     const normalMatrix = new THREE.Matrix3()
-    const maximumDistance = MAX_WALK_OFF_DROP + 0.08
+    const maximumDistance = this.getMaxWalkOffDrop() + 0.08 * this.getBodyScale()
     let bestSurface: number | null = null
 
     for (const point of points) {
@@ -2864,7 +2907,7 @@ export class HumanoidAvatar {
               const drop = feetY - candidate.point.y
               return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
                 drop >= 0.035 &&
-                drop <= MAX_WALK_OFF_DROP
+                drop <= this.getMaxWalkOffDrop()
             },
           )
           if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
@@ -2887,7 +2930,7 @@ export class HumanoidAvatar {
             .normalize()
           if (normal.dot(ray.direction) > 0) normal.negate()
           const drop = feetY - hit.point.y
-          if (normal.y < WALKABLE_SURFACE_NORMAL_Y || drop > MAX_WALK_OFF_DROP) continue
+          if (normal.y < WALKABLE_SURFACE_NORMAL_Y || drop > this.getMaxWalkOffDrop()) continue
           if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
           break
         }
@@ -2920,7 +2963,7 @@ export class HumanoidAvatar {
       const rise = surfaceY - oldY
       // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
       // também reconhece uma superfície estreita que cruzou entre dois frames.
-      const canStepOntoSurface = this.grounded && rise >= -MAX_WALK_OFF_DROP && rise <= MAX_WALK_STEP_UP
+      const canStepOntoSurface = this.grounded && rise >= -this.getMaxWalkOffDrop() && rise <= this.getMaxWalkStepUp()
       const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
       return canStepOntoSurface || crossedSurface
     }
