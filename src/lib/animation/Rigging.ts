@@ -1,6 +1,17 @@
 import * as THREE from 'three'
 
-export type AutoRigPreset = 'humanoid' | 'quadruped' | 'chain'
+export type AutoRigPreset = 'auto' | 'humanoid' | 'quadruped' | 'chain' | 'modular'
+export type ConcreteAutoRigPreset = Exclude<AutoRigPreset, 'auto'>
+
+export interface AutoRigAnalysis {
+  recommendedPreset: ConcreteAutoRigPreset
+  dimensions: { width: number; height: number; depth: number }
+  meshCount: number
+  namedPartCount: number
+  nestedPartCount: number
+  hasExistingRig: boolean
+  reason: string
+}
 
 export interface AutoRigResult {
   bones: THREE.Bone[]
@@ -14,6 +25,12 @@ interface JointSpec {
   name: string
   position: THREE.Vector3
   parent?: string
+  mesh?: THREE.Mesh
+}
+
+interface ModularRigPlan {
+  specs: JointSpec[]
+  meshToJointName: Map<THREE.Mesh, string>
 }
 
 interface RigSegment {
@@ -28,6 +45,175 @@ function distanceToSegmentSquared(point: THREE.Vector3, start: THREE.Vector3, en
   if (denominator < 1e-10) return point.distanceToSquared(start)
   const t = THREE.MathUtils.clamp(point.clone().sub(start).dot(segment) / denominator, 0, 1)
   return point.distanceToSquared(start.addScaledVector(segment, t))
+}
+
+const SEMANTIC_PART_PATTERN = /head|neck|torso|chest|spine|hips?|pelvis|shoulder|upper.?arm|forearm|elbow|hand|thigh|knee|shin|calf|foot|hoof|tail|wing|claw|jaw|wheel|tire|door|hood|roof|chassis|hull|fuselage|rudder|propeller|engine|gear|blade|track|arm|leg|body|frame|base|joint|segment|limb|antenna|cannon|turret/i
+const HUMANOID_NAME_PATTERN = /human|humanoid|character|person|player|soldier|npc|mixamo|mannequin/i
+const QUADRUPED_NAME_PATTERN = /horse|dog|cat|wolf|cow|bull|pig|deer|bear|dragon|animal|quadruped|lizard|dinosaur|goat|sheep|lion|tiger|fox|camel|elephant|boar|mount/i
+const MODULAR_NAME_PATTERN = /car|vehicle|truck|bus|motorcycle|bike|robot|mech|machine|aircraft|plane|spaceship|ship|tank|weapon|furniture|prop|mechanical/i
+
+function collectStaticMeshes(root: THREE.Object3D): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = []
+  root.traverse(node => {
+    if (node instanceof THREE.Mesh && !(node instanceof THREE.SkinnedMesh) && node.visible &&
+        node.geometry.getAttribute('position')?.count) meshes.push(node)
+  })
+  return meshes
+}
+
+function meshDepth(mesh: THREE.Object3D, root: THREE.Object3D): number {
+  let depth = 0
+  let node = mesh.parent
+  while (node && node !== root) {
+    depth += 1
+    node = node.parent
+  }
+  return depth
+}
+
+/** Heurística explícita para recomendar um gerador sem impor a mesma anatomia a todo GLB. */
+export function analyzeRiggingInput(root: THREE.Object3D): AutoRigAnalysis {
+  root.updateWorldMatrix(true, true)
+  const meshes = collectStaticMeshes(root)
+  const bounds = new THREE.Box3().setFromObject(root)
+  const size = bounds.isEmpty() ? new THREE.Vector3() : bounds.getSize(new THREE.Vector3())
+  const width = Math.max(0, size.x)
+  const height = Math.max(0, size.y)
+  const depth = Math.max(0, size.z)
+  const allNames = [root.name, ...meshes.map(mesh => mesh.name)].join(' ')
+  const namedPartCount = meshes.filter(mesh => SEMANTIC_PART_PATTERN.test(mesh.name)).length
+  const nestedPartCount = meshes.filter(mesh => {
+    let parent = mesh.parent
+    while (parent && parent !== root) {
+      if (parent instanceof THREE.Mesh && !(parent instanceof THREE.SkinnedMesh)) return true
+      parent = parent.parent
+    }
+    return false
+  }).length
+  let hasExistingRig = false
+  root.traverse(node => { if (node instanceof THREE.SkinnedMesh) hasExistingRig = true })
+
+  let recommendedPreset: ConcreteAutoRigPreset
+  let reason: string
+  if (hasExistingRig) {
+    recommendedPreset = 'humanoid'
+    reason = 'O arquivo já contém uma malha esquelética; o gerador deve preservar os ossos e pesos existentes.'
+  } else if (QUADRUPED_NAME_PATTERN.test(allNames)) {
+    recommendedPreset = 'quadruped'
+    reason = 'Nomes do modelo sugerem um animal/quadrúpede; confira a orientação da cabeça e dos membros antes de rigar.'
+  } else if (HUMANOID_NAME_PATTERN.test(allNames) ||
+    (height > 1e-5 && height >= width * 1.22 && height >= depth * 1.18)) {
+    recommendedPreset = 'humanoid'
+    reason = 'O nome ou as proporções verticais sugerem um personagem humanoide.'
+  } else if (
+    (MODULAR_NAME_PATTERN.test(allNames) && meshes.length >= 2) ||
+    (meshes.length >= 5 && (namedPartCount >= 2 || nestedPartCount >= 2)) ||
+    (meshes.length >= 9 && height < Math.max(width, depth) * 1.4)
+  ) {
+    recommendedPreset = 'modular'
+    reason = 'O modelo parece composto por peças separadas; cada malha receberá um pivô/osso próprio e pesos rígidos por peça.'
+  } else if (Math.max(width, depth) > height * 1.28) {
+    recommendedPreset = 'quadruped'
+    reason = 'O modelo é mais largo/comprido do que alto; o rig quadrúpede é uma base e pode exigir reposicionamento das juntas.'
+  } else {
+    recommendedPreset = 'chain'
+    reason = 'Não há sinal confiável de anatomia conhecida; uma corrente neutra evita inventar braços/pernas, mas deve ser ajustada ao objeto.'
+  }
+
+  return {
+    recommendedPreset,
+    dimensions: { width, height, depth },
+    meshCount: meshes.length,
+    namedPartCount,
+    nestedPartCount,
+    hasExistingRig,
+    reason,
+  }
+}
+
+function sanitizedPartName(name: string, index: number): string {
+  const part = name.trim().replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 42)
+  return 'Part_' + (part || 'Mesh') + '_' + String(index + 1).padStart(3, '0')
+}
+
+function createModularRigSpecs(root: THREE.Object3D, meshes: THREE.Mesh[]): ModularRigPlan {
+  if (!meshes.length) return { specs: [], meshToJointName: new Map() }
+  root.updateWorldMatrix(true, true)
+  const inverseRoot = root.matrixWorld.clone().invert()
+  const records = meshes.map((mesh, index) => {
+    mesh.geometry.computeBoundingBox()
+    const box = mesh.geometry.boundingBox?.clone()
+    const localCenter = box?.getCenter(new THREE.Vector3()) ?? new THREE.Vector3()
+    const center = mesh.localToWorld(localCenter).applyMatrix4(inverseRoot)
+    const meshSize = box?.getSize(new THREE.Vector3()) ?? new THREE.Vector3(0.01, 0.01, 0.01)
+    const scale = mesh.getWorldScale(new THREE.Vector3())
+    const volume = Math.max(1e-6, Math.abs(meshSize.x * scale.x * meshSize.y * scale.y * meshSize.z * scale.z))
+    const name = mesh.name || ('Mesh_' + (index + 1))
+    const nameWeight = /body|torso|chassis|hull|frame|main|base|root|core|fuselage/i.test(name) ? 3 : 1
+    const semanticWeight = SEMANTIC_PART_PATTERN.test(name) ? 1.3 : 1
+    return { mesh, index, center, volume, score: Math.log1p(volume) * nameWeight * semanticWeight, name, depth: meshDepth(mesh, root) }
+  })
+
+  // Parte principal: prioriza nomes de corpo/chassi/base e depois a peça de maior volume.
+  const main = [...records].sort((a, b) => b.score - a.score || a.index - b.index)[0]!
+  const ordered = [main, ...records.filter(record => record !== main).sort((a, b) => a.depth - b.depth || a.index - b.index)]
+  const meshToJointName = new Map<THREE.Mesh, string>()
+  const specs: JointSpec[] = []
+  const assigned = new Set<typeof records[number]>()
+  const targetName = (record: typeof records[number]) => sanitizedPartName(record.name, record.index)
+
+  for (const record of ordered) {
+    let parentRecord: typeof records[number] | undefined
+    // Primeiro, respeita a hierarquia real do GLTF quando a malha possui uma malha ancestral.
+    let ancestor = record.mesh.parent
+    while (ancestor && ancestor !== root && !parentRecord) {
+      if (ancestor instanceof THREE.Mesh && !(ancestor instanceof THREE.SkinnedMesh)) {
+        parentRecord = records.find(item => item.mesh === ancestor && assigned.has(item))
+      }
+      ancestor = ancestor.parent
+    }
+
+    // Quando o arquivo achatou todas as peças no mesmo nível, tenta relações por nomes.
+    if (!parentRecord && record !== main) {
+      const name = record.name.toLowerCase()
+      const parentHint: RegExp[] = []
+      if (/head|jaw|ear|eye|horn/.test(name)) parentHint.push(/neck|head|body|torso|chest|main|root|core/)
+      else if (/neck/.test(name)) parentHint.push(/chest|torso|body|spine|main|root/)
+      else if (/hand|palm|finger|wrist|forearm|elbow/.test(name)) parentHint.push(/arm|shoulder|chest|torso|body|main|root/)
+      else if (/foot|hoof|toe|ankle|knee|calf|shin/.test(name)) parentHint.push(/leg|thigh|hip|pelvis|body|chassis|main|root/)
+      else if (/thigh|upper.?leg|shoulder|upper.?arm|front.?leg|hind.?leg/.test(name)) parentHint.push(/hips|pelvis|chest|torso|body|spine|chassis|main|root/)
+      else if (/wheel|tire|door|hood|roof|window|bumper|mirror/.test(name)) parentHint.push(/chassis|body|frame|hull|main|root|base/)
+      else if (/wing|rudder|fin|propeller|engine|landing.?gear/.test(name)) parentHint.push(/fuselage|body|hull|chassis|main|root/)
+      for (const pattern of parentHint) {
+        parentRecord = ordered.find(candidate => candidate !== record && assigned.has(candidate) && pattern.test(candidate.name))
+        if (parentRecord) break
+      }
+    }
+
+    // Fallback topológico: liga a peça ao pivô já criado geometricamente mais próximo.
+    if (!parentRecord && record !== main) {
+      let bestDistance = Number.POSITIVE_INFINITY
+      for (const candidate of assigned) {
+        const distance = record.center.distanceToSquared(candidate.center)
+        if (distance < bestDistance) {
+          bestDistance = distance
+          parentRecord = candidate
+        }
+      }
+    }
+
+    const spec: JointSpec = {
+      name: targetName(record),
+      position: record.center.clone(),
+      ...(parentRecord ? { parent: targetName(parentRecord) } : {}),
+      mesh: record.mesh,
+    }
+    specs.push(spec)
+    assigned.add(record)
+    meshToJointName.set(record.mesh, spec.name)
+  }
+
+  return { specs, meshToJointName }
 }
 
 function createJointSpecs(bounds: THREE.Box3, preset: AutoRigPreset): JointSpec[] {
@@ -115,7 +301,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     const isGeneratedRig = existingBones.every(bone => bone.userData.generatedRigBone === true)
     const savedPreset = existingBones
       .map(bone => bone.userData.generatedRigPreset)
-      .find(value => value === 'humanoid' || value === 'quadruped' || value === 'chain') as AutoRigPreset | undefined
+      .find(value => value === 'humanoid' || value === 'quadruped' || value === 'chain' || value === 'modular') as AutoRigPreset | undefined
     return {
       bones: existingBones,
       preset: savedPreset ?? preset,
@@ -154,7 +340,11 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     throw new Error('O modelo é pequeno demais ou não possui dimensões válidas para criar um rig.')
   }
 
-  const specs = createJointSpecs(bounds, preset)
+  const detected = preset === 'auto' ? analyzeRiggingInput(root) : null
+  const effectivePreset: ConcreteAutoRigPreset = detected?.recommendedPreset ?? preset as ConcreteAutoRigPreset
+  const modularPlan = effectivePreset === 'modular' ? createModularRigSpecs(root, staticMeshes) : null
+  const specs = modularPlan?.specs ?? createJointSpecs(bounds, effectivePreset as Exclude<ConcreteAutoRigPreset, 'modular'>)
+  if (!specs.length) throw new Error('Não foi possível determinar juntas para este modelo.')
   const boneByName = new Map<string, THREE.Bone>()
   const positionByBone = new Map<THREE.Bone, THREE.Vector3>()
   const bones: THREE.Bone[] = []
@@ -162,7 +352,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     const bone = new THREE.Bone()
     bone.name = `Rig_${spec.name.replace(/[^A-Za-z0-9_-]/g, '_')}`
     bone.userData.generatedRigBone = true
-    bone.userData.generatedRigPreset = preset
+    bone.userData.generatedRigPreset = effectivePreset
     const parent = spec.parent ? boneByName.get(spec.parent) : undefined
     if (spec.parent && !parent) throw new Error(`A hierarquia do rig tem um pai ausente: ${spec.parent}`)
     if (parent) parent.add(bone)
@@ -188,7 +378,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
       if (end && boneIndex !== undefined) segments.push({ boneIndex, start, end })
     }
   }
-  if (!segments.length) throw new Error('O rig não gerou segmentos de ossos utilizáveis.')
+  if (!segments.length && effectivePreset !== 'modular') throw new Error('O rig não gerou segmentos de ossos utilizáveis.')
 
   const prepared: Array<{ original: THREE.Mesh; skinned: THREE.SkinnedMesh }> = []
   for (const original of staticMeshes) {
@@ -200,7 +390,16 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     const weights = new Array<number>(sourcePosition.count * 4).fill(0)
     const rootPoint = new THREE.Vector3()
     const localPoint = new THREE.Vector3()
+    const modularJointName = modularPlan?.meshToJointName.get(original)
+    const modularBoneIndex = modularJointName ? bones.findIndex(bone => bone.name === 'Rig_' + modularJointName) : -1
     for (let vertex = 0; vertex < sourcePosition.count; vertex++) {
+      if (modularBoneIndex >= 0) {
+        // Peças separadas (rodas, portas, membros rígidos etc.) ficam presas ao
+        // próprio pivô: pesos rígidos evitam deformar rodas/carenagens por distância.
+        indices[vertex * 4] = modularBoneIndex
+        weights[vertex * 4] = 1
+        continue
+      }
       localPoint.fromBufferAttribute(sourcePosition, vertex)
       rootPoint.copy(original.localToWorld(localPoint)).applyMatrix4(inverseRoot)
       const nearest = segments.map(segment => ({
@@ -264,15 +463,19 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     skinned.normalizeSkinWeights()
   }
 
-  root.userData.importRigPreset = preset
+  root.userData.importRigPreset = effectivePreset
   root.userData.importRigGenerated = true
   root.userData.importRigBoneNames = bones.map(bone => bone.name)
+  const detectionNote = detected ? ' Detecção: ' + detected.reason : ''
+  const qualityNote = effectivePreset === 'modular'
+    ? ' Cada malha recebeu um pivô próprio e pesos rígidos; isso funciona melhor quando as malhas realmente representam peças articuladas.'
+    : ' Os pesos por proximidade são uma inicialização heurística; malhas orgânicas de peça única podem exigir ajuste manual ou um rig externo.'
   return {
     bones,
-    preset,
+    preset: effectivePreset,
     created: true,
     convertedMeshes: prepared.length,
-    message: `Rig ${preset} criado com ${bones.length} ossos e ${prepared.length} malhas esqueléticas. Confira a deformação, pois o peso automático é uma base inicial.`,
+    message: 'Rig ' + effectivePreset + ' criado com ' + bones.length + ' ossos e ' + prepared.length + ' malhas esqueléticas.' + detectionNote + qualityNote,
   }
 }
 
