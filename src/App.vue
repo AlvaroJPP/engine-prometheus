@@ -1658,6 +1658,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <path d="M3 5.5h14M3 10h14M3 14.5h14" />
         <path d="m7 7 3 3-3 3" />
       </svg>
+      <span>Abrir painel</span>
     </button>
 
     <div class="main">
@@ -5361,35 +5362,33 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 .sidebar-collapse-button:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
 .app.sidebar-collapsed .panel.left { display:none !important; }
 
-/* Collapsed workspace: a docked lateral menu, not a floating square card. */
+/* Collapsed workspace: compact rail docked directly below the top bar. */
 .app.sidebar-collapsed .toolbar {
   position:fixed !important;
-  top:110px !important;
+  top:56px !important;
   bottom:28px !important;
   left:0 !important;
   right:auto !important;
-  width:208px !important;
-  min-width:208px !important;
-  max-width:calc(100vw - 24px) !important;
+  width:172px !important;
+  min-width:172px !important;
+  max-width:calc(100vw - 18px) !important;
   height:auto !important;
   min-height:0 !important;
   max-height:none !important;
   margin:0 !important;
-  padding:10px 8px 12px !important;
+  padding:48px 7px 10px !important;
   display:flex !important;
   flex-direction:column !important;
   align-items:stretch !important;
   justify-content:flex-start !important;
-  gap:7px !important;
+  gap:6px !important;
   overflow-x:hidden !important;
   overflow-y:auto !important;
   border:0 !important;
   border-right:1px solid #363129 !important;
-  border-top:1px solid #2e2b25 !important;
-  border-radius:0 10px 0 0 !important;
-  background:rgba(25,23,19,.985) !important;
+  border-radius:0 !important;
+  background:#191713 !important;
   box-shadow:4px 0 18px #0003 !important;
-  backdrop-filter:blur(12px);
   scrollbar-width:thin;
   scrollbar-color:#494137 transparent;
 }
@@ -5401,10 +5400,10 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   align-items:stretch;
   gap:3px;
 }
-/* Label the tool groups so the expanded rail still reads like an editor menu. */
+/* Keep section labels visible, while preserving the full tool names. */
 .app.sidebar-collapsed .toolbar .toolbar-group::before {
   display:block;
-  padding:5px 8px 4px;
+  padding:5px 7px 4px;
   color:#8f877a;
   font-size:9px;
   font-weight:700;
@@ -5429,16 +5428,17 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   flex-direction:row;
   align-items:center;
   justify-content:flex-start !important;
-  gap:10px;
+  gap:8px;
   width:100% !important;
   min-width:0 !important;
   height:auto !important;
-  min-height:35px !important;
-  padding:6px 10px !important;
+  min-height:34px !important;
+  padding:5px 7px !important;
   border:1px solid transparent !important;
-  border-radius:7px !important;
+  border-radius:6px !important;
   background:transparent !important;
-  color:#d7d0c4 !important;
+  color:#b5afa2 !important;
+  box-sizing:border-box;
   text-align:left;
   transition:background-color .12s ease,border-color .12s ease,color .12s ease;
 }
@@ -5456,8 +5456,8 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   display:grid;
   place-items:center;
   flex:none;
-  width:22px;
-  font-size:17px;
+  width:20px;
+  font-size:16px;
   line-height:1;
   text-align:center;
 }
@@ -5473,10 +5473,11 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   overflow:hidden !important;
   clip:auto !important;
   border:0 !important;
-  color:inherit;
+  color:inherit !important;
+  background:transparent !important;
+  box-shadow:none !important;
   font-size:11px;
-  font-weight:500;
-  line-height:1.35;
+  line-height:1.25;
   text-align:left;
   text-overflow:ellipsis;
   white-space:nowrap !important;
@@ -5485,29 +5486,56 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   outline:2px solid #e8572b;
   outline-offset:1px;
 }
+/* The reopen control is the menu's own header, flush against the top bar. */
 .app.sidebar-collapsed .sidebar-hamburger {
   position:fixed;
   z-index:31;
-  top:68px;
-  left:12px;
+  top:56px;
+  left:0;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  width:172px;
+  height:42px;
+  min-height:42px;
+  padding:0 12px;
+  border:0;
+  border-right:1px solid #363129;
+  border-bottom:1px solid #2e2b25;
+  border-radius:0;
+  background:#191713;
+  color:#b5afa2;
+  box-shadow:none;
+  font:500 12px/1 'IBM Plex Sans',sans-serif;
+  text-align:left;
 }
+.app.sidebar-collapsed .sidebar-hamburger svg { flex:none; width:18px; height:18px; }
+.app.sidebar-collapsed .sidebar-hamburger span { display:block; }
+.app.sidebar-collapsed .sidebar-hamburger:hover { border-color:#363129; background:#26231e; color:#ff997d; }
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
   .app.sidebar-collapsed .toolbar {
-    top:110px !important;
+    top:56px !important;
     bottom:28px !important;
     left:0 !important;
-    width:188px !important;
-    min-width:188px !important;
-    max-width:calc(100vw - 18px) !important;
-    padding:8px 6px 10px !important;
+    width:160px !important;
+    min-width:160px !important;
+    max-width:calc(100vw - 12px) !important;
+    padding:48px 5px 8px !important;
   }
   .app.sidebar-collapsed .toolbar .tool {
-    min-height:33px !important;
-    padding:5px 8px !important;
-    gap:8px;
+    min-height:32px !important;
+    padding:5px 6px !important;
+    gap:7px;
   }
   .app.sidebar-collapsed .toolbar .tool-label { font-size:10px; }
-  .app.sidebar-collapsed .sidebar-hamburger { left:8px; }
+  .app.sidebar-collapsed .sidebar-hamburger {
+    top:56px;
+    left:0;
+    width:160px;
+    max-width:calc(100vw - 12px);
+    padding-inline:10px;
+  }
 }
 </style>
