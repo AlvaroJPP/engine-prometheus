@@ -360,7 +360,16 @@
       "arquetipo",
       "inventario_json",
       "item_use_request",
-      "loot_notice"
+      "loot_notice",
+      "checkpoint_id",
+      "checkpoint_x",
+      "checkpoint_y",
+      "checkpoint_z",
+      "ecos_perdidos",
+      "ponto_de_morte_x",
+      "ponto_de_morte_y",
+      "ponto_de_morte_z",
+      "morte_contagem"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -417,7 +426,14 @@
       "health_ether_stamina_consumables",
       "area_damage_consumable",
       "echo_fragment_currency_item",
-      "temporary_drops_cleanup_and_world_pickup_restore"
+      "temporary_drops_cleanup_and_world_pickup_restore",
+      "shrine_checkpoint_interaction",
+      "checkpoint_resource_restore",
+      "timed_player_respawn",
+      "respawn_at_last_checkpoint_or_start",
+      "echoes_lost_on_death",
+      "echo_recovery_cache",
+      "previous_echo_cache_lost_on_second_death"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -436,7 +452,11 @@
       "checkpoint_respawn_and_resource_recovery",
       "weapon_and_armor_loot_equipment",
       "persistent_character_inventory_save",
-      "item_rarity_and_stat_modifiers"
+      "item_rarity_and_stat_modifiers",
+      "independent_character_save_file",
+      "skill_tree_and_ability_progression",
+      "quest_dialogue_runtime",
+      "unique_boss_attack_patterns"
     ],
     "enemyAIProfiles": [
       "melee",
@@ -501,6 +521,14 @@
       "inventoryVariable": "inventario_json",
       "interactControl": "interact",
       "rangeUnits": 2.4
+    },
+    "checkpoints": {
+      "activationEntityRole": "checkpoint",
+      "activationControl": "interact",
+      "resourceRestoreVariable": "checkpoint_restore_resources",
+      "respawnDelaySeconds": 2.2,
+      "deathResource": "ecos",
+      "recoveryRule": "Recover the first lost cache before dying again; otherwise the previous cache is discarded."
     }
   }
 }
