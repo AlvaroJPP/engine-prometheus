@@ -56,10 +56,18 @@ function matrixSignature(matrix: THREE.Matrix4): string {
   return matrix.elements.map(value => value.toFixed(5)).join(',')
 }
 
+function isManagedByOcclusion(node: THREE.Object3D): boolean {
+  return node.userData.occlusionPartitioned === true ||
+    node.userData.occlusionGeneratedChunk === true ||
+    node.userData.generatedOcclusionCluster === true
+}
+
 function isVisibleWithinRoot(node: THREE.Object3D, root: THREE.Object3D): boolean {
   let current: THREE.Object3D | null = node
   while (current && current !== root) {
-    if (!current.visible) return false
+    // A oclusão é somente visual. Não permita que ela remova do BVH ruas,
+    // degraus ou paredes só porque a câmera ocultou esse bloco neste frame.
+    if (!current.visible && !isManagedByOcclusion(current)) return false
     current = current.parent
   }
   // A visibilidade da raiz é filtrada pelo mundo; ela não altera a geometria
