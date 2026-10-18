@@ -161,9 +161,10 @@ export class Viewport {
     const deviceRatio = window.devicePixelRatio || 1
     const maxRatio = this.performancePreset === 'quality' ? 2 : this.performancePreset === 'balanced' ? 1.7 : 1.5
     const baseScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
-    const minMultiplier = Math.min(1, this.dynamicResolutionMinScale / Math.max(0.01, baseScale))
+    const minScale = Math.min(this.dynamicResolutionMinScale, baseScale)
+    const minMultiplier = Math.min(1, minScale / Math.max(0.01, baseScale))
     const resolutionScale = this.dynamicResolutionEnabled
-      ? Math.max(this.dynamicResolutionMinScale, baseScale * Math.max(minMultiplier, this.dynamicResolutionMultiplier))
+      ? Math.max(minScale, baseScale * Math.max(minMultiplier, this.dynamicResolutionMultiplier))
       : baseScale
     const ratio = Math.min(deviceRatio * resolutionScale, maxRatio)
     this.renderer.setPixelRatio(ratio)
@@ -184,11 +185,15 @@ export class Viewport {
     // Evita oscilações: só reavalia a escala uma vez por segundo.
     if (this.lastDynamicResolutionAdjustmentAt !== 0 && now - this.lastDynamicResolutionAdjustmentAt < 1000) return
     const baseScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
-    const minMultiplier = Math.min(1, this.dynamicResolutionMinScale / Math.max(0.01, baseScale))
+    const minScale = Math.min(this.dynamicResolutionMinScale, baseScale)
+    const minMultiplier = Math.min(1, minScale / Math.max(0.01, baseScale))
+    // Respeita o teto do perfil/FPS selecionado: não degrada a imagem para perseguir uma meta impossível.
+    const profileFpsLimit = 1000 / FRAME_INTERVAL_MS[this.performancePreset]
+    const effectiveTargetFps = Math.min(this.dynamicResolutionTargetFps, this.fpsLimitOverride ?? profileFpsLimit)
     let nextMultiplier = this.dynamicResolutionMultiplier
-    if (fps < this.dynamicResolutionTargetFps - 4) {
+    if (fps < effectiveTargetFps - 4) {
       nextMultiplier = Math.max(minMultiplier, this.dynamicResolutionMultiplier - 0.05)
-    } else if (fps > this.dynamicResolutionTargetFps + 8) {
+    } else if (fps > effectiveTargetFps + 8) {
       nextMultiplier = Math.min(1, this.dynamicResolutionMultiplier + 0.025)
     }
     if (Math.abs(nextMultiplier - this.dynamicResolutionMultiplier) < 0.001) return
