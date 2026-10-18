@@ -880,6 +880,30 @@ let frame = 0
 let resizeObserver: ResizeObserver | null = null
 let currentObjectUrl = ''
 let previewMixer: THREE.AnimationMixer | null = null
+type RetargetRestPose = ReturnType<typeof captureRigPose>
+const retargetRestPoseByModel = new WeakMap<THREE.Object3D, RetargetRestPose>()
+
+function captureRetargetRestPose(root: THREE.Object3D): RetargetRestPose {
+  const bones: THREE.Bone[] = []
+  root.traverse(node => { if (node instanceof THREE.Bone) bones.push(node) })
+  return captureRigPose(bones)
+}
+
+function restoreRetargetRestPose(root: THREE.Object3D, bones?: THREE.Bone[]): boolean {
+  const pose = retargetRestPoseByModel.get(root)
+  if (!pose || Object.keys(pose).length === 0) return false
+  const targetBones = bones ?? (() => {
+    const result: THREE.Bone[] = []
+    root.traverse(node => { if (node instanceof THREE.Bone) result.push(node) })
+    return result
+  })()
+  applyRigPose(targetBones, pose)
+  root.updateWorldMatrix(true, true)
+  root.traverse(node => {
+    if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
+  })
+  return true
+}
 const previewClock = new THREE.Clock()
 
 function disposeModel(object: THREE.Object3D) {
@@ -1731,6 +1755,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   controlBindings.value = normalizeControlBindings(loaded.userData.importControlBindings)
   loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
+  retargetRestPoseByModel.set(loaded, captureRetargetRestPose(loaded))
   refreshPreviewParts()
   refreshModelDiagnostics()
   const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
@@ -2493,7 +2518,13 @@ function refreshRetargetTargetPreview() {
   try {
     const previewBones: THREE.Bone[] = []
     previewModel.traverse(node => { if (node instanceof THREE.Bone) previewBones.push(node) })
-    if (Object.keys(rigRestPose.value).length > 0) applyRigPose(previewBones, rigRestPose.value)
+    const storedTargetRestPose = retargetRestPoseByModel.get(target)
+    if (storedTargetRestPose && Object.keys(storedTargetRestPose).length > 0) {
+      applyRigPose(previewBones, storedTargetRestPose)
+      previewModel.updateMatrixWorld(true)
+    } else if (Object.keys(rigRestPose.value).length > 0) {
+      applyRigPose(previewBones, rigRestPose.value)
+    }
     if (!sourceClip) {
       setRetargetPreviewObject(stage, previewModel)
       retargetPreviewStatus.value = 'Selecione uma animação de origem.'
@@ -2589,7 +2620,8 @@ function applyRetargetedAnimation() {
 
   try {
     previewMixer?.stopAllAction()
-    if (rigBones.value.length && Object.keys(rigRestPose.value).length > 0) {
+    const hasStoredTargetRestPose = restoreRetargetRestPose(root, targetBones)
+    if (!hasStoredTargetRestPose && rigBones.value.length && Object.keys(rigRestPose.value).length > 0) {
       applyRigPose(targetBones, rigRestPose.value)
     }
     root.updateWorldMatrix(true, true)
@@ -2631,6 +2663,7 @@ function applyRetargetedAnimation() {
       result.invalidTracks.length ? `${result.invalidTracks.length} com dados inválidos` : '',
       result.collapsedTracks.length ? `${result.collapsedTracks.length} posições/escalas de juntas recolhidas foram ignoradas (as rotações foram combinadas)` : '',
       result.unsafeScaleTracks.length ? `${result.unsafeScaleTracks.length} canais de escala inseguros foram ignorados para preservar a geometria do modelo A` : '',
+      result.unsafePositionTracks.length ? `${result.unsafePositionTracks.length} canais de posição incompatíveis foram ignorados para não deslocar/colapsar os membros` : '',
     ].filter(Boolean).join('; ')
     const mergedSummary = result.mergedTracks
       ? `; ${result.mergedTracks} rotação(ões) de juntas ausentes combinada(s)`
