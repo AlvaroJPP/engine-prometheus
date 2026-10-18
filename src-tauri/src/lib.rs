@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 
 /// Junta a pasta do projeto com um caminho relativo, recusando "..", caminhos absolutos etc.
 fn project_path(dir: &str, rel: &str) -> Result<PathBuf, String> {
