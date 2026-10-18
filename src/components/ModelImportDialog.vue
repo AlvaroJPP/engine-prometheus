@@ -2603,7 +2603,7 @@ function refreshRetargetTargetPreview() {
     )
     setRetargetPreviewObject(stage, previewModel, result.clip)
     retargetPreviewStatus.value = 'Prévia no destino: ' + result.mappedTracks + ' trilha(s) transferida(s)' +
-      (result.rootMotionTracks ? '; deslocamento global do corpo preservado' : '') +
+      (result.rootMotionTracks ? '; deslocamento global do corpo preservado' : '; nenhum canal de deslocamento global detectado') +
       (result.skippedTracks.length ? '; ' + result.skippedTracks.length + ' ignorada(s).' : '.')
   } catch (cause) {
     setRetargetPreviewObject(stage, previewModel)
@@ -2725,7 +2725,7 @@ function applyRetargetedAnimation() {
       : ''
     const rootMotionSummary = result.rootMotionTracks
       ? '; movimento global do corpo preservado no objeto raiz'
-      : ''
+      : '; nenhum canal de deslocamento global detectado (a origem pode usar outro nó ou uma animação in-place)'
     retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) de origem aproveitada(s) em ${result.outputTracks} trilha(s) de destino${mergedSummary}${rootMotionSummary}${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferida(s) (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
