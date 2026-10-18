@@ -2229,7 +2229,7 @@ onBeforeUnmount(() => {
 
                   <div class="model-package-subheading">ESTADOS VISUAIS DO MODELO</div>
                   <p class="model-panel-hint">Mostre ou oculte partes do GLB conforme uma variável do pacote, por exemplo: exibir o cavaleiro quando <code>mounted = true</code>.</p>
-                  <button type="button" class="model-package-add-state" :disabled="!previewPackageModelNodes.length || !!props.initialAsset" @click="addImportPackageModelState(definition.id)">＋ Adicionar estado visual</button>
+                  <button type="button" class="model-package-add-state" :disabled="!previewPackageModelNodes.length || isReadOnlyPreview" @click="addImportPackageModelState(definition.id)">＋ Adicionar estado visual</button>
                   <p v-if="!previewPackageModelNodes.length" class="model-panel-hint">O modelo precisa conter grupos ou malhas na hierarquia para criar estados visuais.</p>
                   <div v-for="state in importPackageModelStates(definition.id)" :key="state.id" class="model-package-state">
                     <label class="model-package-field">
