@@ -22,15 +22,11 @@ import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
-import {
-  blendAnimationActions,
-  getAnimationBlendDuration,
-  isLocomotionAnimation,
-} from './world/AnimationTransitions'
+import { AnimationController, createAnimationActionMap, getAnimationControllerFromObject } from './world/AnimationController'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
-import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings, ONE_SHOT_ANIMATION_ROLES } from './script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
@@ -228,59 +224,24 @@ export class Engine {
     this.viewport.start((dt) => {
       const frameStartedAt = performance.now()
       this.input.update(dt)
-      // Atualize animações antes dos testes físicos para usar a pose exibida
-      // no quadro atual. A versão invalida o wireframe automático do modelo
-      // quando ossos ou morph targets mudam.
+      // Todos os modelos passam pelo mesmo controlador. Cada mixer é atualizado
+      // uma única vez, antes de colisões/oclusão, para que física e render usem a pose atual.
       let hasRunningModelAnimation = false
       for (const object of this.world.list()) {
-        const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
-        if (!mixer) continue
-        mixer.update(dt)
-        const animationActions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-        const fallbackAnimationAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-        if (
-          Object.values(animationActions ?? {}).some(action => action?.isRunning())
-          || fallbackAnimationAction?.isRunning() === true
-        ) {
-          hasRunningModelAnimation = true
-        }
-        const mountedTransition = object.mesh.userData.importAnimationTransition as AnimationRole | undefined
-        if (mountedTransition && ONE_SHOT_ANIMATION_ROLES.has(mountedTransition)) {
+        const controller = getAnimationControllerFromObject(object.mesh)
+        if (controller) {
+          controller.update(dt)
+          object.mesh.userData.importAnimationState = controller.currentState
+          hasRunningModelAnimation ||= controller.isPlaying
+        } else {
+          const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
+          if (!mixer) continue
+          // Compatibilidade com objetos de versões anteriores enquanto migram para o controlador.
+          mixer.update(dt)
           const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-          const transitionAction = actions?.[mountedTransition]
-          if (!transitionAction?.isRunning()) {
-            object.mesh.userData.importAnimationTransition = undefined
-            const restingRoles: AnimationRole[] = ['idle', 'walk', 'run', 'walk_diagonal_left', 'walk_diagonal_right']
-            const restingRole = restingRoles.find(role => actions?.[role] !== undefined)
-            const restingAction = restingRole ? actions?.[restingRole] : undefined
-            if (restingAction && actions) {
-              restingAction.setLoop(THREE.LoopRepeat, Infinity)
-              restingAction.clampWhenFinished = false
-              const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-              const previousRole = mountedTransition
-              const previousAction = transitionAction
-                ?? (previousRole ? actions[previousRole] : undefined)
-                ?? Object.values(actions).find(action => action?.isScheduled())
-                ?? fallbackAction
-              blendAnimationActions(
-                [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
-                previousAction,
-                restingAction,
-                {
-                  duration: getAnimationBlendDuration(previousRole, restingRole),
-                  synchronizePhase: isLocomotionAnimation(previousRole) && isLocomotionAnimation(restingRole),
-                  restart: true,
-                },
-              )
-              object.mesh.userData.importAnimationState = restingRole
-            } else {
-              transitionAction?.stop()
-              const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-              fallbackAction?.stop()
-              object.mesh.userData.importAnimationState = ''
-            }
-          }
+          hasRunningModelAnimation ||= Object.values(actions ?? {}).some(action => action?.isRunning())
         }
+
         const previousPoseVersion = object.mesh.userData.colliderPoseVersion
         object.mesh.userData.colliderPoseVersion =
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
@@ -1160,83 +1121,42 @@ export class Engine {
     visualPivot.position.copy(visualCenter).negate()
     visualPivot.add(model)
 
-    // Use os clips originais do GLTFLoader: filtrar os nomes dos tracks por
-    // comparação textual removia animações válidas em alguns rigs/exportadores.
-    // Só uma animação toca por vez para evitar que idle/walk/run briguem pelos ossos.
+    // Os clipes são mapeados pela mesma regra central usada pelo avatar.
+    // Só o controlador decide pesos, sincronização de ciclo e fim de ações pontuais.
     const animationClips = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
     const explicitRoles = model.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
-    const idleClip = animationClips.find((clip) => /idle|stand|rest|breath|neutral/i.test(clip.name))
-      ?? animationClips[0]
     let animationMixer: THREE.AnimationMixer | undefined
-    let fallbackAnimationAction: THREE.AnimationAction | undefined
-    const animationActions: Partial<Record<AnimationRole, THREE.AnimationAction>> = {}
+    let animationController: AnimationController | undefined
+    let animationFallbackAction: THREE.AnimationAction | undefined
+    let animationActions: Partial<Record<AnimationRole, THREE.AnimationAction>> = {}
     if (animationClips.length > 0) {
       animationMixer = new THREE.AnimationMixer(model)
-      animationClips.forEach((clip, index) => {
-        const normalizedName = clip.name.toLowerCase().replace(/[\s._-]+/g, '')
-        const isRun = /gallop|canter|sprint|running|run/.test(normalizedName)
-        const left = /left|esquerda|izquierda/.test(normalizedName)
-        const right = /right|direita|derecha/.test(normalizedName)
-        const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalizedName)
-        const diagonal = /diagonal|diag|strafe|sidestep|sideways/.test(normalizedName) ||
-          (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalizedName))
-        const backward = /backward|backwards|reverse|walkback|moveback|backward|tras|atr.s/.test(normalizedName)
-        const guessed: AnimationRole = /dismount|unmount|getoff/.test(normalizedName) ? 'dismount'
-          : /mounting|mount|geton|riding/.test(normalizedName) ? 'mount'
-            : /stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalizedName) ? 'run_stop'
-              : /crouch|squat/.test(normalizedName) ? 'crouch'
-                : /prone|crawl/.test(normalizedName) ? 'prone_crawl'
-                  : /dodge|evade/.test(normalizedName) ? 'dodge'
-                    : /slide|sliding/.test(normalizedName) ? 'slide'
-                      : /roll|rolling|somersault/.test(normalizedName) ? 'roll'
-                        : /reload/.test(normalizedName) ? 'reload'
-                          : /inventory/.test(normalizedName) ? 'inventory'
-                            : /useitem|consume|drinking|eating/.test(normalizedName) ? 'use_item'
-                              : /ability1|skill1|spell1/.test(normalizedName) ? 'ability_1'
-                                : /ability2|skill2|spell2/.test(normalizedName) ? 'ability_2'
-                                  : /ability3|skill3|spell3/.test(normalizedName) ? 'ability_3'
-                                    : /ability4|skill4|spell4/.test(normalizedName) ? 'ability_4'
-                                      : /secondaryaction|secondaryattack|block|parry|defend/.test(normalizedName) ? 'secondary_action'
-                                        : /primaryaction|attack|strike|punch|slash|shoot|melee/.test(normalizedName) ? 'primary_action'
-                                          : /interact|interaction|useobject/.test(normalizedName) ? 'interact'
-                                            : /emote|gesture|dance|wave/.test(normalizedName) ? 'emote'
-                                              : movementClip && backward ? (isRun ? 'run_backward' : 'walk_backward')
-                                                : diagonal && left ? (isRun ? 'run_diagonal_left' : 'walk_diagonal_left')
-                                                  : diagonal && right ? (isRun ? 'run_diagonal_right' : 'walk_diagonal_right')
-                                                    : isRun ? 'run'
-                                                      : /walk|trot|locomotion|move/.test(normalizedName) ? 'walk'
-                                                        : /idle|stand|rest|breath|neutral/.test(normalizedName) ? 'idle' : 'ignore'
-        const savedRole = explicitRoles?.[String(index)]
-        const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
-        // Migra papéis automáticos antigos de locomoção para os papéis diagonais
-        // mais específicos identificados no próprio nome do clipe.
-        const role = guessedIsDiagonal && (savedRole === undefined || savedRole === 'ignore' || savedRole === 'walk' || savedRole === 'run')
-          ? guessed
-          : savedRole ?? guessed
-        if (role === 'ignore') return
-        if (!animationActions[role]) animationActions[role] = animationMixer!.clipAction(clip)
+      const actionMap = createAnimationActionMap(animationMixer, animationClips, explicitRoles, {
+        genericFallback: !explicitRoles,
       })
-      if (!animationActions.idle && idleClip) {
-        const idleIndex = animationClips.indexOf(idleClip)
-        if (!explicitRoles || explicitRoles[String(idleIndex)] === undefined) {
-          animationActions.idle = animationMixer.clipAction(idleClip)
-        }
-      }
-      // Se o usuário atribuiu papéis no preview, respeite "Não usar":
-      // clipes de montar/desmontar nunca devem tocar em loop fora da ação.
-      const initialAction = animationActions.idle ?? animationActions.walk ?? animationActions.run
-        ?? animationActions.walk_diagonal_left ?? animationActions.walk_diagonal_right
-        ?? (!explicitRoles && !animationActions.mount && !animationActions.dismount && !animationActions.run_stop ? animationMixer.clipAction(animationClips[0]!) : undefined)
-      if (initialAction) {
-        initialAction.reset().setLoop(THREE.LoopRepeat, Infinity).play()
-        if (!Object.values(animationActions).includes(initialAction)) fallbackAnimationAction = initialAction
-        console.info('[Engine] Animações do componente:', {
-          name,
-          initialClip: initialAction.getClip().name || '(primeira animação do modelo)',
-          availableClips: animationClips.map((clip) => clip.name),
-          mappedRoles: explicitRoles ?? 'automático por nome',
-        })
-      }
+      const startingRole = [
+        'idle', 'walk', 'run',
+        'walk_diagonal_left', 'walk_diagonal_right',
+        'walk_left', 'walk_right',
+        'walk_backward', 'run_backward',
+        'walk_backward_diagonal_left', 'walk_backward_diagonal_right',
+        'run_diagonal_left', 'run_diagonal_right',
+        'run_left', 'run_right',
+        'run_backward_diagonal_left', 'run_backward_diagonal_right',
+        '__fallback__',
+      ].find(role => actionMap.has(role))
+      animationController = new AnimationController(animationMixer, actionMap, {
+        genericFallback: actionMap.has('__fallback__'),
+      })
+      if (startingRole) animationController.setState(startingRole)
+      animationActions = Object.fromEntries(actionMap) as Partial<Record<AnimationRole, THREE.AnimationAction>>
+      animationFallbackAction = actionMap.get('__fallback__')
+      console.info('[Engine] Animações do componente:', {
+        name,
+        initialClip: startingRole ? actionMap.get(startingRole)?.getClip().name : '(sem estado contínuo mapeado)',
+        availableClips: animationClips.map((clip) => clip.name),
+        mappedRoles: explicitRoles ?? 'automático por nome',
+      })
     }
 
     // A caixa de seleção usa as dimensões do modelo e compartilha sua raiz editável.
@@ -1268,12 +1188,12 @@ export class Engine {
       root.scale.set(...restoreData.scale)
       root.visible = restoreData.visible
     }
-    if (animationMixer) {
+    if (animationMixer && animationController) {
       root.userData.importAnimationMixer = animationMixer
       root.userData.importAnimationActions = animationActions
-      root.userData.importAnimationFallbackAction = fallbackAnimationAction
-      root.userData.importAnimationState = animationActions.idle ? 'idle'
-        : animationActions.walk ? 'walk' : animationActions.run ? 'run' : ''
+      root.userData.importAnimationFallbackAction = animationFallbackAction
+      root.userData.importAnimationController = animationController
+      root.userData.importAnimationState = animationController.currentState
     }
     root.add(visualPivot)
     // Atualiza toda a hierarquia antes de entrar no loop de renderização.
