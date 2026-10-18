@@ -2013,7 +2013,11 @@ export class GrassLayer {
       this.renderBands[2]!.maxDistance = Number.POSITIVE_INFINITY
     } else {
       const safeDistance = configuredDistance
-      const effectiveDistance = safeDistance * settings.viewScale
+      // A distância definida especificamente para a grama é um valor explícito;
+      // apenas o modo "global" herda a redução de alcance do perfil de desempenho.
+      const effectiveDistance = this.grassRenderDistanceMode === 'custom'
+        ? safeDistance
+        : safeDistance * settings.viewScale
       this.renderBands[0]!.maxDistance = Math.min(
         safeDistance * (nearDistance / settings.viewDistance),
         effectiveDistance,
