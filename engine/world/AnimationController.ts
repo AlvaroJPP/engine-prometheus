@@ -1,7 +1,16 @@
 import * as THREE from 'three'
 import { ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
 import type { AnimationRole } from '../script/packages'
-import { isLocomotionAnimation } from './AnimationTransitions'
+const LOCOMOTION_ROLES = new Set<string>([
+  'walk', 'walk_slow', 'walk_backward', 'walk_left', 'walk_right',
+  'walk_diagonal_left', 'walk_diagonal_right', 'walk_backward_diagonal_left', 'walk_backward_diagonal_right',
+  'run', 'run_backward', 'run_left', 'run_right', 'run_diagonal_left', 'run_diagonal_right',
+  'run_backward_diagonal_left', 'run_backward_diagonal_right', 'crouch_walk', 'prone_crawl',
+])
+
+function isLocomotionAnimation(role?: string): boolean {
+  return Boolean(role && LOCOMOTION_ROLES.has(role))
+}
 
 export type AnimationActionCollection =
   | ReadonlyMap<string, THREE.AnimationAction>
@@ -58,31 +67,31 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
     .replace(/[\s._|:-]+/g, '')
 
   if (!normalized) return 'ignore'
-  if (/dismount|unmount|getoff|dismounting/.test(normalized)) return 'dismount'
-  if (/mounting|mount|saddling|geton|riding/.test(normalized)) return 'mount'
+  if (/dismount|unmount|getoff|dismounting|desmontar|desmontando/.test(normalized)) return 'dismount'
+  if (/mounting|mount|saddling|geton|riding|montar|montando|cavalgar|cavalgando/.test(normalized)) return 'mount'
   if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
-  if (/jump|leap|hop|fall|saut|salto/.test(normalized)) return 'jump'
-  if (/dodge|evade|sidestepdodge/.test(normalized)) return 'dodge'
-  if (/slide|sliding/.test(normalized)) return 'slide'
-  if (/roll|rolling|somersault/.test(normalized)) return 'roll'
-  if (/reload/.test(normalized)) return 'reload'
-  if (/inventory/.test(normalized)) return 'inventory'
-  if (/useitem|consume|drinking|eating/.test(normalized)) return 'use_item'
+  if (/jump|leap|hop|fall|saut|salto|pular|pulo/.test(normalized)) return 'jump'
+  if (/dodge|evade|sidestepdodge|esquiva/.test(normalized)) return 'dodge'
+  if (/slide|sliding|deslizar|escorregar/.test(normalized)) return 'slide'
+  if (/roll|rolling|somersault|rolamento|rolar/.test(normalized)) return 'roll'
+  if (/reload|recarregar|recarga/.test(normalized)) return 'reload'
+  if (/inventory|inventario/.test(normalized)) return 'inventory'
+  if (/useitem|consume|drinking|eating|usaritem|usarobjeto/.test(normalized)) return 'use_item'
   if (/ability1|skill1|spell1/.test(normalized)) return 'ability_1'
   if (/ability2|skill2|spell2/.test(normalized)) return 'ability_2'
   if (/ability3|skill3|spell3/.test(normalized)) return 'ability_3'
   if (/ability4|skill4|spell4/.test(normalized)) return 'ability_4'
-  if (/secondaryaction|secondaryattack|block|parry|defend/.test(normalized)) return 'secondary_action'
-  if (/primaryaction|primaryattack|attack|strike|punch|slash|shoot|melee/.test(normalized)) return 'primary_action'
-  if (/interact|interaction|useobject/.test(normalized)) return 'interact'
-  if (/emote|gesture|dance|wave/.test(normalized)) return 'emote'
+  if (/secondaryaction|secondaryattack|block|parry|defend|defesa|bloquear/.test(normalized)) return 'secondary_action'
+  if (/primaryaction|primaryattack|attack|strike|punch|slash|shoot|melee|atacar|ataque/.test(normalized)) return 'primary_action'
+  if (/interact|interaction|useobject|interagir|interacao/.test(normalized)) return 'interact'
+  if (/emote|gesture|dance|wave|danca|gesto/.test(normalized)) return 'emote'
 
   // Classifique postura antes de procurar "walk": nomes como "Crouch Walk"
   // devem continuar sendo caminhada agachada, não um ciclo de caminhada em pé.
-  if (/crouchwalk|squatwalk|crouchedwalk/.test(normalized)) return 'crouch_walk'
-  if (/crouch|squat|kneel/.test(normalized)) return 'crouch'
-  if (/pronecrawl|crawl|crawling/.test(normalized)) return 'prone_crawl'
-  if (/prone|lying|lie/.test(normalized)) return 'prone'
+  if (/crouchwalk|squatwalk|crouchedwalk|agachadocaminhando/.test(normalized)) return 'crouch_walk'
+  if (/crouch|squat|kneel|agachar|agachado/.test(normalized)) return 'crouch'
+  if (/pronecrawl|crawl|crawling|rastejar|rastejando/.test(normalized)) return 'prone_crawl'
+  if (/prone|lying|lie|deitado/.test(normalized)) return 'prone'
   if (/walkslow|slowwalk|walktired/.test(normalized)) return 'walk_slow'
 
   const isRun = /gallop|canter|sprint|running|run|jog|dash/.test(normalized)
@@ -109,7 +118,7 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
     return family
   }
 
-  if (/idle|stand|rest|breath|neutral|stationary|wait/.test(normalized)) return 'idle'
+  if (/idle|stand|rest|breath|neutral|stationary|wait|parado|descanso|respirar/.test(normalized)) return 'idle'
   return 'ignore'
 }
 
