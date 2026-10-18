@@ -2379,6 +2379,8 @@ type RetargetPreviewStage = {
   clock: THREE.Clock
   root: THREE.Object3D | null
   mixer: THREE.AnimationMixer | null
+  /** Última posição mundial para manter o personagem dentro do enquadramento durante root motion. */
+  lastRootWorldPosition: THREE.Vector3 | null
 }
 
 let retargetSourcePreviewStage: RetargetPreviewStage | null = null
@@ -2467,6 +2469,7 @@ function createRetargetPreviewStage(canvasElement: HTMLCanvasElement, key: 'sour
     clock: new THREE.Clock(),
     root: null,
     mixer: null,
+    lastRootWorldPosition: null,
   }
   stage.resizeObserver.observe(canvasElement)
 
@@ -2478,6 +2481,18 @@ function createRetargetPreviewStage(canvasElement: HTMLCanvasElement, key: 'sour
       ? retargetSourcePreviewPlaying.value
       : retargetTargetPreviewPlaying.value
     if (playing) stage.mixer?.update(delta)
+    // Root motion pode mover todo o clone para fora da câmera fixa. Na prévia
+    // do destino, deslocamos câmera e alvo pelo mesmo delta, sem alterar a
+    // trajetória do modelo salvo nem mexer na visualização do clipe de origem.
+    if (stage.key === 'target' && stage.root && stage.mixer && playing) {
+      const currentRootWorldPosition = stage.root.getWorldPosition(new THREE.Vector3())
+      if (stage.lastRootWorldPosition) {
+        const followDelta = currentRootWorldPosition.clone().sub(stage.lastRootWorldPosition)
+        stage.camera.position.add(followDelta)
+        stage.controls.target.add(followDelta)
+      }
+      stage.lastRootWorldPosition = currentRootWorldPosition
+    }
     stage.renderer.render(stage.scene, stage.camera)
   }
   stage.clock.start()
@@ -2511,9 +2526,11 @@ function setRetargetPreviewObject(stage: RetargetPreviewStage, root: THREE.Objec
     disposeRetargetPreviewObject(stage.root)
   }
   stage.root = root
+  stage.lastRootWorldPosition = null
   if (!root) return
   stage.scene.add(root)
   root.updateWorldMatrix(true, true)
+  stage.lastRootWorldPosition = root.getWorldPosition(new THREE.Vector3())
   fitRetargetPreviewCamera(stage, root)
   if (clip) {
     stage.mixer = new THREE.AnimationMixer(root)
