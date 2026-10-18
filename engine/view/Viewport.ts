@@ -35,6 +35,12 @@ export class Viewport {
   private resolutionScaleOverride: number | null = null
   /** null follows the active profile's frame rate. */
   private fpsLimitOverride: number | null = null
+  /** Resolution adaptation is vendor-agnostic: it uses measured render FPS. */
+  private dynamicResolutionEnabled = false
+  private dynamicResolutionTargetFps = 45
+  private dynamicResolutionMinScale = 0.5
+  private dynamicResolutionMultiplier = 1
+  private lastDynamicResolutionAdjustmentAt = 0
   private nextRenderAt = 0
   private dirty = true
   private hasRenderedCamera = false
@@ -89,7 +95,13 @@ export class Viewport {
   }
 
   /** Independent resolution scale and FPS cap; null follows the active profile. */
-  setRenderOptions(options: { resolutionScale?: number | null; fpsLimit?: number | null }): void {
+  setRenderOptions(options: {
+    resolutionScale?: number | null
+    fpsLimit?: number | null
+    dynamicResolution?: boolean
+    dynamicResolutionTargetFps?: number
+    dynamicResolutionMinScale?: number
+  }): void {
     let changed = false
     if (options.resolutionScale !== undefined) {
       const next = options.resolutionScale === null
@@ -113,6 +125,26 @@ export class Viewport {
         changed = true
       }
     }
+    if (options.dynamicResolution !== undefined && options.dynamicResolution !== this.dynamicResolutionEnabled) {
+      this.dynamicResolutionEnabled = options.dynamicResolution
+      this.dynamicResolutionMultiplier = 1
+      this.lastDynamicResolutionAdjustmentAt = 0
+      changed = true
+    }
+    if (options.dynamicResolutionTargetFps !== undefined && Number.isFinite(options.dynamicResolutionTargetFps)) {
+      const target = Math.round(Math.max(24, Math.min(120, options.dynamicResolutionTargetFps)))
+      if (target !== this.dynamicResolutionTargetFps) {
+        this.dynamicResolutionTargetFps = target
+        changed = true
+      }
+    }
+    if (options.dynamicResolutionMinScale !== undefined && Number.isFinite(options.dynamicResolutionMinScale)) {
+      const minScale = Math.max(0.5, Math.min(0.9, options.dynamicResolutionMinScale))
+      if (minScale !== this.dynamicResolutionMinScale) {
+        this.dynamicResolutionMinScale = minScale
+        changed = true
+      }
+    }
     if (!changed) return
     this.nextRenderAt = 0
     this.applyPixelRatio()
@@ -128,7 +160,11 @@ export class Viewport {
   private applyPixelRatio(): void {
     const deviceRatio = window.devicePixelRatio || 1
     const maxRatio = this.performancePreset === 'quality' ? 2 : this.performancePreset === 'balanced' ? 1.7 : 1.5
-    const resolutionScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
+    const baseScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
+    const minMultiplier = Math.min(1, this.dynamicResolutionMinScale / Math.max(0.01, baseScale))
+    const resolutionScale = this.dynamicResolutionEnabled
+      ? Math.max(this.dynamicResolutionMinScale, baseScale * Math.max(minMultiplier, this.dynamicResolutionMultiplier))
+      : baseScale
     const ratio = Math.min(deviceRatio * resolutionScale, maxRatio)
     this.renderer.setPixelRatio(ratio)
   }
@@ -140,6 +176,26 @@ export class Viewport {
     this.renderer.setSize(w, h, false)
     this.onResize(w / h)
     this.invalidate()
+  }
+
+  /** Ajusta a escala em pequenos passos para se aproximar da meta de FPS. */
+  private updateDynamicResolution(fps: number, now: number): void {
+    if (!this.dynamicResolutionEnabled || !Number.isFinite(fps)) return
+    // Evita oscilações: só reavalia a escala uma vez por segundo.
+    if (this.lastDynamicResolutionAdjustmentAt !== 0 && now - this.lastDynamicResolutionAdjustmentAt < 1000) return
+    const baseScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
+    const minMultiplier = Math.min(1, this.dynamicResolutionMinScale / Math.max(0.01, baseScale))
+    let nextMultiplier = this.dynamicResolutionMultiplier
+    if (fps < this.dynamicResolutionTargetFps - 4) {
+      nextMultiplier = Math.max(minMultiplier, this.dynamicResolutionMultiplier - 0.05)
+    } else if (fps > this.dynamicResolutionTargetFps + 8) {
+      nextMultiplier = Math.min(1, this.dynamicResolutionMultiplier + 0.025)
+    }
+    if (Math.abs(nextMultiplier - this.dynamicResolutionMultiplier) < 0.001) return
+    this.dynamicResolutionMultiplier = nextMultiplier
+    this.lastDynamicResolutionAdjustmentAt = now
+    this.applyPixelRatio()
+    this.resize()
   }
 
   /**
@@ -247,6 +303,7 @@ export class Viewport {
           cpuRenderMs: this.renderTimeAccumulated / Math.max(1, this.fpsFrameCount),
           cpuUpdateMs: this.updateTimeAccumulated / Math.max(1, this.updateTimeSamples),
         })
+        this.updateDynamicResolution(fps, now)
         this.fpsFrameCount = 0
         this.fpsWindowStart = now
         this.renderTimeAccumulated = 0
