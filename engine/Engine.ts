@@ -883,7 +883,7 @@ export class Engine {
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number, restoreData?: SceneObjectData): void {
     // Evita congelamentos ao inserir assets acidentalmente gigantes no editor.
     // A contagem é feita antes da análise de agrupamento e antes de adicionar ao render loop.
-    const MAX_IMPORTED_TRIANGLES = 1_500_000
+    const MAX_IMPORTED_TRIANGLES = 5_000_000
     let preflightTriangles = 0
     let preflightMeshes = 0
     model.traverse((child) => {
