@@ -123,7 +123,6 @@ export class Engine {
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private veilbornePlayerState: VeilborneCombatant | null = null
-  private veilbornePlayerStateReady = false
   private veilbornePendingCast: {
     spellId: string
     remainingSeconds: number
@@ -400,7 +399,6 @@ export class Engine {
     for (const [name, value] of defaults) {
       if (this.logic.getVariable(name) === undefined) this.logic.setVariable(name, value)
     }
-    this.veilbornePlayerStateReady = true
   }
 
   private readVeilborneNumber(name: string, fallback: number): number {
@@ -460,7 +458,7 @@ export class Engine {
     }
   }
 
-  private getVeilborneHostilePackages(): Array<{ instance: BehaviorPackageInstance; object: ReturnType<World['get']> }> {
+  private getVeilborneHostilePackages(): Array<{ instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> }> {
     return this.logic.listPackages()
       .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg')
       .filter(instance => instance.variables.faction === undefined || instance.variables.faction === 'hostile')
