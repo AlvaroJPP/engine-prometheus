@@ -69,7 +69,7 @@ type ModelImportPayload = {
   batchModels?: ModelImportBatchItem[]
 }
 
-const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
+const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
 const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
 const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
 
@@ -1559,7 +1559,7 @@ async function parseFile(file: File) {
   throw new Error('Não foi possível interpretar o arquivo GLB/glTF.')
 }
 
-async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
+async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targetHeight = 2) {
   clearLoadedModel()
   colliderType.value = 'box'
   colliderOffset.value = [0, 0, 0]
@@ -1567,13 +1567,14 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string) {
   componentName.value = loaded.name
   partSearch.value = ''
   const height = centerAndMeasure(loaded)
-  const initialScale = 2 / height
+  const safeTargetHeight = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : 2
+  const initialScale = safeTargetHeight / height
   loaded.scale.setScalar(initialScale)
   const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
   loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
   loaded.updateMatrixWorld(true)
-  modelHeight.value = 2
-  colliderSize.value = [Math.max(0.05, dimensions.value[0] * 2 / height), 2, Math.max(0.05, dimensions.value[2] * 2 / height)]
+  modelHeight.value = safeTargetHeight
+  colliderSize.value = [Math.max(0.05, dimensions.value[0] * safeTargetHeight / height), safeTargetHeight, Math.max(0.05, dimensions.value[2] * safeTargetHeight / height)]
   controlBindings.value = normalizeControlBindings(loaded.userData.importControlBindings)
   loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
@@ -1731,7 +1732,31 @@ watch(() => props.open, async (open) => {
         loaded.userData.importAnimationRoles = props.initialAsset.animationRoles
         loaded.userData.importControlBindings = props.initialAsset.controlBindings
         fileName.value = props.initialAsset.name
-        await showLoadedModel(loaded, props.initialAsset.name)
+        await showLoadedModel(loaded, props.initialAsset.name, props.initialAsset.height ?? 2)
+
+        // Ao editar, restaure também o colisor armazenado. Sem isso, abrir e
+        // salvar um componente substituía silenciosamente a colisão por um box.
+        const savedColliderType = props.initialAsset.colliderType
+        colliderType.value = savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'none'
+          ? savedColliderType
+          : 'box'
+        const savedColliderSize = props.initialAsset.colliderSize
+        if (Array.isArray(savedColliderSize) && savedColliderSize.length === 3
+          && savedColliderSize.every(value => Number.isFinite(value))) {
+          colliderSize.value = [...savedColliderSize] as [number, number, number]
+        }
+        const savedColliderOffset = props.initialAsset.colliderOffset
+        if (Array.isArray(savedColliderOffset) && savedColliderOffset.length === 3
+          && savedColliderOffset.every(value => Number.isFinite(value))) {
+          colliderOffset.value = [...savedColliderOffset] as [number, number, number]
+        }
+        if (model.value) {
+          model.value.userData.importColliderType = colliderType.value
+          model.value.userData.importColliderSize = [...colliderSize.value]
+          model.value.userData.importColliderOffset = [...colliderOffset.value]
+        }
+        updateColliderPreview()
+
         selectedBehaviorPackageIds.value = [...new Set((props.initialAsset.behaviorPackageIds ?? []).filter(id =>
           BEHAVIOR_PACKAGE_DEFINITIONS.some(definition => definition.id === id),
         ))]
