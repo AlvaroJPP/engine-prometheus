@@ -7,7 +7,7 @@ import { rankTargetBoneCandidates, suggestTargetBoneMappings } from '../src/lib/
 const TRANSFORM_PATHS = new Set(['translation', 'rotation', 'scale'])
 
 function printUsage() {
-  console.log(\`Engine Prometheus — diagnóstico de similaridade entre rigs
+  console.log(`Engine Prometheus — diagnóstico de similaridade entre rigs
 
 Uso:
   node --experimental-strip-types scripts/analyze-rig-similarity.mjs <origem.glb|gltf> <destino.glb|gltf> [opções]
@@ -24,7 +24,7 @@ Exemplo:
 
 O script trabalha offline. Para arquivos .gltf, lê a hierarquia do JSON principal;
 recursos externos (texturas e buffers) não precisam ser carregados para a análise óssea.
-\`)
+`)
 }
 
 async function readGltfJson(filePath) {
@@ -33,16 +33,16 @@ async function readGltfJson(filePath) {
     return JSON.parse(data.toString('utf8'))
   }
   if (!filePath.toLowerCase().endsWith('.glb')) {
-    throw new Error(\`Formato não reconhecido: \${filePath}. Use .glb ou .gltf.\`)
+    throw new Error(`Formato não reconhecido: ${filePath}. Use .glb ou .gltf.`)
   }
   if (data.length < 20 || data.toString('ascii', 0, 4) !== 'glTF') {
-    throw new Error(\`O arquivo \${filePath} não possui um cabeçalho GLB válido.\`)
+    throw new Error(`O arquivo ${filePath} não possui um cabeçalho GLB válido.`)
   }
   const version = data.readUInt32LE(4)
-  if (version !== 2) throw new Error(\`GLB versão \${version} não suportado; esperado GLB 2.0.\`)
+  if (version !== 2) throw new Error(`GLB versão ${version} não suportado; esperado GLB 2.0.`)
   const declaredLength = data.readUInt32LE(8)
   if (declaredLength > data.length) {
-    throw new Error(\`O GLB \${filePath} está incompleto: tamanho declarado maior que o arquivo.\`)
+    throw new Error(`O GLB ${filePath} está incompleto: tamanho declarado maior que o arquivo.`)
   }
 
   let offset = 12
@@ -51,14 +51,14 @@ async function readGltfJson(filePath) {
     const chunkType = data.readUInt32LE(offset + 4)
     const chunkStart = offset + 8
     const chunkEnd = chunkStart + chunkLength
-    if (chunkEnd > data.length) throw new Error(\`Chunk inválido no GLB \${filePath}.\`)
+    if (chunkEnd > data.length) throw new Error(`Chunk inválido no GLB ${filePath}.`)
     // JSON chunk type: ASCII "JSON" interpreted as little-endian uint32.
     if (chunkType === 0x4E4F534A) {
       return JSON.parse(data.toString('utf8', chunkStart, chunkEnd).replace(/\0+$/g, ''))
     }
     offset = chunkEnd
   }
-  throw new Error(\`O GLB \${filePath} não contém um chunk JSON.\`)
+  throw new Error(`O GLB ${filePath} não contém um chunk JSON.`)
 }
 
 function animationTargetIndices(json) {
@@ -85,10 +85,10 @@ function jointIndicesFor(json) {
 
 function createObjectTree(json, label, boneIndices) {
   const specs = json.nodes ?? []
-  if (!specs.length) throw new Error(\`\${label}: o arquivo não contém nodes.\`)
+  if (!specs.length) throw new Error(`${label}: o arquivo não contém nodes.`)
   const objects = specs.map((spec, index) => {
     const object = boneIndices.has(index) ? new THREE.Bone() : new THREE.Group()
-    object.name = typeof spec.name === 'string' && spec.name.trim() ? spec.name : \`Node_\${index}\`
+    object.name = typeof spec.name === 'string' && spec.name.trim() ? spec.name : `Node_${index}`
     object.userData.gltfNodeIndex = index
     if (Array.isArray(spec.matrix) && spec.matrix.length === 16) {
       new THREE.Matrix4().fromArray(spec.matrix).decompose(object.position, object.quaternion, object.scale)
@@ -147,7 +147,7 @@ function clipSourceNames(json, hierarchy, clipIndex, allSourceBones) {
   const clip = animations[clipIndex]
   if (!clip) {
     if (!animations.length) return hierarchy.bones.map(bone => bone.name)
-    throw new Error(\`Índice de clipe \${clipIndex} inválido; o arquivo tem \${animations.length} clipe(s), de 0 a \${animations.length - 1}.\`)
+    throw new Error(`Índice de clipe ${clipIndex} inválido; o arquivo tem ${animations.length} clipe(s), de 0 a ${animations.length - 1}.`)
   }
   const indices = [...new Set((clip.channels ?? [])
     .filter(channel => TRANSFORM_PATHS.has(channel.target?.path) && Number.isInteger(channel.target?.node))
@@ -211,22 +211,22 @@ function createReport(sourcePath, targetPath, sourceJson, targetJson, sourceTree
     const picked = candidates.find(candidate => candidate.targetName === mappedName)
     const top = candidates.slice(0, 3)
     const alternatives = top.length
-      ? top.map(candidate => \`\${candidate.targetName} (\${candidate.score.toFixed(1)}\${candidate.exactName ? ', nome exato' : ''})\`).join('<br>')
+      ? top.map(candidate => `${candidate.targetName} (${candidate.score.toFixed(1)}${candidate.exactName ? ', nome exato' : ''})`).join('<br>')
       : '—'
-    return \`| \${escapeCell(sourceName)} | \${escapeCell(mappedName || '—')} | \${picked ? picked.score.toFixed(1) : (top[0]?.score.toFixed(1) ?? '—')} | \${confidenceLabel(mappedName, candidates)} | \${alternatives} |\`
+    return `| ${escapeCell(sourceName)} | ${escapeCell(mappedName || '—')} | ${picked ? picked.score.toFixed(1) : (top[0]?.score.toFixed(1) ?? '—')} | ${confidenceLabel(mappedName, candidates)} | ${alternatives} |`
   }).join('\n')
 
   const lines = [
     '# Relatório de similaridade de rigs — Engine Prometheus',
     '',
-    \`- **Origem:** \${sourceLabel}\`,
-    \`- **Destino:** \${targetLabel}\`,
-    \`- **Clipe analisado:** \${(sourceJson.animations ?? []).length ? \`\${clipIndex} — \${sourceJson.animations?.[clipIndex]?.name || 'sem nome'}\` : 'nenhum clipe; análise dos ossos disponíveis'}\`,
-    \`- **Ossos na origem:** \${sourceTree.bones.length}\`,
-    \`- **Ossos no destino:** \${targetTree.bones.length}\`,
-    \`- **Canais de origem analisados:** \${sourceNames.length}\`,
-    \`- **Mapeados sem colisão de destino:** \${mappedCount}/\${sourceNames.length} (\${sourceNames.length ? Math.round(mappedCount / sourceNames.length * 100) : 0}%)\`,
-    \`- **Similaridade aproximada do envelope ósseo:** \${envelopeSimilarity === null ? 'não disponível' : \`\${envelopeSimilarity}/100\`}\`,
+    `- **Origem:** ${sourceLabel}`,
+    `- **Destino:** ${targetLabel}`,
+    `- **Clipe analisado:** ${(sourceJson.animations ?? []).length ? `${clipIndex} — ${sourceJson.animations?.[clipIndex]?.name || 'sem nome'}` : 'nenhum clipe; análise dos ossos disponíveis'}`,
+    `- **Ossos na origem:** ${sourceTree.bones.length}`,
+    `- **Ossos no destino:** ${targetTree.bones.length}`,
+    `- **Canais de origem analisados:** ${sourceNames.length}`,
+    `- **Mapeados sem colisão de destino:** ${mappedCount}/${sourceNames.length} (${sourceNames.length ? Math.round(mappedCount / sourceNames.length * 100) : 0}%)`,
+    `- **Similaridade aproximada do envelope ósseo:** ${envelopeSimilarity === null ? 'não disponível' : `${envelopeSimilarity}/100`}`,
     '',
     '> As pontuações são comparativas, não probabilidades. A semelhança do envelope considera as proporções X/Y/Z dos pontos de articulação, não mede a semelhança visual da malha. Confira visualmente as correspondências antes de usar a animação no jogo.',
     '',
@@ -234,9 +234,9 @@ function createReport(sourcePath, targetPath, sourceJson, targetJson, sourceTree
     '',
     '| Medida | Origem | Destino |',
     '|---|---:|---:|',
-    \`| Largura X normalizada | \${sourceEnvelope ? sourceEnvelope.x.toFixed(3) : '—'} | \${targetEnvelope ? targetEnvelope.x.toFixed(3) : '—'} |\`,
-    \`| Altura Y normalizada | \${sourceEnvelope ? sourceEnvelope.y.toFixed(3) : '—'} | \${targetEnvelope ? targetEnvelope.y.toFixed(3) : '—'} |\`,
-    \`| Profundidade Z normalizada | \${sourceEnvelope ? sourceEnvelope.z.toFixed(3) : '—'} | \${targetEnvelope ? targetEnvelope.z.toFixed(3) : '—'} |\`,
+    `| Largura X normalizada | ${sourceEnvelope ? sourceEnvelope.x.toFixed(3) : '—'} | ${targetEnvelope ? targetEnvelope.x.toFixed(3) : '—'} |`,
+    `| Altura Y normalizada | ${sourceEnvelope ? sourceEnvelope.y.toFixed(3) : '—'} | ${targetEnvelope ? targetEnvelope.y.toFixed(3) : '—'} |`,
+    `| Profundidade Z normalizada | ${sourceEnvelope ? sourceEnvelope.z.toFixed(3) : '—'} | ${targetEnvelope ? targetEnvelope.z.toFixed(3) : '—'} |`,
     '',
     '## Correspondências e alternativas',
     '',
@@ -248,15 +248,15 @@ function createReport(sourcePath, targetPath, sourceJson, targetJson, sourceTree
     '',
     ...[
       sourceTree.duplicateNames.length
-        ? \`- A origem tem nomes repetidos: \${sourceTree.duplicateNames.map(([name]) => name).slice(0, 12).join(', ')}. Canais com nomes duplicados podem ser difíceis de distinguir automaticamente.\`
+        ? `- A origem tem nomes repetidos: ${sourceTree.duplicateNames.map(([name]) => name).slice(0, 12).join(', ')}. Canais com nomes duplicados podem ser difíceis de distinguir automaticamente.`
         : '- Não foram detectados nomes de nó duplicados na origem.',
       targetTree.duplicateNames.length
-        ? \`- O destino tem nomes repetidos: \${targetTree.duplicateNames.map(([name]) => name).slice(0, 12).join(', ')}. O retargeting por nome pode precisar de renomeação.\`
+        ? `- O destino tem nomes repetidos: ${targetTree.duplicateNames.map(([name]) => name).slice(0, 12).join(', ')}. O retargeting por nome pode precisar de renomeação.`
         : '- Não foram detectados nomes de nó duplicados no destino.',
       sourceTree.bones.length === 0 ? '- A origem não declarou ossos em uma skin glTF. A análise pode não representar um rig completo.' : '',
       targetTree.bones.length === 0 ? '- O destino não declarou ossos em uma skin glTF nem canais de animação que possam ser usados como referência.' : '',
       mappedCount < sourceNames.length
-        ? \`- \${sourceNames.length - mappedCount} canal(is) ficaram sem correspondência automática segura; revise as alternativas ou mapeie manualmente.\`
+        ? `- ${sourceNames.length - mappedCount} canal(is) ficaram sem correspondência automática segura; revise as alternativas ou mapeie manualmente.`
         : '- Todos os canais analisados receberam uma sugestão automática sem duplicar ossos de destino.',
     ].filter(Boolean),
     '',
@@ -307,7 +307,7 @@ function runSelfTest() {
   }
   for (const [sourceName, targetName] of Object.entries(expected)) {
     if (mapping[sourceName] !== targetName) {
-      throw new Error(\`Self-test falhou: \${sourceName} esperava \${targetName}, recebeu \${mapping[sourceName] ?? 'sem mapeamento'}.\`)
+      throw new Error(`Self-test falhou: ${sourceName} esperava ${targetName}, recebeu ${mapping[sourceName] ?? 'sem mapeamento'}.`)
     }
   }
   const ranking = rankTargetBoneCandidates(names, target.bones, source.root, target.root)
@@ -343,7 +343,7 @@ async function main() {
       reportPath = args[++index] ?? ''
       if (!reportPath) throw new Error('--report precisa de um caminho para salvar o arquivo Markdown.')
     } else if (arg.startsWith('--')) {
-      throw new Error(\`Opção desconhecida: \${arg}. Use --help.\`)
+      throw new Error(`Opção desconhecida: ${arg}. Use --help.`)
     } else {
       positional.push(arg)
     }
@@ -375,11 +375,11 @@ async function main() {
   console.log(report)
   if (reportPath) {
     await writeFile(resolve(reportPath), report + '\n', 'utf8')
-    console.log(\`\nRelatório salvo em: \${resolve(reportPath)}\`)
+    console.log(`\nRelatório salvo em: ${resolve(reportPath)}`)
   }
 }
 
 main().catch(error => {
-  console.error(\`Erro: \${error instanceof Error ? error.message : String(error)}\`)
+  console.error(`Erro: ${error instanceof Error ? error.message : String(error)}`)
   process.exitCode = 1
 })
