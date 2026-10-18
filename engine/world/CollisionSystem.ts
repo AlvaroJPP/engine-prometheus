@@ -227,6 +227,31 @@ export class CollisionSystem {
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
+    if (type === 'mesh' && object.mesh.userData.importedModel === true) {
+      // A malha BVH faz a colisão exata. Para a broad phase usa apenas uma caixa
+      // barata com os limites estáticos da cidade, sem calcular um casco convexo.
+      const staticData = getStaticMeshCollisionData(object.mesh)
+      if (staticData) {
+        const size = staticData.localBounds.getSize(new THREE.Vector3())
+        const center = staticData.localBounds.getCenter(new THREE.Vector3())
+        const signature = `static-mesh-proxy:${staticData.geometry.uuid}:${offset.join(',')}`
+        const cached = this.colliderGeometries.get(object.id)
+        if (cached?.signature === signature) return cached.geometry
+        if (cached) cached.geometry.dispose()
+        const geometry = new THREE.BoxGeometry(
+          Math.max(size.x, 0.05),
+          Math.max(size.y, 0.05),
+          Math.max(size.z, 0.05),
+        )
+        geometry.translate(center.x + offset[0], center.y + offset[1], center.z + offset[2])
+        this.colliderGeometries.set(object.id, { geometry, signature })
+        return geometry
+      }
+      // Fallback para cenários antigos fora do limite BVH: a raiz já é uma
+      // caixa proxy da extensão geral do modelo.
+      return sourceGeometry
+    }
+
     if ((type === 'auto' || type === 'mesh') && (object.mesh.userData.importedModel === true || (!manualSize && offset.every(value => Math.abs(value) < 1e-9))) ) {
       // A raiz do modelo importado é uma caixa proxy invisível para seleção e transformação.
       // Mantemos um casco convexo reduzido para broadphase e pares modelo-modelo; quando
@@ -314,9 +339,9 @@ export class CollisionSystem {
     if (this.colliderType(object) === 'mesh') {
       const staticData = getStaticMeshCollisionData(object.mesh)
       if (staticData) return staticData.geometry
-      // Em modelos esqueléticos/morph e malhas além do limite seguro, mantém
-      // o caminho de triângulos dinâmicos/convexos já existente como fallback.
-      if (!object.mesh.userData.importedModel) return this.getColliderGeometry(object)
+      // Não varre geometria gigantesca nem deformada por quadro: nesses casos
+      // o colisor proxy conservador é usado até o cenário poder ser compilado.
+      return this.getColliderGeometry(object)
     }
 
     const root = object.mesh
@@ -823,8 +848,13 @@ export class CollisionSystem {
     const bIsStaticMesh = this.isStaticMeshCollider(bObject)
 
     if (aIsStaticMesh && bIsStaticMesh) return null
-    if (aIsStaticMesh) return this.intersectTriangleMeshWithConvex(aObject, b)
+    if (aIsStaticMesh) {
+      return getStaticMeshCollisionData(aObject.mesh)
+        ? this.intersectTriangleMeshWithConvex(aObject, b)
+        : this.intersectConvex(a, b)
+    }
     if (bIsStaticMesh) {
+      if (!getStaticMeshCollisionData(bObject.mesh)) return this.intersectConvex(a, b)
       const contact = this.intersectTriangleMeshWithConvex(bObject, a)
       if (contact) contact.normal.negate()
       return contact
