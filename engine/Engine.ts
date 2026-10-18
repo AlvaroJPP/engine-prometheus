@@ -42,8 +42,10 @@ import {
   VEILBORNE_DEFAULT_SPELL_SLOTS,
   VEILBORNE_RUNTIME_SPELLS,
   VEILBORNE_RUNTIME_WEAPONS,
+  VEILBORNE_RUNTIME_SIGILS,
 } from './script/VeilborneCombat'
 import type { VeilborneCombatant, VeilborneDamageType, VeilborneStatusId } from './script/VeilborneCombat'
+import type { VeilborneRuntimeSigil } from './script/VeilborneCombat'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
@@ -122,6 +124,17 @@ export class Engine {
   private readonly veilborneEffects = new Map<THREE.Mesh, { remaining: number; duration: number }>()
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
+  private readonly activeVeilborneSigils = new Map<string, {
+    profileId: string
+    position: THREE.Vector3
+    visual: THREE.Group
+    remainingSeconds: number
+    triggeredObjectIds: Set<string>
+  }>()
+  private veilborneSigilSequence = 0
+  private veilborneWardMesh: THREE.Mesh | null = null
+  private veilborneWardRemainingSeconds = 0
+  private veilborneWardAbsorption = 0
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -395,6 +408,9 @@ export class Engine {
       ['magia_2', VEILBORNE_DEFAULT_SPELL_SLOTS[1]],
       ['magia_3', VEILBORNE_DEFAULT_SPELL_SLOTS[2]],
       ['magia_4', VEILBORNE_DEFAULT_SPELL_SLOTS[3]],
+      ['sigilo_1', 'ward'], ['sigilo_2', 'blast'], ['sigilo_3', 'hunter_mark'], ['sigilo_4', 'slow_field'],
+      ['sigilo_selecionado', 1], ['sigilo_ativo', 'ward'],
+      ['ward_remaining', 0], ['ward_absorption', 0],
     ]
     for (const [name, value] of defaults) {
       if (this.logic.getVariable(name) === undefined) this.logic.setVariable(name, value)
@@ -557,7 +573,9 @@ export class Engine {
   ): { damage: number; killed: boolean } {
     const target = this.getVeilborneTargetCombatant(instance)
     if (!target.alive) return { damage: 0, killed: true }
-    const result = applyVeilborneDamage(target, { amount, type: damageType, postureDamage })
+    const marked = target.statuses.some(status => status.id === 'marked')
+    const adjustedAmount = marked ? amount * 1.2 : amount
+    const result = applyVeilborneDamage(target, { amount: adjustedAmount, type: damageType, postureDamage })
     if (status && target.alive) {
       applyVeilborneStatus(target, {
         id: status.id,
@@ -640,6 +658,14 @@ export class Engine {
     }
     if (code === bindings.secondaryAction) {
       this.performVeilborneWeaponAttack(true)
+      return true
+    }
+    if (code === bindings.reload) {
+      this.cycleVeilborneSigil()
+      return true
+    }
+    if (code === bindings.useItem) {
+      this.activateVeilborneSigil()
       return true
     }
     const slots = [bindings.ability1, bindings.ability2, bindings.ability3, bindings.ability4]
@@ -783,6 +809,231 @@ export class Engine {
     this.viewport.invalidate()
   }
 
+
+  private cycleVeilborneSigil(): void {
+    if (!this.isVeilborneEnabled()) return
+    this.ensureVeilbornePlayerVariables()
+    const current = Math.round(this.readVeilborneNumber('sigilo_selecionado', 1))
+    const next = current >= 4 || current < 1 ? 1 : current + 1
+    const selected = this.readVeilborneString('sigilo_' + next, 'ward')
+    this.logic.setVariable('sigilo_selecionado', next)
+    this.logic.setVariable('sigilo_ativo', selected)
+    this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x9b80ff, 0.22, 0.18)
+    this.viewport.invalidate()
+  }
+
+  private activateVeilborneSigil(): void {
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return
+    const sigilId = this.readVeilborneString('sigilo_ativo', 'ward')
+    const sigil = VEILBORNE_RUNTIME_SIGILS[sigilId] ?? VEILBORNE_RUNTIME_SIGILS.ward!
+    const cooldownKey = 'sigil:' + sigil.id
+    if ((this.veilborneCooldowns.get(cooldownKey) ?? 0) > 0) return
+
+    const target = sigil.effect === 'mark' ? this.findVeilborneTarget(sigil.radius) : null
+    if (sigil.effect === 'mark' && !target) return
+    if (!spendVeilborneResource(player, 'ether', sigil.etherCost)) return
+
+    this.veilborneCooldowns.set(cooldownKey, sigil.cooldownSeconds)
+    this.syncVeilbornePlayerCombatant(player)
+
+    if (sigil.effect === 'ward') {
+      this.clearVeilborneWard()
+      this.veilborneWardRemainingSeconds = sigil.durationSeconds
+      this.veilborneWardAbsorption = 35
+      this.logic.setVariable('ward_remaining', sigil.durationSeconds)
+      this.logic.setVariable('ward_absorption', this.veilborneWardAbsorption)
+      const material = new THREE.MeshBasicMaterial({
+        color: sigil.visualColor,
+        transparent: true,
+        opacity: 0.2,
+        wireframe: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+      this.veilborneWardMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 12), material)
+      this.veilborneWardMesh.position.copy(this.avatar.mesh.position).add(new THREE.Vector3(0, 0.9, 0))
+      this.veilborneWardMesh.renderOrder = 18
+      this.world.scene.add(this.veilborneWardMesh)
+      this.viewport.invalidate()
+      return
+    }
+
+    if (sigil.effect === 'mark' && target) {
+      const state = this.getVeilborneTargetCombatant(target.instance)
+      applyVeilborneStatus(state, {
+        id: 'marked',
+        potency: sigil.statusPotency ?? 1.2,
+        remainingSeconds: sigil.durationSeconds,
+        stacks: 1,
+      })
+      this.syncVeilborneTarget(target.instance, state)
+      const point = this.getVeilborneWorldPoint(target.object.id)
+      if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.75, 0.52)
+      this.viewport.invalidate()
+      return
+    }
+
+    const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
+    const position = this.avatar.mesh.position.clone().addScaledVector(forward, 2.15)
+    const groundY = this.world.terrain.heightAt(position.x, position.z)
+    position.y = (Number.isFinite(groundY) ? groundY : this.avatar.mesh.position.y) + 0.06
+    const visual = this.createVeilborneSigilVisual(sigil, position)
+    const instanceId = 'veilborne-sigil-' + (++this.veilborneSigilSequence).toString(36)
+    this.activeVeilborneSigils.set(instanceId, {
+      profileId: sigil.id,
+      position: position.clone(),
+      visual,
+      remainingSeconds: sigil.durationSeconds,
+      triggeredObjectIds: new Set<string>(),
+    })
+    this.world.scene.add(visual)
+    this.viewport.invalidate()
+  }
+
+  private createVeilborneSigilVisual(sigil: VeilborneRuntimeSigil, position: THREE.Vector3): THREE.Group {
+    const group = new THREE.Group()
+    group.name = 'VEILBORNE_SIGIL_' + sigil.id
+    group.position.copy(position)
+    const radius = Math.max(0.65, sigil.radius)
+    const material = new THREE.MeshBasicMaterial({
+      color: sigil.visualColor,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const outerRing = new THREE.Mesh(new THREE.RingGeometry(radius * 0.9, radius, 48), material)
+    outerRing.rotation.x = -Math.PI / 2
+    outerRing.renderOrder = 15
+    group.add(outerRing)
+
+    const innerRing = new THREE.Mesh(new THREE.RingGeometry(radius * 0.42, radius * 0.46, 32), material)
+    innerRing.rotation.x = -Math.PI / 2
+    innerRing.renderOrder = 15
+    group.add(innerRing)
+
+    const sides = sigil.shape === 'triangle' ? 3 : sigil.shape === 'square' ? 4 : sigil.shape === 'hexagon' ? 6 : 12
+    const points: THREE.Vector3[] = []
+    const markerRadius = Math.max(0.3, radius * 0.32)
+    for (let index = 0; index < sides; index += 1) {
+      const angle = Math.PI * 2 * index / sides + Math.PI / 2
+      points.push(new THREE.Vector3(Math.cos(angle) * markerRadius, 0.02, Math.sin(angle) * markerRadius))
+    }
+    const outline = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: sigil.visualColor, transparent: true, opacity: 0.85 }),
+    )
+    outline.renderOrder = 16
+    group.add(outline)
+    return group
+  }
+
+  private updateActiveVeilborneSigils(dt: number): void {
+    for (const [instanceId, active] of this.activeVeilborneSigils) {
+      const sigil = VEILBORNE_RUNTIME_SIGILS[active.profileId]
+      if (!sigil) {
+        this.removeActiveVeilborneSigil(instanceId, active.visual)
+        continue
+      }
+      active.remainingSeconds -= dt
+      const pulse = 0.2 + 0.11 * (0.5 + 0.5 * Math.sin((sigil.durationSeconds - active.remainingSeconds) * 5))
+      active.visual.traverse(child => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshBasicMaterial) child.material.opacity = pulse
+        else if (child instanceof THREE.LineLoop && child.material instanceof THREE.LineBasicMaterial) child.material.opacity = Math.min(1, pulse + 0.4)
+      })
+
+      const inside = this.getVeilborneHostilePackages().filter(candidate =>
+        Math.hypot(candidate.object.mesh.position.x - active.position.x, candidate.object.mesh.position.z - active.position.z) <= sigil.radius,
+      )
+      const entrants = inside.filter(candidate => !active.triggeredObjectIds.has(candidate.object.id))
+      for (const candidate of entrants) active.triggeredObjectIds.add(candidate.object.id)
+
+      if (entrants.length > 0 && sigil.trigger === 'enemy_enter') {
+        if (sigil.effect === 'blast') {
+          this.spawnVeilborneEffect(active.position.clone().add(new THREE.Vector3(0, 0.6, 0)), sigil.visualColor, Math.max(0.7, sigil.radius * 0.8), 0.5)
+          for (const candidate of inside) {
+            this.applyVeilborneHit(
+              candidate.instance,
+              sigil.damage ?? 42,
+              sigil.damageType ?? 'arcane',
+              sigil.postureDamage ?? 28,
+            )
+            const point = this.getVeilborneWorldPoint(candidate.object.id)
+            if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.35, 0.3)
+          }
+          this.removeActiveVeilborneSigil(instanceId, active.visual)
+          continue
+        }
+        if (sigil.effect === 'slow' || sigil.effect === 'silence') {
+          for (const candidate of entrants) {
+            const target = this.getVeilborneTargetCombatant(candidate.instance)
+            applyVeilborneStatus(target, {
+              id: sigil.effect === 'slow' ? 'slow' : 'silence',
+              potency: sigil.statusPotency ?? 1,
+              remainingSeconds: Math.min(3, sigil.durationSeconds),
+              stacks: 1,
+            })
+            this.syncVeilborneTarget(candidate.instance, target)
+            const point = this.getVeilborneWorldPoint(candidate.object.id)
+            if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.28, 0.25)
+          }
+        }
+      }
+
+      if (active.remainingSeconds <= 0) this.removeActiveVeilborneSigil(instanceId, active.visual)
+    }
+  }
+
+  private removeActiveVeilborneSigil(instanceId: string, visual: THREE.Group): void {
+    this.activeVeilborneSigils.delete(instanceId)
+    this.world.scene.remove(visual)
+    const geometries = new Set<THREE.BufferGeometry>()
+    const materials = new Set<THREE.Material>()
+    visual.traverse(child => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.LineLoop) {
+        geometries.add(child.geometry)
+        if (Array.isArray(child.material)) child.material.forEach(material => materials.add(material))
+        else materials.add(child.material)
+      }
+    })
+    for (const geometry of geometries) geometry.dispose()
+    for (const material of materials) material.dispose()
+  }
+
+  private clearActiveVeilborneSigils(): void {
+    for (const [id, active] of this.activeVeilborneSigils) this.removeActiveVeilborneSigil(id, active.visual)
+    this.activeVeilborneSigils.clear()
+  }
+
+  private updateVeilborneWard(dt: number): void {
+    if (!this.veilborneWardMesh) return
+    this.veilborneWardRemainingSeconds = Math.max(0, this.veilborneWardRemainingSeconds - dt)
+    this.logic.setVariable('ward_remaining', this.veilborneWardRemainingSeconds)
+    this.veilborneWardMesh.position.copy(this.avatar.mesh.position).add(new THREE.Vector3(0, 0.9, 0))
+    const material = this.veilborneWardMesh.material
+    if (material instanceof THREE.MeshBasicMaterial) {
+      material.opacity = 0.12 + 0.08 * (0.5 + 0.5 * Math.sin(this.veilborneWardRemainingSeconds * 4))
+    }
+    if (this.veilborneWardRemainingSeconds <= 0) this.clearVeilborneWard()
+  }
+
+  private clearVeilborneWard(): void {
+    if (this.veilborneWardMesh) {
+      this.world.scene.remove(this.veilborneWardMesh)
+      this.veilborneWardMesh.geometry.dispose()
+      const material = this.veilborneWardMesh.material
+      if (Array.isArray(material)) material.forEach(item => item.dispose())
+      else material.dispose()
+      this.veilborneWardMesh = null
+    }
+    this.veilborneWardRemainingSeconds = 0
+    this.veilborneWardAbsorption = 0
+    this.logic.setVariable('ward_remaining', 0)
+    this.logic.setVariable('ward_absorption', 0)
+  }
+
   private updateVeilborneRuntime(dt: number): void {
     this.tickVeilborneEffects(dt)
     for (const [key, remaining] of this.veilborneCooldowns) {
@@ -794,6 +1045,8 @@ export class Engine {
     if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return
     this.ensureVeilbornePlayerVariables()
     const step = Math.max(0, Math.min(dt, 0.1))
+    this.updateActiveVeilborneSigils(step)
+    this.updateVeilborneWard(step)
     if (this.veilbornePendingCast) {
       this.veilbornePendingCast.remainingSeconds -= step
       if (this.veilbornePendingCast.remainingSeconds <= 0) this.resolveVeilborneSpellCast()
@@ -1085,6 +1338,8 @@ export class Engine {
     this.runtimeModeActive = false
     this.veilbornePendingCast = null
     this.clearVeilborneEffects()
+    this.clearActiveVeilborneSigils()
+    this.clearVeilborneWard()
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
@@ -2175,6 +2430,8 @@ export class Engine {
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     this.clearVeilborneEffects()
+    this.clearActiveVeilborneSigils()
+    this.clearVeilborneWard()
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.dispose()
