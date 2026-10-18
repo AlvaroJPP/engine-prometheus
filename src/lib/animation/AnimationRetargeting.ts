@@ -699,7 +699,20 @@ function scoreBonePair(
     limbRoles.has(source.role) && limbRoles.has(target.role)
   const rootPelvisPair = source.role && target.role && source.role !== target.role &&
     ['root', 'pelvis'].includes(source.role) && ['root', 'pelvis'].includes(target.role)
-  if (source.role && target.role && source.role !== target.role && !crossAnatomyLimb && !rootPelvisPair) {
+  // Permite que a coluna inferior concorra à pelve durante a etapa de
+  // recolhimento de juntas. Sem essa exceção, o ranqueador descartava o par
+  // por diferença de papel anatômico antes de canCollapse conseguir avaliá-lo.
+  const lowerSpinePelvisPair = source.role === 'spine' && target.role === 'pelvis' &&
+    (source.level === null || source.level <= 1 ||
+      /lumbar|lower.?spine|spine.?low/i.test(source.original))
+  const pelvisLowerSpinePair = source.role === 'pelvis' && target.role === 'spine' &&
+    (target.level === null || target.level <= 1 ||
+      /lumbar|lower.?spine|spine.?low/i.test(target.original))
+  const torsoPelvisPair = lowerSpinePelvisPair || pelvisLowerSpinePair
+  if (
+    source.role && target.role && source.role !== target.role &&
+    !crossAnatomyLimb && !rootPelvisPair && !torsoPelvisPair
+  ) {
     // Não confunde cabeça/coluna/cauda entre si, mas permite transferir movimento
     // entre segmentos de membros em esqueletos de anatomias diferentes.
     return Number.NEGATIVE_INFINITY
@@ -710,6 +723,7 @@ function scoreBonePair(
   if (source.role && source.role === target.role) score += 72
   else if (crossAnatomyLimb) score += 26
   else if (rootPelvisPair) score += 20
+  else if (torsoPelvisPair) score += 24
   else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
 
   if (source.side && target.side && source.side === target.side) score += 24
