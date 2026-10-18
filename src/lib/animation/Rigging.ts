@@ -101,20 +101,19 @@ export function analyzeRiggingInput(root: THREE.Object3D): AutoRigAnalysis {
   } else if (QUADRUPED_NAME_PATTERN.test(allNames)) {
     recommendedPreset = 'quadruped'
     reason = 'Nomes do modelo sugerem um animal/quadrúpede; confira a orientação da cabeça e dos membros antes de rigar.'
+  } else if (MODULAR_NAME_PATTERN.test(allNames) && meshes.length >= 2) {
+    recommendedPreset = 'modular'
+    reason = 'O nome sugere um objeto mecânico e há malhas separadas; cada malha receberá um pivô/osso próprio e pesos rígidos por peça.'
   } else if (HUMANOID_NAME_PATTERN.test(allNames) ||
     (height > 1e-5 && height >= width * 1.22 && height >= depth * 1.18)) {
     recommendedPreset = 'humanoid'
     reason = 'O nome ou as proporções verticais sugerem um personagem humanoide.'
   } else if (
-    (MODULAR_NAME_PATTERN.test(allNames) && meshes.length >= 2) ||
     (meshes.length >= 5 && (namedPartCount >= 2 || nestedPartCount >= 2)) ||
     (meshes.length >= 9 && height < Math.max(width, depth) * 1.4)
   ) {
     recommendedPreset = 'modular'
     reason = 'O modelo parece composto por peças separadas; cada malha receberá um pivô/osso próprio e pesos rígidos por peça.'
-  } else if (Math.max(width, depth) > height * 1.28) {
-    recommendedPreset = 'quadruped'
-    reason = 'O modelo é mais largo/comprido do que alto; o rig quadrúpede é uma base e pode exigir reposicionamento das juntas.'
   } else {
     recommendedPreset = 'chain'
     reason = 'Não há sinal confiável de anatomia conhecida; uma corrente neutra evita inventar braços/pernas, mas deve ser ajustada ao objeto.'
@@ -251,12 +250,17 @@ function createJointSpecs(bounds: THREE.Box3, preset: AutoRigPreset): JointSpec[
   }
 
   if (preset === 'chain') {
+    // Alinha a corrente com o maior eixo local da geometria, em vez de presumir
+    // que toda criatura ou objeto alongado esteja orientado verticalmente.
+    const axis = size.x >= size.y && size.x >= size.z ? 0 : size.y >= size.z ? 1 : 2
+    const length = Math.max(size.getComponent(axis), 0.1)
+    const along = (ratio: number) => center.clone().setComponent(axis, min.getComponent(axis) + length * ratio)
     return [
-      { name: 'Root', position: new THREE.Vector3(center.x, y(0.02), center.z) },
-      { name: 'Joint.01', parent: 'Root', position: new THREE.Vector3(center.x, y(0.25), center.z) },
-      { name: 'Joint.02', parent: 'Joint.01', position: new THREE.Vector3(center.x, y(0.5), center.z) },
-      { name: 'Joint.03', parent: 'Joint.02', position: new THREE.Vector3(center.x, y(0.75), center.z) },
-      { name: 'Joint.04', parent: 'Joint.03', position: new THREE.Vector3(center.x, y(0.98), center.z) },
+      { name: 'Root', position: along(0.02) },
+      { name: 'Joint.01', parent: 'Root', position: along(0.25) },
+      { name: 'Joint.02', parent: 'Joint.01', position: along(0.5) },
+      { name: 'Joint.03', parent: 'Joint.02', position: along(0.75) },
+      { name: 'Joint.04', parent: 'Joint.03', position: along(0.98) },
     ]
   }
 
