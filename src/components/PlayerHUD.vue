@@ -37,6 +37,25 @@ type HudImageDrag = {
   viewportWidth: number
   viewportHeight: number
 }
+type HudCropRect = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+type HudCropDrag = {
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
+}
+type HudAlphaBounds = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 type HudSettings = {
   showPlayer: boolean
   showSession: boolean
@@ -70,7 +89,34 @@ const hudImageInput = ref<HTMLInputElement | null>(null)
 const hudImageError = ref('')
 const activeHudImageId = ref<string | null>(null)
 const hudImageDrag = ref<HudImageDrag | null>(null)
+const hudSheetInput = ref<HTMLInputElement | null>(null)
+const hudSheetPreview = ref<HTMLImageElement | null>(null)
+const hudSheetFile = ref<File | null>(null)
+const hudSheetPreviewUrl = ref('')
+const hudSheetSize = ref({ width: 0, height: 0 })
+const hudCropRects = ref<HudCropRect[]>([])
+const hudCropDrag = ref<HudCropDrag | null>(null)
+const hudCropRows = ref(1)
+const hudCropColumns = ref(1)
+const trimHudTransparentBorders = ref(true)
+const skipHudTransparentCrops = ref(true)
+const hudColorKeyEnabled = ref(false)
+const hudColorKeyColor = ref('#ffffff')
+const hudColorKeyTolerance = ref(24)
+const hudCropBusy = ref(false)
+const hudImageNotice = ref('')
 const visibleHudImages = computed(() => settings.images.filter(layer => layer.visible && hudImageUrls.value[layer.id]))
+const draftHudCrop = computed<HudCropRect | null>(() => {
+  const drag = hudCropDrag.value
+  if (!drag) return null
+  return {
+    id: 'draft-crop',
+    x: Math.min(drag.startX, drag.currentX),
+    y: Math.min(drag.startY, drag.currentY),
+    width: Math.abs(drag.currentX - drag.startX),
+    height: Math.abs(drag.currentY - drag.startY),
+  }
+})
 const showSettings = computed({
   get: () => props.settingsOpen,
   set: (value: boolean) => emit('settings-open-change', value),
@@ -152,7 +198,7 @@ onMounted(async () => {
         ? saved.images
             .filter((layer): layer is HudImageLayer => Boolean(layer && typeof layer.id === 'string' && typeof layer.name === 'string'))
             .map((layer) => {
-              const width = boundedHudNumber(layer.width, 24, 5, 80)
+              const width = boundedHudNumber(layer.width, 24, 1, 100)
               return {
                 id: layer.id,
                 name: layer.name.slice(0, 120),
@@ -192,7 +238,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   finishHudImageDrag()
+  cancelHudCropDrag()
   Object.values(hudImageUrls.value).forEach(url => URL.revokeObjectURL(url))
+  if (hudSheetPreviewUrl.value) URL.revokeObjectURL(hudSheetPreviewUrl.value)
 })
 
 function chooseHudImage(): void {
@@ -237,6 +285,311 @@ async function importHudImage(event: Event): Promise<void> {
   }
 }
 
+function chooseHudSheet(): void {
+  hudImageError.value = ''
+  hudImageNotice.value = ''
+  hudSheetInput.value?.click()
+}
+
+async function importHudSheet(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  hudImageError.value = ''
+  hudImageNotice.value = ''
+  if (!file) return
+
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    hudImageError.value = 'Use uma imagem PNG, JPG ou WebP para recortar.'
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    hudImageError.value = 'A imagem para recorte deve ter até 10 MB.'
+    return
+  }
+
+  const url = URL.createObjectURL(file)
+  const image = new Image()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('Não foi possível abrir essa imagem.'))
+      image.src = url
+    })
+    cancelHudCropDrag()
+    if (hudSheetPreviewUrl.value) URL.revokeObjectURL(hudSheetPreviewUrl.value)
+    hudSheetFile.value = file
+    hudSheetPreviewUrl.value = url
+    hudSheetSize.value = { width: image.naturalWidth, height: image.naturalHeight }
+    hudCropRects.value = []
+    hudCropRows.value = 1
+    hudCropColumns.value = 1
+  } catch (error) {
+    URL.revokeObjectURL(url)
+    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível abrir essa imagem.'
+  }
+}
+
+function closeHudSheetEditor(): void {
+  cancelHudCropDrag()
+  if (hudSheetPreviewUrl.value) URL.revokeObjectURL(hudSheetPreviewUrl.value)
+  hudSheetPreviewUrl.value = ''
+  hudSheetFile.value = null
+  hudSheetSize.value = { width: 0, height: 0 }
+  hudCropRects.value = []
+  hudImageNotice.value = ''
+}
+
+function hudCropStyle(crop: HudCropRect): Record<string, string> {
+  const width = Math.max(1, hudSheetSize.value.width)
+  const height = Math.max(1, hudSheetSize.value.height)
+  return {
+    left: (crop.x / width * 100) + '%',
+    top: (crop.y / height * 100) + '%',
+    width: (crop.width / width * 100) + '%',
+    height: (crop.height / height * 100) + '%',
+  }
+}
+
+function hudCropPoint(event: PointerEvent): { x: number; y: number } | null {
+  const image = hudSheetPreview.value
+  const naturalWidth = hudSheetSize.value.width
+  const naturalHeight = hudSheetSize.value.height
+  if (!image || !naturalWidth || !naturalHeight) return null
+  const rect = image.getBoundingClientRect()
+  if (!rect.width || !rect.height) return null
+  return {
+    x: Math.max(0, Math.min(naturalWidth, ((event.clientX - rect.left) / rect.width) * naturalWidth)),
+    y: Math.max(0, Math.min(naturalHeight, ((event.clientY - rect.top) / rect.height) * naturalHeight)),
+  }
+}
+
+function beginHudCropSelection(event: PointerEvent): void {
+  if (!hudSheetFile.value || hudCropBusy.value || event.button !== 0) return
+  const point = hudCropPoint(event)
+  if (!point) return
+  event.preventDefault()
+  event.stopPropagation()
+  hudCropDrag.value = { startX: point.x, startY: point.y, currentX: point.x, currentY: point.y }
+  window.addEventListener('pointermove', moveHudCropSelection)
+  window.addEventListener('pointerup', finishHudCropDrag)
+  window.addEventListener('pointercancel', finishHudCropDrag)
+}
+
+function moveHudCropSelection(event: PointerEvent): void {
+  if (!hudCropDrag.value) return
+  const point = hudCropPoint(event)
+  if (!point) return
+  hudCropDrag.value.currentX = point.x
+  hudCropDrag.value.currentY = point.y
+}
+
+function cancelHudCropDrag(): void {
+  hudCropDrag.value = null
+  window.removeEventListener('pointermove', moveHudCropSelection)
+  window.removeEventListener('pointerup', finishHudCropDrag)
+  window.removeEventListener('pointercancel', finishHudCropDrag)
+}
+
+function finishHudCropDrag(): void {
+  const drag = hudCropDrag.value
+  cancelHudCropDrag()
+  if (!drag) return
+  const crop: HudCropRect = {
+    id: 'hud-crop-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+    x: Math.min(drag.startX, drag.currentX),
+    y: Math.min(drag.startY, drag.currentY),
+    width: Math.abs(drag.currentX - drag.startX),
+    height: Math.abs(drag.currentY - drag.startY),
+  }
+  if (crop.width < 4 || crop.height < 4) return
+  crop.x = Math.max(0, Math.min(hudSheetSize.value.width, crop.x))
+  crop.y = Math.max(0, Math.min(hudSheetSize.value.height, crop.y))
+  crop.width = Math.min(crop.width, hudSheetSize.value.width - crop.x)
+  crop.height = Math.min(crop.height, hudSheetSize.value.height - crop.y)
+  if (crop.width >= 4 && crop.height >= 4) hudCropRects.value.push(crop)
+}
+
+function generateHudGridCrops(): void {
+  const width = hudSheetSize.value.width
+  const height = hudSheetSize.value.height
+  if (!width || !height) {
+    hudImageError.value = 'Importe uma imagem antes de gerar a grade.'
+    return
+  }
+  const rows = Math.max(1, Math.min(32, Math.floor(Number(hudCropRows.value) || 1)))
+  const columns = Math.max(1, Math.min(32, Math.floor(Number(hudCropColumns.value) || 1)))
+  if (rows * columns > 256) {
+    hudImageError.value = 'A grade pode gerar no máximo 256 recortes.'
+    return
+  }
+  hudCropRows.value = rows
+  hudCropColumns.value = columns
+  hudCropRects.value = []
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      hudCropRects.value.push({
+        id: 'hud-grid-' + row + '-' + column,
+        x: column * width / columns,
+        y: row * height / rows,
+        width: width / columns,
+        height: height / rows,
+      })
+    }
+  }
+  hudImageError.value = ''
+  hudImageNotice.value = ''
+}
+
+function clearHudCropRects(): void {
+  hudCropRects.value = []
+}
+
+function removeHudCropRect(id: string): void {
+  hudCropRects.value = hudCropRects.value.filter(crop => crop.id !== id)
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob)
+      else reject(new Error('O navegador não conseguiu gerar o recorte PNG.'))
+    }, 'image/png')
+  })
+}
+
+function findHudAlphaBounds(canvas: HTMLCanvasElement): HudAlphaBounds | null {
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('Não foi possível processar a transparência da imagem.')
+  const data = context.getImageData(0, 0, canvas.width, canvas.height).data
+  let minX = canvas.width
+  let minY = canvas.height
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const alpha = data[(y * canvas.width + x) * 4 + 3]
+      if (alpha > 0) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null
+  return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+}
+
+function applyHudColorKey(canvas: HTMLCanvasElement): void {
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('Não foi possível processar a cor transparente.')
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+  const target = hudColorKeyColor.value.match(/^#([0-9a-f]{6})$/i)?.[1]
+  if (!target) return
+  const red = parseInt(target.slice(0, 2), 16)
+  const green = parseInt(target.slice(2, 4), 16)
+  const blue = parseInt(target.slice(4, 6), 16)
+  const tolerance = Math.max(0, Math.min(255, Math.floor(Number(hudColorKeyTolerance.value) || 0)))
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    if (
+      Math.abs(pixels.data[i] - red) <= tolerance &&
+      Math.abs(pixels.data[i + 1] - green) <= tolerance &&
+      Math.abs(pixels.data[i + 2] - blue) <= tolerance
+    ) pixels.data[i + 3] = 0
+  }
+  context.putImageData(pixels, 0, 0)
+}
+
+async function cropHudSheetParts(): Promise<void> {
+  const source = hudSheetPreview.value
+  const sheetWidth = hudSheetSize.value.width
+  const sheetHeight = hudSheetSize.value.height
+  if (!source || !sheetWidth || !sheetHeight) {
+    hudImageError.value = 'Importe uma imagem para começar a recortar.'
+    return
+  }
+  if (!hudCropRects.value.length) {
+    hudImageError.value = 'Selecione uma ou mais áreas de recorte primeiro.'
+    return
+  }
+
+  hudCropBusy.value = true
+  hudImageError.value = ''
+  hudImageNotice.value = ''
+  let created = 0
+  let skipped = 0
+  try {
+    for (let index = 0; index < hudCropRects.value.length; index++) {
+      const crop = hudCropRects.value[index]
+      const sx = Math.max(0, Math.floor(crop.x))
+      const sy = Math.max(0, Math.floor(crop.y))
+      const sw = Math.min(sheetWidth - sx, Math.max(1, Math.ceil(crop.width)))
+      const sh = Math.min(sheetHeight - sy, Math.max(1, Math.ceil(crop.height)))
+      if (sw <= 0 || sh <= 0) { skipped++; continue }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = sw
+      canvas.height = sh
+      const context = canvas.getContext('2d', { willReadFrequently: true })
+      if (!context) throw new Error('Não foi possível criar a área de recorte.')
+      context.clearRect(0, 0, sw, sh)
+      context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh)
+
+      if (hudColorKeyEnabled.value) applyHudColorKey(canvas)
+      const alphaBounds = findHudAlphaBounds(canvas)
+      if (!alphaBounds && skipHudTransparentCrops.value) {
+        skipped++
+        continue
+      }
+
+      let outputCanvas = canvas
+      let trimX = 0
+      let trimY = 0
+      if (trimHudTransparentBorders.value && alphaBounds) {
+        trimX = alphaBounds.x
+        trimY = alphaBounds.y
+        const trimmed = document.createElement('canvas')
+        trimmed.width = alphaBounds.width
+        trimmed.height = alphaBounds.height
+        const trimmedContext = trimmed.getContext('2d')
+        if (!trimmedContext) throw new Error('Não foi possível aparar as margens transparentes.')
+        trimmedContext.drawImage(canvas, trimX, trimY, alphaBounds.width, alphaBounds.height, 0, 0, alphaBounds.width, alphaBounds.height)
+        outputCanvas = trimmed
+      }
+
+      const blob = await canvasToPngBlob(outputCanvas)
+      const id = 'hud-image-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+      await storeHudImage(id, blob)
+      hudImageUrls.value = { ...hudImageUrls.value, [id]: URL.createObjectURL(blob) }
+      const widthPercent = boundedHudNumber(outputCanvas.width / sheetWidth * 100, 12, 1, 100)
+      settings.images.push({
+        id,
+        name: (hudSheetFile.value?.name.replace(/\.[^.]+$/, '') || 'HUD') + ' · parte ' + String(index + 1).padStart(2, '0'),
+        x: boundedHudNumber((sx + trimX) / sheetWidth * 100, 0, 0, Math.max(0, 100 - widthPercent)),
+        y: boundedHudNumber((sy + trimY) / sheetHeight * 100, 0, 0, 100),
+        width: widthPercent,
+        opacity: 100,
+        visible: true,
+        fitScreen: false,
+      })
+      created++
+    }
+
+    if (created > 0) {
+      activeHudImageId.value = null
+      persistHudSettings()
+      hudImageNotice.value = created + ' recorte(s) adicionado(s) ao HUD.' + (skipped ? ' ' + skipped + ' área(s) transparente(s) ignorada(s).' : '')
+    } else {
+      hudImageError.value = 'Nenhuma parte visível foi gerada. Confira as áreas e as opções de transparência.'
+    }
+  } catch (error) {
+    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível gerar as partes do HUD.'
+  } finally {
+    hudCropBusy.value = false
+  }
+}
+
 function toggleHudImagePosition(layer: HudImageLayer): void {
   if (layer.fitScreen) {
     activeHudImageId.value = null
@@ -255,7 +608,7 @@ function toggleHudImageFit(layer: HudImageLayer): void {
 }
 
 function clampHudImagePosition(layer: HudImageLayer): void {
-  layer.width = boundedHudNumber(layer.width, 24, 5, 80)
+  layer.width = boundedHudNumber(layer.width, 24, 1, 100)
   layer.opacity = boundedHudNumber(layer.opacity, 100, 10, 100)
   layer.x = boundedHudNumber(layer.x, 5, 0, 100 - layer.width)
   layer.y = boundedHudNumber(layer.y, 45, 0, 100)
@@ -435,8 +788,92 @@ function resetSettings() {
           @change="importHudImage"
         >
         <button type="button" class="hud-image-import" @click="chooseHudImage">＋ Importar imagem PNG, JPG ou WebP</button>
-        <small>Adicione molduras, ícones, barras decorativas ou uma imagem HUD transparente. As imagens são salvas neste dispositivo. Limite: 10 MB por imagem.</small>
+        <small>Adicione uma imagem já pronta como uma camada do HUD. Limite: 10 MB por arquivo.</small>
+        <input
+          ref="hudSheetInput"
+          class="hud-image-file-input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          aria-label="Selecionar imagem para recortar em partes"
+          @change="importHudSheet"
+        >
+        <button type="button" class="hud-image-import hud-image-slice-trigger" @click="chooseHudSheet">▧ Recortar uma imagem em partes</button>
+        <small>Use um PNG único com várias molduras, ícones e áreas transparentes. Arraste para criar recortes ou divida em uma grade; cada parte vira uma camada independente.</small>
         <p v-if="hudImageError" class="hud-image-error" role="alert">{{ hudImageError }}</p>
+        <p v-if="hudImageNotice" class="hud-image-notice" role="status">{{ hudImageNotice }}</p>
+
+        <div v-if="hudSheetPreviewUrl" class="hud-sprite-editor">
+          <div class="hud-sprite-editor-heading">
+            <div>
+              <strong>Editor de recortes</strong>
+              <small>{{ hudSheetFile?.name }} · {{ hudSheetSize.width }} × {{ hudSheetSize.height }} px</small>
+            </div>
+            <button type="button" class="hud-image-remove" aria-label="Fechar editor de recortes" title="Fechar editor" @click="closeHudSheetEditor">×</button>
+          </div>
+          <p class="hud-sprite-instructions">Arraste diretamente sobre a imagem para marcar cada parte. As áreas transparentes originais do PNG e os vazios dentro de cada recorte são preservados.</p>
+          <div class="hud-sprite-stage-scroll">
+            <div class="hud-sprite-stage">
+              <img
+                ref="hudSheetPreview"
+                class="hud-sprite-source"
+                :src="hudSheetPreviewUrl"
+                alt="Imagem de origem para recortar"
+                draggable="false"
+                @pointerdown="beginHudCropSelection"
+              >
+              <div
+                v-for="(crop, index) in hudCropRects"
+                :key="crop.id"
+                class="hud-crop-box"
+                :style="hudCropStyle(crop)"
+                aria-hidden="true"
+              ><span>{{ index + 1 }}</span></div>
+              <div
+                v-if="draftHudCrop"
+                class="hud-crop-box hud-crop-box-draft"
+                :style="hudCropStyle(draftHudCrop)"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+
+          <div class="hud-grid-tools">
+            <label>Linhas
+              <input v-model.number="hudCropRows" type="number" min="1" max="32">
+            </label>
+            <label>Colunas
+              <input v-model.number="hudCropColumns" type="number" min="1" max="32">
+            </label>
+            <button type="button" @click="generateHudGridCrops">Dividir em grade</button>
+            <button type="button" :disabled="!hudCropRects.length" @click="clearHudCropRects">Limpar recortes</button>
+          </div>
+          <div v-if="hudCropRects.length" class="hud-crop-count">{{ hudCropRects.length }} recorte(s) selecionado(s)</div>
+          <div v-if="hudCropRects.length" class="hud-crop-list">
+            <div v-for="(crop, index) in hudCropRects" :key="crop.id" class="hud-crop-row">
+              <span><strong>Parte {{ index + 1 }}</strong><small>{{ Math.round(crop.width) }} × {{ Math.round(crop.height) }} px · X {{ Math.round(crop.x) }}, Y {{ Math.round(crop.y) }}</small></span>
+              <button type="button" class="hud-image-remove" :aria-label="'Remover recorte ' + (index + 1)" @click="removeHudCropRect(crop.id)">×</button>
+            </div>
+          </div>
+
+          <div class="hud-transparency-options">
+            <label><input v-model="trimHudTransparentBorders" type="checkbox"> Aparar margens transparentes ao redor de cada parte</label>
+            <small>Remove apenas as bordas externas vazias de cada recorte. As áreas transparentes internas continuam transparentes.</small>
+            <label><input v-model="skipHudTransparentCrops" type="checkbox"> Ignorar partes completamente transparentes</label>
+            <label><input v-model="hudColorKeyEnabled" type="checkbox"> Tornar uma cor específica transparente</label>
+            <div class="hud-color-key-controls" :class="{ disabled: !hudColorKeyEnabled }">
+              <label>Cor
+                <input v-model="hudColorKeyColor" type="color" :disabled="!hudColorKeyEnabled">
+              </label>
+              <label>Tolerância · {{ hudColorKeyTolerance }}
+                <input v-model.number="hudColorKeyTolerance" type="range" min="0" max="96" step="1" :disabled="!hudColorKeyEnabled">
+              </label>
+            </div>
+            <small>A tolerância define quanto cores parecidas com a escolhida também serão apagadas. Use com cuidado para não remover partes do desenho que tenham a mesma cor.</small>
+          </div>
+          <button class="hud-image-create-slices" type="button" :disabled="hudCropBusy || !hudCropRects.length" @click="cropHudSheetParts">
+            {{ hudCropBusy ? 'Criando recortes…' : 'Criar ' + hudCropRects.length + ' parte(s) no HUD' }}
+          </button>
+        </div>
         <div v-if="settings.images.length" class="hud-image-list">
           <div v-for="layer in settings.images" :key="layer.id" class="hud-image-item">
             <img v-if="hudImageUrls[layer.id]" class="hud-image-preview" :src="hudImageUrls[layer.id]" alt="">
@@ -456,7 +893,7 @@ function resetSettings() {
             </div>
             <div class="hud-image-adjustments">
               <label v-if="!layer.fitScreen">Largura · {{ Math.round(layer.width) }}%
-                <input v-model.number="layer.width" type="range" min="5" max="80" step="1" @input="clampHudImagePosition(layer)">
+                <input v-model.number="layer.width" type="range" min="1" max="100" step="1" @input="clampHudImagePosition(layer)">
               </label>
               <label>Opacidade · {{ Math.round(layer.opacity) }}%
                 <input v-model.number="layer.opacity" type="range" min="10" max="100" step="5" @input="clampHudImagePosition(layer)">
@@ -699,5 +1136,44 @@ function resetSettings() {
 .hud-image-adjustments input[type=range] { width:100%; min-width:0; accent-color:#e8572b; }
 .hud-image-error { margin:0; color:#ffaaa2; font-size:10px; line-height:1.4; }
 .hud-image-position-note { padding:7px; border:1px solid #e8572b44; border-radius:5px; background:#e8572b12; color:#ffd17b !important; }
+
+
+.hud-image-slice-trigger { margin-top:7px; }
+.hud-image-notice { margin:0; padding:7px; border:1px solid #75bd8c44; border-radius:5px; background:#75bd8c12; color:#a8e7bb; font-size:10px; line-height:1.4; }
+.hud-sprite-editor { display:grid; gap:10px; margin-top:10px; padding:10px; border:1px solid #ffffff20; border-radius:7px; background:#0b1016aa; }
+.hud-sprite-editor-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.hud-sprite-editor-heading>div { display:grid; min-width:0; gap:3px; }
+.hud-sprite-editor-heading strong { color:#f3f5f7; font-size:12px; }
+.hud-sprite-editor-heading small { overflow-wrap:anywhere; color:#9ba8b5; font-size:9px; }
+.hud-sprite-instructions { margin:0; color:#b8c4d1; font-size:10px; line-height:1.45; }
+.hud-sprite-stage-scroll { max-height:300px; overflow:auto; border:1px solid #ffffff20; border-radius:5px; background-color:#10151c; background-image:linear-gradient(45deg,#202631 25%,transparent 25%),linear-gradient(-45deg,#202631 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#202631 75%),linear-gradient(-45deg,transparent 75%,#202631 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+.hud-sprite-stage { position:relative; width:100%; min-height:40px; line-height:0; }
+.hud-sprite-source { display:block; width:100%; height:auto; max-width:100%; margin:0; cursor:crosshair; user-select:none; -webkit-user-drag:none; touch-action:none; }
+.hud-crop-box { position:absolute; z-index:2; box-sizing:border-box; border:2px solid #f4a261; background:#f4a26118; pointer-events:none; }
+.hud-crop-box>span { position:absolute; top:0; left:0; display:grid; place-items:center; min-width:18px; height:18px; padding:0 3px; background:#f4a261; color:#20140c; font:700 10px 'IBM Plex Mono',monospace; line-height:18px; }
+.hud-crop-box-draft { border:2px dashed #8ddfb2; background:#8ddfb218; }
+.hud-grid-tools { display:grid; grid-template-columns:1fr 1fr; gap:7px; align-items:end; }
+.hud-grid-tools label { display:grid; gap:4px; color:#b8c4d1; font-size:10px; }
+.hud-grid-tools input { min-width:0; width:100%; box-sizing:border-box; padding:6px; border:1px solid #ffffff20; border-radius:4px; background:#0b1016; color:#f0f3f7; font-size:11px; }
+.hud-grid-tools button,.hud-image-create-slices { min-height:30px; padding:7px 8px; border:1px solid #ffffff20; border-radius:5px; background:#ffffff08; color:#e8edf3; font-size:10px; cursor:pointer; }
+.hud-grid-tools button:hover { border-color:#f5b64c88; background:#f5b64c12; }
+.hud-grid-tools button:disabled,.hud-image-create-slices:disabled { opacity:.45; cursor:not-allowed; }
+.hud-crop-count { color:#f4b86a; font-size:10px; font-weight:700; }
+.hud-crop-list { display:grid; gap:5px; max-height:140px; overflow:auto; }
+.hud-crop-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 7px; border:1px solid #ffffff12; border-radius:4px; background:#ffffff04; }
+.hud-crop-row>span { display:grid; min-width:0; gap:3px; }
+.hud-crop-row strong { color:#e3e8ee; font-size:10px; }
+.hud-crop-row small { color:#8f9cab; font-size:9px; }
+.hud-transparency-options { display:grid; gap:8px; padding-top:9px; border-top:1px solid #ffffff16; }
+.hud-transparency-options>label { display:flex; align-items:flex-start; gap:7px; color:#d0d9e3; font-size:10px; line-height:1.4; }
+.hud-transparency-options input[type=checkbox] { margin-top:1px; accent-color:#f5b64c; }
+.hud-transparency-options>small { color:#8f9cab; font-size:9px; line-height:1.45; }
+.hud-color-key-controls { display:grid; grid-template-columns:90px minmax(0,1fr); gap:8px; }
+.hud-color-key-controls label { display:grid; gap:4px; min-width:0; color:#b8c4d1; font-size:10px; }
+.hud-color-key-controls input[type=color] { width:100%; height:30px; padding:2px; border:1px solid #ffffff20; border-radius:4px; background:#0b1016; }
+.hud-color-key-controls input[type=range] { width:100%; accent-color:#e8572b; }
+.hud-color-key-controls.disabled { opacity:.5; }
+.hud-image-create-slices { width:100%; min-height:36px; border-color:#f5b64c66; background:#f5b64c18; color:#ffd17b; font-weight:700; }
+.hud-image-create-slices:not(:disabled):hover { border-color:#f5b64c; background:#f5b64c26; }
 
 </style>
