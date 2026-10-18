@@ -864,7 +864,7 @@ function updateColliderPreview() {
   if (colliderType.value === 'mesh') {
     const collisionData = getStaticMeshCollisionData(model.value)
     if (!collisionData) {
-      colliderPreviewNotice.value = 'Não foi possível preparar a malha estática. Confira se o modelo contém peças estáticas e se não ultrapassa 1,5 milhão de triângulos. Partes animadas não entram neste colisor.'
+      colliderPreviewNotice.value = 'Não foi possível preparar a malha estática. Confira se o modelo contém peças estáticas e se não ultrapassa 5 milhões de triângulos. Partes animadas não entram neste colisor.'
       return
     }
     const preview = createStaticColliderPreviewGeometry(collisionData.geometry)
@@ -3547,7 +3547,7 @@ async function saveSelectedParts() {
       if (colliderType.value === 'mesh') {
         const partCollisionData = getStaticMeshCollisionData(imported)
         if (!partCollisionData) {
-          throw new Error(`A parte "${part.name}" não pode usar malha estática. Ela precisa conter geometria estática e ficar abaixo de 1,5 milhão de triângulos.`)
+          throw new Error(`A parte "${part.name}" não pode usar malha estática. Ela precisa conter geometria estática e ficar abaixo de 5 milhões de triângulos.`)
         }
       }
       imported.userData.importColliderType = colliderType.value
@@ -3647,7 +3647,7 @@ async function confirmImport() {
     if (colliderType.value === 'mesh') {
       const staticCollisionData = getStaticMeshCollisionData(imported)
       if (!staticCollisionData) {
-        throw new Error('Não foi possível compilar a malha estática deste componente. Use apenas geometrias estáticas com até 1,5 milhão de triângulos; partes animadas ficam fora deste colisor.')
+        throw new Error('Não foi possível compilar a malha estática deste componente. Use apenas geometrias estáticas com até 5 milhões de triângulos; partes animadas ficam fora deste colisor.')
       }
     }
     imported.userData.importColliderType = colliderType.value
