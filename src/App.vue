@@ -5410,7 +5410,7 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   min-height:0 !important;
   max-height:none !important;
   margin:0 !important;
-  padding:48px 7px 10px !important;
+  padding:132px 7px 10px !important;
   display:flex !important;
   flex-direction:column !important;
   align-items:stretch !important;
@@ -5523,9 +5523,6 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 /* Quick actions docked into the upper part of the collapsed sidebar. */
 .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
   display:none !important;
-}
-.app.sidebar-collapsed .toolbar {
-  padding-top:132px !important;
 }
 .collapsed-sidebar-actions { display:none; }
 .app.sidebar-collapsed .collapsed-sidebar-actions {
