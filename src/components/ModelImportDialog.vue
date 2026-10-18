@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
+import { getStaticMeshCollisionData } from '@/engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
@@ -80,7 +81,7 @@ type ModelImportPayload = {
   batchModels?: ModelImportBatchItem[]
 }
 
-const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: 'object' | 'entity'; libraryType?: 'object' | 'animated-model' | 'animation-source'; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null; animationSourceAsset?: { id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType?: 'animation-source' } | null; animationSourceOptions?: Array<{ id: string; name: string; height?: number; thumbnail?: string }> }>()
+const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: 'object' | 'entity'; libraryType?: 'object' | 'animated-model' | 'animation-source'; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null; animationSourceAsset?: { id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType?: 'animation-source' } | null; animationSourceOptions?: Array<{ id: string; name: string; height?: number; thumbnail?: string }> }>()
 const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
 const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
 
@@ -811,7 +812,7 @@ const textureRepairSelections = ref<Record<string, string>>({})
 const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
 const gltfMetadata = computed(() => model.value?.userData.importGltfMetadata as GltfMetadata | undefined)
-const colliderType = ref<'box' | 'sphere' | 'capsule' | 'none'>('box')
+const colliderType = ref<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>('box')
 const colliderSize = ref<[number, number, number]>([1, 1, 1])
 const colliderOffset = ref<[number, number, number]>([0, 0, 0])
 let colliderPreview: THREE.LineSegments | null = null
@@ -825,6 +826,22 @@ function updateColliderPreview() {
     colliderPreview = null
   }
   if (!model.value || colliderType.value === 'none') return
+  if (colliderType.value === 'mesh') {
+    const collisionData = getStaticMeshCollisionData(model.value)
+    if (!collisionData) return
+    model.value.updateWorldMatrix(true, true)
+    colliderPreview = new THREE.LineSegments(
+      new THREE.WireframeGeometry(collisionData.geometry),
+      new THREE.LineBasicMaterial({ color: 0x65e6a0, depthTest: false, transparent: true, opacity: 0.72 }),
+    )
+    colliderPreview.name = 'import-collider-preview'
+    colliderPreview.renderOrder = 1000
+    colliderPreview.matrixAutoUpdate = false
+    colliderPreview.matrix.copy(model.value.matrixWorld)
+    colliderPreview.matrixWorldNeedsUpdate = true
+    scene.add(colliderPreview)
+    return
+  }
   const [width, height, depth] = colliderSize.value.map(value => Math.max(0.05, value))
   let geometry: THREE.BufferGeometry
   if (colliderType.value === 'sphere') {
@@ -854,7 +871,7 @@ function updateColliderPreview() {
   geometry.dispose()
 }
 
-function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'none') {
+function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
   colliderType.value = value
   if (value === 'sphere') {
     const diameter = Math.max(0.05, Math.min(...colliderSize.value))
@@ -2304,7 +2321,7 @@ watch(() => props.open, async (open) => {
         // Ao editar, restaure também o colisor armazenado. Sem isso, abrir e
         // salvar um componente substituía silenciosamente a colisão por um box.
         const savedColliderType = props.initialAsset.colliderType
-        colliderType.value = savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'none'
+        colliderType.value = savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'mesh' || savedColliderType === 'none'
           ? savedColliderType
           : 'box'
         const savedColliderSize = props.initialAsset.colliderSize
@@ -4181,18 +4198,20 @@ onBeforeUnmount(() => {
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'model'" class="model-panel-section model-collider-section">
             <div class="model-panel-heading"><span>06</span> COLISOR FÍSICO</div>
-            <p class="model-collider-help">Ajuste a área que bloqueia outros objetos. O modelo visual não será redimensionado. O contorno verde mostra a colisão antes de importar.</p>
+            <p class="model-collider-help">Escolha como o jogador e os objetos vão interagir com este modelo. Para cidades, prédios agrupados e terrenos importados, use <strong>Malha estática (cidade)</strong>: a colisão usa os triângulos reais e uma árvore BVH para consultar apenas a geometria próxima, preservando ruas e espaços vazios. Use apenas em cenários que não sejam animados. O contorno verde representa a colisão.</p>
             <label class="model-collider-field">Forma
-              <select :value="colliderType" :disabled="!model" title="Escolha o formato da área física de colisão usada no jogo." @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'none')">
+              <select :value="colliderType" :disabled="!model" title="Escolha o formato da área física de colisão usada no jogo." @change="changeColliderType(($event.target as HTMLSelectElement).value as 'box' | 'sphere' | 'capsule' | 'mesh' | 'none')">
                 <option value="box">Caixa</option>
                 <option value="sphere">Esfera</option>
                 <option value="capsule">Cápsula</option>
+                <option value="mesh">Malha estática (cidade)</option>
                 <option value="none">Sem colisão</option>
               </select>
             </label>
-            <div class="model-collider-subtitle">{{ colliderType === 'sphere' ? 'DIÂMETRO DA ESFERA (raio = metade)' : 'DIMENSÕES DO COLISOR' }}</div>
+            <template v-if="colliderType !== 'mesh'">
+              <div class="model-collider-subtitle">{{ colliderType === 'sphere' ? 'DIÂMETRO DA ESFERA (raio = metade)' : 'DIMENSÕES DO COLISOR' }}</div>
             <div class="model-collider-grid">
-              <label>{{ colliderType === 'sphere' ? 'Diâmetro X' : 'Largura X' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[0]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 0, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>{{ colliderType === 'sphere' ? 'Diâmetro X' : 'Largura X' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[0]" :disabled="!model || colliderType === 'none' || colliderType === 'mesh'" @input="setColliderVector('colliderSize', 0, Number(($event.target as HTMLInputElement).value))" /></label>
               <label>{{ colliderType === 'sphere' ? 'Diâmetro Y' : 'Altura Y' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[1]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 1, Number(($event.target as HTMLInputElement).value))" /></label>
               <label>{{ colliderType === 'sphere' ? 'Diâmetro Z' : 'Prof. Z' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[2]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 2, Number(($event.target as HTMLInputElement).value))" /></label>
             </div>
@@ -4203,6 +4222,7 @@ onBeforeUnmount(() => {
               <label>Z<input type="number" step="0.1" :value="colliderOffset[2]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderOffset', 2, Number(($event.target as HTMLInputElement).value))" /></label>
             </div>
             <p class="model-collider-example">Exemplo: para uma esfera de raio 0,5, informe 1,0 nos três diâmetros. Em uma árvore, ajuste o deslocamento Y para posicionar a esfera no tronco.</p>
+            </template>
           </section>
           <div v-if="activeSetupTab === 'technical'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'technical'" class="model-panel-section">
