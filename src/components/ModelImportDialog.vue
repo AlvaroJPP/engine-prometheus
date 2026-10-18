@@ -110,7 +110,9 @@ const selectedBehaviorPackageDefinitions = computed(() => BEHAVIOR_PACKAGE_DEFIN
 const previewPackageModelNodes = computed(() => {
   const baseModel = model.value
   if (!baseModel) return []
-  const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  const chosenPart = !isEditingSavedComponent.value && selectedPartId.value
+    ? findPreviewPart(selectedPartId.value)
+    : undefined
   const activeRoot = chosenPart?.object ?? baseModel
   const result = previewParts.value
     .filter(part => part.object !== activeRoot && isDescendantOf(part.object, activeRoot))
@@ -298,7 +300,9 @@ const filteredPreviewParts = computed(() => {
 })
 const previewComponentDimensions = computed(() => {
   if (!model.value) return { x: 0, y: 0, z: 0 }
-  const selectedPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  const selectedPart = !isEditingSavedComponent.value && selectedPartId.value
+    ? findPreviewPart(selectedPartId.value)
+    : undefined
   if (selectedPart) {
     const bounds = new THREE.Box3().setFromObject(selectedPart.object)
     if (!bounds.isEmpty()) {
@@ -707,7 +711,9 @@ function updateColliderPreview() {
   )
   colliderPreview.name = 'import-collider-preview'
   colliderPreview.renderOrder = 1000
-  const selectedPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  const selectedPart = !isEditingSavedComponent.value && selectedPartId.value
+    ? findPreviewPart(selectedPartId.value)
+    : undefined
   if (selectedPart) {
     const partBounds = new THREE.Box3().setFromObject(selectedPart.object)
     if (!partBounds.isEmpty()) colliderPreview.position.copy(partBounds.getCenter(new THREE.Vector3()))
@@ -886,8 +892,10 @@ function setColliderFromPreviewPart(part: { id: string; name: string; object: TH
 function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (soloPartId.value) restorePreviewVisibility()
   selectedPartId.value = part.id
-  componentName.value = part.name
-  setColliderFromPreviewPart(part)
+  if (!props.initialAsset) {
+    componentName.value = part.name
+    setColliderFromPreviewPart(part)
+  }
   fitCamera(part.object)
   updateColliderPreview()
 }
@@ -913,8 +921,10 @@ function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Obj
     })
     soloPartId.value = part.id
     selectedPartId.value = part.id
-    componentName.value = part.name
-    setColliderFromPreviewPart(part)
+    if (!props.initialAsset) {
+      componentName.value = part.name
+      setColliderFromPreviewPart(part)
+    }
     fitCamera(part.object)
     updateColliderPreview()
   }
@@ -2073,7 +2083,9 @@ async function confirmImport() {
   loading.value = true
   error.value = ''
   try {
-    const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+    const chosenPart = !props.initialAsset && selectedPartId.value
+      ? findPreviewPart(selectedPartId.value)
+      : undefined
     const chosenName = componentName.value.trim() || chosenPart?.name || root.name.trim() || 'Modelo 3D'
     let imported: THREE.Object3D
     let importedHeight = modelHeight.value
