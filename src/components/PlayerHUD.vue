@@ -187,6 +187,49 @@ const veilborneSigilOptions = [
   { id: 'slow_field', label: 'Círculo de Lentidão' },
   { id: 'silence_seal', label: 'Selo do Silêncio' },
 ]
+type VeilborneArchetypeId = 'veil_duelist' | 'rune_scholar' | 'blood_adept' | 'oathbreaker'
+const veilborneArchetypes: Array<{
+  id: VeilborneArchetypeId
+  label: string
+  description: string
+  attributes: Record<string, number>
+  weapon: string
+  spells: string[]
+  sigils: string[]
+}> = [
+  {
+    id: 'veil_duelist', label: 'Duelista do Véu', description: 'Combate ágil com espada e magia arcana.',
+    attributes: { forca: 12, destreza: 15, intelecto: 9, vontade: 10, resistencia: 12 },
+    weapon: 'starter_arcane_sword',
+    spells: ['arcane_bolt', 'blink_step', 'frost_chain', 'blood_siphon'],
+    sigils: ['ward', 'hunter_mark', 'blast', 'slow_field'],
+  },
+  {
+    id: 'rune_scholar', label: 'Erudito Rúnico', description: 'Conjurador de alto poder mágico e grande éter.',
+    attributes: { forca: 7, destreza: 10, intelecto: 16, vontade: 14, resistencia: 9 },
+    weapon: 'starter_rune_staff',
+    spells: ['arcane_bolt', 'cinder_burst', 'frost_chain', 'storm_lance'],
+    sigils: ['ward', 'blast', 'slow_field', 'silence_seal'],
+  },
+  {
+    id: 'blood_adept', label: 'Adepto Rubro', description: 'Dreno vital, sangue e mobilidade sobrenatural.',
+    attributes: { forca: 10, destreza: 11, intelecto: 12, vontade: 16, resistencia: 11 },
+    weapon: 'hunters_dagger',
+    spells: ['blood_siphon', 'blink_step', 'arcane_bolt', 'frost_chain'],
+    sigils: ['hunter_mark', 'silence_seal', 'ward', 'blast'],
+  },
+  {
+    id: 'oathbreaker', label: 'Quebrajuramentos', description: 'Arma pesada, resistência e dano de postura.',
+    attributes: { forca: 17, destreza: 9, intelecto: 8, vontade: 10, resistencia: 15 },
+    weapon: 'oathbreaker_greatsword',
+    spells: ['storm_lance', 'arcane_bolt', 'cinder_burst', 'blink_step'],
+    sigils: ['ward', 'blast', 'hunter_mark', 'slow_field'],
+  },
+]
+const selectedVeilborneArchetype = ref<string>('custom')
+watch(() => props.gameVariables.arquetipo, value => {
+  if (typeof value === 'string') selectedVeilborneArchetype.value = value
+})
 const veilborneAttributes = computed(() => [
   { key: 'forca', label: 'Força' },
   { key: 'destreza', label: 'Destreza' },
@@ -224,6 +267,18 @@ function setVeilborneSigilSlot(slot: number, value: string): void {
   if (Number(props.gameVariables.sigilo_selecionado ?? 1) === slot) {
     setLoadoutValue('sigilo_ativo', value)
   }
+}
+
+function applyVeilborneArchetype(): void {
+  const archetype = veilborneArchetypes.find(item => item.id === selectedVeilborneArchetype.value)
+  if (!archetype) return
+  setLoadoutValue('arquetipo', archetype.id)
+  for (const [name, value] of Object.entries(archetype.attributes)) setLoadoutValue(name, value)
+  setLoadoutValue('arma_equipada', archetype.weapon)
+  archetype.spells.forEach((spell, index) => setLoadoutValue('magia_' + (index + 1), spell))
+  archetype.sigils.forEach((sigil, index) => setLoadoutValue('sigilo_' + (index + 1), sigil))
+  setLoadoutValue('sigilo_selecionado', 1)
+  setLoadoutValue('sigilo_ativo', archetype.sigils[0] ?? 'ward')
 }
 
 function spendVeilborneAttributePoint(name: string): void {
@@ -1113,6 +1168,20 @@ function resetSettings() {
         </div>
       </div>
 
+      <div class="veilborne-archetype-block">
+        <label class="veilborne-loadout-field">
+          <span>Arquétipo</span>
+          <select v-model="selectedVeilborneArchetype">
+            <option value="custom">Personalizado / atual</option>
+            <option v-for="item in veilborneArchetypes" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </label>
+        <p v-if="veilborneArchetypes.find(item => item.id === selectedVeilborneArchetype)" class="veilborne-archetype-description">
+          {{ veilborneArchetypes.find(item => item.id === selectedVeilborneArchetype)?.description }}
+        </p>
+        <button type="button" class="veilborne-archetype-apply" :disabled="selectedVeilborneArchetype === 'custom'" @click="applyVeilborneArchetype">Aplicar perfil</button>
+      </div>
+
       <label class="veilborne-loadout-field">
         <span>Arma equipada</span>
         <select :value="String(gameVariables.arma_equipada ?? 'starter_arcane_sword')" @change="setLoadoutValue('arma_equipada', ($event.target as HTMLSelectElement).value)">
@@ -1470,6 +1539,10 @@ function resetSettings() {
 .veilborne-loadout-resources small,.veilborne-loadout-resources strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .veilborne-loadout-resources small { color:#ad9da8; font-size:9px; letter-spacing:.1em; }
 .veilborne-loadout-resources strong { margin-top:3px; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-archetype-block { margin:10px 0 3px; padding:10px; border:1px solid #ffffff16; border-radius:6px; background:#ffffff04; }
+.veilborne-archetype-description { margin:3px 0 8px; color:#9d8f99; font-size:10px; line-height:1.4; }
+.veilborne-archetype-apply { width:100%; padding:8px 10px; border:1px solid #bb7895; border-radius:5px; color:#f8dfeb; background:#7b3d5d35; font-size:11px; font-weight:700; cursor:pointer; }
+.veilborne-archetype-apply:disabled { opacity:.35; cursor:not-allowed; }
 .veilborne-loadout-field { display:grid; grid-template-columns:minmax(76px,100px) 1fr; align-items:center; gap:10px; margin:7px 0; font-size:11px; color:#d8cbd2; }
 .veilborne-loadout-field select { width:100%; min-width:0; border:1px solid #ffffff1f; border-radius:5px; padding:7px 8px; outline:none; color:#f1e6ed; background:#201a26; font:inherit; }
 .veilborne-loadout-field select:focus { border-color:#ce8fab; box-shadow:0 0 0 2px #ce8fab25; }
