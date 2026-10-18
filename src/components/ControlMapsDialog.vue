@@ -29,6 +29,8 @@ const actions: Array<{ key: ActionKey; label: string; group: ActionGroup }> = [
   { key: 'dodge', label: 'Esquiva rápida', group: 'Postura e manobras' },
   { key: 'slide', label: 'Deslizar', group: 'Postura e manobras' },
   { key: 'roll', label: 'Rolamento evasivo', group: 'Postura e manobras' },
+  { key: 'block', label: 'Bloquear / defender', group: 'Combate' },
+  { key: 'parry', label: 'Aparo no tempo certo', group: 'Combate' },
   { key: 'interact', label: 'Interagir / montar / desmontar', group: 'Ações' },
   { key: 'primaryAction', label: 'Ação principal (gatilho de evento)', group: 'Ações' },
   { key: 'secondaryAction', label: 'Ação secundária (gatilho de evento)', group: 'Ações' },
@@ -53,7 +55,7 @@ const activeProfile = computed(() =>
 const nameDraft = ref('')
 const capturingAction = ref<ActionKey | null>(null)
 const message = ref('')
-type ActionGroup = 'Movimento' | 'Postura e manobras' | 'Ações' | 'Câmera e jogo'
+type ActionGroup = 'Movimento' | 'Postura e manobras' | 'Combate' | 'Ações' | 'Câmera e jogo'
 const activeGroup = ref<ActionGroup>('Movimento')
 const groupedActions = computed(() => actions.filter(action => action.group === activeGroup.value))
 
@@ -64,7 +66,7 @@ watch(() => props.settings.activeProfileId, () => {
 }, { immediate: true })
 
 function selectGroup(group: string) {
-  if (group === 'Movimento' || group === 'Postura e manobras' || group === 'Ações' || group === 'Câmera e jogo') {
+  if (group === 'Movimento' || group === 'Postura e manobras' || group === 'Combate' || group === 'Ações' || group === 'Câmera e jogo') {
     activeGroup.value = group
   }
 }
@@ -268,7 +270,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       </div>
 
       <nav class="control-tabs" aria-label="Categorias de comandos">
-        <button v-for="group in ['Movimento', 'Postura e manobras', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" :title="`Mostra os vínculos de teclado de: ${group.toLocaleLowerCase('pt-BR')}.`" @click="selectGroup(group)">
+        <button v-for="group in ['Movimento', 'Postura e manobras', 'Combate', 'Ações', 'Câmera e jogo']" :key="group" :class="{ active: activeGroup === group }" :title="`Mostra os vínculos de teclado de: ${group.toLocaleLowerCase('pt-BR')}.`" @click="selectGroup(group)">
           {{ group }}
         </button>
       </nav>
