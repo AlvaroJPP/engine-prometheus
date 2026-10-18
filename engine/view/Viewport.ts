@@ -31,6 +31,10 @@ export class Viewport {
   private onResize: (aspect: number) => void
   private frame = 0
   private performancePreset: PerformancePreset = 'quality'
+  /** null follows the active profile's render scale. */
+  private resolutionScaleOverride: number | null = null
+  /** null follows the active profile's frame rate. */
+  private fpsLimitOverride: number | null = null
   private nextRenderAt = 0
   private dirty = true
   private hasRenderedCamera = false
@@ -84,6 +88,38 @@ export class Viewport {
     this.invalidate()
   }
 
+  /** Independent resolution scale and FPS cap; null follows the active profile. */
+  setRenderOptions(options: { resolutionScale?: number | null; fpsLimit?: number | null }): void {
+    let changed = false
+    if (options.resolutionScale !== undefined) {
+      const next = options.resolutionScale === null
+        ? null
+        : Number.isFinite(options.resolutionScale)
+          ? Math.max(0.5, Math.min(1.25, options.resolutionScale))
+          : this.resolutionScaleOverride
+      if (next !== this.resolutionScaleOverride) {
+        this.resolutionScaleOverride = next
+        changed = true
+      }
+    }
+    if (options.fpsLimit !== undefined) {
+      const next = options.fpsLimit === null
+        ? null
+        : Number.isFinite(options.fpsLimit)
+          ? Math.round(Math.max(15, Math.min(240, options.fpsLimit)))
+          : this.fpsLimitOverride
+      if (next !== this.fpsLimitOverride) {
+        this.fpsLimitOverride = next
+        changed = true
+      }
+    }
+    if (!changed) return
+    this.nextRenderAt = 0
+    this.applyPixelRatio()
+    this.resize()
+    this.invalidate()
+  }
+
   /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
     this.setPerformancePreset(enabled ? 'economy' : 'quality')
@@ -92,7 +128,8 @@ export class Viewport {
   private applyPixelRatio(): void {
     const deviceRatio = window.devicePixelRatio || 1
     const maxRatio = this.performancePreset === 'quality' ? 2 : this.performancePreset === 'balanced' ? 1.7 : 1.5
-    const ratio = Math.min(deviceRatio * RESOLUTION_SCALE[this.performancePreset], maxRatio)
+    const resolutionScale = this.resolutionScaleOverride ?? RESOLUTION_SCALE[this.performancePreset]
+    const ratio = Math.min(deviceRatio * resolutionScale, maxRatio)
     this.renderer.setPixelRatio(ratio)
   }
 
@@ -163,7 +200,9 @@ export class Viewport {
     if (cameraChanged) this.dirty = true
     if (!force && !this.dirty) return false
 
-    const interval = FRAME_INTERVAL_MS[this.performancePreset]
+    const interval = this.fpsLimitOverride === null
+      ? FRAME_INTERVAL_MS[this.performancePreset]
+      : 1000 / this.fpsLimitOverride
     if (this.nextRenderAt !== 0 && now + 0.25 < this.nextRenderAt) return false
 
     const renderStartedAt = performance.now()
