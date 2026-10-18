@@ -42,6 +42,8 @@ export type RetargetAnimationResult = {
   conflictingTracks: string[]
   invalidTracks: string[]
   collapsedTracks: string[]
+  /** Trilhas de escala inseguras foram preservadas na escala original do rig de destino. */
+  unsafeScaleTracks: string[]
 }
 
 export type TransformTrackPath = {
@@ -189,6 +191,7 @@ export function retargetAnimationClip(
   const conflictingTracks: string[] = []
   const invalidTracks: string[] = []
   const collapsedTracks: string[] = []
+  const unsafeScaleTracks: string[] = []
   const collapsedSources = new Set(collapsedSourceNames)
   const claimedTargets = new Set<string>()
   const quaternionGroups = new Map<string, {
@@ -286,6 +289,25 @@ export function retargetAnimationClip(
       } else {
         const sourceRestScale = safeRestVector(sourceRest.scale, new THREE.Vector3(1, 1, 1))
         const targetRestScale = targetBone.scale.clone()
+        const scaleRatiosAreSafe = (rest: number, animated: number): boolean => {
+          const ratio = Math.abs(rest) > 1e-6 ? animated / rest : 1
+          // Escala nula/negativa ou extrema numa junta pode colapsar uma malha
+          // inteira ligada à pelve/pernas. Em retargeting entre rigs diferentes,
+          // é mais seguro manter a escala original do destino do que propagar
+          // essa deformação da origem.
+          return Number.isFinite(ratio) && ratio >= 0.05 && ratio <= 8
+        }
+        let unsafeScale = false
+        for (let frame = 0; frame < times.length && !unsafeScale; frame += 1) {
+          const offset = frame * 3
+          unsafeScale = !scaleRatiosAreSafe(sourceRestScale.x, sourceValues[offset]!) ||
+            !scaleRatiosAreSafe(sourceRestScale.y, sourceValues[offset + 1]!) ||
+            !scaleRatiosAreSafe(sourceRestScale.z, sourceValues[offset + 2]!)
+        }
+        if (unsafeScale) {
+          skipTrack(track, unsafeScaleTracks)
+          continue
+        }
         for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
           const ratioX = Math.abs(sourceRestScale.x) > 1e-6 ? sourceValues[offset]! / sourceRestScale.x : 1
@@ -395,6 +417,7 @@ export function retargetAnimationClip(
     conflictingTracks,
     invalidTracks,
     collapsedTracks,
+    unsafeScaleTracks,
   }
 }
 
