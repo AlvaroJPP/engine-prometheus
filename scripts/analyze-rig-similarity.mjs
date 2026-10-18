@@ -2,7 +2,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import * as THREE from 'three'
-import { rankTargetBoneCandidates, suggestTargetBoneMappings } from '../src/lib/animation/AnimationRetargeting.ts'
+import { rankTargetBoneCandidates, suggestAutonomousBoneMappings, suggestTargetBoneMappings } from '../src/lib/animation/AnimationRetargeting.ts'
 
 const TRANSFORM_PATHS = new Set(['translation', 'rotation', 'scale'])
 
@@ -337,7 +337,24 @@ function runSelfTest() {
       throw new Error(`Self-test estrutural falhou: ${sourceName} esperava ${targetName}, recebeu ${genericMap[sourceName] ?? 'sem mapeamento'}.`)
     }
   }
-  console.log('OK: mapeamento semântico, espacial e estrutural de rigs passou.')
+  const rootSource = makeTestRig('root-source', [
+    { name: 'Root', position: [0, 0, 0] },
+    { name: 'Arm.L', position: [-0.25, 0.5, 0], parent: 'Root' },
+  ])
+  const rootTarget = makeTestRig('root-target', [
+    { name: 'pelvis', position: [0, 0, 0] },
+    { name: 'upper_arm_l', position: [-0.2, 0.45, 0], parent: 'pelvis' },
+  ])
+  const autonomousMap = suggestAutonomousBoneMappings(
+    ['Root', 'Arm.L'],
+    rootTarget.bones,
+    rootSource.root,
+    rootTarget.root,
+  )
+  if (autonomousMap.Root !== 'pelvis' || autonomousMap['Arm.L'] !== 'upper_arm_l') {
+    throw new Error(`Self-test autônomo falhou: esperava Root→pelvis e Arm.L→upper_arm_l; recebeu ${JSON.stringify(autonomousMap)}.`)
+  }
+  console.log('OK: mapeamento semântico, espacial, estrutural e fallback autônomo de rigs passou.')
 }
 
 async function main() {

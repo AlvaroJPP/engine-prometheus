@@ -28,6 +28,10 @@ export type RetargetAnimationResult = {
   clip: THREE.AnimationClip
   mappedTracks: number
   skippedTracks: string[]
+  unmappedTracks: string[]
+  unsupportedTracks: string[]
+  conflictingTracks: string[]
+  invalidTracks: string[]
 }
 
 export type TransformTrackPath = {
@@ -158,12 +162,20 @@ export function retargetAnimationClip(
   )
   const tracks: THREE.KeyframeTrack[] = []
   const skippedTracks: string[] = []
+  const unmappedTracks: string[] = []
+  const unsupportedTracks: string[] = []
+  const conflictingTracks: string[] = []
+  const invalidTracks: string[] = []
   const claimedTargets = new Set<string>()
+  const skipTrack = (track: THREE.KeyframeTrack, category: string[]) => {
+    skippedTracks.push(track.name)
+    category.push(track.name)
+  }
 
   for (const track of sourceClip.tracks) {
     const path = getTransformTrackPath(track)
     if (!path) {
-      skippedTracks.push(track.name)
+      skipTrack(track, unsupportedTracks)
       continue
     }
 
@@ -171,14 +183,14 @@ export function retargetAnimationClip(
     const targetBone = targetName ? targetByName.get(targetName) : undefined
     const sourceRest = asset.sourcePose[path.nodeName]
     if (!targetBone || !sourceRest) {
-      skippedTracks.push(track.name)
+      skipTrack(track, unmappedTracks)
       continue
     }
 
     const targetTrackName = `${targetBone.name}.${path.property}`
     // Avoid two source nodes writing to the same target property during one clip.
     if (claimedTargets.has(targetTrackName)) {
-      skippedTracks.push(track.name)
+      skipTrack(track, conflictingTracks)
       continue
     }
     claimedTargets.add(targetTrackName)
@@ -186,8 +198,9 @@ export function retargetAnimationClip(
     const times = Array.from(track.times)
     const sourceValues = Array.from(track.values as ArrayLike<number>)
     const stride = track.getValueSize()
-    if (!times.length || stride <= 0 || sourceValues.length !== times.length * stride) {
-      skippedTracks.push(track.name)
+    if (!times.length || stride <= 0 || sourceValues.length !== times.length * stride ||
+        times.some(time => !Number.isFinite(time)) || sourceValues.some(value => !Number.isFinite(value))) {
+      skipTrack(track, invalidTracks)
       continue
     }
 
@@ -256,7 +269,7 @@ export function retargetAnimationClip(
       continue
     }
 
-    skippedTracks.push(track.name)
+    skipTrack(track, unsupportedTracks)
   }
 
   if (!tracks.length) {
@@ -264,7 +277,15 @@ export function retargetAnimationClip(
   }
 
   const retargeted = new THREE.AnimationClip(name.trim() || sourceClip.name || asset.name, sourceClip.duration, tracks)
-  return { clip: retargeted, mappedTracks: tracks.length, skippedTracks }
+  return {
+    clip: retargeted,
+    mappedTracks: tracks.length,
+    skippedTracks,
+    unmappedTracks,
+    unsupportedTracks,
+    conflictingTracks,
+    invalidTracks,
+  }
 }
 
 type BoneNameSignature = {
@@ -566,7 +587,9 @@ function scoreBonePair(
   const limbRoles = new Set(['shoulder', 'upper_arm', 'lower_arm', 'hand', 'thigh', 'lower_leg', 'leg', 'foot', 'toe'])
   const crossAnatomyLimb = source.role && target.role && source.role !== target.role &&
     limbRoles.has(source.role) && limbRoles.has(target.role)
-  if (source.role && target.role && source.role !== target.role && !crossAnatomyLimb) {
+  const rootPelvisPair = source.role && target.role && source.role !== target.role &&
+    ['root', 'pelvis'].includes(source.role) && ['root', 'pelvis'].includes(target.role)
+  if (source.role && target.role && source.role !== target.role && !crossAnatomyLimb && !rootPelvisPair) {
     // Não confunde cabeça/coluna/cauda entre si, mas permite transferir movimento
     // entre segmentos de membros em esqueletos de anatomias diferentes.
     return Number.NEGATIVE_INFINITY
@@ -576,6 +599,7 @@ function scoreBonePair(
   if (source.normalized === target.normalized || source.compact === target.compact) score += 120
   if (source.role && source.role === target.role) score += 72
   else if (crossAnatomyLimb) score += 26
+  else if (rootPelvisPair) score += 20
   else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
 
   if (source.side && target.side && source.side === target.side) score += 24
@@ -728,6 +752,136 @@ export function suggestTargetBoneMappings(
     result[proposal.sourceName] = proposal.targetName
     claimedSources.add(proposal.sourceName)
     claimedTargets.add(proposal.targetName)
+  }
+  return result
+}
+
+
+/**
+ * Starts with conservative semantic mappings, then fills safe gaps using mapped
+ * parent branches as an anchor. It never reuses a target bone or bypasses hard
+ * side/anatomy constraints.
+ */
+export function suggestAutonomousBoneMappings(
+  sourceNames: string[],
+  targetBones: THREE.Bone[],
+  sourceRoot?: THREE.Object3D | null,
+  targetRoot?: THREE.Object3D | null,
+): Record<string, string> {
+  const result = suggestTargetBoneMappings(sourceNames, targetBones, sourceRoot, targetRoot)
+  if (!sourceRoot || !targetRoot || !sourceNames.length || !targetBones.length) return result
+
+  const claimedTargets = new Set(Object.values(result))
+  const targetByName = new Map<string, THREE.Bone>()
+  for (const bone of targetBones) if (!targetByName.has(bone.name)) targetByName.set(bone.name, bone)
+
+  const sourceNodeByName = new Map<string, THREE.Object3D>()
+  const sourceNameByNode = new Map<THREE.Object3D, string>()
+  const sourceDepthByName = new Map<string, number>()
+  for (const name of sourceNames) {
+    const node = findAnimationNode(sourceRoot, name)
+    if (!node) continue
+    sourceNodeByName.set(name, node)
+    if (!sourceNameByNode.has(node)) sourceNameByNode.set(node, name)
+    let depth = 0
+    let ancestor = node.parent
+    while (ancestor && ancestor !== sourceRoot) {
+      depth += 1
+      ancestor = ancestor.parent
+    }
+    sourceDepthByName.set(name, depth)
+  }
+
+  const nearestMappedSourceAncestor = (node: THREE.Object3D | undefined) => {
+    let ancestor = node?.parent ?? null
+    while (ancestor && ancestor !== sourceRoot) {
+      const sourceName = sourceNameByNode.get(ancestor)
+      const targetName = sourceName ? result[sourceName] : undefined
+      const targetBone = targetName ? targetByName.get(targetName) : undefined
+      if (sourceName && targetBone) return { sourceName, targetBone }
+      ancestor = ancestor.parent
+    }
+    return null
+  }
+  const distanceFromTargetAncestor = (node: THREE.Object3D, ancestor: THREE.Object3D): number | null => {
+    let current: THREE.Object3D | null = node
+    let distance = 0
+    while (current) {
+      if (current === ancestor) return distance
+      current = current.parent
+      distance += 1
+    }
+    return null
+  }
+
+  const ranking = rankTargetBoneCandidates(sourceNames, targetBones, sourceRoot, targetRoot)
+  const sourceSignatureByName = new Map<string, BoneNameSignature>(
+    sourceNames.map(name => [name, signatureForBoneName(name)] as const),
+  )
+  const limbRoles = new Set(['shoulder', 'upper_arm', 'lower_arm', 'hand', 'thigh', 'lower_leg', 'leg', 'foot', 'toe'])
+  const maxPasses = Math.min(sourceNames.length, targetBones.length)
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let addedThisPass = false
+    const pending = sourceNames
+      .filter(name => !result[name])
+      .sort((a, b) => (sourceDepthByName.get(a) ?? 0) - (sourceDepthByName.get(b) ?? 0))
+
+    for (const sourceName of pending) {
+      const sourceSignature = sourceSignatureByName.get(sourceName)!
+      const mappedAncestor = nearestMappedSourceAncestor(sourceNodeByName.get(sourceName))
+      const candidates = (ranking[sourceName] ?? [])
+        .filter(candidate => !claimedTargets.has(candidate.targetName))
+        .map(candidate => {
+          const targetBone = targetByName.get(candidate.targetName)
+          if (!targetBone) return null
+          const targetSignature = signatureForBoneName(candidate.targetName)
+          const sameRole = !!sourceSignature.role && sourceSignature.role === targetSignature.role
+          const crossLimb = !!sourceSignature.role && !!targetSignature.role &&
+            sourceSignature.role !== targetSignature.role &&
+            limbRoles.has(sourceSignature.role) && limbRoles.has(targetSignature.role)
+          const rootPelvis = !!sourceSignature.role && !!targetSignature.role &&
+            sourceSignature.role !== targetSignature.role &&
+            ['root', 'pelvis'].includes(sourceSignature.role) &&
+            ['root', 'pelvis'].includes(targetSignature.role)
+
+          let hierarchyBonus = 0
+          if (mappedAncestor) {
+            const targetGap = distanceFromTargetAncestor(targetBone, mappedAncestor.targetBone)
+            if (targetGap === null || targetGap === 0) hierarchyBonus -= 28
+            else hierarchyBonus += Math.max(12, 34 - Math.max(0, targetGap - 1) * 3)
+          }
+
+          let minimumScore = 19
+          if (sameRole) minimumScore = 40
+          else if (crossLimb || rootPelvis) minimumScore = 25
+          else if (!sourceSignature.role || !targetSignature.role) minimumScore = mappedAncestor ? 13 : 19
+
+          return {
+            targetName: candidate.targetName,
+            score: candidate.score + hierarchyBonus,
+            exactName: candidate.exactName,
+            minimumScore,
+            hasParentAnchor: !!mappedAncestor,
+          }
+        })
+        .filter(candidate => candidate !== null)
+        .filter(candidate => candidate.score >= candidate.minimumScore)
+        .sort((a, b) => b.score - a.score || a.targetName.localeCompare(b.targetName))
+
+      const best = candidates[0]
+      if (!best) continue
+      const second = candidates[1]
+      const margin = best.score - (second?.score ?? Number.NEGATIVE_INFINITY)
+      const requiredMargin = best.hasParentAnchor ? 3 : 7
+      if (!best.exactName && second && margin < requiredMargin) continue
+
+      result[sourceName] = best.targetName
+      claimedTargets.add(best.targetName)
+      addedThisPass = true
+    }
+
+    if (!addedThisPass) break
   }
   return result
 }

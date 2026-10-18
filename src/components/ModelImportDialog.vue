@@ -18,6 +18,7 @@ import {
   getTransformTrackPath,
   parseReusableAnimationClip,
   retargetAnimationClip,
+  suggestAutonomousBoneMappings,
   suggestTargetBoneMappings,
 } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
@@ -2548,7 +2549,13 @@ function applyRetargetedAnimation() {
     previewAnimationIndex.value = newIndex
     refreshModelDiagnostics()
     selectPreviewAnimation(newIndex)
-    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) transferida(s)${result.skippedTracks.length ? `; ${result.skippedTracks.length} trilha(s) ignorada(s) por falta de mapeamento compatível` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
+    const skippedDetails = [
+      result.unmappedTracks.length ? `${result.unmappedTracks.length} sem osso de destino ou pose de repouso` : '',
+      result.unsupportedTracks.length ? `${result.unsupportedTracks.length} de tipo não suportado (por exemplo, morph targets)` : '',
+      result.conflictingTracks.length ? `${result.conflictingTracks.length} em conflito com outra trilha do mesmo osso` : '',
+      result.invalidTracks.length ? `${result.invalidTracks.length} com dados inválidos` : '',
+    ].filter(Boolean).join('; ')
+    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) transferida(s)${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferidas (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
   }
@@ -2632,7 +2639,7 @@ async function runAutonomousRetargeting() {
 
     retargetAutonomousStage.value = 'Etapa 2/3 · Relacionando ossos por anatomia, hierarquia e geometria'
     targetRoot.updateWorldMatrix(true, true)
-    const mapping = suggestTargetBoneMappings(
+    const mapping = suggestAutonomousBoneMappings(
       sourceNames,
       targetRig.bones,
       retargetSourceRoot.value,
@@ -2663,11 +2670,22 @@ async function runAutonomousRetargeting() {
 
     const transferReport = retargetMessage.value
     const coverage = Math.round((mappedNames.length / Math.max(1, sourceNames.length)) * 100)
-    retargetMessage.value = 'Fluxo autônomo concluído. '
+    const destinationUse = Math.round((new Set(Object.values(mapping)).size / Math.max(1, targetRig.bones.length)) * 100)
+    const destinationIsCapacityLimited = targetRig.bones.length < sourceNames.length &&
+      Object.values(mapping).length >= Math.floor(targetRig.bones.length * 0.9)
+    const qualityLead = coverage < 60 && !destinationIsCapacityLimited
+      ? 'Retargeting concluído com cobertura baixa; revise as associações antes de usar. '
+      : coverage < 80 && !destinationIsCapacityLimited
+        ? 'Retargeting concluído; a cobertura é parcial e precisa de revisão. '
+        : 'Fluxo autônomo concluído. '
+    const capacityNote = destinationIsCapacityLimited
+      ? 'O modelo A tem ' + targetRig.bones.length + ' ossos para ' + sourceNames.length + ' nós animados na origem; o destino está perto do limite de associações um-a-um (' + destinationUse + '% dos ossos do destino utilizados). '
+      : 'Foram utilizados ' + destinationUse + '% dos ossos disponíveis no destino. '
+    retargetMessage.value = qualityLead
       + (generatedRig ? 'A IA local gerou o rig e os pesos do modelo A; ' : 'O rig existente do modelo A foi mantido; ')
-      + mappedNames.length + '/' + sourceNames.length + ' ossos de origem mapeados (' + coverage + '%). '
-      + transferReport + ' Confira a prévia antes de confirmar a importação.'
-    retargetPreviewStatus.value = 'Fluxo autônomo concluído · ' + mappedNames.length + '/' + sourceNames.length + ' ossos associados. Confira a deformação do modelo A.'
+      + mappedNames.length + '/' + sourceNames.length + ' nós da origem mapeados (' + coverage + '%). '
+      + capacityNote + transferReport + ' Confira a prévia antes de confirmar a importação.'
+    retargetPreviewStatus.value = 'Retargeting concluído · ' + mappedNames.length + '/' + sourceNames.length + ' nós da origem associados (' + coverage + '%). Confira a deformação do modelo A.'
     retargetTargetPreviewPlaying.value = true
     await nextTick()
     refreshRetargetTargetPreview()
