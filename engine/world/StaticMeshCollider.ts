@@ -1,11 +1,24 @@
 import * as THREE from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
+export interface StaticMeshCollisionPart {
+  /** Nome da malha de origem (prédio, rua, calçada etc.). */
+  name: string
+  /** Intervalo de faces da peça na geometria compilada. */
+  firstIndex: number
+  indexCount: number
+  triangleCount: number
+  /** Limites locais usados para diagnóstico, seleção e broad phase por peça. */
+  localBounds: THREE.Box3
+}
+
 export interface StaticMeshCollisionData {
-  /** Malha consolidada no espaço local da raiz, com grupos de triângulos espaciais. */
+  /** Malha côncava consolidada no espaço local da raiz; não gera casco sólido. */
   geometry: THREE.BufferGeometry
   boundsTree: MeshBVH
   localBounds: THREE.Box3
+  /** Cada malha original continua registrada como uma peça de colisão independente. */
+  parts: StaticMeshCollisionPart[]
   partCount: number
   triangleCount: number
 }
@@ -131,16 +144,18 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
   const vertex = new THREE.Vector3()
   let vertexOffset = 0
   let indexOffset = 0
-  const partRanges: Array<{ name: string; firstIndex: number; indexCount: number }> = []
+  const colliderParts: StaticMeshCollisionPart[] = []
 
   for (const part of parts) {
     const firstIndex = indexOffset
+    const partBounds = new THREE.Box3()
     for (let index = 0; index < part.position.count; index += 1) {
       vertex.fromBufferAttribute(part.position, index).applyMatrix4(part.toRoot)
       const destination = (vertexOffset + index) * 3
       positions[destination] = vertex.x
       positions[destination + 1] = vertex.y
       positions[destination + 2] = vertex.z
+      partBounds.expandByPoint(vertex)
     }
 
     if (part.index) {
@@ -153,10 +168,13 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
       }
     }
 
-    partRanges.push({
+    const indexCount = indexOffset - firstIndex
+    colliderParts.push({
       name: part.mesh.name || part.mesh.uuid,
       firstIndex,
-      indexCount: indexOffset - firstIndex,
+      indexCount,
+      triangleCount: Math.floor(indexCount / 3),
+      localBounds: partBounds,
     })
     vertexOffset += part.position.count
   }
@@ -166,16 +184,24 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
   geometry.setIndex(new THREE.BufferAttribute(indices, 1))
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
-  // Os intervalos são mantidos para diagnóstico e para futura edição de
-  // colisores individuais por prédio/piso, sem criar objetos de cena extras.
-  geometry.userData.staticMeshPartRanges = partRanges
-  const boundsTree = new MeshBVH(geometry, { maxLeafSize: 12 })
+  // O modo indirect preserva o índice original das faces para que os intervalos
+  // de cada malha (prédio, piso, rua) continuem estáveis após construir o BVH.
+  geometry.userData.staticMeshPartRanges = colliderParts.map(part => ({
+    name: part.name,
+    firstIndex: part.firstIndex,
+    indexCount: part.indexCount,
+    triangleCount: part.triangleCount,
+    boundsMin: part.localBounds.min.toArray(),
+    boundsMax: part.localBounds.max.toArray(),
+  }))
+  const boundsTree = new MeshBVH(geometry, { maxLeafSize: 12, indirect: true })
   const compiled: CachedStaticMesh = {
     signature,
     geometry,
     boundsTree,
     localBounds: geometry.boundingBox?.clone() ?? new THREE.Box3(),
-    partCount: parts.length,
+    parts: colliderParts,
+    partCount: colliderParts.length,
     triangleCount,
   }
 
