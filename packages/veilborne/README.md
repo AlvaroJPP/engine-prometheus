@@ -16,10 +16,11 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 | Tecla | Ação VEILBORNE |
 |---|---|
 | F | Ataque rápido |
-| G | Ataque pesado |
+| G (segurar e soltar) | Carregar e executar ataque pesado |
 | 1–4 | Feitiços configurados em `magia_1` até `magia_4` |
 | T | Ciclar sigilo preparado |
 | H | Ativar sigilo selecionado |
+| O | Travar / destravar alvo hostil |
 | R (segurar) | Bloquear / defender |
 | Y | Aparo com janela de 0,2 s |
 | V | Esquiva rápida (custo de vigor) |
@@ -31,14 +32,15 @@ As teclas são remapeáveis em **Configurações → Mapas de controles**. O run
 ## Sistemas conectados
 
 - **Personagem/alvo:** instale `VEILBORNE — RPG Sombrio` no objeto que deve participar do combate. Alvos com pacote ativo e `faction=hostile` (ou sem facção definida) recebem dano e podem executar IA. `neutral` e `player` excluem o objeto da lista de inimigos.
-- **Combate físico:** ataques rápidos e pesados, custos de vigor, alcance/direção aproximados, escalamento por atributos, dano de postura e golpes críticos em inimigos próximos da quebra de postura.
+- **Combate físico:** ataques rápidos e pesados, custos de vigor, alcance/direção aproximados, escalamento por atributos, dano de postura e golpes críticos em inimigos próximos da quebra de postura. Segurar G acumula carga por até 2 segundos; soltar executa o golpe com bônus de dano/postura e maior custo/recarga.
 - **Magias:** quatro slots, custo de éter, tempo de conjuração, recarga, dano único/área e resistências elementais. Dreno Rubro recupera parte do dano causado; Passo Entre Véus usa raycast para limitar o deslocamento.
 - **Sigilos:** Selo Guardião, Selo de Ruptura, Marca do Caçador, Círculo de Lentidão e Selo do Silêncio. Armadilhas no terreno ativam quando um hostil entra no raio; Marca do Caçador aumenta em 20% o dano recebido pelo alvo marcado.
+- **Travamento de alvo:** O seleciona o inimigo hostil à frente mais adequado e mantém um marcador visual. Ataques e magias priorizam esse inimigo enquanto estiver ao alcance; O novamente destrava. O personagem vira para o alvo enquanto o travamento estiver ativo.
 - **IA hostil inicial:** perfis `melee`, `ranged_caster`, `flanker`, `guard_breaker` e `boss_phases`. A IA detecta o jogador por distância, persegue ou mantém distância de conjurador, ataca com recarga e tipo de dano configuráveis, muda de estado, dispara eventos de pacote e toca `primary_action` ou `ability_1` quando há clipe mapeado. Chefes mudam o multiplicador de dano em 60% e 25% de vida. `ai_enabled` liga/desliga a IA; `ai_profile` escolhe o perfil; ative `ai_custom_stats` para usar os campos editáveis de alcance, velocidade, dano e recarga.
 - **Bloqueio e aparo:** segurar bloqueio reduz o dano restante e consome vigor. O aparo tem uma janela de 0,2 s, custa vigor, nega um ataque e gera um contra-ataque calculado pela arma equipada. O Selo Guardião absorve uma quantidade limitada de dano.
 - **Quebra de postura:** ataques podem encher a postura. Ao quebrar a postura de inimigos, eles ficam atordoados por 1,15 s e a postura é reiniciada; quando a postura do jogador quebra, o movimento e as ações são bloqueados por 0,85 s.
 - **Manobras:** esquiva (22 vigor), rolamento (30) e deslize (24) consultam recursos enquanto o VEILBORNE está ativo.
-- **Recursos e HUD:** variáveis globais incluem `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos, resistências e estados de combate. Podem alimentar o HUD e o Visual Script.
+- **Recursos e HUD:** variáveis globais incluem `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos, resistências, `alvo_travado`, `carregando_ataque` e `carga_ataque`, além dos estados de combate. Podem alimentar o HUD e o Visual Script.
 - **Dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` resolve resistência elemental, escudo, bloqueio, aparo e morte; a IA inicial já usa essa entrada.
 
 ## Limitações atuais
