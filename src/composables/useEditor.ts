@@ -81,6 +81,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const performanceMode = ref<PerformancePreset>('quality')
   const renderDistance = ref(72)
   const renderAll = ref(false)
+  // Zero follows the active performance profile.
+  const renderResolutionScale = ref(0)
+  const renderFpsLimit = ref(0)
+  const renderFogEnabled = ref(true)
+  const renderFogDistanceScale = ref(1)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
   const skyTextureDataUrl = ref('')
@@ -387,6 +392,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       window.localStorage.setItem(RENDER_SETTINGS_KEY, JSON.stringify({
         distance: renderDistance.value,
         renderAll: renderAll.value,
+        resolutionScale: renderResolutionScale.value,
+        fpsLimit: renderFpsLimit.value,
+        fogEnabled: renderFogEnabled.value,
+        fogDistanceScale: renderFogDistanceScale.value,
       }))
     } catch (error) {
       console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização.', error)
@@ -406,17 +415,66 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     persistRenderSettings()
   }
 
+  function setRenderResolutionScale(value: number) {
+    if (!Number.isFinite(value)) return
+    const next = value === 0 ? 0 : Math.round(Math.max(0.5, Math.min(1.25, value)) * 100) / 100
+    renderResolutionScale.value = next
+    engine?.setRenderOptions({ resolutionScale: next === 0 ? null : next })
+    persistRenderSettings()
+  }
+
+  function setRenderFpsLimit(value: number) {
+    if (!Number.isFinite(value)) return
+    const allowed = [0, 30, 45, 60, 90, 120]
+    const next = allowed.includes(value) ? value : 0
+    renderFpsLimit.value = next
+    engine?.setRenderOptions({ fpsLimit: next === 0 ? null : next })
+    persistRenderSettings()
+  }
+
+  function setRenderFogEnabled(enabled: boolean) {
+    renderFogEnabled.value = enabled
+    engine?.setFogEnabled(enabled)
+    persistRenderSettings()
+  }
+
+  function setRenderFogDistanceScale(value: number) {
+    if (!Number.isFinite(value)) return
+    renderFogDistanceScale.value = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100
+    engine?.setFogDistanceScale(renderFogDistanceScale.value)
+    persistRenderSettings()
+  }
+
   function loadRenderSettings() {
     try {
       const raw = window.localStorage.getItem(RENDER_SETTINGS_KEY) ?? window.localStorage.getItem(LEGACY_GRASS_RENDER_SETTINGS_KEY)
       if (!raw) return
       const parsed: unknown = JSON.parse(raw)
       if (!parsed || typeof parsed !== 'object') return
-      const settings = parsed as { distance?: unknown; renderAll?: unknown }
+      const settings = parsed as {
+        distance?: unknown
+        renderAll?: unknown
+        resolutionScale?: unknown
+        fpsLimit?: unknown
+        fogEnabled?: unknown
+        fogDistanceScale?: unknown
+      }
       if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
         renderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
       }
       if (typeof settings.renderAll === 'boolean') renderAll.value = settings.renderAll
+      if (typeof settings.resolutionScale === 'number' && Number.isFinite(settings.resolutionScale)) {
+        renderResolutionScale.value = settings.resolutionScale === 0
+          ? 0
+          : Math.round(Math.max(0.5, Math.min(1.25, settings.resolutionScale)) * 100) / 100
+      }
+      if (typeof settings.fpsLimit === 'number' && [0, 30, 45, 60, 90, 120].includes(settings.fpsLimit)) {
+        renderFpsLimit.value = settings.fpsLimit
+      }
+      if (typeof settings.fogEnabled === 'boolean') renderFogEnabled.value = settings.fogEnabled
+      if (typeof settings.fogDistanceScale === 'number' && Number.isFinite(settings.fogDistanceScale)) {
+        renderFogDistanceScale.value = Math.round(Math.max(0.5, Math.min(2, settings.fogDistanceScale)) * 100) / 100
+      }
       // Migra as preferências antigas, salvas como renderização somente da grama.
       if (
         window.localStorage.getItem(RENDER_SETTINGS_KEY) === null
@@ -512,6 +570,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     })
     loadRenderSettings()
     e.setRenderDistance(renderAll.value ? null : renderDistance.value)
+    e.setRenderOptions({
+      resolutionScale: renderResolutionScale.value === 0 ? null : renderResolutionScale.value,
+      fpsLimit: renderFpsLimit.value === 0 ? null : renderFpsLimit.value,
+    })
+    e.setFogEnabled(renderFogEnabled.value)
+    e.setFogDistanceScale(renderFogDistanceScale.value)
     offs.push(
       e.events.on('objectAdded', markDirty),
       e.events.on('objectRemoved', markDirty),
@@ -792,29 +856,33 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.setTerrainVisible(!terrain.value.visible)
   }
 
-  function togglePerformanceMode() {
-    if (!engine) return
-    const presets: PerformancePreset[] = ['quality', 'balanced', 'economy', 'auto']
-    const currentIndex = presets.indexOf(performanceMode.value)
-    performanceMode.value = presets[(currentIndex + 1) % presets.length] ?? 'quality'
+  function setPerformanceMode(value: PerformancePreset) {
+    if (!engine || !['quality', 'balanced', 'economy', 'auto'].includes(value)) return
+    performanceMode.value = value
     autoPerformanceHealthySamples = 0
 
-    if (performanceMode.value === 'auto') {
+    if (value === 'auto') {
       appliedPerformancePreset = 'economy'
       engine.setPerformancePreset('economy')
     } else {
-      appliedPerformancePreset = performanceMode.value
-      engine.setPerformancePreset(appliedPerformancePreset)
+      appliedPerformancePreset = value
+      engine.setPerformancePreset(value)
     }
     persistPerformanceSettings()
 
     const messages: Record<PerformancePreset, string> = {
-      quality: 'Modo qualidade: alvo de 60 FPS, grama densa e resolução padrão.',
-      balanced: 'Modo equilibrado: alvo de 45 FPS, grama menos densa e alcance menor, com resolução em 85%.',
-      economy: 'Modo econômico: alvo de 30 FPS, alcance e densidade da grama reduzidos, com resolução em 75%.',
-      auto: 'Modo automático: começa no econômico e ajusta a qualidade conforme FPS e triângulos.',
+      quality: 'Modo qualidade: prioriza detalhes e resolução.',
+      balanced: 'Modo equilibrado: reduz custo de renderização e densidade da grama.',
+      economy: 'Modo econômico: prioriza FPS com menor custo gráfico.',
+      auto: 'Modo automático: ajusta o perfil conforme FPS e quantidade de triângulos.',
     }
-    say(messages[performanceMode.value])
+    say(messages[value])
+  }
+
+  function togglePerformanceMode() {
+    const presets: PerformancePreset[] = ['quality', 'balanced', 'economy', 'auto']
+    const currentIndex = presets.indexOf(performanceMode.value)
+    setPerformanceMode(presets[(currentIndex + 1) % presets.length] ?? 'quality')
   }
 
   function toggleGrid() {
@@ -1394,6 +1462,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     performanceMode,
     renderDistance,
     renderAll,
+    renderResolutionScale,
+    renderFpsLimit,
+    renderFogEnabled,
+    renderFogDistanceScale,
     playerModelName,
     playerModelCustom,
     setPlayerModelFile,
@@ -1425,8 +1497,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     toggleTerrain,
     toggleGrid,
     togglePerformanceMode,
+    setPerformanceMode,
     setRenderDistance,
     setRenderAll,
+    setRenderResolutionScale,
+    setRenderFpsLimit,
+    setRenderFogEnabled,
+    setRenderFogDistanceScale,
     togglePolygonLines,
     removeSelected,
     onRename,
