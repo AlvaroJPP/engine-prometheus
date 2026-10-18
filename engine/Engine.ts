@@ -150,6 +150,7 @@ export class Engine {
       this.viewport.invalidate()
     })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
+    this.avatar.setManeuverAdmission(kind => this.admitVeilborneManeuver(kind))
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
     this.viewportInvalidationOffs.push(
@@ -647,6 +648,16 @@ export class Engine {
         this.veilborneEffects.delete(effect)
       }
     }
+  }
+
+  private admitVeilborneManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
+    if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return true
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return false
+    const cost = kind === 'dodge' ? 22 : kind === 'roll' ? 30 : 24
+    if (!spendVeilborneResource(player, 'stamina', cost)) return false
+    this.syncVeilbornePlayerCombatant(player)
+    return true
   }
 
   private handleVeilborneControl(code: string): boolean {
