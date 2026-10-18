@@ -20,6 +20,8 @@ export type ReusableAnimationAsset = {
   /** Orientação mundial do pai em repouso; permite converter eixos entre rigs diferentes. */
   sourceParentWorldQuaternion?: Record<string, [number, number, number, number]>
   sourceNodeNames: string[]
+  /** Nós do clipe que são ossos de fato; opcional para compatibilidade com a biblioteca antiga. */
+  sourceBoneNames?: string[]
   sourceHeight: number
   createdAt: string
 }
@@ -110,6 +112,7 @@ export function createReusableAnimationAsset(
     .filter((path): path is TransformTrackPath => path !== null)
     .map(path => path.nodeName)
     .filter(name => sourcePose[name] !== undefined))]
+  const sourceBoneNames = sourceNodeNames.filter(name => findAnimationNode(root, name) instanceof THREE.Bone)
 
   return {
     id: existingId ?? `anim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
@@ -121,6 +124,7 @@ export function createReusableAnimationAsset(
     sourcePose,
     sourceParentWorldQuaternion,
     sourceNodeNames,
+    sourceBoneNames,
     sourceHeight: objectHeight(root),
     createdAt: new Date().toISOString(),
   }
@@ -683,10 +687,76 @@ export function rankTargetBoneCandidates(
   return bySource
 }
 
+
+/**
+ * Hungarian assignment for rectangular cost matrices with rows <= columns.
+ * Dummy columns represent intentionally unmatched source joints.
+ */
+function minimumCostAssignment(costs: number[][]): number[] {
+  const rowCount = costs.length
+  const columnCount = costs[0]?.length ?? 0
+  if (rowCount === 0 || columnCount < rowCount || costs.some(row => row.length !== columnCount)) return []
+
+  const u = new Array<number>(rowCount + 1).fill(0)
+  const v = new Array<number>(columnCount + 1).fill(0)
+  const p = new Array<number>(columnCount + 1).fill(0)
+  const way = new Array<number>(columnCount + 1).fill(0)
+
+  for (let i = 1; i <= rowCount; i += 1) {
+    p[0] = i
+    let j0 = 0
+    const minv = new Array<number>(columnCount + 1).fill(Number.POSITIVE_INFINITY)
+    const used = new Array<boolean>(columnCount + 1).fill(false)
+    do {
+      used[j0] = true
+      const i0 = p[j0]!
+      let delta = Number.POSITIVE_INFINITY
+      let j1 = 0
+      for (let j = 1; j <= columnCount; j += 1) {
+        if (used[j]) continue
+        const currentCost = costs[i0 - 1]![j - 1]!
+        const cur = currentCost - u[i0]! - v[j]!
+        if (cur < minv[j]!) {
+          minv[j] = cur
+          way[j] = j0
+        }
+        if (minv[j]! < delta) {
+          delta = minv[j]!
+          j1 = j
+        }
+      }
+      for (let j = 0; j <= columnCount; j += 1) {
+        if (used[j]) {
+          const assignedRow = p[j]!
+          u[assignedRow] = u[assignedRow]! + delta
+          v[j] = v[j]! - delta
+        } else {
+          minv[j] = minv[j]! - delta
+        }
+      }
+      j0 = j1
+    } while (p[j0] !== 0)
+
+    do {
+      const j1 = way[j0]!
+      p[j0] = p[j1]!
+      j0 = j1
+    } while (j0 !== 0)
+  }
+
+  const assignment = new Array<number>(rowCount).fill(-1)
+  for (let j = 1; j <= columnCount; j += 1) {
+    const row = p[j]!
+    if (row > 0) assignment[row - 1] = j - 1
+  }
+  return assignment
+}
+
 /**
  * Gera mapeamentos globais um-para-um. Usa semântica anatômica, hierarquia e,
  * como refinamento, posição relativa, profundidade e tamanho dos segmentos.
- * Associações ambíguas ficam vazias para não transferir movimento ao osso errado.
+ * A atribuição global evita que uma associação local consuma o melhor destino
+ * de outro osso. Associações ambíguas continuam sem preenchimento automático.
  */
 export function suggestTargetBoneMappings(
   sourceNames: string[],
@@ -732,27 +802,40 @@ export function suggestTargetBoneMappings(
     }
   })
 
-  const proposals = viable.flatMap(entry => entry.candidates.map(candidate => ({
-    sourceName: entry.sourceName,
-    sourceIndex: entry.sourceIndex,
-    ...candidate,
-    sourceSpecificity: sourceSignatures[entry.sourceIndex]!.specificity,
-  }))).sort((a, b) =>
-    b.score - a.score ||
-    b.sourceSpecificity - a.sourceSpecificity ||
-    a.sourceIndex - b.sourceIndex ||
-    a.targetIndex - b.targetIndex,
-  )
-
-  const result: Record<string, string> = {}
-  const claimedSources = new Set<string>()
-  const claimedTargets = new Set<string>()
-  for (const proposal of proposals) {
-    if (claimedSources.has(proposal.sourceName) || claimedTargets.has(proposal.targetName)) continue
-    result[proposal.sourceName] = proposal.targetName
-    claimedSources.add(proposal.sourceName)
-    claimedTargets.add(proposal.targetName)
+  const targetCount = targetBones.length
+  const sourceCount = viable.length
+  const forbiddenCost = 1_000_000
+  const candidateScores = new Map<string, Map<string, number>>()
+  for (const entry of viable) {
+    candidateScores.set(entry.sourceName, new Map<string, number>(entry.candidates.map(candidate => [
+      candidate.targetName,
+      candidate.score,
+    ] as const)))
   }
+
+  // One dummy column per source makes an unmatched joint a valid outcome.
+  const costs = viable.map(entry => {
+    const scores = candidateScores.get(entry.sourceName)!
+    return [
+      ...targetBones.map(bone => {
+        const score = scores.get(bone.name)
+        return score === undefined ? forbiddenCost : -score
+      }),
+      ...new Array<number>(sourceCount).fill(0),
+    ]
+  })
+  const assignment = minimumCostAssignment(costs)
+  const result: Record<string, string> = {}
+  const claimedTargets = new Set<string>()
+  viable.forEach((entry, row) => {
+    const column = assignment[row] ?? -1
+    if (column < 0 || column >= targetCount) return
+    const targetName = targetBones[column]?.name
+    if (!targetName || claimedTargets.has(targetName)) return
+    if (!candidateScores.get(entry.sourceName)?.has(targetName)) return
+    result[entry.sourceName] = targetName
+    claimedTargets.add(targetName)
+  })
   return result
 }
 

@@ -54,7 +54,7 @@ Na aba **Rig & keyframes** do importador 3D, o modo **Detectar automaticamente**
 
 O modo por peças usa o centro aproximado de cada malha como pivô. A hierarquia original entre malhas é respeitada quando existe; quando ela não existe, o sistema tenta inferir relações pelo nome e pela proximidade. Revise e reposicione os pivôs em juntas, dobradiças ou eixos antes de criar animações.
 
-A transferência de animações agora considera nomes e aliases anatômicos, lateralidade, ramos da hierarquia, profundidade, quantidade de filhos, posição/proporções normalizadas e orientação mundial do pai em repouso. Para nomes genéricos como `Bone.001`, usa critérios estruturais com um limiar mais conservador; em casos ambíguos, prefere não preencher automaticamente em vez de associar um osso aleatório. Assets antigos da biblioteca continuam compatíveis e usam o método anterior quando não armazenam orientação do pai.
+A transferência de animações considera nomes e aliases anatômicos, lateralidade, ramos da hierarquia, profundidade, quantidade de filhos, posição/proporções normalizadas e orientação mundial do pai em repouso. A atribuição global de custo mínimo reduz conflitos em que uma correspondência local roubaria o único destino plausível de outro osso. A contagem de cobertura usa nós que são ossos reais, sem inflar o denominador com wrappers ou pivôs de malha animados. Para nomes genéricos como `Bone.001`, mantém critérios estruturais conservadores; em casos ambíguos, prefere deixar o osso sem associação. Assets antigos da biblioteca continuam compatíveis; itens criados antes do campo de ossos reais usam a lista anterior porque já não guardam o GLB original.
 
 Valide os testes locais:
 

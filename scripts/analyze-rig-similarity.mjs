@@ -354,7 +354,26 @@ function runSelfTest() {
   if (autonomousMap.Root !== 'pelvis' || autonomousMap['Arm.L'] !== 'upper_arm_l') {
     throw new Error(`Self-test autônomo falhou: esperava Root→pelvis e Arm.L→upper_arm_l; recebeu ${JSON.stringify(autonomousMap)}.`)
   }
-  console.log('OK: mapeamento semântico, espacial, estrutural e fallback autônomo de rigs passou.')
+
+  const sparseTarget = makeTestRig('sparse-target', [
+    { name: 'pelvis', position: [0, 0, 0] },
+    { name: 'arm_l', position: [-0.2, 0.4, 0], parent: 'pelvis' },
+  ])
+  const manySource = makeTestRig('many-source', [
+    { name: 'Hips', position: [0, 0, 0] },
+    { name: 'LeftArm', position: [-0.2, 0.4, 0], parent: 'Hips' },
+    { name: 'LeftArmTwist', position: [-0.2, 0.6, 0], parent: 'LeftArm' },
+  ])
+  const sparseMap = suggestTargetBoneMappings(
+    ['Hips', 'LeftArm', 'LeftArmTwist'],
+    sparseTarget.bones,
+    manySource.root,
+    sparseTarget.root,
+  )
+  if (new Set(Object.values(sparseMap)).size !== Object.values(sparseMap).length) {
+    throw new Error('Self-test falhou: dois ossos da origem foram associados ao mesmo osso de destino.')
+  }
+  console.log('OK: mapeamento semântico, espacial, estrutural, atribuição global e fallback autônomo passou.')
 }
 
 async function main() {

@@ -339,7 +339,12 @@ const retargetSourceClip = computed(() => selectedRetargetLibraryId.value
 )
 const retargetSourceNodeNames = computed(() => {
   const asset = retargetLibraryAsset.value
-  if (asset) return asset.sourceNodeNames.filter(name => !!asset.sourcePose[name])
+  if (asset) {
+    // Novos itens guardam quais nós são ossos reais; para itens antigos,
+    // preserva o comportamento porque a biblioteca não armazena o GLB original.
+    const sourceBones = asset.sourceBoneNames ?? asset.sourceNodeNames
+    return sourceBones.filter(name => !!asset.sourcePose[name])
+  }
   const root = retargetSourceRoot.value
   const clip = retargetSourceClip.value
   if (!root || !clip) return []
@@ -347,7 +352,9 @@ const retargetSourceNodeNames = computed(() => {
     .map(getTransformTrackPath)
     .filter((path): path is NonNullable<ReturnType<typeof getTransformTrackPath>> => path !== null)
     .map(path => path.nodeName))]
-  return names.filter(name => !!findAnimationNode(root, name))
+  // O destino do retarget é um rig esquelético: wrappers e pivôs de malha
+  // animados não devem inflacionar a taxa de cobertura dos ossos.
+  return names.filter(name => findAnimationNode(root, name) instanceof THREE.Bone)
 })
 const retargetTargetBones = computed(() => {
   if (rigBones.value.length) return rigBones.value
@@ -2550,7 +2557,7 @@ function applyRetargetedAnimation() {
     refreshModelDiagnostics()
     selectPreviewAnimation(newIndex)
     const skippedDetails = [
-      result.unmappedTracks.length ? `${result.unmappedTracks.length} sem osso de destino ou pose de repouso` : '',
+      result.unmappedTracks.length ? `${result.unmappedTracks.length} sem correspondência de osso/pose de repouso (inclui nós auxiliares da origem)` : '',
       result.unsupportedTracks.length ? `${result.unsupportedTracks.length} de tipo não suportado (por exemplo, morph targets)` : '',
       result.conflictingTracks.length ? `${result.conflictingTracks.length} em conflito com outra trilha do mesmo osso` : '',
       result.invalidTracks.length ? `${result.invalidTracks.length} com dados inválidos` : '',
