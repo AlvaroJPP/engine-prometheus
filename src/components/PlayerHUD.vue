@@ -229,7 +229,7 @@ function resetSettings() {
 .hud-settings-trigger { display:grid; place-items:center; width:26px; height:26px; border:1px solid #ffffff24; border-radius:5px; background:#ffffff08; color:#f5b64c; font-size:16px; cursor:pointer; pointer-events:auto; }
 .hud-settings-trigger:hover,.settings-close:hover { border-color:#f5a52488; background:#f5a52418; }
 .standalone-settings { align-self:flex-start; }
-.hud-settings-panel { position:absolute; z-index:30; top:calc(70px * var(--hud-scale)); right:clamp(10px,2vw,26px); width:min(350px,calc(100vw - 24px)); max-height:calc(100% - 100px); overflow:auto; padding:15px; border-radius:9px; pointer-events:auto; text-shadow:none; }
+.hud-settings-panel { position:absolute; z-index:30; top:calc(104px * var(--hud-scale)); left:clamp(10px,2vw,26px); right:auto; width:min(350px,calc(100vw - 24px)); max-height:min(480px,calc(100dvh - 128px)); overflow:auto; overscroll-behavior:contain; padding:15px; border-radius:9px; pointer-events:auto; text-shadow:none; }
 .settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .settings-heading>div { display:flex; flex-direction:column; gap:4px; }
 .settings-heading strong { color:#f2f4f7; font-size:15px; }
@@ -290,7 +290,7 @@ function resetSettings() {
   .hud-actions { width:min(205px,44vw); }
   .hud-action-button,.hud-exit-button { gap:6px; padding:7px; }
   .hud-action-button strong,.hud-exit-button strong { font-size:9px; }
-  .hud-settings-panel { top:52px; right:9px; padding:11px; }
+  .hud-settings-panel { top:76px; left:9px; right:auto; width:min(350px,calc(100vw - 18px)); max-height:calc(100dvh - 110px); padding:11px; }
   .hud-quick-slots { max-width:calc(100% - 18px); gap:4px; padding:4px; }
   .quick-slot { min-width:0; gap:4px; padding:5px; font-size:9px; }
 }
@@ -300,6 +300,6 @@ function resetSettings() {
   .hud-control-list { gap:4px; padding:6px 9px; }
   .hud-control-row { font-size:9px; }
   .hud-action-button,.hud-exit-button { min-height:42px; }
-  .hud-settings-panel { max-height:calc(100% - 65px); top:45px; }
+  .hud-settings-panel { top:72px; max-height:calc(100dvh - 150px); }
 }
 </style>
