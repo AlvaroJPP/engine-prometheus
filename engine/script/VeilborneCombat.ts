@@ -367,3 +367,47 @@ export const VEILBORNE_RUNTIME_SIGILS: Readonly<Record<string, VeilborneRuntimeS
   },
 })
 
+export interface VeilborneRuntimeItem {
+  id: string
+  name: string
+  category: 'consumable' | 'currency'
+  effect: 'restore_vitality' | 'restore_ether' | 'restore_stamina' | 'area_damage' | 'add_echoes'
+  amount: number
+  damageType?: VeilborneDamageType
+  radius?: number
+  range?: number
+  postureDamage?: number
+  visualColor: number
+  description: string
+}
+
+/** Itens consumíveis e fragmentos iniciais disponíveis para inventários e drops. */
+export const VEILBORNE_RUNTIME_ITEMS: Readonly<Record<string, VeilborneRuntimeItem>> = Object.freeze({
+  lesser_vitality_vial: {
+    id: 'lesser_vitality_vial', name: 'Frasco de Vitalidade', category: 'consumable',
+    effect: 'restore_vitality', amount: 45, visualColor: 0xe64b5d,
+    description: 'Recupera 45 pontos de vida.',
+  },
+  ether_vial: {
+    id: 'ether_vial', name: 'Frasco de Éter', category: 'consumable',
+    effect: 'restore_ether', amount: 40, visualColor: 0x9f83ff,
+    description: 'Recupera 40 pontos de éter.',
+  },
+  vigor_vial: {
+    id: 'vigor_vial', name: 'Tônico de Vigor', category: 'consumable',
+    effect: 'restore_stamina', amount: 45, visualColor: 0x7ee0b6,
+    description: 'Recupera 45 pontos de vigor.',
+  },
+  ember_bomb: {
+    id: 'ember_bomb', name: 'Bomba de Brasa', category: 'consumable',
+    effect: 'area_damage', amount: 30, damageType: 'fire', radius: 3.2, range: 12,
+    postureDamage: 14, visualColor: 0xff713b,
+    description: 'Explode em área e causa 30 de dano de chama.',
+  },
+  echo_fragment: {
+    id: 'echo_fragment', name: 'Fragmento de Ecos', category: 'currency',
+    effect: 'add_echoes', amount: 25, visualColor: 0xe9bf75,
+    description: 'Concede 25 Ecos.',
+  },
+})
+
