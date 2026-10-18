@@ -15,6 +15,7 @@ export interface ControlMapBindings extends ModelControlBindings {
   roll: string
   block: string
   parry: string
+  targetLock: string
   primaryAction: string
   secondaryAction: string
   inventory: string
@@ -83,6 +84,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       roll: COMMON_ACTIONS.roll,
       block: 'KeyR',
       parry: 'KeyY',
+      targetLock: 'KeyO',
       interact: 'KeyE',
       primaryAction: COMMON_ACTIONS.primaryAction,
       secondaryAction: COMMON_ACTIONS.secondaryAction,
@@ -119,6 +121,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       roll: 'KeyB',
       block: 'KeyR',
       parry: 'KeyY',
+      targetLock: 'KeyO',
       interact: 'KeyE',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
@@ -155,6 +158,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       roll: 'KeyB',
       block: 'KeyP',
       parry: 'KeyO',
+      targetLock: 'KeyP',
       interact: 'KeyA',
       primaryAction: 'KeyR',
       secondaryAction: 'KeyT',
@@ -191,6 +195,7 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       roll: 'KeyB',
       block: 'KeyR',
       parry: 'KeyY',
+      targetLock: 'KeyM',
       interact: 'KeyU',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
