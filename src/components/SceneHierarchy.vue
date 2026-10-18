@@ -277,7 +277,7 @@ const emit = defineEmits<{
       </label>
 
       <div class="component-groups-scroll">
-        <div v-if="!componentGroups.length && !componentSearch.trim()" class="component-library-empty">
+        <div v-if="libraryCategoryCounts[activeLibraryCategory] === 0 && !componentSearch.trim()" class="component-library-empty">
           <span>{{ activeLibraryCategory === 'object' ? '▧' : activeLibraryCategory === 'animated-model' ? '♟' : '▶' }}</span>
           <strong>{{ activeLibraryCategory === 'object' ? 'Nenhum objeto importado' : activeLibraryCategory === 'animated-model' ? 'Nenhum modelo com animações modificadas' : 'Nenhuma fonte de animação' }}</strong>
           <small>{{ activeLibraryCategory === 'animation-source' ? 'Carregue um GLB animado na aba de rigging e salve-o como fonte de animação.' : 'Use Importar modelo para adicionar arquivos à biblioteca.' }}</small>
