@@ -2,7 +2,14 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import * as THREE from 'three'
-import { rankTargetBoneCandidates, suggestAutonomousBoneMappings, suggestTargetBoneMappings } from '../src/lib/animation/AnimationRetargeting.ts'
+import {
+  createReusableAnimationAsset,
+  rankTargetBoneCandidates,
+  retargetAnimationClip,
+  suggestAutonomousBoneMappings,
+  suggestAutonomousBoneMappingsDetailed,
+  suggestTargetBoneMappings,
+} from '../src/lib/animation/AnimationRetargeting.ts'
 
 const TRANSFORM_PATHS = new Set(['translation', 'rotation', 'scale'])
 
@@ -373,7 +380,48 @@ function runSelfTest() {
   if (new Set(Object.values(sparseMap)).size !== Object.values(sparseMap).length) {
     throw new Error('Self-test falhou: dois ossos da origem foram associados ao mesmo osso de destino.')
   }
-  console.log('OK: mapeamento semântico, espacial, estrutural, atribuição global e fallback autônomo passou.')
+  // A detailed source arm can be represented by one target joint; rotations are composed.
+  const detailedArm = makeTestRig('detailed-arm-source', [
+    { name: 'Hips', position: [0, 0, 0] },
+    { name: 'LeftArm', position: [-0.2, 0.55, 0], parent: 'Hips' },
+    { name: 'LeftForeArm', position: [-0.15, -0.25, 0], parent: 'LeftArm' },
+  ])
+  const compactArm = makeTestRig('compact-arm-target', [
+    { name: 'pelvis', position: [0, 0, 0] },
+    { name: 'upperarm_l', position: [-0.2, 0.55, 0], parent: 'pelvis' },
+  ])
+  const turnEnd = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 3)
+  const bendEnd = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 4)
+  const clip = new THREE.AnimationClip('CompactArmTest', 1, [
+    new THREE.QuaternionKeyframeTrack('LeftArm.quaternion', [0, 1], [0, 0, 0, 1, turnEnd.x, turnEnd.y, turnEnd.z, turnEnd.w]),
+    new THREE.QuaternionKeyframeTrack('LeftForeArm.quaternion', [0, 1], [0, 0, 0, 1, bendEnd.x, bendEnd.y, bendEnd.z, bendEnd.w]),
+    new THREE.VectorKeyframeTrack('LeftForeArm.position', [0, 1], [-0.15, -0.25, 0, -0.2, -0.25, 0]),
+  ])
+  const detailedAsset = createReusableAnimationAsset(detailedArm.root, clip, 'detailed-arm.glb', 'run')
+  const folded = suggestAutonomousBoneMappingsDetailed(
+    ['Hips', 'LeftArm', 'LeftForeArm'], compactArm.bones, detailedArm.root, compactArm.root,
+  )
+  if (folded.mapping.LeftArm !== 'upperarm_l' || folded.mapping.LeftForeArm !== 'upperarm_l' ||
+      !folded.collapsedSourceNames.includes('LeftForeArm')) {
+    throw new Error('Self-test de colapso falhou: o antebraço deveria ser recolhido no osso superior do braço.')
+  }
+  const transferred = retargetAnimationClip(
+    detailedAsset, compactArm.bones, folded.mapping, 'CompactArmRetarget', 1, folded.collapsedSourceNames,
+  )
+  if (transferred.mergedTracks !== 1 || transferred.mappedTracks !== 2 || transferred.outputTracks !== 1) {
+    throw new Error('Self-test de retarget falhou: rotações recolhidas não foram combinadas como esperado.')
+  }
+  if (!transferred.collapsedTracks.some(name => name.includes('LeftForeArm.position'))) {
+    throw new Error('Self-test de retarget falhou: a posição do antebraço deveria ser ignorada após o colapso.')
+  }
+  const resultTrack = transferred.clip.tracks[0]
+  if (!(resultTrack instanceof THREE.QuaternionKeyframeTrack)) throw new Error('Self-test de retarget falhou: a saída deveria conter quaternion.')
+  const endQuaternion = new THREE.Quaternion().fromArray(Array.from(resultTrack.values).slice(-4))
+  const expectedCombined = turnEnd.clone().multiply(bendEnd).normalize()
+  if (Math.abs(endQuaternion.dot(expectedCombined)) < 0.99) {
+    throw new Error('Self-test de retarget falhou: as rotações do braço e antebraço não foram combinadas.')
+  }
+  console.log('OK: mapeamento semântico, atribuição global, colapso de juntas e combinação de rotações passou.')
 }
 
 async function main() {

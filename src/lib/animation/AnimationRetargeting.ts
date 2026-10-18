@@ -22,18 +22,26 @@ export type ReusableAnimationAsset = {
   sourceNodeNames: string[]
   /** Nós do clipe que são ossos de fato; opcional para compatibilidade com a biblioteca antiga. */
   sourceBoneNames?: string[]
+  /** Pai ósseo mais próximo por nome, para ordenar rotações quando juntas são recolhidas. */
+  sourceParentNames?: Record<string, string | null>
   sourceHeight: number
   createdAt: string
 }
 
 export type RetargetAnimationResult = {
   clip: THREE.AnimationClip
+  /** Trilhas da origem aproveitadas, incluindo rotações combinadas. */
   mappedTracks: number
+  /** Trilhas efetivamente emitidas para o esqueleto de destino. */
+  outputTracks: number
+  /** Rotações adicionais de juntas da origem combinadas em uma junta de destino. */
+  mergedTracks: number
   skippedTracks: string[]
   unmappedTracks: string[]
   unsupportedTracks: string[]
   conflictingTracks: string[]
   invalidTracks: string[]
+  collapsedTracks: string[]
 }
 
 export type TransformTrackPath = {
@@ -113,6 +121,16 @@ export function createReusableAnimationAsset(
     .map(path => path.nodeName)
     .filter(name => sourcePose[name] !== undefined))]
   const sourceBoneNames = sourceNodeNames.filter(name => findAnimationNode(root, name) instanceof THREE.Bone)
+  const sourceBoneNameSet = new Set(sourceBoneNames)
+  const sourceParentNames: Record<string, string | null> = {}
+  for (const name of sourceBoneNames) {
+    const sourceNode = findAnimationNode(root, name)
+    let parent = sourceNode?.parent ?? null
+    while (parent && parent !== root && !(parent instanceof THREE.Bone && sourceBoneNameSet.has(parent.name))) {
+      parent = parent.parent
+    }
+    sourceParentNames[name] = parent instanceof THREE.Bone ? parent.name : null
+  }
 
   return {
     id: existingId ?? `anim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
@@ -125,6 +143,7 @@ export function createReusableAnimationAsset(
     sourceParentWorldQuaternion,
     sourceNodeNames,
     sourceBoneNames,
+    sourceParentNames,
     sourceHeight: objectHeight(root),
     createdAt: new Date().toISOString(),
   }
@@ -151,12 +170,11 @@ export function retargetAnimationClip(
   boneMap: Record<string, string>,
   name: string,
   targetSourceHeight: number,
+  collapsedSourceNames: string[] = [],
 ): RetargetAnimationResult {
   const sourceClip = parseReusableAnimationClip(asset)
   const targetByName = new Map<string, THREE.Bone>()
-  for (const bone of targetBones) {
-    if (!targetByName.has(bone.name)) targetByName.set(bone.name, bone)
-  }
+  for (const bone of targetBones) if (!targetByName.has(bone.name)) targetByName.set(bone.name, bone)
 
   const scaleRatio = THREE.MathUtils.clamp(
     (Number.isFinite(targetSourceHeight) && targetSourceHeight > 1e-5 ? targetSourceHeight : 1)
@@ -170,19 +188,33 @@ export function retargetAnimationClip(
   const unsupportedTracks: string[] = []
   const conflictingTracks: string[] = []
   const invalidTracks: string[] = []
+  const collapsedTracks: string[] = []
+  const collapsedSources = new Set(collapsedSourceNames)
   const claimedTargets = new Set<string>()
+  const quaternionGroups = new Map<string, {
+    targetBone: THREE.Bone
+    contributions: Array<{
+      track: THREE.KeyframeTrack
+      sourceName: string
+      sourceRestQuaternion: THREE.Quaternion
+      sourceParentWorld: THREE.Quaternion | null
+      order: number
+    }>
+  }>()
   const skipTrack = (track: THREE.KeyframeTrack, category: string[]) => {
     skippedTracks.push(track.name)
     category.push(track.name)
   }
+  let mappedSourceTracks = 0
+  let mergedTracks = 0
 
-  for (const track of sourceClip.tracks) {
+  for (let trackIndex = 0; trackIndex < sourceClip.tracks.length; trackIndex += 1) {
+    const track = sourceClip.tracks[trackIndex]!
     const path = getTransformTrackPath(track)
     if (!path) {
       skipTrack(track, unsupportedTracks)
       continue
     }
-
     const targetName = boneMap[path.nodeName]
     const targetBone = targetName ? targetByName.get(targetName) : undefined
     const sourceRest = asset.sourcePose[path.nodeName]
@@ -190,14 +222,6 @@ export function retargetAnimationClip(
       skipTrack(track, unmappedTracks)
       continue
     }
-
-    const targetTrackName = `${targetBone.name}.${path.property}`
-    // Avoid two source nodes writing to the same target property during one clip.
-    if (claimedTargets.has(targetTrackName)) {
-      skipTrack(track, conflictingTracks)
-      continue
-    }
-    claimedTargets.add(targetTrackName)
 
     const times = Array.from(track.times)
     const sourceValues = Array.from(track.values as ArrayLike<number>)
@@ -208,49 +232,50 @@ export function retargetAnimationClip(
       continue
     }
 
-    const values: number[] = []
+    const targetTrackName = targetBone.name + '.' + path.property
     if (path.property === 'quaternion' && stride === 4) {
-      const sourceRestQ = new THREE.Quaternion(...sourceRest.quaternion)
-      const targetRestQ = targetBone.quaternion.clone()
-      const inverseSourceRest = sourceRestQ.clone().invert()
+      let group = quaternionGroups.get(targetTrackName)
+      if (!group) {
+        group = { targetBone, contributions: [] }
+        quaternionGroups.set(targetTrackName, group)
+      }
+      if (group.contributions.some(item => item.sourceName === path.nodeName)) {
+        skipTrack(track, conflictingTracks)
+        continue
+      }
       const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
       const sourceParentWorld = parentRest && parentRest.length === 4
         ? new THREE.Quaternion(...parentRest).normalize()
         : null
-      const targetParentWorld = new THREE.Quaternion()
-      if (targetBone.parent) targetBone.parent.getWorldQuaternion(targetParentWorld)
-      const inverseTargetParentWorld = targetParentWorld.clone().invert()
-      const inverseSourceParentWorld = sourceParentWorld?.clone().invert() ?? null
-      for (let frame = 0; frame < times.length; frame++) {
-        const offset = frame * 4
-        const sourceQ = new THREE.Quaternion(
-          sourceValues[offset]!,
-          sourceValues[offset + 1]!,
-          sourceValues[offset + 2]!,
-          sourceValues[offset + 3]!,
-        ).normalize()
-        const delta = inverseSourceRest.clone().multiply(sourceQ).normalize()
-        // Converte a rotação relativa da base local de origem para a base local do
-        // destino usando as orientações dos pais em repouso. Assets antigos não
-        // possuem esse dado e continuam usando o caminho compatível anterior.
-        let targetDelta = delta
-        if (sourceParentWorld && inverseSourceParentWorld) {
-          const worldDelta = sourceParentWorld.clone().multiply(delta)
-            .multiply(inverseSourceParentWorld).normalize()
-          targetDelta = inverseTargetParentWorld.clone().multiply(worldDelta)
-            .multiply(targetParentWorld).normalize()
-        }
-        targetRestQ.clone().multiply(targetDelta).normalize().toArray(values, values.length)
-      }
-      tracks.push(new THREE.QuaternionKeyframeTrack(targetTrackName, times, values, track.getInterpolation()))
+      const restQuaternion = new THREE.Quaternion(...sourceRest.quaternion).normalize()
+      if (restQuaternion.lengthSq() < 1e-8) restQuaternion.identity()
+      group.contributions.push({
+        track,
+        sourceName: path.nodeName,
+        sourceRestQuaternion: restQuaternion,
+        sourceParentWorld,
+        order: trackIndex,
+      })
       continue
     }
 
+    // A collapsed joint has no independent destination translation or scale.
+    // Its rotation is composed with the primary joint rather than overwriting it.
+    if (collapsedSources.has(path.nodeName)) {
+      skipTrack(track, collapsedTracks)
+      continue
+    }
+    if (claimedTargets.has(targetTrackName)) {
+      skipTrack(track, conflictingTracks)
+      continue
+    }
+
+    const values: number[] = []
     if ((path.property === 'position' || path.property === 'scale') && stride === 3) {
       if (path.property === 'position') {
         const sourceRestVector = safeRestVector(sourceRest.position, new THREE.Vector3())
         const targetRestVector = targetBone.position.clone()
-        for (let frame = 0; frame < times.length; frame++) {
+        for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
           values.push(
             targetRestVector.x + (sourceValues[offset]! - sourceRestVector.x) * scaleRatio,
@@ -261,7 +286,7 @@ export function retargetAnimationClip(
       } else {
         const sourceRestScale = safeRestVector(sourceRest.scale, new THREE.Vector3(1, 1, 1))
         const targetRestScale = targetBone.scale.clone()
-        for (let frame = 0; frame < times.length; frame++) {
+        for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
           const ratioX = Math.abs(sourceRestScale.x) > 1e-6 ? sourceValues[offset]! / sourceRestScale.x : 1
           const ratioY = Math.abs(sourceRestScale.y) > 1e-6 ? sourceValues[offset + 1]! / sourceRestScale.y : 1
@@ -270,25 +295,104 @@ export function retargetAnimationClip(
         }
       }
       tracks.push(new THREE.VectorKeyframeTrack(targetTrackName, times, values, track.getInterpolation()))
+      claimedTargets.add(targetTrackName)
+      mappedSourceTracks += 1
+      continue
+    }
+    skipTrack(track, unsupportedTracks)
+  }
+
+  const parentNames = asset.sourceParentNames ?? {}
+  const sourceDepth = (name: string): number => {
+    let depth = 0
+    let current = name
+    const seen = new Set<string>([name])
+    while (parentNames[current]) {
+      const parent = parentNames[current]!
+      if (seen.has(parent)) break
+      seen.add(parent)
+      depth += 1
+      current = parent
+    }
+    return depth
+  }
+
+  for (const [targetTrackName, group] of quaternionGroups) {
+    const contributions = [...group.contributions].sort((a, b) =>
+      sourceDepth(a.sourceName) - sourceDepth(b.sourceName) || a.order - b.order,
+    )
+    if (!contributions.length) continue
+    const outputTimes = contributions.length === 1
+      ? Array.from(contributions[0]!.track.times)
+      : [...new Set(contributions.flatMap(item => Array.from(item.track.times)))].sort((a, b) => a - b)
+    if (!outputTimes.length) {
+      for (const contribution of contributions) skipTrack(contribution.track, invalidTracks)
       continue
     }
 
-    skipTrack(track, unsupportedTracks)
+    const targetBone = group.targetBone
+    const targetRestQuaternion = targetBone.quaternion.clone().normalize()
+    const targetParentWorld = new THREE.Quaternion()
+    if (targetBone.parent) targetBone.parent.getWorldQuaternion(targetParentWorld)
+    const inverseTargetParentWorld = targetParentWorld.clone().invert()
+    const resultValues: number[] = []
+    const interpolants = contributions.map(contribution => ({
+      contribution,
+      interpolant: contribution.track.createInterpolant(),
+      inverseSourceRest: contribution.sourceRestQuaternion.clone().invert(),
+      inverseSourceParentWorld: contribution.sourceParentWorld?.clone().invert() ?? null,
+    }))
+
+    for (const time of outputTimes) {
+      const combinedDelta = new THREE.Quaternion()
+      for (const item of interpolants) {
+        const sourceValue = item.interpolant.evaluate(time) as ArrayLike<number>
+        if (sourceValue.length < 4) continue
+        const sourceQuaternion = new THREE.Quaternion(
+          sourceValue[0]!, sourceValue[1]!, sourceValue[2]!, sourceValue[3]!,
+        ).normalize()
+        if (sourceQuaternion.lengthSq() < 1e-8) sourceQuaternion.identity()
+        const delta = item.inverseSourceRest.clone().multiply(sourceQuaternion).normalize()
+        let targetDelta = delta
+        if (item.contribution.sourceParentWorld && item.inverseSourceParentWorld) {
+          const worldDelta = item.contribution.sourceParentWorld.clone()
+            .multiply(delta)
+            .multiply(item.inverseSourceParentWorld)
+            .normalize()
+          targetDelta = inverseTargetParentWorld.clone()
+            .multiply(worldDelta)
+            .multiply(targetParentWorld)
+            .normalize()
+        }
+        combinedDelta.multiply(targetDelta).normalize()
+      }
+      const targetQuaternion = targetRestQuaternion.clone().multiply(combinedDelta).normalize()
+      resultValues.push(targetQuaternion.x, targetQuaternion.y, targetQuaternion.z, targetQuaternion.w)
+    }
+
+    const interpolation = contributions.length === 1
+      ? contributions[0]!.track.getInterpolation()
+      : THREE.InterpolateLinear
+    tracks.push(new THREE.QuaternionKeyframeTrack(targetTrackName, outputTimes, resultValues, interpolation))
+    mappedSourceTracks += contributions.length
+    mergedTracks += Math.max(0, contributions.length - 1)
   }
 
   if (!tracks.length) {
     throw new Error('Nenhuma trilha pôde ser transferida. Confira se o rig de destino possui ossos compatíveis e se eles estão mapeados.')
   }
-
   const retargeted = new THREE.AnimationClip(name.trim() || sourceClip.name || asset.name, sourceClip.duration, tracks)
   return {
     clip: retargeted,
-    mappedTracks: tracks.length,
+    mappedTracks: mappedSourceTracks,
+    outputTracks: tracks.length,
+    mergedTracks,
     skippedTracks,
     unmappedTracks,
     unsupportedTracks,
     conflictingTracks,
     invalidTracks,
+    collapsedTracks,
   }
 }
 
@@ -840,19 +944,27 @@ export function suggestTargetBoneMappings(
 }
 
 
+export type AutonomousBoneMappingResult = {
+  mapping: Record<string, string>
+  collapsedSourceNames: string[]
+  directMappedCount: number
+}
+
 /**
  * Starts with conservative semantic mappings, then fills safe gaps using mapped
- * parent branches as an anchor. It never reuses a target bone or bypasses hard
- * side/anatomy constraints.
+ * parent branches as an anchor. If the target has fewer joints, a restrained
+ * pass can fold helper/twist or adjacent limb rotations into compatible targets.
  */
-export function suggestAutonomousBoneMappings(
+export function suggestAutonomousBoneMappingsDetailed(
   sourceNames: string[],
   targetBones: THREE.Bone[],
   sourceRoot?: THREE.Object3D | null,
   targetRoot?: THREE.Object3D | null,
-): Record<string, string> {
+): AutonomousBoneMappingResult {
   const result = suggestTargetBoneMappings(sourceNames, targetBones, sourceRoot, targetRoot)
-  if (!sourceRoot || !targetRoot || !sourceNames.length || !targetBones.length) return result
+  if (!sourceRoot || !targetRoot || !sourceNames.length || !targetBones.length) {
+    return { mapping: result, collapsedSourceNames: [], directMappedCount: Object.keys(result).length }
+  }
 
   const claimedTargets = new Set(Object.values(result))
   const targetByName = new Map<string, THREE.Bone>()
@@ -966,7 +1078,96 @@ export function suggestAutonomousBoneMappings(
 
     if (!addedThisPass) break
   }
-  return result
+
+  const directMappedCount = Object.keys(result).length
+  const collapsedSourceNames: string[] = []
+  const boneDepth = (node: THREE.Object3D | undefined): number => {
+    let depth = 0
+    let current = node?.parent ?? null
+    while (current && current !== sourceRoot) {
+      if (current instanceof THREE.Bone) depth += 1
+      current = current.parent
+    }
+    return depth
+  }
+  const isAncestorOrDescendant = (a: THREE.Object3D, b: THREE.Object3D): boolean => {
+    let current: THREE.Object3D | null = a
+    while (current) {
+      if (current === b) return true
+      current = current.parent
+    }
+    current = b
+    while (current) {
+      if (current === a) return true
+      current = current.parent
+    }
+    return false
+  }
+  const helperPattern = /twist|roll|helper|deform|deformer|end|nub|aux|socket|virtual|bend|correction|offset/i
+  const canCollapse = (sourceName: string, targetBone: THREE.Bone): boolean => {
+    const source = signatureForBoneName(sourceName)
+    const target = signatureForBoneName(targetBone.name)
+    if (source.side && target.side && source.side !== target.side) return false
+    if (source.zone && target.zone && source.zone !== target.zone) return false
+    if (source.digit && target.digit && source.digit !== target.digit) return false
+    if (source.role && target.role && source.role === target.role) {
+      if (source.role === 'spine') return source.level === null || target.level === null || source.level !== target.level
+      return helperPattern.test(sourceName)
+    }
+    if (source.role === 'lower_arm' && ['upper_arm', 'shoulder'].includes(target.role)) return true
+    if (source.role === 'upper_arm' && target.role === 'shoulder') return true
+    if (source.role === 'hand' && target.role === 'lower_arm') return true
+    if (source.role === 'lower_leg' && ['thigh', 'leg'].includes(target.role)) return true
+    if (source.role === 'foot' && target.role === 'lower_leg') return true
+    if (source.role === 'toe' && target.role === 'foot') return true
+    if (source.role === 'root' && target.role === 'pelvis') return true
+    if (source.role === 'pelvis' && target.role === 'root') return true
+    return false
+  }
+  const collapsedPending = sourceNames
+    .filter(name => !result[name] && sourceNodeByName.has(name))
+    .sort((a, b) => boneDepth(sourceNodeByName.get(a)) - boneDepth(sourceNodeByName.get(b)))
+  for (const sourceName of collapsedPending) {
+    const sourceNode = sourceNodeByName.get(sourceName)!
+    const candidates = (ranking[sourceName] ?? [])
+      .filter(candidate => {
+        const targetBone = targetByName.get(candidate.targetName)
+        if (!targetBone || !canCollapse(sourceName, targetBone)) return false
+        return Object.entries(result).some(([mappedSourceName, mappedTargetName]) => {
+          if (mappedTargetName !== candidate.targetName) return false
+          const mappedSourceNode = sourceNodeByName.get(mappedSourceName)
+          return !!mappedSourceNode && isAncestorOrDescendant(sourceNode, mappedSourceNode)
+        })
+      })
+      .map(candidate => {
+        const targetBone = targetByName.get(candidate.targetName)!
+        const sourceSignature = sourceSignatureByName.get(sourceName)!
+        const targetSignature = signatureForBoneName(targetBone.name)
+        const semanticBonus = sourceSignature.role === targetSignature.role ? 14 : 0
+        const closestMappedDepth = Math.min(...Object.entries(result)
+          .filter(([, mappedTargetName]) => mappedTargetName === candidate.targetName)
+          .map(([mappedSourceName]) => {
+            const mappedNode = sourceNodeByName.get(mappedSourceName)
+            return mappedNode ? Math.abs(boneDepth(mappedNode) - boneDepth(sourceNode)) : Number.POSITIVE_INFINITY
+          }))
+        return { targetName: candidate.targetName, score: candidate.score + semanticBonus - closestMappedDepth * 2 }
+      })
+      .sort((a, b) => b.score - a.score || a.targetName.localeCompare(b.targetName))
+    const best = candidates[0]
+    if (!best) continue
+    result[sourceName] = best.targetName
+    collapsedSourceNames.push(sourceName)
+  }
+  return { mapping: result, collapsedSourceNames, directMappedCount }
+}
+
+export function suggestAutonomousBoneMappings(
+  sourceNames: string[],
+  targetBones: THREE.Bone[],
+  sourceRoot?: THREE.Object3D | null,
+  targetRoot?: THREE.Object3D | null,
+): Record<string, string> {
+  return suggestAutonomousBoneMappingsDetailed(sourceNames, targetBones, sourceRoot, targetRoot).mapping
 }
 
 /** Compatibilidade para chamadas individuais: agora usa a mesma lógica semântica. */

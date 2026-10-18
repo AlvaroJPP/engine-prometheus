@@ -18,7 +18,7 @@ import {
   getTransformTrackPath,
   parseReusableAnimationClip,
   retargetAnimationClip,
-  suggestAutonomousBoneMappings,
+  suggestAutonomousBoneMappingsDetailed,
   suggestTargetBoneMappings,
 } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
@@ -317,6 +317,7 @@ const retargetLibrary = ref<ReusableAnimationAsset[]>([])
 const selectedRetargetLibraryId = ref('')
 const selectedRetargetLibraryClip = shallowRef<THREE.AnimationClip | null>(null)
 const retargetBoneMap = ref<Record<string, string>>({})
+const retargetCollapsedSourceNames = ref<string[]>([])
 const retargetClipName = ref('')
 const retargetMessage = ref('')
 const retargetLoading = ref(false)
@@ -2145,6 +2146,7 @@ function clearRetargetSource() {
   selectedRetargetLibraryId.value = ''
   selectedRetargetLibraryClip.value = null
   retargetBoneMap.value = {}
+  retargetCollapsedSourceNames.value = []
   retargetClipName.value = ''
 }
 
@@ -2221,6 +2223,7 @@ function selectRetargetLibraryAsset(id: string) {
 }
 
 function setRetargetBoneMapping(sourceName: string, targetName: string) {
+  retargetCollapsedSourceNames.value = []
   retargetBoneMap.value = { ...retargetBoneMap.value, [sourceName]: targetName }
 }
 
@@ -2543,7 +2546,14 @@ function applyRetargetedAnimation() {
       ? originalHeight.value
       : Math.max(0.1, new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y)
     const name = retargetClipName.value.trim() || asset.name || clip.name || 'Animação reutilizada'
-    const result = retargetAnimationClip(asset, targetBones, retargetBoneMap.value, name, targetHeight)
+    const result = retargetAnimationClip(
+      asset,
+      targetBones,
+      retargetBoneMap.value,
+      name,
+      targetHeight,
+      retargetCollapsedSourceNames.value,
+    )
     const currentClips = [...((root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? previewAnimations.value)]
     const newIndex = currentClips.length
     currentClips.push(result.clip)
@@ -2561,8 +2571,12 @@ function applyRetargetedAnimation() {
       result.unsupportedTracks.length ? `${result.unsupportedTracks.length} de tipo não suportado (por exemplo, morph targets)` : '',
       result.conflictingTracks.length ? `${result.conflictingTracks.length} em conflito com outra trilha do mesmo osso` : '',
       result.invalidTracks.length ? `${result.invalidTracks.length} com dados inválidos` : '',
+      result.collapsedTracks.length ? `${result.collapsedTracks.length} posições/escalas de juntas recolhidas foram ignoradas (as rotações foram combinadas)` : '',
     ].filter(Boolean).join('; ')
-    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) transferida(s)${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferidas (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
+    const mergedSummary = result.mergedTracks
+      ? `; ${result.mergedTracks} rotação(ões) de juntas ausentes combinada(s)`
+      : ''
+    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) de origem aproveitada(s) em ${result.outputTracks} trilha(s) de destino${mergedSummary}${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferida(s) (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
   }
@@ -2646,12 +2660,14 @@ async function runAutonomousRetargeting() {
 
     retargetAutonomousStage.value = 'Etapa 2/3 · Relacionando ossos por anatomia, hierarquia e geometria'
     targetRoot.updateWorldMatrix(true, true)
-    const mapping = suggestAutonomousBoneMappings(
+    const mappingResult = suggestAutonomousBoneMappingsDetailed(
       sourceNames,
       targetRig.bones,
       retargetSourceRoot.value,
       targetRoot,
     )
+    const mapping = mappingResult.mapping
+    retargetCollapsedSourceNames.value = mappingResult.collapsedSourceNames
     retargetBoneMap.value = Object.fromEntries(sourceNames.map(name => [name, mapping[name] ?? '']))
     const mappedNames = sourceNames.filter(name => Boolean(mapping[name]))
     if (mappedNames.length === 0) {
@@ -2677,21 +2693,25 @@ async function runAutonomousRetargeting() {
 
     const transferReport = retargetMessage.value
     const coverage = Math.round((mappedNames.length / Math.max(1, sourceNames.length)) * 100)
-    const destinationUse = Math.round((new Set(Object.values(mapping)).size / Math.max(1, targetRig.bones.length)) * 100)
+    const uniqueDestinationCount = new Set(Object.values(mapping)).size
+    const destinationUse = Math.round((uniqueDestinationCount / Math.max(1, targetRig.bones.length)) * 100)
     const destinationIsCapacityLimited = targetRig.bones.length < sourceNames.length &&
-      Object.values(mapping).length >= Math.floor(targetRig.bones.length * 0.9)
+      uniqueDestinationCount >= Math.floor(targetRig.bones.length * 0.9)
     const qualityLead = coverage < 60 && !destinationIsCapacityLimited
       ? 'Retargeting concluído com cobertura baixa; revise as associações antes de usar. '
       : coverage < 80 && !destinationIsCapacityLimited
         ? 'Retargeting concluído; a cobertura é parcial e precisa de revisão. '
         : 'Fluxo autônomo concluído. '
     const capacityNote = destinationIsCapacityLimited
-      ? 'O modelo A tem ' + targetRig.bones.length + ' ossos para ' + sourceNames.length + ' nós animados na origem; o destino está perto do limite de associações um-a-um (' + destinationUse + '% dos ossos do destino utilizados). '
+      ? 'O modelo A tem ' + targetRig.bones.length + ' ossos para ' + sourceNames.length + ' ossos animados na origem; ' + destinationUse + '% dos ossos do destino estão em uso. '
       : 'Foram utilizados ' + destinationUse + '% dos ossos disponíveis no destino. '
+    const collapseNote = mappingResult.collapsedSourceNames.length
+      ? mappingResult.collapsedSourceNames.length + ' junta(s) da origem foram recolhidas em ossos existentes; as rotações compatíveis foram combinadas. '
+      : ''
     retargetMessage.value = qualityLead
       + (generatedRig ? 'A IA local gerou o rig e os pesos do modelo A; ' : 'O rig existente do modelo A foi mantido; ')
-      + mappedNames.length + '/' + sourceNames.length + ' nós da origem mapeados (' + coverage + '%). '
-      + capacityNote + transferReport + ' Confira a prévia antes de confirmar a importação.'
+      + mappedNames.length + '/' + sourceNames.length + ' ossos da origem associados (' + coverage + '%: ' + mappingResult.directMappedCount + ' associação(ões) direta(s) e ' + mappingResult.collapsedSourceNames.length + ' recolhida(s)). '
+      + capacityNote + collapseNote + transferReport + ' Confira a prévia antes de confirmar a importação.'
     retargetPreviewStatus.value = 'Retargeting concluído · ' + mappedNames.length + '/' + sourceNames.length + ' nós da origem associados (' + coverage + '%). Confira a deformação do modelo A.'
     retargetTargetPreviewPlaying.value = true
     await nextTick()
@@ -2709,6 +2729,7 @@ function autoMapRetargetBones() {
   const mapping = suggestTargetBoneMappings(sourceNames, retargetTargetBones.value, retargetSourceRoot.value, model.value)
   // Mantém todos os canais na interface; os que não têm correspondência segura
   // ficam vazios para que o usuário decida manualmente.
+  retargetCollapsedSourceNames.value = []
   retargetBoneMap.value = Object.fromEntries(sourceNames.map(name => [name, mapping[name] ?? '']))
   retargetMessage.value = `Mapeamento automático: ${Object.keys(mapping).length} de ${sourceNames.length} ossos associados sem duplicar destinos. Revise os campos vazios manualmente.`
 }
