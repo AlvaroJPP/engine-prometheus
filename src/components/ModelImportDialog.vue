@@ -2320,7 +2320,7 @@ function applyRetargetedAnimation() {
 
 function autoMapRetargetBones() {
   const sourceNames = retargetSourceNodeNames.value
-  const mapping = suggestTargetBoneMappings(sourceNames, retargetTargetBones.value, retargetSourceRoot.value)
+  const mapping = suggestTargetBoneMappings(sourceNames, retargetTargetBones.value, retargetSourceRoot.value, model.value)
   // Mantém todos os canais na interface; os que não têm correspondência segura
   // ficam vazios para que o usuário decida manualmente.
   retargetBoneMap.value = Object.fromEntries(sourceNames.map(name => [name, mapping[name] ?? '']))
