@@ -2183,18 +2183,21 @@ onBeforeUnmount(() => {
           <div class="model-panel-separator"></div>
           <section class="model-panel-section model-hierarchy-section">
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
-            <p class="model-panel-hint">Escolha a casa, castelo ou grupo que deseja transformar em componente. Sem uma parte selecionada, o modelo inteiro será salvo.</p>
+            <p class="model-panel-hint">Marque várias partes com o botão ＋ ao lado de cada nome e use “Salvar selecionados”. Você pode repetir o lote com outras partes sem reabrir o arquivo.</p>
+            <div v-if="batchSelectedCount" class="model-batch-selection-summary">{{ batchSelectedCount }} {{ batchSelectedCount === 1 ? 'parte marcada' : 'partes marcadas' }} para salvar</div>
+            <p v-if="batchNotice" class="model-batch-notice" role="status" aria-live="polite">{{ batchNotice }}</p>
             <label class="model-part-search">FILTRAR HIERARQUIA
               <input v-model="partSearch" type="search" placeholder="Ex.: castelo, casa, taverna" :disabled="!previewParts.length" title="Filtra os nós e as partes do modelo pela nomenclatura." />
             </label>
             <div v-if="filteredPreviewParts.length" class="model-preview-parts">
-              <div v-for="(part, index) in filteredPreviewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
-                <button class="model-preview-part-select" :title="`Selecionar ${part.name}`" @click="selectPreviewPart(part)">
+              <div v-for="(part, index) in filteredPreviewParts" :key="part.id" class="model-preview-part" :class="{ 'is-selected': selectedPartId === part.id, 'is-batch-selected': batchSelectedPartIds.includes(part.id) }" :style="{ paddingLeft: (5 + Math.min(part.depth, 5) * 8) + 'px' }">
+                <button type="button" class="model-preview-part-select" :title="`Selecionar ${part.name} para visualizar`" @click="selectPreviewPart(part)">
                   <span class="model-preview-part-index">{{ String(index + 1).padStart(2, '0') }}</span>
                   <span class="model-tree-cube">◇</span>
                   <span class="model-preview-part-name" :title="part.name">{{ part.name }}</span>
-                  <small>{{ part.meshCount }}</small>
+                  <small>{{ batchSavedPartIds.includes(part.id) ? '✓ salvo' : part.meshCount }}</small>
                 </button>
+                <button type="button" class="model-preview-part-batch" :class="{ active: batchSelectedPartIds.includes(part.id), saved: batchSavedPartIds.includes(part.id) }" :disabled="loading" :aria-pressed="batchSelectedPartIds.includes(part.id)" :aria-label="`Marcar ${part.name} para salvar em lote`" :title="batchSelectedPartIds.includes(part.id) ? 'Remover do lote' : batchSavedPartIds.includes(part.id) ? 'Este item já foi salvo nesta sessão; ainda é possível salvá-lo novamente' : 'Adicionar ao lote de componentes'" @click="toggleBatchPartSelection(part, !batchSelectedPartIds.includes(part.id))">{{ batchSelectedPartIds.includes(part.id) ? '✓' : '+' }}</button>
                 <button class="model-preview-part-eye" :aria-label="`Mostrar ou ocultar ${part.name}`" :title="part.object.visible ? 'Ocultar parte' : 'Mostrar parte'" @click="togglePreviewPart(part)">{{ part.object.visible ? '◉' : '○' }}</button>
                 <button class="model-preview-part-solo" :class="{ active: soloPartId === part.id }" :aria-label="`Visualizar somente ${part.name}`" title="Isolar parte" @click="showOnlyPreviewPart(part)">1×</button>
                 <button class="model-preview-part-delete" :aria-label="`Remover ${part.name} da importação`" title="Remover parte" @click="deletePreviewPart(part)">×</button>
@@ -2658,7 +2661,7 @@ onBeforeUnmount(() => {
           <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ loading ? (isEditingSavedComponent ? 'Salvando alterações…' : 'Salvando componente…') : isEditingSavedComponent ? 'Editando componente existente' : props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : 'Nenhum ativo selecionado' }}</span></div>
           <p v-if="error" class="model-footer-error" role="alert" aria-live="assertive">{{ error }}</p>
         </div>
-        <div class="model-footer-actions"><button type="button" class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" type="button" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset || isEditingSavedComponent" type="button" class="model-import-primary" :disabled="!model || loading" :title="isEditingSavedComponent ? 'Salva as alterações no componente existente, sem criar uma cópia.' : 'Salva o modelo e suas configurações como componente reutilizável.'" @click="confirmImport"><span>{{ loading ? '…' : isEditingSavedComponent ? '✓' : '＋' }}</span> {{ loading ? 'Salvando…' : isEditingSavedComponent ? 'Salvar alterações' : 'Salvar componente' }}</button></div>
+        <div class="model-footer-actions"><button type="button" class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="batchSelectedCount && !props.initialAsset && !isEditingSavedComponent" type="button" class="model-import-secondary model-import-batch-save" :disabled="loading" :title="`Salva ${batchSelectedCount} partes em componentes separados e mantém este modelo aberto.`" @click="saveSelectedParts">{{ loading ? 'Salvando lote…' : `Salvar ${batchSelectedCount} selecionados` }}</button><button v-if="model" type="button" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset || isEditingSavedComponent" type="button" class="model-import-primary" :disabled="!model || loading" :title="isEditingSavedComponent ? 'Salva as alterações no componente existente, sem criar uma cópia.' : 'Salva o modelo e suas configurações como componente reutilizável.'" @click="confirmImport"><span>{{ loading ? '…' : isEditingSavedComponent ? '✓' : '＋' }}</span> {{ loading ? 'Salvando…' : isEditingSavedComponent ? 'Salvar alterações' : 'Salvar componente' }}</button></div>
       </footer>
     </section>
   </div>
@@ -2760,4 +2763,15 @@ onBeforeUnmount(() => {
 .model-import-footer{flex-wrap:wrap}
 .model-import-footer .model-footer-actions{flex:none}
 @media(max-width:760px){.model-footer-error{font-size:9px}.model-import-footer{align-items:stretch}.model-import-footer .model-footer-actions{width:100%;justify-content:flex-end}}
+
+.model-preview-part-batch{display:grid;place-items:center;flex:none;width:19px;height:21px;border:1px solid #3b414b;border-radius:3px;background:#202832;color:#8f9baa;font-size:13px;font-weight:700;line-height:1;cursor:pointer}
+.model-preview-part-batch.active{border-color:#c8915f;background:#4a3525;color:#ffe0c3}
+.model-preview-part-batch.saved{border-color:#486e5b;color:#8ec7a4}
+.model-preview-part-batch:disabled{opacity:.5;cursor:wait}
+.model-preview-part.is-batch-selected{border-color:#765638;background:#30251d}
+.model-batch-selection-summary{margin-top:8px;padding:7px 8px;border:1px solid #5a4632;border-radius:4px;background:#28221c;color:#edc49e;font-size:9px;font-weight:650}
+.model-batch-notice{margin:7px 0 0;color:#9fc9ad;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
+.model-import-batch-save{border-color:#805b3d;color:#f0c69e}
+.model-import-batch-save:hover:not(:disabled){border-color:#bd8a60;background:#34291f}
+.model-import-footer .model-footer-actions{flex-wrap:wrap;justify-content:flex-end}
 </style>
