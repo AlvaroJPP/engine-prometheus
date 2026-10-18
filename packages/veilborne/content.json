@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "packageId": "veilborne_rpg",
+  "weapons": [
+    {
+      "id": "starter_arcane_sword",
+      "name": "Lâmina do Véu",
+      "category": "sword",
+      "damageType": "physical",
+      "baseDamage": 18,
+      "scaling": {
+        "strength": 0.8,
+        "dexterity": 0.45
+      },
+      "staminaCost": 16,
+      "postureDamage": 14,
+      "criticalMultiplier": 1.75,
+      "moveset": [
+        "quick_slash",
+        "cross_cut",
+        "heavy_cleave",
+        "charged_thrust"
+      ]
+    },
+    {
+      "id": "starter_rune_staff",
+      "name": "Cajado das Cinzas",
+      "category": "staff",
+      "damageType": "arcane",
+      "baseDamage": 9,
+      "scaling": {
+        "intellect": 0.9,
+        "will": 0.35
+      },
+      "staminaCost": 10,
+      "postureDamage": 5,
+      "criticalMultiplier": 1.5,
+      "spellPowerBonus": 8,
+      "moveset": [
+        "staff_strike",
+        "arcane_pulse"
+      ]
+    },
+    {
+      "id": "hunters_dagger",
+      "name": "Adaga do Caçador",
+      "category": "dagger",
+      "damageType": "physical",
+      "baseDamage": 11,
+      "scaling": {
+        "dexterity": 1.1
+      },
+      "staminaCost": 9,
+      "postureDamage": 7,
+      "criticalMultiplier": 2.1,
+      "moveset": [
+        "quick_stab",
+        "double_cut",
+        "backstab"
+      ]
+    },
+    {
+      "id": "oathbreaker_greatsword",
+      "name": "Espadão Quebrajuramentos",
+      "category": "greatsword",
+      "damageType": "physical",
+      "baseDamage": 29,
+      "scaling": {
+        "strength": 1.25
+      },
+      "staminaCost": 28,
+      "postureDamage": 25,
+      "criticalMultiplier": 1.8,
+      "moveset": [
+        "wide_cleave",
+        "overhead_smash",
+        "charged_execution"
+      ]
+    }
+  ],
+  "spells": [
+    {
+      "id": "arcane_bolt",
+      "name": "Dardo do Véu",
+      "school": "arcane",
+      "targeting": "projectile",
+      "range": 24,
+      "castTimeSeconds": 0.25,
+      "etherCost": 8,
+      "cooldownSeconds": 0.35,
+      "damage": 20,
+      "radius": 0,
+      "projectileSpeed": 22,
+      "scalingAttribute": "intellect",
+      "scaling": 0.8,
+      "statusEffects": [],
+      "animationRole": "ability_1"
+    },
+    {
+      "id": "cinder_burst",
+      "name": "Explosão de Brasa",
+      "school": "fire",
+      "targeting": "area",
+      "range": 16,
+      "castTimeSeconds": 0.7,
+      "etherCost": 22,
+      "cooldownSeconds": 4,
+      "damage": 34,
+      "radius": 4.5,
+      "projectileSpeed": 0,
+      "scalingAttribute": "intellect",
+      "scaling": 1.1,
+      "statusEffects": [
+        {
+          "id": "burn",
+          "durationSeconds": 4,
+          "potency": 3
+        }
+      ],
+      "animationRole": "ability_2"
+    },
+    {
+      "id": "frost_chain",
+      "name": "Corrente Glacial",
+      "school": "frost",
+      "targeting": "projectile",
+      "range": 20,
+      "castTimeSeconds": 0.45,
+      "etherCost": 16,
+      "cooldownSeconds": 3,
+      "damage": 16,
+      "radius": 2,
+      "projectileSpeed": 18,
+      "scalingAttribute": "intellect",
+      "scaling": 0.7,
+      "statusEffects": [
+        {
+          "id": "slow",
+          "durationSeconds": 3,
+          "potency": 0.35
+        }
+      ],
+      "animationRole": "ability_3"
+    },
+    {
+      "id": "blood_siphon",
+      "name": "Dreno Rubro",
+      "school": "blood",
+      "targeting": "beam",
+      "range": 12,
+      "castTimeSeconds": 0.4,
+      "etherCost": 18,
+      "cooldownSeconds": 5,
+      "damage": 14,
+      "radius": 0,
+      "projectileSpeed": 0,
+      "scalingAttribute": "will",
+      "scaling": 0.8,
+      "lifeStealRatio": 0.55,
+      "statusEffects": [
+        {
+          "id": "bleed",
+          "durationSeconds": 5,
+          "potency": 2
+        }
+      ],
+      "animationRole": "ability_4"
+    },
+    {
+      "id": "blink_step",
+      "name": "Passo Entre Véus",
+      "school": "arcane",
+      "targeting": "self",
+      "range": 7,
+      "castTimeSeconds": 0.1,
+      "etherCost": 20,
+      "cooldownSeconds": 6,
+      "damage": 0,
+      "radius": 0,
+      "projectileSpeed": 0,
+      "scalingAttribute": "will",
+      "scaling": 0,
+      "statusEffects": [],
+      "animationRole": "dodge",
+      "utility": "short_teleport"
+    },
+    {
+      "id": "storm_lance",
+      "name": "Lança da Tempestade",
+      "school": "storm",
+      "targeting": "projectile",
+      "range": 26,
+      "castTimeSeconds": 0.65,
+      "etherCost": 24,
+      "cooldownSeconds": 4.5,
+      "damage": 39,
+      "radius": 0.8,
+      "projectileSpeed": 28,
+      "scalingAttribute": "intellect",
+      "scaling": 1.15,
+      "statusEffects": [
+        {
+          "id": "shock",
+          "durationSeconds": 2,
+          "potency": 1
+        }
+      ],
+      "animationRole": "ability_2"
+    }
+  ],
+  "sigils": [
+    {
+      "id": "ward",
+      "name": "Selo Guardião",
+      "category": "defensive",
+      "shape": "circle",
+      "placementMode": "self",
+      "trigger": "on_cast",
+      "radius": 0,
+      "durationSeconds": 8,
+      "etherCost": 18,
+      "cooldownSeconds": 12,
+      "effect": {
+        "type": "damage_absorption",
+        "amount": 35
+      }
+    },
+    {
+      "id": "blast",
+      "name": "Selo de Ruptura",
+      "category": "offensive",
+      "shape": "triangle",
+      "placementMode": "ground",
+      "trigger": "enemy_enter",
+      "radius": 3.5,
+      "durationSeconds": 20,
+      "etherCost": 20,
+      "cooldownSeconds": 10,
+      "effect": {
+        "type": "damage",
+        "amount": 42,
+        "damageType": "arcane",
+        "postureDamage": 28
+      }
+    },
+    {
+      "id": "hunter_mark",
+      "name": "Marca do Caçador",
+      "category": "utility",
+      "shape": "eye",
+      "placementMode": "target",
+      "trigger": "on_hit",
+      "radius": 18,
+      "durationSeconds": 12,
+      "etherCost": 14,
+      "cooldownSeconds": 8,
+      "effect": {
+        "type": "reveal_and_weaken",
+        "damageTakenMultiplier": 1.2
+      }
+    },
+    {
+      "id": "slow_field",
+      "name": "Círculo de Lentidão",
+      "category": "trap",
+      "shape": "hexagon",
+      "placementMode": "ground",
+      "trigger": "enemy_enter",
+      "radius": 5,
+      "durationSeconds": 8,
+      "etherCost": 17,
+      "cooldownSeconds": 14,
+      "effect": {
+        "type": "status",
+        "statusId": "slow",
+        "potency": 0.45
+      }
+    },
+    {
+      "id": "silence_seal",
+      "name": "Selo do Silêncio",
+      "category": "trap",
+      "shape": "square",
+      "placementMode": "ground",
+      "trigger": "enemy_enter",
+      "radius": 3,
+      "durationSeconds": 10,
+      "etherCost": 16,
+      "cooldownSeconds": 16,
+      "effect": {
+        "type": "status",
+        "statusId": "silence",
+        "potency": 1
+      }
+    }
+  ],
+  "statusEffects": [
+    {
+      "id": "burn",
+      "label": "Queimadura",
+      "stacking": "refresh_duration",
+      "tickIntervalSeconds": 1
+    },
+    {
+      "id": "bleed",
+      "label": "Sangramento",
+      "stacking": "add_stacks",
+      "maxStacks": 5,
+      "triggerAtStacks": 5
+    },
+    {
+      "id": "poison",
+      "label": "Veneno",
+      "stacking": "refresh_duration",
+      "tickIntervalSeconds": 1
+    },
+    {
+      "id": "frost",
+      "label": "Geada",
+      "stacking": "build_up",
+      "threshold": 100,
+      "effect": "freeze"
+    },
+    {
+      "id": "shock",
+      "label": "Choque",
+      "stacking": "refresh_duration",
+      "effect": "interrupt_cast"
+    },
+    {
+      "id": "curse",
+      "label": "Maldição",
+      "stacking": "refresh_duration",
+      "effect": "reduce_healing"
+    },
+    {
+      "id": "silence",
+      "label": "Silêncio",
+      "stacking": "refresh_duration",
+      "effect": "prevent_spell_cast"
+    },
+    {
+      "id": "slow",
+      "label": "Lentidão",
+      "stacking": "refresh_duration",
+      "effect": "reduce_move_speed"
+    },
+    {
+      "id": "stagger",
+      "label": "Atordoamento",
+      "stacking": "refresh_duration",
+      "effect": "interrupt_and_open_finisher"
+    },
+    {
+      "id": "life_drain",
+      "label": "Dreno vital",
+      "stacking": "refresh_duration",
+      "effect": "transfer_vitality"
+    }
+  ],
+  "archetypes": [
+    {
+      "id": "veil_duelist",
+      "name": "Duelista do Véu",
+      "attributes": {
+        "strength": 12,
+        "dexterity": 15,
+        "intellect": 9,
+        "will": 10,
+        "resistance": 12
+      },
+      "starterWeapon": "starter_arcane_sword",
+      "starterSpells": [
+        "arcane_bolt"
+      ],
+      "starterSigils": [
+        "ward",
+        "hunter_mark"
+      ]
+    },
+    {
+      "id": "rune_scholar",
+      "name": "Erudito Rúnico",
+      "attributes": {
+        "strength": 7,
+        "dexterity": 10,
+        "intellect": 16,
+        "will": 14,
+        "resistance": 9
+      },
+      "starterWeapon": "starter_rune_staff",
+      "starterSpells": [
+        "arcane_bolt",
+        "cinder_burst"
+      ],
+      "starterSigils": [
+        "ward",
+        "blast",
+        "slow_field"
+      ]
+    },
+    {
+      "id": "blood_adept",
+      "name": "Adepto Rubro",
+      "attributes": {
+        "strength": 10,
+        "dexterity": 11,
+        "intellect": 12,
+        "will": 16,
+        "resistance": 11
+      },
+      "starterWeapon": "hunters_dagger",
+      "starterSpells": [
+        "blood_siphon",
+        "blink_step"
+      ],
+      "starterSigils": [
+        "hunter_mark",
+        "silence_seal"
+      ]
+    },
+    {
+      "id": "oathbreaker",
+      "name": "Quebrajuramentos",
+      "attributes": {
+        "strength": 17,
+        "dexterity": 9,
+        "intellect": 8,
+        "will": 10,
+        "resistance": 15
+      },
+      "starterWeapon": "oathbreaker_greatsword",
+      "starterSpells": [
+        "storm_lance"
+      ],
+      "starterSigils": [
+        "ward",
+        "blast"
+      ]
+    }
+  ],
+  "enemyArchetypes": [
+    {
+      "id": "hollow_acolyte",
+      "name": "Acólito Oco",
+      "role": "caster",
+      "threat": 1,
+      "aiProfile": "ranged_caster",
+      "weaknesses": [
+        "physical"
+      ],
+      "resistances": [
+        "shadow"
+      ],
+      "lootTable": "low_tier"
+    },
+    {
+      "id": "veil_hound",
+      "name": "Cão do Véu",
+      "role": "fast_melee",
+      "threat": 1,
+      "aiProfile": "flanker",
+      "weaknesses": [
+        "fire"
+      ],
+      "resistances": [
+        "frost"
+      ],
+      "lootTable": "low_tier"
+    },
+    {
+      "id": "grave_knight",
+      "name": "Cavaleiro Sepulcral",
+      "role": "heavy_melee",
+      "threat": 2,
+      "aiProfile": "guard_breaker",
+      "weaknesses": [
+        "storm"
+      ],
+      "resistances": [
+        "physical"
+      ],
+      "lootTable": "mid_tier"
+    },
+    {
+      "id": "bishop_of_ash",
+      "name": "Bispo das Cinzas",
+      "role": "boss",
+      "threat": 5,
+      "aiProfile": "boss_phases",
+      "phases": [
+        {
+          "atHealthPercent": 100,
+          "profile": "staff_and_fire"
+        },
+        {
+          "atHealthPercent": 60,
+          "profile": "summon_ashes"
+        },
+        {
+          "atHealthPercent": 25,
+          "profile": "desperate_burn"
+        }
+      ],
+      "lootTable": "boss_tier"
+    }
+  ],
+  "progression": {
+    "resourceName": "Ecos",
+    "experienceCurve": {
+      "base": 100,
+      "multiplier": 1.22
+    },
+    "deathRecovery": {
+      "enabled": true,
+      "recoverAtDeathLocation": true,
+      "lostOnSecondDeath": true
+    },
+    "checkpoints": {
+      "restoreVitality": true,
+      "restoreEther": true,
+      "restoreStamina": true,
+      "respawnEnemies": true
+    },
+    "equipmentSlots": [
+      "main_hand",
+      "off_hand_or_focus",
+      "head",
+      "chest",
+      "hands",
+      "legs",
+      "ring_1",
+      "ring_2",
+      "relic"
+    ],
+    "questStates": [
+      "inactive",
+      "available",
+      "active",
+      "completed",
+      "failed"
+    ]
+  },
+  "combatRules": {
+    "damageFormula": "max(0, round((baseDamage + sum(attribute * scaling)) * attackMultiplier * chargedMultiplier * criticalMultiplier * (1 - resistancePercent / 100)))",
+    "resistanceRange": [
+      -100,
+      95
+    ],
+    "defaultDodge": {
+      "staminaCost": 22,
+      "invulnerabilitySeconds": 0.22,
+      "cooldownSeconds": 0.35
+    },
+    "defaultParry": {
+      "windowSeconds": 0.2,
+      "successfulParryPostureMultiplier": 2
+    },
+    "posture": {
+      "defaultMaximum": 100,
+      "recoveryPerSecond": 8,
+      "breaksIntoStagger": true
+    },
+    "defaultResourceCaps": {
+      "vitality": 100,
+      "ether": 100,
+      "stamina": 100,
+      "posture": 100
+    }
+  }
+}
