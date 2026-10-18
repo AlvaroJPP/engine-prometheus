@@ -2016,7 +2016,7 @@ async function saveSelectedParts() {
     }
 
     const saved = await props.saveModel({
-      name: fileName.value.replace(/\\.[^.]+$/, '') || 'Importação em lote',
+      name: fileName.value.replace(/\.[^.]+$/, '') || 'Importação em lote',
       model: root,
       height: modelHeight.value,
       batchModels: entries,
@@ -2184,7 +2184,7 @@ onBeforeUnmount(() => {
           <section class="model-panel-section model-hierarchy-section">
             <div class="model-panel-heading"><span>02</span> HIERARQUIA <b>{{ previewParts.length }}</b></div>
             <p class="model-panel-hint">Marque várias partes com o botão ＋ ao lado de cada nome e use “Salvar selecionados”. Você pode repetir o lote com outras partes sem reabrir o arquivo.</p>
-            <div v-if="batchSelectedCount" class="model-batch-selection-summary">{{ batchSelectedCount }} {{ batchSelectedCount === 1 ? 'parte marcada' : 'partes marcadas' }} para salvar</div>
+            <div v-if="batchSelectedCount" class="model-batch-selection-summary"><span>{{ batchSelectedCount }} {{ batchSelectedCount === 1 ? 'parte marcada' : 'partes marcadas' }} para salvar</span><button type="button" :disabled="loading" @click="clearBatchSelection">Limpar seleção</button></div>
             <p v-if="batchNotice" class="model-batch-notice" role="status" aria-live="polite">{{ batchNotice }}</p>
             <label class="model-part-search">FILTRAR HIERARQUIA
               <input v-model="partSearch" type="search" placeholder="Ex.: castelo, casa, taverna" :disabled="!previewParts.length" title="Filtra os nós e as partes do modelo pela nomenclatura." />
@@ -2197,7 +2197,7 @@ onBeforeUnmount(() => {
                   <span class="model-preview-part-name" :title="part.name">{{ part.name }}</span>
                   <small>{{ batchSavedPartIds.includes(part.id) ? '✓ salvo' : part.meshCount }}</small>
                 </button>
-                <button type="button" class="model-preview-part-batch" :class="{ active: batchSelectedPartIds.includes(part.id), saved: batchSavedPartIds.includes(part.id) }" :disabled="loading" :aria-pressed="batchSelectedPartIds.includes(part.id)" :aria-label="`Marcar ${part.name} para salvar em lote`" :title="batchSelectedPartIds.includes(part.id) ? 'Remover do lote' : batchSavedPartIds.includes(part.id) ? 'Este item já foi salvo nesta sessão; ainda é possível salvá-lo novamente' : 'Adicionar ao lote de componentes'" @click="toggleBatchPartSelection(part, !batchSelectedPartIds.includes(part.id))">{{ batchSelectedPartIds.includes(part.id) ? '✓' : '+' }}</button>
+                <button type="button" class="model-preview-part-batch" :class="{ active: batchSelectedPartIds.includes(part.id), saved: batchSavedPartIds.includes(part.id) }" :disabled="loading || !!props.initialAsset" :aria-pressed="batchSelectedPartIds.includes(part.id)" :aria-label="`Marcar ${part.name} para salvar em lote`" :title="batchSelectedPartIds.includes(part.id) ? 'Remover do lote' : batchSavedPartIds.includes(part.id) ? 'Este item já foi salvo nesta sessão; ainda é possível salvá-lo novamente' : 'Adicionar ao lote de componentes'" @click="toggleBatchPartSelection(part, !batchSelectedPartIds.includes(part.id))">{{ batchSelectedPartIds.includes(part.id) ? '✓' : '+' }}</button>
                 <button class="model-preview-part-eye" :aria-label="`Mostrar ou ocultar ${part.name}`" :title="part.object.visible ? 'Ocultar parte' : 'Mostrar parte'" @click="togglePreviewPart(part)">{{ part.object.visible ? '◉' : '○' }}</button>
                 <button class="model-preview-part-solo" :class="{ active: soloPartId === part.id }" :aria-label="`Visualizar somente ${part.name}`" title="Isolar parte" @click="showOnlyPreviewPart(part)">1×</button>
                 <button class="model-preview-part-delete" :aria-label="`Remover ${part.name} da importação`" title="Remover parte" @click="deletePreviewPart(part)">×</button>
@@ -2769,7 +2769,7 @@ onBeforeUnmount(() => {
 .model-preview-part-batch.saved{border-color:#486e5b;color:#8ec7a4}
 .model-preview-part-batch:disabled{opacity:.5;cursor:wait}
 .model-preview-part.is-batch-selected{border-color:#765638;background:#30251d}
-.model-batch-selection-summary{margin-top:8px;padding:7px 8px;border:1px solid #5a4632;border-radius:4px;background:#28221c;color:#edc49e;font-size:9px;font-weight:650}
+.model-batch-selection-summary{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px;padding:7px 8px;border:1px solid #5a4632;border-radius:4px;background:#28221c;color:#edc49e;font-size:9px;font-weight:650}.model-batch-selection-summary button{flex:none;padding:4px 5px;border:1px solid #514437;border-radius:3px;background:#211f1c;color:#cbb69f;font-size:8px;cursor:pointer}.model-batch-selection-summary button:disabled{opacity:.5;cursor:wait}
 .model-batch-notice{margin:7px 0 0;color:#9fc9ad;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
 .model-import-batch-save{border-color:#805b3d;color:#f0c69e}
 .model-import-batch-save:hover:not(:disabled){border-color:#bd8a60;background:#34291f}
