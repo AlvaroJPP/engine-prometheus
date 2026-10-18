@@ -182,6 +182,8 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { name: 'attack_cooldown', label: 'Recarga de ataque da IA', type: 'number', defaultValue: 1.4, description: 'Tempo mínimo entre dois golpes, em segundos.', min: 0.2, max: 30, step: 0.1 },
       { name: 'attack_posture_damage', label: 'Dano de postura da IA', type: 'number', defaultValue: 8, description: 'Postura que o golpe acumula no jogador.', min: 0, max: 99999, step: 1 },
       { name: 'boss_phase', label: 'Fase do chefe', type: 'number', defaultValue: 1, description: 'Fase atual calculada pela vida restante.', min: 1, max: 3, step: 1, readOnly: true },
+      { name: 'eco_reward', label: 'Recompensa em Ecos', type: 'number', defaultValue: -1, description: 'Ecos concedidos ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
+      { name: 'xp_reward', label: 'Recompensa de experiência', type: 'number', defaultValue: -1, description: 'Experiência concedida ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
     ],
     triggers: [
       { id: 'combat_started', label: 'Combate iniciado', description: 'Um alvo hostil detectou o personagem ou recebeu o primeiro ataque.' },
@@ -196,6 +198,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { id: 'enemy_spotted', label: 'Jogador detectado', description: 'A IA hostil detectou o jogador dentro do alcance de percepção.' },
       { id: 'enemy_attack', label: 'Ataque inimigo', description: 'A IA iniciou um ataque contra o jogador.' },
       { id: 'enemy_lost_target', label: 'Jogador perdido', description: 'O jogador saiu do alcance de percepção da IA.' },
+      { id: 'level_up', label: 'Subiu de nível', description: 'A experiência acumulada ultrapassou o requisito e concedeu um ponto de atributo.' },
       { id: 'player_died', label: 'Jogador morreu', description: 'A vida chegou a zero e o estado de morte foi ativado.' },
       { id: 'checkpoint_used', label: 'Santuário usado', description: 'O jogador ativou um santuário ou ponto de descanso.' },
     ],
