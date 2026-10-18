@@ -939,7 +939,7 @@ export class CollisionSystem {
       bestContact = { normal, depth }
     }
 
-    if (this.isStaticMeshCollider(object)) {
+    if (this.isStaticMeshCollider(object) && getStaticMeshCollisionData(root)) {
       visitStaticMeshTriangles(root, shapeBounds, (triangle) => {
         pointA.copy(triangle.a)
         pointB.copy(triangle.b)
