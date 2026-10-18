@@ -1840,26 +1840,35 @@ async function runSkinTokensRigging() {
   skinTokensMessage.value = 'Preparando o GLB e executando SkinTokens localmente. A primeira execução pode demorar; o arquivo não é enviado para um serviço remoto.'
   try {
     const operation = skinTokensOperation.value
-    const sourceClips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    const exportRoot = cloneSkinnedModel(root)
-    exportRoot.userData = { ...exportRoot.userData }
-    for (const key of [
-      'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
-      'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
-      'importAnimationRoles', 'importControlBindings', 'importColliderType',
-      'importColliderSize', 'importColliderOffset', 'importRigPreset',
-      'importRigGenerated', 'importRigBoneNames', 'importSourceGlbBytes',
-      'importNeedsReexport',
-    ]) delete exportRoot.userData[key]
-    exportRoot.updateMatrixWorld(true)
-    const exporter = new GLTFExporter()
-    const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: sourceClips })
-    if (!(exported instanceof ArrayBuffer)) throw new Error('Não foi possível exportar o modelo para GLB.')
-    if (exported.byteLength > 300 * 1024 * 1024) throw new Error('O GLB excede o limite de 300 MB para processamento local.')
+    let inputGlb: ArrayBuffer
+    const originalGlb = root.userData.importSourceGlbBytes
+    if (originalGlb instanceof ArrayBuffer && root.userData.importNeedsReexport !== true) {
+      // Para importações GLB intactas, reutiliza o arquivo binário original e
+      // evita perder extensões, texturas compactadas ou metadados no exportador Three.js.
+      inputGlb = originalGlb.slice(0)
+    } else {
+      const sourceClips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+      const exportRoot = cloneSkinnedModel(root)
+      exportRoot.userData = { ...exportRoot.userData }
+      for (const key of [
+        'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
+        'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
+        'importAnimationRoles', 'importControlBindings', 'importColliderType',
+        'importColliderSize', 'importColliderOffset', 'importRigPreset',
+        'importRigGenerated', 'importRigBoneNames', 'importSourceGlbBytes',
+        'importNeedsReexport',
+      ]) delete exportRoot.userData[key]
+      exportRoot.updateMatrixWorld(true)
+      const exporter = new GLTFExporter()
+      const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: sourceClips })
+      if (!(exported instanceof ArrayBuffer)) throw new Error('Não foi possível exportar o modelo para GLB.')
+      inputGlb = exported
+    }
+    if (inputGlb.byteLength > 300 * 1024 * 1024) throw new Error('O GLB excede o limite de 300 MB para processamento local.')
 
     const outputBase64 = await invoke<string>('run_skintokens_glb', {
       executablePath: skinTokensExecutablePath.value.trim(),
-      glbBase64: encodeArrayBufferBase64(exported),
+      glbBase64: encodeArrayBufferBase64(inputGlb),
       operation,
       modelClass: skinTokensResolvedClass.value,
     })
