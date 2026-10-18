@@ -3087,6 +3087,13 @@ onBeforeUnmount(() => {
               <button class="model-import-primary" title="Abre um arquivo de modelo para carregar na prévia." @click="fileInput?.click()">Abrir arquivo</button>
             </div>
             <div v-if="loading" class="model-import-loading"><span class="model-loading-spinner"></span><strong>Preparando pré-visualização</strong><small>Carregando geometria, materiais e texturas</small></div>
+            <div v-if="skinTokensLoading" class="model-import-loading model-skintokens-viewport-loading" role="status" aria-live="polite" aria-busy="true">
+              <span class="model-loading-spinner"></span>
+              <strong>{{ skinTokensMessage.startsWith('Verificando') ? 'Verificando IA local' : skinTokensOperation === 'rig' ? 'Gerando rig com IA' : 'Recalculando pesos com IA' }}</strong>
+              <small>{{ skinTokensMessage.startsWith('Verificando') ? 'Carregando e verificando o modelo local…' : 'Analisando geometria e calculando deformações. Isso pode levar alguns minutos.' }}</small>
+              <div class="model-skintokens-viewport-progress" role="progressbar" aria-label="Processamento de rigging por IA" aria-valuetext="Progresso indeterminado"><span></span></div>
+              <small>O editor está aguardando o resultado. A barra não representa uma porcentagem real.</small>
+            </div>
             <div class="preview-badge"><span class="model-live-dot"></span> LIVE PREVIEW</div>
             <div v-if="model && previewAnimations.length" class="preview-animation-controls">
               <label>ANIMAÇÃO
@@ -3784,6 +3791,12 @@ onBeforeUnmount(() => {
 .model-retarget-preview-status{margin:7px 0 0;color:#aeb6c4;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
 .model-retarget-preview-play{margin-top:6px}
 
+/* Viewport overlay keeps the long-running AI operation visible even when the right panel is scrolled. */
+.model-skintokens-viewport-loading{z-index:30;gap:12px;padding:22px;background:#101217ed;backdrop-filter:blur(3px);text-align:center}
+.model-skintokens-viewport-loading>strong{color:#f0d5b9;font-size:13px;font-weight:750}
+.model-skintokens-viewport-loading>small{max-width:360px;color:#a9b0bc;font-size:10px;line-height:1.6}
+.model-skintokens-viewport-progress{position:relative;overflow:hidden;width:min(320px,76%);height:5px;border-radius:999px;background:#38302a;box-shadow:inset 0 0 0 1px #604832}
+.model-skintokens-viewport-progress span{position:absolute;inset:0 auto 0 0;width:38%;border-radius:999px;background:linear-gradient(90deg,#98663f,#f0bb83,#d19a64);box-shadow:0 0 10px #d19a6440;animation:model-skintokens-progress 1.65s ease-in-out infinite}
 /* SkinTokens local processing: visible indeterminate progress without fake percentages. */
 .model-skintokens-loading{display:flex;flex-direction:column;gap:10px;margin-top:10px;padding:12px;border:1px solid #715439;border-radius:5px;background:linear-gradient(135deg,#29231e 0%,#1c2026 70%);box-shadow:inset 3px 0 0 #d19a64;animation:model-skintokens-appear .2s ease-out}
 .model-skintokens-loading-heading{display:flex;align-items:center;gap:10px;min-width:0}
@@ -3802,6 +3815,6 @@ onBeforeUnmount(() => {
 @keyframes model-skintokens-progress{0%{left:-40%}50%{left:42%}100%{left:105%}}
 @keyframes model-skintokens-pulse{0%,100%{opacity:.65}50%{opacity:1;box-shadow:0 0 0 4px #9ec87d25}}
 @keyframes model-skintokens-appear{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
-@media(prefers-reduced-motion:reduce){.model-skintokens-loading,.model-skintokens-spinner,.model-skintokens-button-spinner,.model-skintokens-live-pill i,.model-skintokens-progress-track span{animation:none}.model-skintokens-progress-track span{left:31%;width:38%}}
+@media(prefers-reduced-motion:reduce){.model-skintokens-loading,.model-skintokens-spinner,.model-skintokens-button-spinner,.model-skintokens-live-pill i,.model-skintokens-progress-track span,.model-skintokens-viewport-progress span{animation:none}.model-skintokens-progress-track span,.model-skintokens-viewport-progress span{left:31%;width:38%}}
 
 </style>
