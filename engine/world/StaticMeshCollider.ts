@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { MeshBVH } from 'three-mesh-bvh'
+import { INTERSECTED, MeshBVH, NOT_INTERSECTED } from 'three-mesh-bvh'
 
 export interface StaticMeshCollisionPart {
   /** Nome da malha de origem (prédio, rua, calçada etc.). */
@@ -107,7 +107,7 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
     const signature = [
       child.uuid,
       child.geometry.uuid,
-      position.version,
+      position instanceof THREE.InterleavedBufferAttribute ? position.data.version : position.version,
       index?.version ?? -1,
       matrixSignature(toRoot),
       indexCount,
@@ -194,7 +194,7 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
     boundsMin: part.localBounds.min.toArray(),
     boundsMax: part.localBounds.max.toArray(),
   }))
-  const boundsTree = new MeshBVH(geometry, { maxLeafSize: 12, indirect: true })
+  const boundsTree = new MeshBVH(geometry, { targetLeafSize: 12, indirect: true })
   const compiled: CachedStaticMesh = {
     signature,
     geometry,
@@ -234,7 +234,7 @@ export function visitStaticMeshTriangles(
   const c = new THREE.Vector3()
 
   return data.boundsTree.shapecast({
-    intersectsBounds: bounds => bounds.intersectsBox(localQueryBounds),
+    intersectsBounds: bounds => bounds.intersectsBox(localQueryBounds) ? INTERSECTED : NOT_INTERSECTED,
     intersectsTriangle: (localTriangle) => {
       a.copy(localTriangle.a).applyMatrix4(rootToWorld)
       b.copy(localTriangle.b).applyMatrix4(rootToWorld)
