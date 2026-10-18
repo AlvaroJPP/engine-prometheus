@@ -36,7 +36,7 @@ const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
 const quickAddOpen = ref(false)
-const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings> } | null>(null)
+const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[] } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 let componentThumbnailBackfillRunning = false
@@ -930,6 +930,7 @@ async function previewSavedComponent(id: string) {
       bytes: component.bytes.slice(0),
       animationRoles: component.animationRoles,
       controlBindings: component.controlBindings,
+      behaviorPackageIds: component.behaviorPackageIds,
     }
     modelImportOpen.value = true
   } catch (error) {
@@ -999,6 +1000,9 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
+      behaviorPackageIds: Array.isArray(payload.model.userData.importBehaviorPackageIds)
+        ? [...new Set((payload.model.userData.importBehaviorPackageIds as unknown[]).filter((id): id is string => typeof id === 'string'))]
+        : [],
       animationRoles: payload.model.userData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
       controlBindings: payload.model.userData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
       thumbnail: payload.thumbnail,
@@ -1060,6 +1064,7 @@ async function placeSavedComponent(id: string) {
     }
     model.userData.importedModelData = arrayBufferToBase64(component.bytes)
     model.userData.importedModelHeight = component.height
+    model.userData.importBehaviorPackageIds = [...(component.behaviorPackageIds ?? [])]
     model.userData.importColliderType = component.colliderType
     model.userData.importColliderSize = [...component.colliderSize]
     model.userData.importColliderOffset = [...component.colliderOffset]
