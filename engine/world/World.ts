@@ -554,6 +554,7 @@ export class World {
       id: o.id,
       name: o.name,
       type: o.type,
+      importedModel: o.mesh.userData.importedModel === true,
       x: o.mesh.position.x,
       y: o.mesh.position.y,
       z: o.mesh.position.z,
