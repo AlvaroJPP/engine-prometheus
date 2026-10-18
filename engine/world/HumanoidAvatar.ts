@@ -136,23 +136,42 @@ function getCircularDirectionalWeights(
   const fraction = sectorPosition - Math.floor(sectorPosition)
   const familyRole = running ? 'run' : 'walk'
 
-  const resolveRole = (requested: AnimationRole): AnimationRole | null => {
+  const resolveRole = (requested: AnimationRole, requestedIndex: number): AnimationRole | null => {
     const candidates = [
       requested,
       ...(ANIMATION_FALLBACKS[requested] ?? []).filter(role => role !== 'idle'),
       familyRole,
       running ? 'walk' : 'run',
     ]
-    return candidates.find(role =>
+    const preferred = candidates.find(role =>
       CIRCULAR_LOCOMOTION_ROLE_SET.has(role) && actions.has(role),
-    ) ?? null
+    )
+    if (preferred) return preferred
+
+    // Se nem o fallback específico existir, procura o clipe mais próximo no
+    // círculo. Primeiro mantém a família walk/run e só depois usa a outra família.
+    const findNearest = (useRunFamily: boolean): AnimationRole | null => {
+      const ordered = CIRCULAR_LOCOMOTION_SECTORS.map((sector, index) => {
+        const clockwise = (index - requestedIndex + CIRCULAR_LOCOMOTION_SECTORS.length) % CIRCULAR_LOCOMOTION_SECTORS.length
+        const counterClockwise = (requestedIndex - index + CIRCULAR_LOCOMOTION_SECTORS.length) % CIRCULAR_LOCOMOTION_SECTORS.length
+        return { index, distance: Math.min(clockwise, counterClockwise) }
+      }).sort((a, b) => a.distance - b.distance)
+      for (const item of ordered) {
+        const candidate = useRunFamily
+          ? CIRCULAR_LOCOMOTION_SECTORS[item.index]!.run
+          : CIRCULAR_LOCOMOTION_SECTORS[item.index]!.walk
+        if (actions.has(candidate)) return candidate
+      }
+      return null
+    }
+    return findNearest(running) ?? findNearest(!running)
   }
 
   const addWeight = (index: number, weight: number): void => {
     if (weight <= 1e-5) return
     const sector = CIRCULAR_LOCOMOTION_SECTORS[index]!
     const requested = running ? sector.run : sector.walk
-    const actual = resolveRole(requested)
+    const actual = resolveRole(requested, index)
     if (!actual) return
     result.set(actual, (result.get(actual) ?? 0) + weight)
   }
