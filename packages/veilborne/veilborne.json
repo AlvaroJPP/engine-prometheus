@@ -299,7 +299,9 @@
       "ability2": "spell_slot_2",
       "ability3": "spell_slot_3",
       "ability4": "spell_slot_4",
-      "usesActiveControlMap": true
+      "usesActiveControlMap": true,
+      "sigilCycle": "reload (T in the default WASD profile)",
+      "sigilActivate": "useItem (H in the default WASD profile)"
     },
     "playerGlobalVariables": [
       "vida",
@@ -334,17 +336,23 @@
       "posture_damage_and_break",
       "periodic_burn_bleed_poison",
       "death_flag_and_enemy_killed_package_event",
-      "temporary_combat_vfx"
+      "temporary_combat_vfx",
+      "prepared_sigil_selection_and_activation",
+      "ground_sigil_traps_and_enemy_enter_triggers",
+      "hunter_mark_increases_incoming_damage",
+      "burn_bleed_poison_damage_over_time",
+      "temporary_ward_visual_and_absorption_state"
     ],
     "notYetConnected": [
       "weapon_animation_hitboxes",
       "player_dodge_stamina_cost",
       "timed_parry",
-      "world_sigils_runtime",
       "enemy_ai",
       "inventory_ui",
       "persistent_progression",
-      "production_vfx_sfx"
+      "production_vfx_sfx",
+      "enemy_ai_and_incoming_player_damage_integration",
+      "ward_absorption_consumption"
     ]
   }
 }
