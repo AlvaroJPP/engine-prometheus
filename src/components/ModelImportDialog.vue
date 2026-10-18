@@ -3193,6 +3193,37 @@ onBeforeUnmount(() => {
               <p v-if="retargetMessage" class="model-rigging-status">{{ retargetMessage }}</p>
             </div>
             <div class="model-rigging-separator"></div>
+            <section class="model-retarget-panel model-skintokens-panel">
+              <div class="model-rigging-subtitle">RIGGING POR IA LOCAL · GRATUITO</div>
+              <p class="model-panel-hint">SkinTokens/TokenRig gera esqueleto e pesos de deformação com um modelo aberto executado no seu computador. Não usa chave de API, créditos ou plano pago.</p>
+              <label class="model-rigging-field">Executável SkinTokens
+                <input v-model.trim="skinTokensExecutablePath" type="text" spellcheck="false" placeholder="C:\...\skintokens\target\release\skintokens.exe" />
+              </label>
+              <div class="model-retarget-actions">
+                <button type="button" class="model-rigging-secondary" :disabled="!isTauri() || skinTokensLoading || loading" @click="chooseSkinTokensExecutable">Selecionar executável</button>
+                <button type="button" class="model-rigging-secondary" :disabled="!isTauri() || !skinTokensExecutablePath.trim() || skinTokensLoading || loading" @click="testSkinTokensBackend">Testar backend local</button>
+              </div>
+              <label class="model-rigging-field">Operação de IA
+                <select v-model="skinTokensOperation" :disabled="skinTokensLoading || loading">
+                  <option value="rig">Gerar esqueleto + pesos (modelo sem rig)</option>
+                  <option value="skin">Melhorar pesos do rig existente</option>
+                </select>
+              </label>
+              <label v-if="skinTokensOperation === 'rig'" class="model-rigging-field">Classe do modelo
+                <select v-model="skinTokensClassChoice" :disabled="skinTokensLoading || loading">
+                  <option v-for="option in skinTokensClassOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+              </label>
+              <p v-if="skinTokensOperation === 'rig' && skinTokensClassChoice === 'auto' && rigInputAnalysis" class="model-control-note">Classe detectada: <strong>{{ skinTokensResolvedClass }}</strong>. {{ rigInputAnalysis.reason }}</p>
+              <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || !isTauri() || loading || skinTokensLoading || !skinTokensExecutablePath.trim() || !skinTokensRigCompatible" @click="runSkinTokensRigging">
+                {{ skinTokensLoading ? 'Executando IA local…' : skinTokensOperation === 'rig' ? 'Gerar rig com SkinTokens' : 'Recalcular pesos com SkinTokens' }}
+              </button>
+              <p v-if="!skinTokensRigCompatible && model && !props.initialAsset" class="model-control-note">{{ skinTokensOperation === 'rig' ? 'Para gerar rig, o modelo deve conter malhas estáticas sem esqueleto. Modelos já rigados usam a opção de melhorar pesos.' : 'A operação de pesos exige que o modelo já tenha uma malha esquelética.' }}</p>
+              <p v-if="skinTokensMessage" class="model-rigging-status">{{ skinTokensMessage }}</p>
+              <p class="model-control-note">Instalação única no Windows: execute <code>powershell -ExecutionPolicy Bypass -File .\scripts\install-skintokens.ps1</code> na pasta do repositório. O instalador compila o backend em CPU e baixa os pesos abertos (aprox. 1,1 GB); depois é possível trabalhar offline. Sua RTX 3060 de 6 GB não é requisito, pois esta versão usa CPU.</p>
+              <a class="model-control-note" href="https://github.com/chris-straka/skintokens" target="_blank" rel="noreferrer">Código-fonte e detalhes de licença do backend</a>
+            </section>
+            <div class="model-rigging-separator"></div>
             <label class="model-rigging-field">Modelo de rig
               <select v-model="rigPreset" :disabled="!model || !!props.initialAsset || loading" title="Escolha a estrutura de rig sugerida para o tipo de modelo selecionado.">
                 <option v-for="option in rigPresetOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
