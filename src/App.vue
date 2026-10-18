@@ -981,8 +981,8 @@ async function renameSavedComponent(id: string, requestedName: string) {
   }
 }
 
-async function handleUsePlayerModel(payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, import('@engine').AnimationRole> }) {
-  await setPlayerModelAsset(payload.bytes, payload.name, payload.animationRoles)
+async function handleUsePlayerModel(payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, import('@engine').AnimationRole>; height: number }) {
+  await setPlayerModelAsset(payload.bytes, payload.name, payload.animationRoles, payload.height)
 }
 
 async function handleSaveAnimationSource(payload: { name: string; bytes: ArrayBuffer; height: number }) {
