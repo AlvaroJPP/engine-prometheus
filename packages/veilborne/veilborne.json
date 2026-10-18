@@ -352,7 +352,11 @@
       "sigilo_3",
       "sigilo_4",
       "sigilo_selecionado",
-      "sigilo_ativo"
+      "sigilo_ativo",
+      "nivel",
+      "experiencia",
+      "experiencia_proximo_nivel",
+      "pontos_atributo"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -396,7 +400,11 @@
       "runtime_arsenal_loadout_panel",
       "equipped_weapon_switching",
       "spell_slot_configuration_from_hud",
-      "prepared_sigil_slot_configuration_from_hud"
+      "prepared_sigil_slot_configuration_from_hud",
+      "enemy_kill_echo_reward",
+      "experience_curve_and_level_up",
+      "attribute_points_earned_on_level_up",
+      "loadout_panel_attribute_point_spending"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -409,7 +417,10 @@
       "boss_unique_attack_patterns",
       "collectable_inventory_and_consumables",
       "loot_and_equipment_drop_system",
-      "persistent_loadout_and_character_save"
+      "persistent_loadout_and_character_save",
+      "persistent_character_progression_save",
+      "loot_drops_and_collectable_inventory",
+      "checkpoint_respawn_and_resource_recovery"
     ],
     "enemyAIProfiles": [
       "melee",
@@ -442,7 +453,13 @@
         "distance_based_perception_no_line_of_sight"
       ],
       "staggerDurationSeconds": 1.15,
-      "customStatsRequiresToggle": true
+      "customStatsRequiresToggle": true,
+      "rewardVariables": {
+        "echoes": "eco_reward",
+        "experience": "xp_reward",
+        "automaticValue": -1,
+        "zeroDisablesReward": true
+      }
     }
   }
 }
