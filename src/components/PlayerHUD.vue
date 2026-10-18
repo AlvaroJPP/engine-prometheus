@@ -26,6 +26,7 @@ type HudImageLayer = {
   width: number
   opacity: number
   visible: boolean
+  fitScreen: boolean
 }
 type HudImageDrag = {
   id: string
@@ -160,6 +161,7 @@ onMounted(async () => {
                 width,
                 opacity: boundedHudNumber(layer.opacity, 100, 10, 100),
                 visible: layer.visible !== false,
+                fitScreen: layer.fitScreen === true,
               }
             })
         : []
@@ -227,6 +229,7 @@ async function importHudImage(event: Event): Promise<void> {
       width: 24,
       opacity: 100,
       visible: true,
+      fitScreen: false,
     })
     activeHudImageId.value = id
   } catch (error) {
@@ -235,7 +238,20 @@ async function importHudImage(event: Event): Promise<void> {
 }
 
 function toggleHudImagePosition(layer: HudImageLayer): void {
+  if (layer.fitScreen) {
+    activeHudImageId.value = null
+    return
+  }
   activeHudImageId.value = activeHudImageId.value === layer.id ? null : layer.id
+}
+
+function toggleHudImageFit(layer: HudImageLayer): void {
+  layer.fitScreen = !layer.fitScreen
+  if (layer.fitScreen) {
+    layer.x = 0
+    layer.y = 0
+    activeHudImageId.value = null
+  }
 }
 
 function clampHudImagePosition(layer: HudImageLayer): void {
@@ -358,7 +374,9 @@ function resetSettings() {
       :src="hudImageUrls[layer.id]"
       :alt="activeHudImageId === layer.id ? 'Arraste para posicionar: ' + layer.name : ''"
       :aria-hidden="activeHudImageId !== layer.id"
-      :style="{ left: layer.x + '%', top: layer.y + '%', width: layer.width + '%', opacity: layer.opacity / 100 }"
+      :style="layer.fitScreen
+        ? { left: '0%', top: '0%', width: '100%', height: '100%', objectFit: 'contain', opacity: layer.opacity / 100 }
+        : { left: layer.x + '%', top: layer.y + '%', width: layer.width + '%', opacity: layer.opacity / 100 }"
       draggable="false"
       @pointerdown="beginHudImageDrag($event, layer)"
     >
@@ -419,21 +437,24 @@ function resetSettings() {
             </div>
             <button type="button" class="hud-image-remove" :aria-label="'Remover imagem ' + layer.name" title="Remover imagem" @click="removeHudImage(layer.id)">×</button>
             <div class="hud-image-actions">
-              <button type="button" :class="{ active: activeHudImageId === layer.id }" @click="toggleHudImagePosition(layer)">
+              <button type="button" :class="{ active: activeHudImageId === layer.id }" :disabled="layer.fitScreen" @click="toggleHudImagePosition(layer)">
                 {{ activeHudImageId === layer.id ? 'Concluir posição' : 'Posicionar na tela' }}
+              </button>
+              <button type="button" :class="{ active: layer.fitScreen }" @click="toggleHudImageFit(layer)">
+                {{ layer.fitScreen ? 'Encaixada na tela' : 'Ajustar à tela' }}
               </button>
             </div>
             <div class="hud-image-adjustments">
-              <label>Largura · {{ Math.round(layer.width) }}%
+              <label v-if="!layer.fitScreen">Largura · {{ Math.round(layer.width) }}%
                 <input v-model.number="layer.width" type="range" min="5" max="80" step="1" @input="clampHudImagePosition(layer)">
               </label>
               <label>Opacidade · {{ Math.round(layer.opacity) }}%
                 <input v-model.number="layer.opacity" type="range" min="10" max="100" step="5" @input="clampHudImagePosition(layer)">
               </label>
-              <label>Horizontal · {{ Math.round(layer.x) }}%
+              <label v-if="!layer.fitScreen">Horizontal · {{ Math.round(layer.x) }}%
                 <input v-model.number="layer.x" type="range" min="0" :max="Math.max(0, 100 - layer.width)" step="1" @input="clampHudImagePosition(layer)">
               </label>
-              <label>Vertical · {{ Math.round(layer.y) }}%
+              <label v-if="!layer.fitScreen">Vertical · {{ Math.round(layer.y) }}%
                 <input v-model.number="layer.y" type="range" min="0" max="100" step="1" @input="clampHudImagePosition(layer)">
               </label>
             </div>
