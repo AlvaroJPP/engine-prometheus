@@ -319,6 +319,8 @@ const retargetBoneMap = ref<Record<string, string>>({})
 const retargetClipName = ref('')
 const retargetMessage = ref('')
 const retargetLoading = ref(false)
+const retargetAutonomousLoading = ref(false)
+const retargetAutonomousStage = ref('')
 const retargetSourcePreviewCanvas = ref<HTMLCanvasElement | null>(null)
 const retargetTargetPreviewCanvas = ref<HTMLCanvasElement | null>(null)
 const retargetSourcePreviewPlaying = ref(true)
@@ -1475,8 +1477,8 @@ function removeImportPackageModelState(packageId: string, stateId: string) {
   writeImportPackageModelStates(packageId, importPackageModelStates(packageId).filter(state => state.id !== stateId))
 }
 
-function clearLoadedModel() {
-  clearRetargetSource()
+function clearLoadedModel(preserveRetargetSource = false) {
+  if (!preserveRetargetSource) clearRetargetSource()
   selectedBehaviorPackageIds.value = []
   selectedBehaviorPackageSettings.value = {}
   customThumbnail.value = null
@@ -1672,8 +1674,8 @@ async function parseFile(file: File) {
   throw new Error('Não foi possível interpretar o arquivo GLB/glTF.')
 }
 
-async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targetHeight = 2) {
-  clearLoadedModel()
+async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targetHeight = 2, preserveRetargetSource = false) {
+  clearLoadedModel(preserveRetargetSource)
   colliderType.value = 'box'
   colliderOffset.value = [0, 0, 0]
   loaded.name = displayName.replace(/\.[^.]+$/, '') || 'Modelo importado'
@@ -1819,7 +1821,7 @@ async function testSkinTokensBackend() {
   }
 }
 
-async function runSkinTokensRigging() {
+async function runSkinTokensRigging(preserveRetargetSource = false) {
   const root = model.value
   if (!root || skinTokensLoading.value) return
   if (!isTauri()) {
@@ -1907,7 +1909,7 @@ async function runSkinTokensRigging() {
     })
     if (!detectedBones.length) throw new Error('O resultado da IA não contém ossos reconhecíveis. Confira o relatório/diagnóstico do SkinTokens e tente novamente.')
 
-    await showLoadedModel(loaded, displayName, targetHeight)
+    await showLoadedModel(loaded, displayName, targetHeight, preserveRetargetSource)
     // Preserve configurações do importador que não fazem parte do arquivo GLB original.
     componentName.value = preservedComponentName || loaded.name
     controlBindings.value = preservedControls
@@ -2548,6 +2550,131 @@ function applyRetargetedAnimation() {
   }
 }
 
+
+async function runAutonomousRetargeting() {
+  if (retargetAutonomousLoading.value || retargetLoading.value || loading.value) return
+
+  const initialTarget = model.value
+  const sourceClip = retargetSourceClip.value
+  const sourceNames = [...retargetSourceNodeNames.value]
+  if (!initialTarget) {
+    retargetMessage.value = 'Carregue primeiro o modelo A, que receberá a animação.'
+    return
+  }
+  if (!sourceClip || sourceNames.length === 0) {
+    retargetMessage.value = 'Carregue um GLB animado do modelo B e selecione um clipe com trilhas de transformação.'
+    return
+  }
+  if (isReadOnlyPreview.value) {
+    retargetMessage.value = 'Este ativo está em modo de visualização. Abra-o para edição antes de transferir animações.'
+    return
+  }
+  if (skinTokensLoading.value) {
+    retargetMessage.value = 'Aguarde a operação de IA em andamento antes de iniciar o retargeting autônomo.'
+    return
+  }
+
+  retargetAutonomousLoading.value = true
+  let generatedRig = false
+  try {
+    const asset = retargetableAssetForCurrentSource()
+    if (!asset || !asset.sourceNodeNames.length) {
+      throw new Error('Não consegui extrair poses de repouso do modelo B. Confira se o clipe anima ossos ou outros nós com posição, rotação ou escala.')
+    }
+
+    retargetAutonomousStage.value = 'Etapa 1/3 · Verificando o rig do modelo A'
+    let targetRoot = model.value
+    if (!targetRoot) throw new Error('O modelo A deixou de estar disponível.')
+
+    const inspectRig = (root: THREE.Object3D) => {
+      const bones: THREE.Bone[] = []
+      let hasSkinnedMesh = false
+      root.traverse(node => {
+        if (node instanceof THREE.Bone) bones.push(node)
+        if (node instanceof THREE.SkinnedMesh) hasSkinnedMesh = true
+      })
+      return { bones, hasSkinnedMesh }
+    }
+
+    let targetRig = inspectRig(targetRoot)
+    if (targetRig.bones.length === 0 || !targetRig.hasSkinnedMesh) {
+      if (!isTauri()) {
+        throw new Error('Para fazer o fluxo autônomo completo, abra o aplicativo desktop Tauri e configure o SkinTokens local. O destino ainda não tem um rig esquelético utilizável.')
+      }
+      if (!skinTokensExecutablePath.value.trim()) {
+        throw new Error('O modelo A não tem um rig pronto. Instale o SkinTokens com scripts/install-skintokens.ps1 e informe o caminho de skintokens.exe no painel de IA local.')
+      }
+      if (!skinTokensRigCompatible.value) {
+        throw new Error('A IA não pode gerar um rig para a estrutura atual. Verifique se o modelo A contém malhas estáticas válidas e não mistura malhas estáticas e esqueléticas incompatíveis.')
+      }
+
+      retargetAutonomousStage.value = 'Etapa 1/3 · A IA local está gerando o esqueleto e os pesos do modelo A'
+      skinTokensOperation.value = 'rig'
+      const targetBeforeAi = targetRoot
+      await runSkinTokensRigging(true)
+      if (model.value === targetBeforeAi) {
+        throw new Error(skinTokensMessage.value || 'A IA local não conseguiu preparar o rig do modelo A.')
+      }
+      targetRoot = model.value
+      if (!targetRoot) throw new Error('A IA terminou, mas o modelo A não foi carregado novamente.')
+      targetRig = inspectRig(targetRoot)
+      if (targetRig.bones.length === 0 || !targetRig.hasSkinnedMesh) {
+        throw new Error('A IA não produziu um rig esquelético com malha deformável. O modelo não foi retargetado.')
+      }
+      generatedRig = true
+      activeSetupTab.value = 'rigging'
+      await nextTick()
+    }
+
+    retargetAutonomousStage.value = 'Etapa 2/3 · Relacionando ossos por anatomia, hierarquia e geometria'
+    targetRoot.updateWorldMatrix(true, true)
+    const mapping = suggestTargetBoneMappings(
+      sourceNames,
+      targetRig.bones,
+      retargetSourceRoot.value,
+      targetRoot,
+    )
+    retargetBoneMap.value = Object.fromEntries(sourceNames.map(name => [name, mapping[name] ?? '']))
+    const mappedNames = sourceNames.filter(name => Boolean(mapping[name]))
+    if (mappedNames.length === 0) {
+      throw new Error('Não encontrei correspondências seguras entre os ossos dos modelos A e B. O rig foi preservado; revise os ossos manualmente ou escolha modelos com anatomias mais semelhantes.')
+    }
+
+    if (!retargetClipName.value.trim()) {
+      retargetClipName.value = sourceClip.name?.trim() || (retargetSourceFileName.value || 'Animação') + ' transferida'
+    }
+    const guessedRole = guessedAnimationRole(sourceClip.name || retargetSourceFileName.value)
+    if (guessedRole !== 'ignore') rigClipRole.value = guessedRole
+
+    retargetAutonomousStage.value = 'Etapa 3/3 · Adaptando a animação e validando as trilhas transferidas'
+    const previousClips = (targetRoot.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const previousClipCount = previousClips.length
+    applyRetargetedAnimation()
+
+    const finalRoot = model.value
+    const finalClips = (finalRoot?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    if (finalClips.length <= previousClipCount) {
+      throw new Error(retargetMessage.value || 'A transferência não gerou um clipe válido. Nenhuma nova animação foi adicionada.')
+    }
+
+    const transferReport = retargetMessage.value
+    const coverage = Math.round((mappedNames.length / Math.max(1, sourceNames.length)) * 100)
+    retargetMessage.value = 'Fluxo autônomo concluído. '
+      + (generatedRig ? 'A IA local gerou o rig e os pesos do modelo A; ' : 'O rig existente do modelo A foi mantido; ')
+      + mappedNames.length + '/' + sourceNames.length + ' ossos de origem mapeados (' + coverage + '%). '
+      + transferReport + ' Confira a prévia antes de confirmar a importação.'
+    retargetPreviewStatus.value = 'Fluxo autônomo concluído · ' + mappedNames.length + '/' + sourceNames.length + ' ossos associados. Confira a deformação do modelo A.'
+    retargetTargetPreviewPlaying.value = true
+    await nextTick()
+    refreshRetargetTargetPreview()
+  } catch (cause) {
+    retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível concluir o retargeting autônomo.'
+  } finally {
+    retargetAutonomousLoading.value = false
+    retargetAutonomousStage.value = ''
+  }
+}
+
 function autoMapRetargetBones() {
   const sourceNames = retargetSourceNodeNames.value
   const mapping = suggestTargetBoneMappings(sourceNames, retargetTargetBones.value, retargetSourceRoot.value, model.value)
@@ -3168,15 +3295,15 @@ onBeforeUnmount(() => {
               <div class="model-rigging-subtitle">CAPTURAR E REUTILIZAR ANIMAÇÕES</div>
               <p class="model-panel-hint">Carregue um GLB animado de outro modelo, guarde o movimento na biblioteca e transfira as rotações para os ossos do rig atual. O arquivo original pode ser fechado depois de salvar na biblioteca.</p>
               <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="chooseRetargetAnimationSource" />
-              <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
+              <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading || retargetAutonomousLoading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
               <p v-if="retargetSourceFileName" class="model-retarget-source">Origem: <strong>{{ retargetSourceFileName }}</strong></p>
               <label v-if="retargetSourceRoot" class="model-rigging-field">Animação extraída
-                <select v-model.number="retargetSourceClipIndex" @change="onRetargetSourceClipChanged">
+                <select v-model.number="retargetSourceClipIndex" :disabled="retargetAutonomousLoading" @change="onRetargetSourceClipChanged">
                   <option v-for="(clip, index) in retargetSourceClips" :key="clip.uuid" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }} s</option>
                 </select>
               </label>
               <label class="model-rigging-field">Biblioteca local de animações
-                <select :value="selectedRetargetLibraryId" @change="selectRetargetLibraryAsset(($event.target as HTMLSelectElement).value)">
+                <select :value="selectedRetargetLibraryId" :disabled="retargetAutonomousLoading" @change="selectRetargetLibraryAsset(($event.target as HTMLSelectElement).value)">
                   <option value="">Usar arquivo GLB carregado acima</option>
                   <option v-for="asset in retargetLibrary" :key="asset.id" :value="asset.id">{{ asset.name }} · {{ asset.duration.toFixed(2) }} s</option>
                 </select>
@@ -3235,10 +3362,23 @@ onBeforeUnmount(() => {
                 </article>
               </div>
               <div class="model-retarget-actions">
-                <button type="button" class="model-rigging-secondary" :disabled="!retargetSourceRoot || !retargetSourceClip || !!selectedRetargetLibraryId || retargetLoading" @click="saveRetargetAnimationToLibrary">Guardar na biblioteca</button>
-                <button type="button" class="model-rigging-primary" :disabled="!model || !retargetSourceClip || !retargetTargetBones.length || !hasRetargetMapping || isReadOnlyPreview || retargetLoading" @click="applyRetargetedAnimation">Retargetar e adicionar ao rig</button>
+                <button type="button" class="model-rigging-secondary" :disabled="!retargetSourceRoot || !retargetSourceClip || !!selectedRetargetLibraryId || retargetLoading || retargetAutonomousLoading" @click="saveRetargetAnimationToLibrary">Guardar na biblioteca</button>
+                <button type="button" class="model-rigging-primary" :disabled="!model || !retargetSourceClip || !retargetTargetBones.length || !hasRetargetMapping || isReadOnlyPreview || retargetLoading || retargetAutonomousLoading" @click="applyRetargetedAnimation">Retargetar manualmente e adicionar ao rig</button>
               </div>
-              <p class="model-control-note">A biblioteca fica salva neste aplicativo/dispositivo. Depois de carregar outro modelo e preparar o rig dele, selecione aqui a animação salva, refaça o mapeamento de ossos se necessário e aplique.</p>
+              <button type="button" class="model-rigging-primary model-retarget-autonomous-button" :disabled="!model || !retargetSourceClip || !retargetSourceNodeNames.length || isReadOnlyPreview || loading || retargetLoading || retargetAutonomousLoading || skinTokensLoading" @click="runAutonomousRetargeting">
+                <span v-if="retargetAutonomousLoading" class="model-skintokens-button-spinner" aria-hidden="true"></span>
+                {{ retargetAutonomousLoading ? 'Executando retargeting autônomo…' : '✦ Executar fluxo autônomo (IA + retargeting)' }}
+              </button>
+              <div v-if="retargetAutonomousLoading" class="model-skintokens-loading" role="status" aria-live="polite" aria-busy="true">
+                <div class="model-skintokens-loading-heading">
+                  <span class="model-skintokens-spinner" aria-hidden="true"></span>
+                  <strong>Fluxo autônomo em execução</strong>
+                </div>
+                <p>{{ retargetAutonomousStage }}</p>
+                <div class="model-skintokens-progress-track" aria-hidden="true"><span></span></div>
+                <small>O rig local só será gerado por IA se o modelo A ainda não tiver malha esquelética utilizável. Os arquivos permanecem no computador.</small>
+              </div>
+              <p class="model-control-note">O fluxo autônomo prepara o rig do modelo A com SkinTokens local quando necessário, associa os ossos por anatomia, hierarquia e geometria, transfere o clipe e informa a cobertura do mapeamento. A biblioteca local também permite reutilizar animações neste dispositivo.</p>
               <p v-if="retargetMessage" class="model-rigging-status">{{ retargetMessage }}</p>
             </div>
             <div class="model-rigging-separator"></div>
