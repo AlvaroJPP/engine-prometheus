@@ -32,7 +32,7 @@ export function buildBundle(
       wireframeVisible: m.userData.wireframeVisible !== false,
       groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
       mass: typeof m.userData.mass === 'number' && Number.isFinite(m.userData.mass) ? Math.max(0, m.userData.mass) : 1,
-      colliderType: m.userData.colliderType === 'box' || m.userData.colliderType === 'sphere' || m.userData.colliderType === 'capsule' || m.userData.colliderType === 'mesh' || m.userData.colliderType === 'none ? m.userData.colliderType : 'auto',
+      colliderType: m.userData.colliderType === 'box' || m.userData.colliderType === 'sphere' || m.userData.colliderType === 'capsule' || m.userData.colliderType === 'mesh' || m.userData.colliderType === 'none' ? m.userData.colliderType : 'auto',
       colliderSize: Array.isArray(m.userData.colliderSize) ? [...m.userData.colliderSize] as [number, number, number] : undefined,
       colliderOffset: Array.isArray(m.userData.colliderOffset) ? [...m.userData.colliderOffset] as [number, number, number] : [0, 0, 0],
       componentId: typeof m.userData.componentId === 'string' ? m.userData.componentId : undefined,
