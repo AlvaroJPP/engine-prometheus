@@ -17,6 +17,7 @@ const emit = defineEmits<{
   (event: 'toggle-camera'): void
   (event: 'exit-runtime'): void
   (event: 'settings-open-change', value: boolean): void
+  (event: 'set-global-variable', name: string, value: string | number | boolean): void
 }>()
 
 type HudImageLayer = {
@@ -163,6 +164,62 @@ function readHudStat(valueVariable: string, maxVariable: string, fallbackMax: nu
 const vitalityStat = computed(() => readHudStat(settings.vitalityVariable, settings.vitalityMaxVariable, settings.vitalityMaxValue))
 const etherStat = computed(() => readHudStat(settings.etherVariable, settings.etherMaxVariable, settings.etherMaxValue))
 
+const veilborneLoadoutOpen = ref(false)
+const veilborneActive = computed(() => typeof props.gameVariables.arma_equipada === 'string')
+const veilborneWeaponOptions = [
+  { id: 'starter_arcane_sword', label: 'Lâmina do Véu' },
+  { id: 'starter_rune_staff', label: 'Cajado das Cinzas' },
+  { id: 'hunters_dagger', label: 'Adaga do Caçador' },
+  { id: 'oathbreaker_greatsword', label: 'Espadão Quebrajuramentos' },
+]
+const veilborneSpellOptions = [
+  { id: 'arcane_bolt', label: 'Dardo do Véu' },
+  { id: 'cinder_burst', label: 'Explosão de Brasa' },
+  { id: 'frost_chain', label: 'Corrente Glacial' },
+  { id: 'blood_siphon', label: 'Dreno Rubro' },
+  { id: 'blink_step', label: 'Passo Entre Véus' },
+  { id: 'storm_lance', label: 'Lança da Tempestade' },
+]
+const veilborneSigilOptions = [
+  { id: 'ward', label: 'Selo Guardião' },
+  { id: 'blast', label: 'Selo de Ruptura' },
+  { id: 'hunter_mark', label: 'Marca do Caçador' },
+  { id: 'slow_field', label: 'Círculo de Lentidão' },
+  { id: 'silence_seal', label: 'Selo do Silêncio' },
+]
+const veilborneAttributes = computed(() => [
+  { key: 'forca', label: 'Força' },
+  { key: 'destreza', label: 'Destreza' },
+  { key: 'intelecto', label: 'Intelecto' },
+  { key: 'vontade', label: 'Vontade' },
+  { key: 'resistencia', label: 'Resistência' },
+].map(item => ({
+  ...item,
+  value: typeof props.gameVariables[item.key] === 'number' ? props.gameVariables[item.key] as number : 0,
+})))
+
+function setLoadoutValue(name: string, value: string | number | boolean): void {
+  emit('set-global-variable', name, value)
+}
+
+function setVeilborneSigilSlot(slot: number, value: string): void {
+  setLoadoutValue('sigilo_' + slot, value)
+  if (Number(props.gameVariables.sigilo_selecionado ?? 1) === slot) {
+    setLoadoutValue('sigilo_ativo', value)
+  }
+}
+
+function onVeilborneInventoryKeydown(event: KeyboardEvent): void {
+  if (!veilborneActive.value || event.code !== props.bindings.inventory) return
+  const target = event.target
+  if (target instanceof HTMLElement && (
+    target.isContentEditable ||
+    target.matches('input, textarea, select, button, [role="dialog"]')
+  )) return
+  event.preventDefault()
+  veilborneLoadoutOpen.value = !veilborneLoadoutOpen.value
+}
+
 function openHudImageDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
@@ -228,6 +285,7 @@ function boundedHudNumber(value: unknown, fallback: number, min: number, max: nu
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onVeilborneInventoryKeydown)
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -275,6 +333,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onVeilborneInventoryKeydown)
   finishHudImageDrag()
   cancelHudCropDrag()
   Object.values(hudImageUrls.value).forEach(url => URL.revokeObjectURL(url))
@@ -981,6 +1040,74 @@ function resetSettings() {
       @pointerdown="beginHudImageDrag($event, layer)"
     >
 
+    <button
+      v-if="veilborneActive"
+      type="button"
+      class="veilborne-loadout-trigger"
+      :class="{ active: veilborneLoadoutOpen }"
+      :aria-expanded="veilborneLoadoutOpen"
+      @click="veilborneLoadoutOpen = !veilborneLoadoutOpen"
+      title="Abrir arsenal, feitiços e sigilos VEILBORNE"
+    >
+      <span class="veilborne-trigger-mark">V</span>
+      <span><small>VEILBORNE</small><strong>Arsenal</strong></span>
+      <kbd>{{ keyLabel(bindings.inventory) }}</kbd>
+    </button>
+
+    <aside
+      v-if="veilborneActive && veilborneLoadoutOpen"
+      class="veilborne-loadout-panel"
+      role="dialog"
+      aria-label="Arsenal VEILBORNE"
+    >
+      <header class="veilborne-loadout-heading">
+        <div>
+          <span class="hud-eyebrow">VEILBORNE · EQUIPAMENTO</span>
+          <strong>Arsenal do Véu</strong>
+        </div>
+        <button type="button" class="veilborne-loadout-close" aria-label="Fechar arsenal" @click="veilborneLoadoutOpen = false">×</button>
+      </header>
+
+      <div class="veilborne-loadout-resources">
+        <div><small>VIDA</small><strong>{{ Math.round(Number(gameVariables.vida ?? 0)) }} / {{ Math.round(Number(gameVariables.vida_max ?? 100)) }}</strong></div>
+        <div><small>ÉTER</small><strong>{{ Math.round(Number(gameVariables.eter ?? 0)) }} / {{ Math.round(Number(gameVariables.eter_max ?? 100)) }}</strong></div>
+        <div><small>VIGOR</small><strong>{{ Math.round(Number(gameVariables.vigor ?? 0)) }} / {{ Math.round(Number(gameVariables.vigor_max ?? 100)) }}</strong></div>
+      </div>
+
+      <label class="veilborne-loadout-field">
+        <span>Arma equipada</span>
+        <select :value="String(gameVariables.arma_equipada ?? 'starter_arcane_sword')" @change="setLoadoutValue('arma_equipada', ($event.target as HTMLSelectElement).value)">
+          <option v-for="item in veilborneWeaponOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
+      </label>
+
+      <div class="veilborne-loadout-section">
+        <div class="veilborne-loadout-section-heading"><span>FEITIÇOS PREPARADOS</span><small>Teclas 1–4</small></div>
+        <label v-for="slot in [1, 2, 3, 4]" :key="'spell-' + slot" class="veilborne-loadout-field">
+          <span>Espaço {{ slot }}</span>
+          <select :value="String(gameVariables['magia_' + slot] ?? veilborneSpellOptions[slot - 1]!.id)" @change="setLoadoutValue('magia_' + slot, ($event.target as HTMLSelectElement).value)">
+            <option v-for="item in veilborneSpellOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="veilborne-loadout-section">
+        <div class="veilborne-loadout-section-heading"><span>SIGILOS PREPARADOS</span><small>{{ keyLabel(bindings.reload) }} troca o ativo</small></div>
+        <label v-for="slot in [1, 2, 3, 4]" :key="'sigil-' + slot" class="veilborne-loadout-field">
+          <span>Espaço {{ slot }}{{ Number(gameVariables.sigilo_selecionado ?? 1) === slot ? ' · ATIVO' : '' }}</span>
+          <select :value="String(gameVariables['sigilo_' + slot] ?? veilborneSigilOptions[(slot - 1) % veilborneSigilOptions.length]!.id)" @change="setVeilborneSigilSlot(slot, ($event.target as HTMLSelectElement).value)">
+            <option v-for="item in veilborneSigilOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="veilborne-loadout-stats">
+        <span>ATRIBUTOS</span>
+        <div v-for="attribute in veilborneAttributes" :key="attribute.key"><small>{{ attribute.label }}</small><strong>{{ Math.round(attribute.value) }}</strong></div>
+      </div>
+      <p class="veilborne-loadout-note">As seleções alteram as variáveis globais da sessão. O inventário de itens coletáveis e a persistência entre sessões ainda serão implementados.</p>
+    </aside>
+
     <div
       v-if="alquimiaStatusLayer"
       class="hud-alquimia-live-bars"
@@ -1267,6 +1394,49 @@ function resetSettings() {
 </template>
 
 <style scoped>
+.veilborne-loadout-trigger {
+  position:absolute; right:clamp(12px,2vw,26px); top:clamp(74px,10vh,118px); z-index:36;
+  display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid #a36f8a80;
+  border-radius:7px; color:#f5eaf0; background:#17131ceb; box-shadow:0 10px 24px #0004;
+  text-align:left; pointer-events:auto; cursor:pointer;
+}
+.veilborne-loadout-trigger.active { border-color:#d9a4be; background:#2a1828f5; }
+.veilborne-loadout-trigger small,.veilborne-loadout-trigger strong { display:block; }
+.veilborne-loadout-trigger small { color:#d6a7bd; font-size:9px; letter-spacing:.13em; }
+.veilborne-loadout-trigger strong { font-size:12px; }
+.veilborne-trigger-mark {
+  display:grid; place-items:center; width:29px; height:29px; border:1px solid #bd819c;
+  border-radius:50%; color:#f7c8df; font-family:Georgia,serif; font-size:17px;
+}
+.veilborne-loadout-trigger kbd { margin-left:5px; border:1px solid #ffffff24; border-radius:4px; padding:3px 5px; color:#e5d2dd; font-size:10px; }
+.veilborne-loadout-panel {
+  position:absolute; top:clamp(116px,16vh,164px); right:clamp(12px,2vw,26px); z-index:40;
+  width:min(390px,calc(100vw - 28px)); max-height:min(76vh,720px); overflow:auto;
+  padding:16px; border:1px solid #9a647d7a; border-radius:8px;
+  color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
+  box-shadow:0 20px 70px #0009; backdrop-filter:blur(18px); pointer-events:auto;
+}
+.veilborne-loadout-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:13px; border-bottom:1px solid #ffffff18; }
+.veilborne-loadout-heading .hud-eyebrow { display:block; color:#cd9ab0; font-size:9px; letter-spacing:.16em; }
+.veilborne-loadout-heading strong { display:block; margin-top:4px; font-family:Georgia,serif; font-size:20px; font-weight:600; letter-spacing:.02em; }
+.veilborne-loadout-close { width:28px; height:28px; border:1px solid #ffffff25; border-radius:5px; color:#e9d6e0; background:#ffffff08; font-size:20px; cursor:pointer; }
+.veilborne-loadout-resources { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; padding:12px 0; }
+.veilborne-loadout-resources > div { min-width:0; border:1px solid #ffffff12; border-radius:5px; padding:8px; background:#ffffff04; }
+.veilborne-loadout-resources small,.veilborne-loadout-resources strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.veilborne-loadout-resources small { color:#ad9da8; font-size:9px; letter-spacing:.1em; }
+.veilborne-loadout-resources strong { margin-top:3px; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-loadout-field { display:grid; grid-template-columns:minmax(76px,100px) 1fr; align-items:center; gap:10px; margin:7px 0; font-size:11px; color:#d8cbd2; }
+.veilborne-loadout-field select { width:100%; min-width:0; border:1px solid #ffffff1f; border-radius:5px; padding:7px 8px; outline:none; color:#f1e6ed; background:#201a26; font:inherit; }
+.veilborne-loadout-field select:focus { border-color:#ce8fab; box-shadow:0 0 0 2px #ce8fab25; }
+.veilborne-loadout-section { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
+.veilborne-loadout-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
+.veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
+.veilborne-loadout-stats { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
+.veilborne-loadout-stats > span { color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
+.veilborne-loadout-stats > div { display:flex; justify-content:space-between; gap:14px; padding:6px 0; border-bottom:1px solid #ffffff0b; font-size:11px; }
+.veilborne-loadout-stats small { color:#9d8f99; }
+.veilborne-loadout-stats strong { font-variant-numeric:tabular-nums; }
+.veilborne-loadout-note { margin:12px 0 0; color:#a99ba5; font-size:10px; line-height:1.45; }
 .player-hud {
   --hud-scale: 1;
   position:absolute; z-index:20; inset:0; display:flex; flex-direction:column; justify-content:space-between;
