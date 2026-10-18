@@ -974,12 +974,13 @@ function disposeComponentSource(root: THREE.Object3D) {
   textures.forEach(texture => texture.dispose())
 }
 
-async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string }) {
-  if (componentBusy.value) return
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string }): Promise<boolean> {
+  if (componentBusy.value) return false
 
   if (payload.componentId) {
     componentBusy.value = true
     status.value = 'Salvando alterações no componente existente…'
+    let saved = false
     try {
       const existing = await getSavedComponent(payload.componentId)
       if (!existing) throw new Error('Este componente não está mais na biblioteca.')
@@ -999,38 +1000,47 @@ async function handleModelImport(payload: { name: string; model: import('three')
         controlBindings: modelData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
         thumbnail: payload.thumbnail || existing.thumbnail,
       }
-      // Mantém o GLB original, o identificador, o grupo, a semântica de entidade e a lógica
-      // do componente. Esta tela edita metadados/configurações sem reconstruir a malha.
       await saveComponentAsset(updated)
+      saved = true
       await refreshSavedComponents()
       status.value = 'Alterações de "' + updated.name + '" salvas no componente existente.'
+      return true
     } catch (error) {
       status.value = 'Não foi possível salvar as alterações: ' + (error instanceof Error ? error.message : String(error))
+      throw error
     } finally {
       componentBusy.value = false
-      disposeComponentSource(payload.model)
+      if (saved) disposeComponentSource(payload.model)
     }
-    return
   }
 
   componentBusy.value = true
   status.value = 'Salvando modelo na biblioteca de componentes…'
-  // Object3D.clone(true) não reconecta corretamente os bones de SkinnedMesh.
-  // SkeletonUtils.clone preserva o esqueleto ao serializar modelos animados como cavalos.
-  const exportRoot = cloneSkinnedModel(payload.model)
-  exportRoot.userData = { ...exportRoot.userData }
-  for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl', 'importRigPreset', 'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds', 'importBehaviorPackageSettings']) {
-    delete exportRoot.userData[key]
-  }
+  let exportRoot: import('three').Object3D | null = null
   let savedComponentId: string | null = null
+  let saveError: unknown = null
   try {
+    exportRoot = cloneSkinnedModel(payload.model)
+    exportRoot.userData = { ...exportRoot.userData }
+    for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl', 'importRigPreset', 'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds', 'importBehaviorPackageSettings']) {
+      delete exportRoot.userData[key]
+    }
+
     const exporter = new GLTFExporter()
-    const result = await exporter.parseAsync(exportRoot, { binary: true, animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [] })
+    const result = await exporter.parseAsync(exportRoot, {
+      binary: true,
+      animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [],
+    })
     if (!(result instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
+
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2)
     const colliderType = payload.model.userData.importColliderType
     const size = payload.model.userData.importColliderSize
     const offset = payload.model.userData.importColliderOffset
+    const rawPackageIds = payload.model.userData.importBehaviorPackageIds
+    const rawPackageSettings = payload.model.userData.importBehaviorPackageSettings
     const component: SavedComponent = {
       id,
       name: payload.name.trim() || 'Modelo 3D',
@@ -1040,11 +1050,11 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
-      behaviorPackageIds: Array.isArray(payload.model.userData.importBehaviorPackageIds)
-        ? [...new Set((payload.model.userData.importBehaviorPackageIds as unknown[]).filter((id): id is string => typeof id === 'string'))]
+      behaviorPackageIds: Array.isArray(rawPackageIds)
+        ? [...new Set(rawPackageIds.filter((id): id is string => typeof id === 'string'))]
         : [],
-      behaviorPackageSettings: payload.model.userData.importBehaviorPackageSettings && typeof payload.model.userData.importBehaviorPackageSettings === 'object'
-        ? payload.model.userData.importBehaviorPackageSettings as SavedComponent['behaviorPackageSettings']
+      behaviorPackageSettings: rawPackageSettings && typeof rawPackageSettings === 'object'
+        ? rawPackageSettings as SavedComponent['behaviorPackageSettings']
         : {},
       animationRoles: payload.model.userData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
       controlBindings: payload.model.userData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
@@ -1057,17 +1067,24 @@ async function handleModelImport(payload: { name: string; model: import('three')
     await refreshSavedComponents()
     status.value = 'Componente "' + component.name + '" salvo. Preparando para construir no mundo…'
   } catch (error) {
+    saveError = error
     status.value = 'Não foi possível salvar o componente: ' + (error instanceof Error ? error.message : String(error))
   } finally {
     componentBusy.value = false
-    disposeComponentSource(exportRoot)
-    // A importação passa a ser dona da biblioteca; a prévia já foi encerrada.
-    disposeComponentSource(payload.model)
+    // O clone compartilha recursos com a prévia: só os descartamos após gravar com sucesso.
+    if (savedComponentId) {
+      if (exportRoot) disposeComponentSource(exportRoot)
+      disposeComponentSource(payload.model)
+    }
   }
 
-  // Seleciona exatamente o componente recém-importado para a próxima colocação.
-  // Sem isso, o motor mantém pendingBuildComponent apontando para o modelo anterior.
-  if (savedComponentId) await placeSavedComponent(savedComponentId)
+  if (!savedComponentId) {
+    if (saveError instanceof Error) throw saveError
+    throw new Error('O componente não foi gravado na biblioteca.')
+  }
+
+  await placeSavedComponent(savedComponentId)
+  return true
 }
 
 async function placeSavedComponent(id: string) {
@@ -2093,7 +2110,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :control-map="activeControlMap.bindings" @close="closeModelImport" @import="handleModelImport" @use-player="handleUsePlayerModel" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :control-map="activeControlMap.bindings" :save-model="handleModelImport" @close="closeModelImport" @use-player="handleUsePlayerModel" />
   </div>
 </template>
 
