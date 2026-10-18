@@ -209,12 +209,16 @@ const animationRoleBaseOptions: Array<{ value: AnimationRole; label: string }> =
   { value: 'walk_right', label: 'Deslocar para direita' },
   { value: 'walk_diagonal_left', label: 'Andar na diagonal esquerda' },
   { value: 'walk_diagonal_right', label: 'Andar na diagonal direita' },
+  { value: 'walk_backward_diagonal_left', label: 'Andar para trás e esquerda' },
+  { value: 'walk_backward_diagonal_right', label: 'Andar para trás e direita' },
   { value: 'run', label: 'Correr para frente' },
   { value: 'run_backward', label: 'Correr para trás' },
   { value: 'run_left', label: 'Correr para esquerda' },
   { value: 'run_right', label: 'Correr para direita' },
   { value: 'run_diagonal_left', label: 'Correr na diagonal esquerda' },
   { value: 'run_diagonal_right', label: 'Correr na diagonal direita' },
+  { value: 'run_backward_diagonal_left', label: 'Correr para trás e esquerda' },
+  { value: 'run_backward_diagonal_right', label: 'Correr para trás e direita' },
   { value: 'run_stop', label: 'Parar após correr' },
   { value: 'jump', label: 'Pular' },
   { value: 'crouch', label: 'Agachar parado' },
@@ -246,12 +250,16 @@ const animationRoleControlBindingKeys: Partial<Record<AnimationRole, keyof Contr
   walk_right: 'right',
   walk_diagonal_left: 'left',
   walk_diagonal_right: 'right',
+  walk_backward_diagonal_left: 'left',
+  walk_backward_diagonal_right: 'right',
   run: 'run',
   run_backward: 'backward',
   run_left: 'left',
   run_right: 'right',
   run_diagonal_left: 'left',
   run_diagonal_right: 'right',
+  run_backward_diagonal_left: 'left',
+  run_backward_diagonal_right: 'right',
   run_stop: 'run',
   jump: 'jump',
   crouch: 'crouchToggle',
@@ -484,6 +492,10 @@ function guessedAnimationRole(name: string): AnimationRole {
   const movementClip = /walk|trot|locomotion|move|run|sprint|gallop|canter|strafe|sidestep|sideways/.test(normalized)
   const lateral = /diagonal|diag|strafe|sidestep|sideways/.test(normalized) ||
     (movementClip && (left || right) && !/turn|pivot|rotate/.test(normalized))
+  if (movementClip && backward && (left || right)) {
+    if (isRun) return left ? 'run_backward_diagonal_left' : 'run_backward_diagonal_right'
+    return left ? 'walk_backward_diagonal_left' : 'walk_backward_diagonal_right'
+  }
   if (movementClip && backward) return isRun ? 'run_backward' : 'walk_backward'
   if (lateral && left) return isRun ? 'run_diagonal_left' : 'walk_diagonal_left'
   if (lateral && right) return isRun ? 'run_diagonal_right' : 'walk_diagonal_right'
