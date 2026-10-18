@@ -716,6 +716,7 @@ function createRigAnimation() {
   const newIndex = clips.length - 1
   const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
   root.userData.importNeedsReexport = true
+  root.userData.importHasModifiedAnimations = true
   root.userData.importAnimations = clips
   root.userData.importAnimationRoles = nextRoles
   animationRoles.value = nextRoles
