@@ -287,7 +287,7 @@ const emit = defineEmits<{
                   <summary :aria-label="'Mais opções para ' + component.name" title="Mais opções">⋯</summary>
                   <div class="saved-component-menu-popover">
                     <button title="Altera o nome deste componente na biblioteca." @click="beginComponentRename(component)">Renomear</button>
-                    <button title="Abre a prévia do componente sem colocá-lo no mundo." @click="emit('preview-component', component.id)">Pré-visualizar</button>
+                    <button title="Abre o componente em pré-visualização e permite editar suas configurações, salvando no próprio componente." @click="emit('preview-component', component.id)">Editar / pré-visualizar</button>
                     <label>Grupo
                       <select :value="componentGroup(component)" aria-label="Grupo do componente" @change="updateComponentGroup(component, $event)">
                         <option v-for="name in componentGroupOptions" :key="name" :value="name">{{ name }}</option>
