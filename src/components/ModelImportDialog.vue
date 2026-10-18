@@ -7,13 +7,26 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
-import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
+import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 
-const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[] } | null }>()
+type ImportBehaviorPackageDraft = {
+  variables: Record<string, PackageScalar>
+  config: Record<string, PackageJsonValue>
+}
+type ImportModelStateDraft = {
+  id: string
+  nodePath: string
+  variable: string
+  operator: 'equals' | 'not_equals'
+  value: PackageScalar
+  visibleWhenMatched: boolean
+}
+
+const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft> } | null }>()
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string }]
@@ -39,6 +52,17 @@ const soloPartId = ref('')
 const partSearch = ref('')
 const componentName = ref('')
 const selectedBehaviorPackageIds = ref<string[]>([])
+const selectedBehaviorPackageSettings = ref<Record<string, ImportBehaviorPackageDraft>>({})
+
+const selectedBehaviorPackageDefinitions = computed(() => BEHAVIOR_PACKAGE_DEFINITIONS.filter(definition =>
+  selectedBehaviorPackageIds.value.includes(definition.id),
+))
+
+const previewPackageModelNodes = computed(() => previewParts.value.map(part => ({
+  path: getPreviewModelNodePath(part.object),
+  name: part.name,
+  meshCount: part.meshCount,
+})).filter(node => node.path))
 
 type ModelDiagnostic = {
   id: string
@@ -952,6 +976,8 @@ function refreshModelDiagnostics() {
 
 
 function clearLoadedModel() {
+  selectedBehaviorPackageIds.value = []
+  selectedBehaviorPackageSettings.value = {}
   customThumbnail.value = null
   customThumbnailFileName.value = ''
   thumbnailImageError.value = ''
@@ -1317,6 +1343,8 @@ watch(() => props.open, async (open) => {
         selectedBehaviorPackageIds.value = [...new Set((props.initialAsset.behaviorPackageIds ?? []).filter(id =>
           BEHAVIOR_PACKAGE_DEFINITIONS.some(definition => definition.id === id),
         ))]
+        selectedBehaviorPackageSettings.value = structuredClone(props.initialAsset.behaviorPackageSettings ?? {})
+        for (const packageId of selectedBehaviorPackageIds.value) ensureImportBehaviorPackageDraft(packageId)
       } catch (e) {
         error.value = e instanceof Error ? e.message : 'Não foi possível abrir o componente para pré-visualização.'
       } finally { loading.value = false }
@@ -1544,6 +1572,15 @@ function confirmImport() {
   imported.userData.importAnimationRoles = { ...animationRoles.value }
   imported.userData.importControlBindings = { ...controlBindings.value }
   imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
+  const behaviorPackageSettings: Record<string, ImportBehaviorPackageDraft> = {}
+  for (const packageId of selectedBehaviorPackageIds.value) {
+    const draft = ensureImportBehaviorPackageDraft(packageId)
+    behaviorPackageSettings[packageId] = {
+      variables: { ...draft.variables },
+      config: structuredClone(draft.config),
+    }
+  }
+  imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
 
   // Capture a miniatura antes de remover o modelo da cena de pré-visualização.
   const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
@@ -1803,10 +1840,10 @@ onBeforeUnmount(() => {
                 :title="definition.description"
               >
                 <input
-                  v-model="selectedBehaviorPackageIds"
                   type="checkbox"
-                  :value="definition.id"
+                  :checked="selectedBehaviorPackageIds.includes(definition.id)"
                   :disabled="!model || !!props.initialAsset"
+                  @change="toggleImportBehaviorPackage(definition.id, ($event.target as HTMLInputElement).checked)"
                 />
                 <span class="model-behavior-package-check" aria-hidden="true">{{ selectedBehaviorPackageIds.includes(definition.id) ? '✓' : '' }}</span>
                 <span class="model-behavior-package-copy">
@@ -1819,6 +1856,123 @@ onBeforeUnmount(() => {
             <div v-else class="model-setup-empty">
               <strong>Nenhum pacote disponível</strong>
               <small>Os pacotes instalados no motor aparecerão aqui quando estiverem disponíveis.</small>
+            </div>
+
+            <div v-if="selectedBehaviorPackageDefinitions.length" class="model-package-settings-list">
+              <article v-for="definition in selectedBehaviorPackageDefinitions" :key="definition.id" class="model-package-settings-card">
+                <div class="model-package-settings-header">
+                  <div><strong>{{ definition.name }}</strong><small>Configurações deste pacote para o componente</small></div>
+                  <span class="model-package-settings-badge">ATIVO</span>
+                </div>
+
+                <div class="model-package-subheading">VARIÁVEIS</div>
+                <div v-for="variable in definition.variables" :key="variable.name" class="model-package-variable">
+                  <label v-if="variable.type === 'boolean'" class="model-package-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="importPackageVariableValue(definition.id, variable.name, variable.defaultValue) === true"
+                      :disabled="variable.readOnly === true || !!props.initialAsset"
+                      @change="updateImportPackageVariable(definition.id, variable, $event)"
+                    />
+                    <span><strong>{{ variable.label }}</strong><small>{{ variable.description }}</small></span>
+                  </label>
+                  <label v-else class="model-package-field">
+                    <span><strong>{{ variable.label }}</strong><small>{{ variable.description }}</small></span>
+                    <input
+                      :type="variable.type === 'number' ? 'number' : 'text'"
+                      :value="String(importPackageVariableValue(definition.id, variable.name, variable.defaultValue))"
+                      :min="variable.min"
+                      :max="variable.max"
+                      :step="variable.step"
+                      :disabled="variable.readOnly === true || !!props.initialAsset"
+                      @change="updateImportPackageVariable(definition.id, variable, $event)"
+                    />
+                  </label>
+                </div>
+
+                <template v-if="definition.id === 'mount'">
+                  <div class="model-package-subheading">CONTROLES E INTERAÇÃO</div>
+                  <label class="model-package-field">
+                    <span><strong>Tecla para montar / desmontar</strong><small>Também atualiza o comando de interação do pacote.</small></span>
+                    <select
+                      :value="String(importPackageConfigValue(definition.id, 'interactionKey', 'KeyE'))"
+                      :disabled="!!props.initialAsset"
+                      @change="setImportPackageInteractionKey(definition.id, ($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="KeyE">E</option><option value="KeyF">F</option><option value="KeyR">R</option><option value="KeyQ">Q</option><option value="KeyG">G</option>
+                    </select>
+                  </label>
+                  <div class="model-package-subheading">POSIÇÃO DO JOGADOR</div>
+                  <p class="model-panel-hint">Deslocamento relativo ao centro da montaria. Ajuste para posicionar o jogador sobre a sela.</p>
+                  <div class="model-package-vector">
+                    <label>X<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 0, 0)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 0, $event)" /></label>
+                    <label>Y<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 1, 0.55)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 1, $event)" /></label>
+                    <label>Z<input type="number" step="0.05" :value="importPackageVectorValue(definition.id, 'seatOffset', 2, 0)" :disabled="!!props.initialAsset" @change="setImportPackageVector(definition.id, 'seatOffset', 2, $event)" /></label>
+                  </div>
+
+                  <div class="model-package-subheading">MAPEAMENTO DAS TECLAS DA MONTARIA</div>
+                  <div class="model-package-bindings">
+                    <label v-for="binding in importPackageControlBindingFields" :key="binding.key" class="model-package-field">
+                      <span><strong>{{ binding.label }}</strong><small>Tecla física do teclado</small></span>
+                      <input
+                        :value="importPackageControlBindingValue(definition.id, binding.key)"
+                        maxlength="32"
+                        :disabled="!!props.initialAsset"
+                        :placeholder="DEFAULT_MODEL_CONTROL_BINDINGS[binding.key]"
+                        @change="setImportPackageControlBinding(definition.id, binding.key, $event)"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="model-package-subheading">ESTADOS VISUAIS DO MODELO</div>
+                  <p class="model-panel-hint">Mostre ou oculte partes do GLB conforme uma variável do pacote, por exemplo: exibir o cavaleiro quando <code>mounted = true</code>.</p>
+                  <button type="button" class="model-package-add-state" :disabled="!previewPackageModelNodes.length || !!props.initialAsset" @click="addImportPackageModelState(definition.id)">＋ Adicionar estado visual</button>
+                  <p v-if="!previewPackageModelNodes.length" class="model-panel-hint">O modelo precisa conter grupos ou malhas na hierarquia para criar estados visuais.</p>
+                  <div v-for="state in importPackageModelStates(definition.id)" :key="state.id" class="model-package-state">
+                    <label class="model-package-field">
+                      <span><strong>Parte / grupo do GLB</strong></span>
+                      <select :value="state.nodePath" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { nodePath: ($event.target as HTMLSelectElement).value })">
+                        <option v-for="node in previewPackageModelNodes" :key="node.path" :value="node.path">{{ node.name }} · {{ node.meshCount }} malha(s)</option>
+                      </select>
+                    </label>
+                    <label class="model-package-field">
+                      <span><strong>Variável da condição</strong></span>
+                      <select :value="state.variable" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { variable: ($event.target as HTMLSelectElement).value })">
+                        <option v-for="variable in definition.variables" :key="variable.name" :value="variable.name">{{ variable.name }}</option>
+                      </select>
+                    </label>
+                    <div class="model-package-state-grid">
+                      <label class="model-package-field">
+                        <span><strong>Comparação</strong></span>
+                        <select :value="state.operator" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { operator: ($event.target as HTMLSelectElement).value as 'equals' | 'not_equals' })">
+                          <option value="equals">Igual a</option><option value="not_equals">Diferente de</option>
+                        </select>
+                      </label>
+                      <label class="model-package-field">
+                        <span><strong>Valor esperado</strong></span>
+                        <input type="text" :value="String(state.value)" :disabled="!!props.initialAsset" @change="onImportPackageModelStateValueChange(definition.id, state.id, $event)" />
+                      </label>
+                    </div>
+                    <label class="model-package-toggle">
+                      <input type="checkbox" :checked="state.visibleWhenMatched" :disabled="!!props.initialAsset" @change="updateImportPackageModelState(definition.id, state.id, { visibleWhenMatched: ($event.target as HTMLInputElement).checked })" />
+                      <span><strong>Exibir quando a condição for verdadeira</strong></span>
+                    </label>
+                    <button type="button" class="model-package-remove-state" :disabled="!!props.initialAsset" @click="removeImportPackageModelState(definition.id, state.id)">Remover estado ×</button>
+                  </div>
+                </template>
+
+                <template v-for="(defaultValue, configKey) in definition.defaultConfig" :key="configKey">
+                  <label v-if="isSimplePackageConfigValue(configKey, defaultValue)" class="model-package-field">
+                    <span><strong>{{ formatPackageConfigLabel(configKey) }}</strong><small>Configuração do pacote</small></span>
+                    <input
+                      :type="typeof defaultValue === 'number' ? 'number' : 'text'"
+                      :value="String(importPackageConfigValue(definition.id, configKey, defaultValue))"
+                      :disabled="!!props.initialAsset"
+                      @change="updateImportPackageConfigScalar(definition.id, configKey, defaultValue, $event)"
+                    />
+                  </label>
+                </template>
+              </article>
             </div>
           </section>
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
@@ -2018,6 +2172,37 @@ onBeforeUnmount(() => {
 .model-behavior-package-copy strong{color:#e3e7ee;font-size:10px}
 .model-behavior-package-copy small{color:#9ca5b3;font-size:9px;line-height:1.5}
 .model-behavior-package-meta{color:#d0a47d;font-size:8px;line-height:1.4}
+.model-package-settings-list{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+.model-package-settings-card{display:flex;flex-direction:column;gap:9px;padding:11px;border:1px solid #624a35;border-radius:5px;background:#191d23}
+.model-package-settings-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding-bottom:8px;border-bottom:1px solid #35313a}
+.model-package-settings-header>div{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.model-package-settings-header strong{color:#f0c69e;font-size:11px}
+.model-package-settings-header small{color:#8f98a6;font-size:9px;line-height:1.4}
+.model-package-settings-badge{flex:none;padding:4px 5px;border:1px solid #755534;border-radius:3px;color:#e5b17e;font-size:7px;font-weight:800;letter-spacing:.07em}
+.model-package-subheading{margin-top:4px;color:#d5a87f;font-size:8px;font-weight:800;letter-spacing:.09em}
+.model-package-variable{display:flex;flex-direction:column;gap:4px;padding:7px 0;border-bottom:1px solid #2a2f38}
+.model-package-variable:last-child{border-bottom:0}
+.model-package-field{display:flex;flex-direction:column;gap:6px;min-width:0;color:#aeb6c4;font-size:9px}
+.model-package-field>span{display:flex;flex-direction:column;gap:3px}
+.model-package-field strong{color:#d2d8e2;font-size:9px;font-weight:650}
+.model-package-field small{color:#8792a2;font-size:8px;line-height:1.4}
+.model-package-field input,.model-package-field select,.model-package-vector input{box-sizing:border-box;width:100%;min-width:0;padding:7px 6px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:10px Inter,ui-sans-serif,system-ui,sans-serif}
+.model-package-field input:disabled,.model-package-field select:disabled,.model-package-vector input:disabled{opacity:.55}
+.model-package-field input:focus,.model-package-field select:focus,.model-package-vector input:focus{outline:1px solid #b98255;border-color:#b98255}
+.model-package-toggle{display:flex;align-items:flex-start;gap:8px;min-width:0;color:#d2d8e2;font-size:9px}
+.model-package-toggle input{flex:none;margin:2px 0 0;accent-color:#d19a64}
+.model-package-toggle>span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.model-package-toggle strong{font-size:9px;font-weight:650}
+.model-package-toggle small{color:#8792a2;font-size:8px;line-height:1.4}
+.model-package-vector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.model-package-vector label{display:flex;flex-direction:column;gap:4px;color:#aeb6c4;font-size:9px}
+.model-package-bindings{display:flex;flex-direction:column;gap:7px}
+.model-package-state{display:flex;flex-direction:column;gap:8px;padding:9px;border:1px solid #343943;border-radius:4px;background:#202329}
+.model-package-state-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.model-package-add-state,.model-package-remove-state{width:100%;padding:7px;border:1px solid #805b3d;border-radius:4px;background:#34291f;color:#f0c69e;font-size:9px;cursor:pointer}
+.model-package-remove-state{border-color:#4b3a3a;background:#2b2022;color:#dca4a0}
+.model-package-add-state:disabled,.model-package-remove-state:disabled{opacity:.45;cursor:not-allowed}
+.model-package-settings-card code{color:#e0b48c;font-size:9px}
 .model-preview-image-config{display:flex;align-items:center;gap:10px;min-width:0}
 .model-preview-image-frame{display:grid;place-items:center;flex:none;width:68px;height:68px;overflow:hidden;border:1px solid #3a414d;border-radius:5px;background:#20242c;color:#8893a4;font-size:23px}
 .model-preview-image-frame img{display:block;width:100%;height:100%;object-fit:contain}
