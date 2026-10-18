@@ -1924,9 +1924,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                   <div class="transform-property-row">
                     <span class="transform-property-label">Escala</span>
                     <div class="transform-axis-grid">
-                      <label class="axis-value axis-x" title="Escala do objeto no eixo X."><span>X</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
-                      <label class="axis-value axis-y" title="Escala do objeto no eixo Y."><span>Y</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
-                      <label class="axis-value axis-z" title="Escala do objeto no eixo Z."><span>Z</span><input class="mono" type="number" min="0.1" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
+                      <label class="axis-value axis-x" title="Escala do objeto no eixo X."><span>X</span><input class="mono" type="number" min="0.1" :max="selected.importedModel ? 10000 : 20" step="0.1" :value="selected.scaleX.toFixed(2)" @change="onNumber('scaleX', $event)" /></label>
+                      <label class="axis-value axis-y" title="Escala do objeto no eixo Y."><span>Y</span><input class="mono" type="number" min="0.1" :max="selected.importedModel ? 10000 : 20" step="0.1" :value="selected.scaleY.toFixed(2)" @change="onNumber('scaleY', $event)" /></label>
+                      <label class="axis-value axis-z" title="Escala do objeto no eixo Z."><span>Z</span><input class="mono" type="number" min="0.1" :max="selected.importedModel ? 10000 : 20" step="0.1" :value="selected.scaleZ.toFixed(2)" @change="onNumber('scaleZ', $event)" /></label>
                     </div>
                   </div>
                   <div class="component-caption">FÍSICA</div>
