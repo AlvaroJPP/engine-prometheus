@@ -416,7 +416,8 @@ export class Engine {
       ['forca', 10], ['destreza', 10], ['intelecto', 10], ['vontade', 10], ['resistencia', 10],
       ['res_fisica', 0], ['res_chama', 0], ['res_geada', 0], ['res_tempestade', 0],
       ['res_sangue', 0], ['res_sombra', 0], ['res_espirito', 0], ['res_arcano', 0],
-      ['ecos', 0], ['morto', false], ['arma_equipada', 'starter_arcane_sword'],
+      ['ecos', 0], ['nivel', 1], ['experiencia', 0], ['experiencia_proximo_nivel', 100], ['pontos_atributo', 0],
+      ['morto', false], ['arma_equipada', 'starter_arcane_sword'],
       ['magia_1', VEILBORNE_DEFAULT_SPELL_SLOTS[0]],
       ['magia_2', VEILBORNE_DEFAULT_SPELL_SLOTS[1]],
       ['magia_3', VEILBORNE_DEFAULT_SPELL_SLOTS[2]],
@@ -605,6 +606,61 @@ export class Engine {
     if (notify) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
   }
 
+
+  private awardVeilborneKillReward(instance: BehaviorPackageInstance): void {
+    const profile = typeof instance.variables.ai_profile === 'string'
+      ? instance.variables.ai_profile.trim().toLowerCase()
+      : 'melee'
+    const automaticRewards: Record<string, { echoes: number; experience: number }> = {
+      melee: { echoes: 10, experience: 15 },
+      ranged_caster: { echoes: 12, experience: 18 },
+      flanker: { echoes: 14, experience: 20 },
+      guard_breaker: { echoes: 22, experience: 40 },
+      boss_phases: { echoes: 100, experience: 150 },
+    }
+    const automatic = automaticRewards[profile] ?? automaticRewards.melee!
+    const readReward = (name: string, fallback: number): number => {
+      const value = instance.variables[name]
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback
+      return Math.max(0, Math.floor(value))
+    }
+    const echoes = readReward('eco_reward', automatic.echoes)
+    const rewardExperience = readReward('xp_reward', automatic.experience)
+    if (echoes > 0) {
+      this.logic.setVariable('ecos', Math.max(0, this.readVeilborneNumber('ecos', 0)) + echoes)
+    }
+
+    const previousLevel = Math.max(1, Math.floor(this.readVeilborneNumber('nivel', 1)))
+    let level = previousLevel
+    let experience = Math.max(0, this.readVeilborneNumber('experiencia', 0)) + rewardExperience
+    let attributePoints = Math.max(0, Math.floor(this.readVeilborneNumber('pontos_atributo', 0)))
+    const thresholdForLevel = (currentLevel: number): number =>
+      Math.max(100, Math.floor(100 * Math.pow(currentLevel, 1.22)))
+    let threshold = thresholdForLevel(level)
+    let levelsGained = 0
+    while (experience >= threshold && level < 999) {
+      experience -= threshold
+      level += 1
+      levelsGained += 1
+      attributePoints += 1
+      threshold = thresholdForLevel(level)
+    }
+    this.logic.setVariable('nivel', level)
+    this.logic.setVariable('experiencia', experience)
+    this.logic.setVariable('experiencia_proximo_nivel', threshold)
+    this.logic.setVariable('pontos_atributo', attributePoints)
+
+    if (levelsGained > 0) {
+      this.spawnVeilborneEffect(
+        this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)),
+        0xe9bf75,
+        1.2,
+        0.7,
+      )
+      this.viewport.invalidate()
+    }
+  }
+
   private applyVeilborneHit(
     instance: BehaviorPackageInstance,
     amount: number,
@@ -642,6 +698,7 @@ export class Engine {
     if (result.killed) {
       this.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
       this.notifyBehaviorPackageChanged(instance.ownerObjectId)
+      this.awardVeilborneKillReward(instance)
       this.veilborneTargetStates.delete(instance.ownerObjectId)
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
     }
@@ -1607,6 +1664,8 @@ export class Engine {
       const wasAlive = instance.variables.morto !== true && (typeof instance.variables.vida !== 'number' || instance.variables.vida > 0)
       this.syncVeilborneTarget(instance, target, false)
       if (wasAlive && !target.alive) {
+        this.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
+        this.awardVeilborneKillReward(instance)
         this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
       }
     }
