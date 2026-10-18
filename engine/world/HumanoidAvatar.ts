@@ -170,6 +170,8 @@ export class HumanoidAvatar {
   private maneuverSpeed = 0
   private readonly maneuverDirection = new THREE.Vector3()
   private postureBeforeSlide: PlayerPosture = 'standing'
+  /** Compensa a pose procedural antes do próximo tick para não acumular rotações. */
+  private readonly postureRotationOffsets = new Map<THREE.Object3D, number>()
   private enabled = true
   private firstPersonMode = false
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
@@ -218,8 +220,55 @@ export class HumanoidAvatar {
 
   private setPosture(posture: PlayerPosture): void {
     this.posture = posture
-    // A raiz visual é ancorada nos pés, portanto reduzir sua escala não afunda o jogador.
-    this.visualRoot.scale.y = posture === 'prone' ? 0.34 : posture === 'crouching' ? 0.68 : 1
+    // Agachar deve articular as pernas e o tronco, não comprimir o modelo inteiro.
+    // A escala reduzida permanece reservada à postura deitada.
+    this.visualRoot.scale.y = posture === 'prone' ? 0.34 : 1
+  }
+
+  private clearPosturePoseOffsets(): void {
+    for (const [node, offset] of this.postureRotationOffsets) {
+      node.rotation.x -= offset
+    }
+    this.postureRotationOffsets.clear()
+  }
+
+  private addPostureRotationOffset(node: THREE.Object3D, offset: number): void {
+    node.rotation.x += offset
+    this.postureRotationOffsets.set(node, (this.postureRotationOffsets.get(node) ?? 0) + offset)
+  }
+
+  /**
+   * Fallback articulado para rigs sem clipe de agachamento.
+   * Modelos que já têm animação crouch/crouch_walk usam o clipe original.
+   */
+  private applyFallbackCrouchPose(): void {
+    if (this.posture !== 'crouching') return
+    if (this.animationActions.has('crouch') || this.animationActions.has('crouch_walk')) return
+
+    for (const bone of this.animatedBones) {
+      const name = bone.name.toLowerCase()
+      if (/upleg|upper.?leg|thigh|femur/.test(name)) {
+        this.addPostureRotationOffset(bone.node, 0.48)
+      } else if (/(calf|shin|knee|lower.?leg)/.test(name) ||
+        (/(left|right).*(leg)|(leg).*(left|right)/.test(name) && !/upleg|upper.?leg|thigh/.test(name))) {
+        this.addPostureRotationOffset(bone.node, -0.82)
+      } else if (/spine|chest/.test(name)) {
+        this.addPostureRotationOffset(bone.node, 0.08)
+      } else if (/hips|pelvis/.test(name)) {
+        this.addPostureRotationOffset(bone.node, 0.08)
+      }
+    }
+
+    // O avatar procedural de reserva não possui ossos de joelho separados.
+    // Inclinar os pivôs das pernas e o tronco produz uma postura baixa sem achatar a malha.
+    if (this.proceduralLimbs) {
+      const limbs = this.proceduralLimbs
+      this.addPostureRotationOffset(limbs.leftLeg, 0.42)
+      this.addPostureRotationOffset(limbs.rightLeg, 0.42)
+      this.addPostureRotationOffset(limbs.torso, 0.12)
+      this.addPostureRotationOffset(limbs.leftArm, -0.14)
+      this.addPostureRotationOffset(limbs.rightArm, -0.14)
+    }
   }
 
   private beginManeuver(kind: Exclude<PlayerManeuver, null>, direction: THREE.Vector3): void {
@@ -2140,6 +2189,9 @@ export class HumanoidAvatar {
   }
 
   private updateAvatarAnimation(dt: number, moving: boolean, running: boolean, forwardInput: number, sideInput: number): void {
+    // Retira a pose procedural do quadro anterior antes de o mixer avançar.
+    // Assim, alternar entre agachado e em pé não acumula rotações nos ossos.
+    this.clearPosturePoseOffsets()
     this.animationTime += dt * (running ? 12 : 8)
     const state: AnimationRole = !this.grounded ? 'jump'
       : this.posture === 'prone' ? (moving ? 'prone_crawl' : 'prone')
@@ -2163,7 +2215,10 @@ export class HumanoidAvatar {
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
     const hasStateClip = [state, ...(ANIMATION_FALLBACKS[state] ?? [])]
       .some(role => this.animationActions.has(role))
-    if (hasStateClip || this.activeOneShotAnimation) return
+    if (hasStateClip || this.activeOneShotAnimation) {
+      if (!this.activeOneShotAnimation) this.applyFallbackCrouchPose()
+      return
+    }
     const movingNow = moving && this.grounded
     const amplitude = movingNow ? (running ? 0.75 : 0.42) : 0.035
     const swing = Math.sin(this.animationTime) * amplitude
@@ -2211,6 +2266,7 @@ export class HumanoidAvatar {
       if (!movingNow && this.grounded) this.visualRoot.position.y = Math.sin(this.animationTime * 0.5) * 0.012
       else this.visualRoot.position.y = 0
     }
+    this.applyFallbackCrouchPose()
   }
 
   private disposeObject(object: THREE.Object3D): void {
