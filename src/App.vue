@@ -122,7 +122,7 @@ const {
   resetPlayerModel,
   skyTextureDataUrl, timeOfDay, dayNightCycleEnabled, dayNightCycleSpeed,
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
-  logicRules, behaviorPackages, logicVariables, globalLogicVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
+  logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
   installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
   createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
@@ -191,6 +191,25 @@ function updateControlMapSettings(settings: ControlMapSettings) {
 watch(activeControlMap, profile => {
   if (profile) setControlBindings(profile.bindings)
 }, { immediate: true, deep: true })
+
+// Mantém as variáveis expostas ao HUD sincronizadas com eventos e scripts executados no modo Run.
+let hudVariablePollTimer: number | null = null
+function syncHudRuntimeVariables() {
+  globalLogicVariables.value = readRuntimeGlobalVariables()
+}
+watch(executionMode, mode => {
+  if (hudVariablePollTimer !== null) {
+    window.clearInterval(hudVariablePollTimer)
+    hudVariablePollTimer = null
+  }
+  syncHudRuntimeVariables()
+  if (mode === 'running') {
+    hudVariablePollTimer = window.setInterval(syncHudRuntimeVariables, 100)
+  }
+}, { immediate: true })
+onBeforeUnmount(() => {
+  if (hudVariablePollTimer !== null) window.clearInterval(hudVariablePollTimer)
+})
 
 const skyFileInput = ref<HTMLInputElement | null>(null)
 const playerModelFileInput = ref<HTMLInputElement | null>(null)
@@ -1743,6 +1762,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           :settings-open="playerHudSettingsOpen"
           :world-fullscreen="worldFullscreen"
           :bindings="activeControlMap.bindings"
+          :game-variables="globalLogicVariables"
           @toggle-camera="cycleCameraView"
           @exit-runtime="returnToEdit"
           @settings-open-change="playerHudSettingsOpen = $event"
