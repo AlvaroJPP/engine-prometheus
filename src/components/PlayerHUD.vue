@@ -187,6 +187,31 @@ const veilborneSigilOptions = [
   { id: 'slow_field', label: 'Círculo de Lentidão' },
   { id: 'silence_seal', label: 'Selo do Silêncio' },
 ]
+const veilborneItemOptions = [
+  { id: 'lesser_vitality_vial', label: 'Frasco de Vitalidade', description: 'Recupera 45 de vida.' },
+  { id: 'ether_vial', label: 'Frasco de Éter', description: 'Recupera 40 de éter.' },
+  { id: 'vigor_vial', label: 'Tônico de Vigor', description: 'Recupera 45 de vigor.' },
+  { id: 'ember_bomb', label: 'Bomba de Brasa', description: '30 de dano de chama em área.' },
+  { id: 'echo_fragment', label: 'Fragmento de Ecos', description: 'Concede 25 Ecos.' },
+]
+const veilborneInventory = computed(() => {
+  const raw = props.gameVariables.inventario_json
+  if (typeof raw !== 'string' || !raw.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap(entry => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+      const item = entry as Record<string, unknown>
+      if (typeof item.id !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'quantity')) return []
+      const definition = veilborneItemOptions.find(option => option.id === item.id)
+      if (!definition || typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity <= 0) return []
+      return [{ ...definition, quantity: Math.floor(item.quantity) }]
+    })
+  } catch {
+    return []
+  }
+})
 type VeilborneArchetypeId = 'veil_duelist' | 'rune_scholar' | 'blood_adept' | 'oathbreaker'
 const veilborneArchetypes: Array<{
   id: VeilborneArchetypeId
@@ -1120,6 +1145,13 @@ function resetSettings() {
       @pointerdown="beginHudImageDrag($event, layer)"
     >
 
+    <div
+      v-if="veilborneActive && typeof gameVariables.loot_notice === 'string' && gameVariables.loot_notice"
+      class="veilborne-loot-toast"
+      role="status"
+      aria-live="polite"
+    >{{ gameVariables.loot_notice }}</div>
+
     <button
       v-if="veilborneActive"
       type="button"
@@ -1166,6 +1198,21 @@ function resetSettings() {
           <span>ECOS <strong>{{ veilborneProgression.echoes }}</strong></span>
           <span>PONTOS DE ATRIBUTO <strong>{{ veilborneProgression.points }}</strong></span>
         </div>
+      </div>
+
+      <div class="veilborne-loadout-section">
+        <div class="veilborne-loadout-section-heading"><span>INVENTÁRIO</span><small>{{ veilborneInventory.reduce((sum, item) => sum + item.quantity, 0) }} itens</small></div>
+        <div v-if="veilborneInventory.length" class="veilborne-inventory-list">
+          <div v-for="item in veilborneInventory" :key="item.id" class="veilborne-inventory-item">
+            <div class="veilborne-inventory-copy">
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.description }}</small>
+            </div>
+            <span class="veilborne-inventory-quantity">×{{ item.quantity }}</span>
+            <button type="button" class="veilborne-item-use" :aria-label="'Usar ' + item.label" @click="setLoadoutValue('item_use_request', item.id)">Usar</button>
+          </div>
+        </div>
+        <p v-else class="veilborne-inventory-empty">Inventário vazio. Interaja com um item brilhante no mundo para coletá-lo.</p>
       </div>
 
       <div class="veilborne-archetype-block">
@@ -1486,7 +1533,7 @@ function resetSettings() {
           </div>
           <div class="hud-control-row"><kbd>{{ keyLabel(bindings.jump) }}</kbd><span>Pular</span></div>
           <div class="hud-control-row"><kbd>{{ keyLabel(bindings.run) }}</kbd><span>Correr</span></div>
-          <div class="hud-control-row"><kbd>{{ keyLabel(bindings.interact) }}</kbd><span>Interagir / montar</span></div>
+          <div class="hud-control-row"><kbd>{{ keyLabel(bindings.interact) }}</kbd><span>Interagir / coletar / montar</span></div>
           <div class="hud-control-row"><kbd>{{ keyLabel(bindings.toggleFirstPerson) }}</kbd><span>Alternar 1ª pessoa</span></div>
         </div>
       </div>
@@ -1549,6 +1596,20 @@ function resetSettings() {
 .veilborne-loadout-section { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
 .veilborne-loadout-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
 .veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
+.veilborne-loot-toast {
+  position:absolute; left:50%; bottom:clamp(96px,14vh,150px); z-index:44; transform:translateX(-50%);
+  max-width:min(82vw,430px); padding:10px 16px; border:1px solid #d8a56d80; border-radius:5px;
+  color:#f6e5cb; background:#17131df0; box-shadow:0 9px 25px #0006; font-size:12px;
+  text-align:center; pointer-events:none;
+}
+.veilborne-inventory-list { display:grid; gap:6px; }
+.veilborne-inventory-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:8px; border:1px solid #ffffff12; border-radius:5px; background:#ffffff04; }
+.veilborne-inventory-copy { display:grid; min-width:0; gap:3px; }
+.veilborne-inventory-copy strong { overflow:hidden; color:#f0e5eb; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.veilborne-inventory-copy small { color:#998c96; font-size:9px; line-height:1.3; }
+.veilborne-inventory-quantity { color:#dfc1d0; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-item-use { padding:5px 8px; border:1px solid #ce8fab70; border-radius:4px; color:#f3c4d7; background:#8a45651f; font-size:10px; cursor:pointer; }
+.veilborne-inventory-empty { margin:6px 0 0; color:#a99ba5; font-size:10px; line-height:1.5; }
 .veilborne-progression-card { padding:10px; border:1px solid #ffffff18; border-radius:6px; background:#ffffff05; }
 .veilborne-progression-top,.veilborne-progression-bottom { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .veilborne-progression-top strong { color:#f0cad9; font-size:11px; letter-spacing:.08em; }
