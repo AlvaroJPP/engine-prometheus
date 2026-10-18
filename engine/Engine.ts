@@ -651,6 +651,7 @@ export class Engine {
     this.logic.setVariable('pontos_atributo', attributePoints)
 
     if (levelsGained > 0) {
+      this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'level_up')
       this.spawnVeilborneEffect(
         this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)),
         0xe9bf75,
