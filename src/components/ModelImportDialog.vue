@@ -20,7 +20,6 @@ import {
   retargetAnimationClip,
   rankTargetBoneCandidates,
   suggestAutonomousBoneMappingsDetailed,
-  suggestTargetBoneMappings,
 } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
 
