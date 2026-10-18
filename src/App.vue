@@ -975,7 +975,9 @@ function disposeComponentSource(root: THREE.Object3D) {
 }
 
 async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string; sourceGlbBytes?: ArrayBuffer }): Promise<boolean> {
-  if (componentBusy.value) return false
+  if (componentBusy.value) {
+    throw new Error('A biblioteca de componentes está ocupada com outra operação. Tente salvar novamente em alguns segundos.')
+  }
 
   if (payload.componentId) {
     componentBusy.value = true
