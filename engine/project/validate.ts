@@ -266,7 +266,7 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       wireframeVisible: item.wireframeVisible !== false,
       groupId: typeof item.groupId === 'string' && item.groupId.trim() !== '' ? item.groupId : null,
       mass: isNum(item.mass) ? Math.max(0, Math.min(1000000, item.mass)) : 1,
-      colliderType: item.colliderType === 'box' || item.colliderType === 'sphere' || item.colliderType === 'capsule' || item.colliderType === 'none' || item.colliderType === 'auto' ? item.colliderType : undefined,
+      colliderType: item.colliderType === 'box' || item.colliderType === 'sphere' || item.colliderType === 'capsule' || item.colliderType === 'none' || item.colliderType === 'auto' || item.colliderType === 'mesh ? item.colliderType : undefined,
       colliderSize: item.colliderSize === undefined ? undefined : vec3(item.colliderSize, null, `${label} (${id}.colliderSize)`),
       colliderOffset: item.colliderOffset === undefined ? undefined : vec3(item.colliderOffset, null, `${label} (${id}.colliderOffset)`),
       sceneKind: item.sceneKind === 'entity' ? 'entity' : 'object',
