@@ -17,8 +17,10 @@ export type ReusableAnimationAsset = {
   clipJson: Record<string, unknown>
   /** Pose de repouso do nó de origem, necessária para compensar rigs diferentes. */
   sourcePose: Record<string, AnimationPoseSnapshot>
-  /** Orientação mundial do pai em repouso; permite converter eixos entre rigs diferentes. */
+  /** Orientação mundial do pai em repouso; compatibilidade com assets de animação antigos. */
   sourceParentWorldQuaternion?: Record<string, [number, number, number, number]>
+  /** Orientação mundial do próprio osso em repouso; converte corretamente os eixos de flexão/torção entre rigs. */
+  sourceBoneWorldQuaternion?: Record<string, [number, number, number, number]>
   sourceNodeNames: string[]
   /** Nós do clipe que são ossos de fato; opcional para compatibilidade com a biblioteca antiga. */
   sourceBoneNames?: string[]
@@ -108,6 +110,7 @@ export function createReusableAnimationAsset(
   root.updateWorldMatrix(true, true)
   const sourcePose: Record<string, AnimationPoseSnapshot> = {}
   const sourceParentWorldQuaternion: Record<string, [number, number, number, number]> = {}
+  const sourceBoneWorldQuaternion: Record<string, [number, number, number, number]> = {}
   for (const track of clip.tracks) {
     const path = getTransformTrackPath(track)
     if (!path || sourcePose[path.nodeName]) continue
@@ -117,6 +120,9 @@ export function createReusableAnimationAsset(
     const parentQuaternion = new THREE.Quaternion()
     if (node.parent) node.parent.getWorldQuaternion(parentQuaternion)
     sourceParentWorldQuaternion[path.nodeName] = parentQuaternion.toArray() as [number, number, number, number]
+    const boneWorldQuaternion = new THREE.Quaternion()
+    node.getWorldQuaternion(boneWorldQuaternion)
+    sourceBoneWorldQuaternion[path.nodeName] = boneWorldQuaternion.toArray() as [number, number, number, number]
   }
 
   const sourceNodeNames = [...new Set(clip.tracks
@@ -145,6 +151,7 @@ export function createReusableAnimationAsset(
     clipJson: clip.toJSON() as unknown as Record<string, unknown>,
     sourcePose,
     sourceParentWorldQuaternion,
+    sourceBoneWorldQuaternion,
     sourceNodeNames,
     sourceBoneNames,
     sourceParentNames,
@@ -204,6 +211,8 @@ export function retargetAnimationClip(
       sourceName: string
       sourceRestQuaternion: THREE.Quaternion
       sourceParentWorld: THREE.Quaternion | null
+      /** Orientação mundial da própria junta em repouso para alinhar os eixos anatômicos. */
+      sourceBoneRestWorld: THREE.Quaternion | null
       order: number
     }>
   }>()
@@ -253,6 +262,10 @@ export function retargetAnimationClip(
       const sourceParentWorld = parentRest && parentRest.length === 4
         ? new THREE.Quaternion(...parentRest).normalize()
         : null
+      const boneWorldRest = asset.sourceBoneWorldQuaternion?.[path.nodeName]
+      const sourceBoneRestWorld = boneWorldRest && boneWorldRest.length === 4
+        ? new THREE.Quaternion(...boneWorldRest).normalize()
+        : null
       const restQuaternion = new THREE.Quaternion(...sourceRest.quaternion).normalize()
       if (restQuaternion.lengthSq() < 1e-8) restQuaternion.identity()
       group.contributions.push({
@@ -260,6 +273,7 @@ export function retargetAnimationClip(
         sourceName: path.nodeName,
         sourceRestQuaternion: restQuaternion,
         sourceParentWorld,
+        sourceBoneRestWorld,
         order: trackIndex,
       })
       continue
@@ -389,6 +403,10 @@ export function retargetAnimationClip(
     const targetParentWorld = new THREE.Quaternion()
     if (targetBone.parent) targetBone.parent.getWorldQuaternion(targetParentWorld)
     const inverseTargetParentWorld = targetParentWorld.clone().invert()
+    const targetBoneRestWorld = new THREE.Quaternion()
+    targetBone.getWorldQuaternion(targetBoneRestWorld)
+    targetBoneRestWorld.normalize()
+    const inverseTargetBoneRestWorld = targetBoneRestWorld.clone().invert()
     const resultValues: number[] = []
     const interpolants = contributions.map(contribution => ({
       contribution,
@@ -397,6 +415,7 @@ export function retargetAnimationClip(
       }).createInterpolant(),
       inverseSourceRest: contribution.sourceRestQuaternion.clone().invert(),
       inverseSourceParentWorld: contribution.sourceParentWorld?.clone().invert() ?? null,
+      inverseSourceBoneRestWorld: contribution.sourceBoneRestWorld?.clone().invert() ?? null,
     }))
 
     for (const time of outputTimes) {
@@ -410,7 +429,22 @@ export function retargetAnimationClip(
         if (sourceQuaternion.lengthSq() < 1e-8) sourceQuaternion.identity()
         const delta = item.inverseSourceRest.clone().multiply(sourceQuaternion).normalize()
         let targetDelta = delta
-        if (item.contribution.sourceParentWorld && item.inverseSourceParentWorld) {
+        if (item.contribution.sourceBoneRestWorld && item.inverseSourceBoneRestWorld) {
+          // A delta local da origem representa uma rotação em torno dos eixos
+          // do próprio osso em repouso. Converter usando só o pai ignora a
+          // orientação do fêmur/tíbia/pé no bind pose e pode torcer as pernas.
+          // Convertemos a delta para mundo através da base do osso de origem
+          // e então para os eixos locais do osso de destino.
+          const worldDelta = item.contribution.sourceBoneRestWorld.clone()
+            .multiply(delta)
+            .multiply(item.inverseSourceBoneRestWorld)
+            .normalize()
+          targetDelta = inverseTargetBoneRestWorld.clone()
+            .multiply(worldDelta)
+            .multiply(targetBoneRestWorld)
+            .normalize()
+        } else if (item.contribution.sourceParentWorld && item.inverseSourceParentWorld) {
+          // Fallback para animações antigas salvas antes do metadado de base óssea.
           const worldDelta = item.contribution.sourceParentWorld.clone()
             .multiply(delta)
             .multiply(item.inverseSourceParentWorld)
