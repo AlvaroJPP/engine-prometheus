@@ -5668,4 +5668,15 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
     padding-inline:10px;
   }
 }
+/* Keep viewport indicators outside the collapsed sidebar's footprint. */
+.app.sidebar-collapsed:not(.world-fullscreen) .chips,
+.app.sidebar-collapsed:not(.world-fullscreen) .axes {
+  left:188px !important;
+}
+@media(max-width:760px) {
+  .app.sidebar-collapsed:not(.world-fullscreen) .chips,
+  .app.sidebar-collapsed:not(.world-fullscreen) .axes {
+    left:172px !important;
+  }
+}
 </style>
