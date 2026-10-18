@@ -25,5 +25,7 @@ jobs:
         run: npm ci
       - name: Test rig similarity diagnostic
         run: npm run rig:similarity:self-test
+      - name: Test adaptive rigging
+        run: npm run rigging:self-test
       - name: Type-check and build
         run: npm run build
