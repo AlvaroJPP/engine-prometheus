@@ -5361,37 +5361,67 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 .sidebar-collapse-button:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
 .app.sidebar-collapsed .panel.left { display:none !important; }
 
-/* When the panel is hidden, expose tool names in a proper flyout-style rail,
-   rather than leaving the icon-only viewport toolbar stranded to the right. */
+/* Collapsed workspace: a docked lateral menu, not a floating square card. */
 .app.sidebar-collapsed .toolbar {
-  top:114px !important;
-  left:12px !important;
+  position:fixed !important;
+  top:110px !important;
+  bottom:28px !important;
+  left:0 !important;
   right:auto !important;
-  width:176px !important;
-  min-width:176px !important;
+  width:208px !important;
+  min-width:208px !important;
   max-width:calc(100vw - 24px) !important;
-  max-height:calc(100dvh - 128px) !important;
-  padding:7px !important;
-  gap:6px !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  margin:0 !important;
+  padding:10px 8px 12px !important;
+  display:flex !important;
+  flex-direction:column !important;
   align-items:stretch !important;
+  justify-content:flex-start !important;
+  gap:7px !important;
   overflow-x:hidden !important;
   overflow-y:auto !important;
-  border:1px solid #3b3730 !important;
-  border-radius:10px !important;
-  background:rgba(20,18,15,.98) !important;
-  box-shadow:0 12px 30px #0007 !important;
+  border:0 !important;
+  border-right:1px solid #363129 !important;
+  border-top:1px solid #2e2b25 !important;
+  border-radius:0 10px 0 0 !important;
+  background:rgba(25,23,19,.985) !important;
+  box-shadow:4px 0 18px #0003 !important;
   backdrop-filter:blur(12px);
+  scrollbar-width:thin;
+  scrollbar-color:#494137 transparent;
 }
 .app.sidebar-collapsed .toolbar .toolbar-group {
-  display:flex;
+  display:flex !important;
+  flex:none;
+  width:100%;
   flex-direction:column;
   align-items:stretch;
   gap:3px;
 }
+/* Label the tool groups so the expanded rail still reads like an editor menu. */
+.app.sidebar-collapsed .toolbar .toolbar-group::before {
+  display:block;
+  padding:5px 8px 4px;
+  color:#8f877a;
+  font-size:9px;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.app.sidebar-collapsed .toolbar .toolbar-group:nth-of-type(1)::before { content:"FERRAMENTAS"; }
+.app.sidebar-collapsed .toolbar .toolbar-group:nth-of-type(2)::before { content:"TRANSFORMAR"; }
+.app.sidebar-collapsed .toolbar .toolbar-group:nth-of-type(3)::before { content:"INSERIR E LÓGICA"; }
+.app.sidebar-collapsed .toolbar .toolbar-group:nth-of-type(4)::before { content:"VISUALIZAÇÃO"; }
 .app.sidebar-collapsed .toolbar .toolbar-separator {
+  display:block;
+  flex:none;
   width:auto;
   height:1px;
-  margin:1px 2px;
+  margin:1px 4px 2px;
   background:#2e2b25;
 }
 .app.sidebar-collapsed .toolbar .tool {
@@ -5399,17 +5429,18 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   flex-direction:row;
   align-items:center;
   justify-content:flex-start !important;
-  gap:9px;
+  gap:10px;
   width:100% !important;
   min-width:0 !important;
-  height:35px !important;
+  height:auto !important;
   min-height:35px !important;
-  padding:0 9px !important;
+  padding:6px 10px !important;
   border:1px solid transparent !important;
   border-radius:7px !important;
   background:transparent !important;
   color:#d7d0c4 !important;
   text-align:left;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
 }
 .app.sidebar-collapsed .toolbar .tool:hover {
   border-color:#3b3730 !important;
@@ -5425,8 +5456,9 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   display:grid;
   place-items:center;
   flex:none;
-  width:21px;
+  width:22px;
   font-size:17px;
+  line-height:1;
   text-align:center;
 }
 .app.sidebar-collapsed .toolbar .tool-label {
@@ -5436,34 +5468,46 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   width:auto !important;
   height:auto !important;
   min-width:0;
-  padding:0 !important;
   margin:0 !important;
+  padding:0 !important;
   overflow:hidden !important;
   clip:auto !important;
   border:0 !important;
   color:inherit;
   font-size:11px;
   font-weight:500;
-  line-height:1.25;
+  line-height:1.35;
   text-align:left;
   text-overflow:ellipsis;
-  white-space:nowrap;
+  white-space:nowrap !important;
 }
 .app.sidebar-collapsed .toolbar .tool:focus-visible {
   outline:2px solid #e8572b;
   outline-offset:1px;
 }
+.app.sidebar-collapsed .sidebar-hamburger {
+  position:fixed;
+  z-index:31;
+  top:68px;
+  left:12px;
+}
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
-  .panel.left .panel-head { min-height:44px; height:44px; padding-inline:7px; gap:7px; }
   .app.sidebar-collapsed .toolbar {
-    top:112px !important;
-    left:8px !important;
-    width:166px !important;
-    min-width:166px !important;
-    max-height:calc(100dvh - 124px) !important;
+    top:110px !important;
+    bottom:28px !important;
+    left:0 !important;
+    width:188px !important;
+    min-width:188px !important;
+    max-width:calc(100vw - 18px) !important;
+    padding:8px 6px 10px !important;
   }
-  .sidebar-hamburger { left:8px; }
+  .app.sidebar-collapsed .toolbar .tool {
+    min-height:33px !important;
+    padding:5px 8px !important;
+    gap:8px;
+  }
+  .app.sidebar-collapsed .toolbar .tool-label { font-size:10px; }
+  .app.sidebar-collapsed .sidebar-hamburger { left:8px; }
 }
-
 </style>
