@@ -45,6 +45,9 @@ function matrixSignature(matrix: THREE.Matrix4): string {
  * armazenadas nesta estrutura estática.
  */
 export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshCollisionData | null {
+  const cachedData = cache.get(root)
+  if (cachedData && root.userData.staticMeshColliderDirty !== true) return cachedData
+
   root.updateWorldMatrix(true, true)
   const inverseRoot = root.matrixWorld.clone().invert()
   const parts: SourcePart[] = []
@@ -211,10 +214,15 @@ export function raycastStaticMesh(
   return { point, normal, distance, faceIndex: hit.faceIndex ?? -1 }
 }
 
+/** Invalida quando a geometria/visibilidade de partes do modelo é alterada no importador. */
+export function invalidateStaticMeshCollider(root: THREE.Object3D): void {
+  const existing = cache.get(root)
+  if (existing) existing.geometry.dispose()
+  cache.delete(root)
+  root.userData.staticMeshColliderDirty = false
+}
+
 /** Limpa o cache geométrico quando o modelo deixa de existir no mundo. */
 export function releaseStaticMeshCollider(root: THREE.Object3D): void {
-  const existing = cache.get(root)
-  if (!existing) return
-  existing.geometry.dispose()
-  cache.delete(root)
+  invalidateStaticMeshCollider(root)
 }
