@@ -2308,12 +2308,15 @@ function cloneRetargetPreviewObject(source: THREE.Object3D): THREE.Object3D {
       // Evita que uma submalha deformada pela animação desapareça por bounds
       // de repouso desatualizados, principalmente nas pernas e na pelve.
       node.frustumCulled = false
-      const materials = Array.isArray(node.material) ? node.material : [node.material]
-      for (const material of materials) material.visible = true
       node.geometry = node.geometry.clone()
       node.material = Array.isArray(node.material)
-        ? node.material.map(material => material.clone())
+        ? node.material.map(material => {
+            const clonedMaterial = material.clone()
+            clonedMaterial.visible = true
+            return clonedMaterial
+          })
         : node.material.clone()
+      if (!Array.isArray(node.material)) node.material.visible = true
       if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
     }
   })
