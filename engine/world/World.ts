@@ -34,6 +34,8 @@ export class World {
   private grid = new THREE.GridHelper(100, 100, 0x4a5060, 0x2a2f3a)
   private objects = new Map<string, GameObject>()
   private readonly worldFog = new THREE.Fog(BACKGROUND, 42, 68)
+  private worldFogEnabled = true
+  private fogDistanceScale = 1
   private readonly fogNightColor = new THREE.Color(0x080d22)
   private readonly fogDawnColor = new THREE.Color(0xe58b67)
   private readonly fogDayColor = new THREE.Color(0x87b9e8)
@@ -699,10 +701,29 @@ export class World {
     this.updateGrassFogDistance(Math.max(10, effectiveDistance))
   }
 
+  /** Alterna a neblina sem alterar o culling de objetos e vegetação. */
+  setFogEnabled(enabled: boolean): void {
+    if (this.worldFogEnabled === enabled) return
+    this.worldFogEnabled = enabled
+    this.scene.fog = enabled ? this.worldFog : null
+    this.events.emit('renderInvalidated', undefined)
+  }
+
+  /** Ajusta independentemente o alcance da neblina (50% a 200%). */
+  setFogDistanceScale(scale: number): void {
+    if (!Number.isFinite(scale)) return
+    const next = THREE.MathUtils.clamp(scale, 0.5, 2)
+    if (this.fogDistanceScale === next) return
+    this.fogDistanceScale = next
+    this.updateGrassFogDistance(this.renderDistance ?? 72)
+    this.events.emit('renderInvalidated', undefined)
+  }
+
   private updateGrassFogDistance(distance: number): void {
-    // A neblina começa antes do fim do alcance e termina pouco antes do corte.
-    this.worldFog.near = distance * 0.70
-    this.worldFog.far = Math.max(this.worldFog.near + 1, distance * 0.98)
+    // A escala permite controlar a neblina independentemente do limite global.
+    const fogDistance = Math.max(10, distance * this.fogDistanceScale)
+    this.worldFog.near = fogDistance * 0.70
+    this.worldFog.far = Math.max(this.worldFog.near + 1, fogDistance * 0.98)
   }
 
   terrainInfo(): TerrainInfo {
