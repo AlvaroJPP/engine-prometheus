@@ -11,8 +11,10 @@ export interface AnimationBlendOptions {
 
 const LOCOMOTION_ROLES = new Set([
   'walk', 'walk_slow', 'walk_backward', 'walk_left', 'walk_right',
-  'walk_diagonal_left', 'walk_diagonal_right', 'run', 'run_backward',
+  'walk_diagonal_left', 'walk_diagonal_right', 'walk_backward_diagonal_left', 'walk_backward_diagonal_right',
+  'run', 'run_backward',
   'run_left', 'run_right', 'run_diagonal_left', 'run_diagonal_right',
+  'run_backward_diagonal_left', 'run_backward_diagonal_right',
   'crouch_walk', 'prone_crawl',
 ])
 
