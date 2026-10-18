@@ -142,6 +142,7 @@ export class Engine {
   private veilbornePlayerStaggerRemainingSeconds = 0
   private veilborneLockedTargetId: string | null = null
   private veilborneLockMarker: THREE.Mesh | null = null
+  private veilborneHeavyChargeStartedAt: number | null = null
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -424,6 +425,7 @@ export class Engine {
       ['sigilo_selecionado', 1], ['sigilo_ativo', 'ward'],
       ['bloqueando', false], ['aparo_total', 0], ['aparo_sucesso', false], ['jogador_morreu', false], ['jogador_atordoado', false],
       ['alvo_travado', false], ['alvo_veilborne_id', ''],
+      ['carregando_ataque', false], ['carga_ataque', 0],
       ['ward_remaining', 0], ['ward_absorption', 0],
     ]
     for (const [name, value] of defaults) {
@@ -715,13 +717,28 @@ export class Engine {
 
 
   private onVeilborneKeyUp = (event: KeyboardEvent): void => {
-    if (event.code !== this.playerControlBindings.block) return
-    this.veilborneBlocking = false
-    if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
+    if (event.code === this.playerControlBindings.block) {
+      this.veilborneBlocking = false
+      if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
+    }
+    if (event.code === this.playerControlBindings.secondaryAction && this.veilborneHeavyChargeStartedAt !== null) {
+      const startedAt = this.veilborneHeavyChargeStartedAt
+      this.veilborneHeavyChargeStartedAt = null
+      if (this.logic.getVariable('carregando_ataque') !== undefined) this.logic.setVariable('carregando_ataque', false)
+      if (this.logic.getVariable('carga_ataque') !== undefined) this.logic.setVariable('carga_ataque', 0)
+      if (this.runtimeModeActive && this.isVeilborneEnabled() && !this.avatar.isCombatStaggered()) {
+        const duration = Math.max(0, performance.now() / 1000 - startedAt)
+        const chargedMultiplier = 1 + Math.min(1.5, duration * 0.75)
+        this.performVeilborneWeaponAttack(true, chargedMultiplier)
+      }
+    }
   }
 
   private onVeilborneBlur = (): void => {
     this.veilborneBlocking = false
+    this.veilborneHeavyChargeStartedAt = null
+    if (this.logic.getVariable('carregando_ataque') !== undefined) this.logic.setVariable('carregando_ataque', false)
+    if (this.logic.getVariable('carga_ataque') !== undefined) this.logic.setVariable('carga_ataque', 0)
     this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
     this.veilbornePlayerStaggerRemainingSeconds = 0
     this.avatar.setCombatStagger(0)
@@ -850,7 +867,7 @@ export class Engine {
       return true
     }
     if (code === bindings.secondaryAction) {
-      this.performVeilborneWeaponAttack(true)
+      this.beginVeilborneHeavyCharge()
       return true
     }
     if (code === bindings.reload) {
@@ -870,23 +887,37 @@ export class Engine {
     return false
   }
 
-  private performVeilborneWeaponAttack(heavy: boolean): void {
+  private beginVeilborneHeavyCharge(): void {
+    if (this.veilborneHeavyChargeStartedAt !== null) return
+    if ((this.veilborneCooldowns.get('attack:heavy') ?? 0) > 0) return
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return
+    this.veilborneHeavyChargeStartedAt = performance.now() / 1000
+    this.logic.setVariable('carregando_ataque', true)
+    this.logic.setVariable('carga_ataque', 0)
+  }
+
+  private performVeilborneWeaponAttack(heavy: boolean, chargedMultiplier = 1): void {
     const player = this.getVeilbornePlayerCombatant()
     if (!player.alive) return
     const weaponId = this.readVeilborneString('arma_equipada', 'starter_arcane_sword')
     const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
     const cooldownKey = heavy ? 'attack:heavy' : 'attack:quick'
     if ((this.veilborneCooldowns.get(cooldownKey) ?? 0) > 0) return
-    const cost = weapon.staminaCost * (heavy ? 1.65 : 1)
+    const chargeScale = heavy ? Math.max(1, Math.min(2.5, chargedMultiplier)) : 1
+    const cost = weapon.staminaCost * (heavy ? 1.65 + (chargeScale - 1) * 0.4 : 1)
     if (!spendVeilborneResource(player, 'stamina', cost)) return
 
     const target = this.findVeilborneTarget(weapon.range)
     const damage = calculateVeilborneWeaponDamage(weapon, player.attributes, {
       heavy,
+      chargedMultiplier: chargeScale,
       critical: !!target && target.instance.variables.morto !== true &&
         this.readTargetPosture(target.instance) >= this.readTargetPostureMax(target.instance) * 0.72,
     })
-    this.veilborneCooldowns.set(cooldownKey, heavy ? 0.62 : 0.28)
+    const playerController = getAnimationControllerFromObject(this.avatar.mesh)
+    if (playerController) playerController.playOneShot(heavy ? 'secondary_action' : 'primary_action')
+    this.veilborneCooldowns.set(cooldownKey, heavy ? 0.62 + (chargeScale - 1) * 0.12 : 0.28)
     this.syncVeilbornePlayerCombatant(player)
     const effectPosition = target
       ? this.getVeilborneWorldPoint(target.object.id) ?? target.object.mesh.position.clone()
@@ -894,7 +925,7 @@ export class Engine {
     this.spawnVeilborneEffect(effectPosition, weapon.damageType === 'arcane' ? 0x9c77ff : 0xd3d8e8, heavy ? 0.95 : 0.7, 0.24, true)
 
     if (target) {
-      const hit = this.applyVeilborneHit(target.instance, damage, weapon.damageType, weapon.postureDamage * (heavy ? 1.6 : 1))
+      const hit = this.applyVeilborneHit(target.instance, damage, weapon.damageType, weapon.postureDamage * (heavy ? 1.6 + (chargeScale - 1) * 0.35 : 1))
       if (hit.damage > 0) this.spawnVeilborneEffect(effectPosition, 0xffd09a, 0.35 + Math.min(0.5, hit.damage / 100), 0.28)
     }
     this.viewport.invalidate()
@@ -1531,6 +1562,10 @@ export class Engine {
 
     const player = this.getVeilbornePlayerCombatant()
     this.updateVeilborneTargetLock(player)
+    if (this.veilborneHeavyChargeStartedAt !== null) {
+      const charge = Math.min(1, Math.max(0, (performance.now() / 1000 - this.veilborneHeavyChargeStartedAt) / 2))
+      this.logic.setVariable('carga_ataque', charge)
+    }
     if (player.alive) {
       restoreVeilborneResource(player, 'stamina', 16 * step)
       restoreVeilborneResource(player, 'ether', 1.6 * step)
@@ -1820,6 +1855,9 @@ export class Engine {
     this.veilborneTargetStates.clear()
     this.veilborneStatusTickTimers.clear()
     this.veilborneBlocking = false
+    this.veilborneHeavyChargeStartedAt = null
+    if (this.logic.getVariable('carregando_ataque') !== undefined) this.logic.setVariable('carregando_ataque', false)
+    if (this.logic.getVariable('carga_ataque') !== undefined) this.logic.setVariable('carga_ataque', 0)
     this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
