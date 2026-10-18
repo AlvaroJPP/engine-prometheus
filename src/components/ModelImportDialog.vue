@@ -928,8 +928,11 @@ function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
     triangleCount += Math.floor((index ? index.count : position.count) / 3)
   })
 
-  // Evita mudar o padrão de personagens, veículos e objetos estáticos comuns.
-  if (hasAnimatedGeometry || meshCount === 0) return false
+  // Evita mudar automaticamente o colisor de personagens, veículos ou arquivos
+  // com clipes de animação. A malha estática continua selecionável manualmente.
+  const clips = root.userData.importAnimations
+  const hasAnimationClips = Array.isArray(clips) && clips.length > 0
+  if (hasAnimatedGeometry || hasAnimationClips || meshCount === 0) return false
 
   // As dimensões são capturadas antes da normalização da altura para o preview.
   const [width, height, depth] = dimensions.value
