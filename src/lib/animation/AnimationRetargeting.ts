@@ -406,49 +406,6 @@ function ancestorContextScore(source: BoneNameSignature[], target: BoneNameSigna
   return THREE.MathUtils.clamp(score, -15, 24)
 }
 
-function scoreBonePair(
-  source: BoneNameSignature,
-  target: BoneNameSignature,
-  sourceAncestors: BoneNameSignature[],
-  targetAncestors: BoneNameSignature[],
-): number {
-  if (source.side && target.side && source.side !== target.side) return Number.NEGATIVE_INFINITY
-  if (source.zone && target.zone && source.zone !== target.zone) return Number.NEGATIVE_INFINITY
-  if (source.digit && target.digit && source.digit !== target.digit) return Number.NEGATIVE_INFINITY
-
-  if (source.role && target.role && source.role !== target.role) {
-    // "Spine" e "Chest" foram canonizados na mesma família; outros papéis
-    // anatômicos não devem ser combinados só porque os nomes parecem próximos.
-    return Number.NEGATIVE_INFINITY
-  }
-
-  let score = 0
-  if (source.normalized === target.normalized || source.compact === target.compact) score += 120
-  if (source.role && source.role === target.role) score += 72
-  else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
-
-  if (source.side && target.side && source.side === target.side) score += 24
-  else if (!source.side && target.side) score -= 7
-
-  if (source.zone && target.zone && source.zone === target.zone) score += 20
-  else if (!source.zone && target.zone) score -= 4
-
-  if (source.level !== null && target.level !== null) {
-    score += source.level === target.level ? 18 : -22
-  } else if (source.level !== null || target.level !== null) {
-    score -= 2
-  }
-  if (source.digit && target.digit && source.digit === target.digit) score += 18
-
-  const similarity = tokenSimilarity(source.tokens, target.tokens)
-  score += similarity * 24
-  if (source.compact.length >= 4 && target.compact.length >= 4) {
-    if (source.compact.endsWith(target.compact) || target.compact.endsWith(source.compact)) score += 8
-  }
-  score += ancestorContextScore(sourceAncestors, targetAncestors)
-  return score
-}
-
 export type BoneSimilarityCandidate = {
   targetName: string
   score: number
