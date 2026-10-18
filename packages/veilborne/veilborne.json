@@ -357,7 +357,10 @@
       "experiencia",
       "experiencia_proximo_nivel",
       "pontos_atributo",
-      "arquetipo"
+      "arquetipo",
+      "inventario_json",
+      "item_use_request",
+      "loot_notice"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -406,7 +409,15 @@
       "experience_curve_and_level_up",
       "attribute_points_earned_on_level_up",
       "loadout_panel_attribute_point_spending",
-      "four_character_archetype_presets_in_arsenal"
+      "four_character_archetype_presets_in_arsenal",
+      "enemy_loot_drop_chance_and_quantity",
+      "world_item_pickup_interaction",
+      "json_inventory_stacks",
+      "consumable_use_from_arsenal",
+      "health_ether_stamina_consumables",
+      "area_damage_consumable",
+      "echo_fragment_currency_item",
+      "temporary_drops_cleanup_and_world_pickup_restore"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -422,7 +433,10 @@
       "persistent_loadout_and_character_save",
       "persistent_character_progression_save",
       "loot_drops_and_collectable_inventory",
-      "checkpoint_respawn_and_resource_recovery"
+      "checkpoint_respawn_and_resource_recovery",
+      "weapon_and_armor_loot_equipment",
+      "persistent_character_inventory_save",
+      "item_rarity_and_stat_modifiers"
     ],
     "enemyAIProfiles": [
       "melee",
@@ -468,6 +482,25 @@
       "rune_scholar",
       "blood_adept",
       "oathbreaker"
-    ]
+    ],
+    "lootItems": [
+      "lesser_vitality_vial",
+      "ether_vial",
+      "vigor_vial",
+      "ember_bomb",
+      "echo_fragment"
+    ],
+    "lootConfiguration": {
+      "roleVariable": "entity_role",
+      "pickupRole": "loot",
+      "itemVariable": "loot_item_id",
+      "quantityVariable": "loot_quantity",
+      "dropItemVariable": "drop_item_id",
+      "dropChanceVariable": "drop_chance",
+      "dropQuantityVariable": "drop_quantity",
+      "inventoryVariable": "inventario_json",
+      "interactControl": "interact",
+      "rangeUnits": 2.4
+    }
   }
 }
