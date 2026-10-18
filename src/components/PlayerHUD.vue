@@ -197,6 +197,23 @@ const veilborneAttributes = computed(() => [
   ...item,
   value: typeof props.gameVariables[item.key] === 'number' ? props.gameVariables[item.key] as number : 0,
 })))
+const veilborneProgression = computed(() => {
+  const number = (name: string, fallback: number): number => {
+    const value = props.gameVariables[name]
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  }
+  const level = Math.max(1, Math.floor(number('nivel', 1)))
+  const experience = Math.max(0, number('experiencia', 0))
+  const threshold = Math.max(1, number('experiencia_proximo_nivel', 100))
+  return {
+    level,
+    experience,
+    threshold,
+    points: Math.max(0, Math.floor(number('pontos_atributo', 0))),
+    echoes: Math.max(0, Math.floor(number('ecos', 0))),
+    percent: Math.max(0, Math.min(100, experience / threshold * 100)),
+  }
+})
 
 function setLoadoutValue(name: string, value: string | number | boolean): void {
   emit('set-global-variable', name, value)
@@ -207,6 +224,14 @@ function setVeilborneSigilSlot(slot: number, value: string): void {
   if (Number(props.gameVariables.sigilo_selecionado ?? 1) === slot) {
     setLoadoutValue('sigilo_ativo', value)
   }
+}
+
+function spendVeilborneAttributePoint(name: string): void {
+  const attribute = veilborneAttributes.value.find(item => item.key === name)
+  const points = veilborneProgression.value.points
+  if (!attribute || points < 1 || attribute.value >= 999) return
+  setLoadoutValue(name, Math.min(999, Math.floor(attribute.value) + 1))
+  setLoadoutValue('pontos_atributo', Math.max(0, points - 1))
 }
 
 function onVeilborneInventoryKeydown(event: KeyboardEvent): void {
@@ -1074,6 +1099,20 @@ function resetSettings() {
         <div><small>VIGOR</small><strong>{{ Math.round(Number(gameVariables.vigor ?? 0)) }} / {{ Math.round(Number(gameVariables.vigor_max ?? 100)) }}</strong></div>
       </div>
 
+      <div class="veilborne-progression-card">
+        <div class="veilborne-progression-top">
+          <strong>NÍVEL {{ veilborneProgression.level }}</strong>
+          <span>{{ Math.round(veilborneProgression.experience) }} / {{ Math.round(veilborneProgression.threshold) }} XP</span>
+        </div>
+        <div class="veilborne-xp-track" role="progressbar" :aria-valuenow="veilborneProgression.experience" :aria-valuemin="0" :aria-valuemax="veilborneProgression.threshold" aria-label="Experiência para o próximo nível">
+          <div :style="{ width: veilborneProgression.percent + '%' }" />
+        </div>
+        <div class="veilborne-progression-bottom">
+          <span>ECOS <strong>{{ veilborneProgression.echoes }}</strong></span>
+          <span>PONTOS DE ATRIBUTO <strong>{{ veilborneProgression.points }}</strong></span>
+        </div>
+      </div>
+
       <label class="veilborne-loadout-field">
         <span>Arma equipada</span>
         <select :value="String(gameVariables.arma_equipada ?? 'starter_arcane_sword')" @change="setLoadoutValue('arma_equipada', ($event.target as HTMLSelectElement).value)">
@@ -1102,8 +1141,14 @@ function resetSettings() {
       </div>
 
       <div class="veilborne-loadout-stats">
-        <span>ATRIBUTOS</span>
-        <div v-for="attribute in veilborneAttributes" :key="attribute.key"><small>{{ attribute.label }}</small><strong>{{ Math.round(attribute.value) }}</strong></div>
+        <div class="veilborne-loadout-section-heading"><span>ATRIBUTOS</span><small>+1 por ponto</small></div>
+        <div v-for="attribute in veilborneAttributes" :key="attribute.key">
+          <small>{{ attribute.label }}</small>
+          <span class="veilborne-stat-value">
+            <strong>{{ Math.round(attribute.value) }}</strong>
+            <button type="button" class="veilborne-stat-add" :disabled="veilborneProgression.points < 1 || attribute.value >= 999" :aria-label="'Aumentar ' + attribute.label" :title="veilborneProgression.points + ' ponto(s) de atributo disponível(eis)'" @click="spendVeilborneAttributePoint(attribute.key)">+</button>
+          </span>
+        </div>
       </div>
       <p class="veilborne-loadout-note">As seleções alteram as variáveis globais da sessão. O inventário de itens coletáveis e a persistência entre sessões ainda serão implementados.</p>
     </aside>
@@ -1431,10 +1476,21 @@ function resetSettings() {
 .veilborne-loadout-section { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
 .veilborne-loadout-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
 .veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
+.veilborne-progression-card { padding:10px; border:1px solid #ffffff18; border-radius:6px; background:#ffffff05; }
+.veilborne-progression-top,.veilborne-progression-bottom { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.veilborne-progression-top strong { color:#f0cad9; font-size:11px; letter-spacing:.08em; }
+.veilborne-progression-top span { color:#b9a8b3; font-size:10px; font-variant-numeric:tabular-nums; }
+.veilborne-xp-track { height:6px; margin:9px 0; overflow:hidden; border:1px solid #e7bdd025; border-radius:999px; background:#090b10; }
+.veilborne-xp-track > div { height:100%; border-radius:inherit; background:linear-gradient(90deg,#7e426b,#df9cb8); transition:width .15s linear; }
+.veilborne-progression-bottom { color:#a99ba5; font-size:9px; letter-spacing:.08em; }
+.veilborne-progression-bottom strong { margin-left:4px; color:#f1e6ed; font-size:11px; font-variant-numeric:tabular-nums; }
 .veilborne-loadout-stats { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
 .veilborne-loadout-stats > span { color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
 .veilborne-loadout-stats > div { display:flex; justify-content:space-between; gap:14px; padding:6px 0; border-bottom:1px solid #ffffff0b; font-size:11px; }
 .veilborne-loadout-stats small { color:#9d8f99; }
+.veilborne-stat-value { display:flex; align-items:center; gap:9px; }
+.veilborne-stat-add { width:22px; height:22px; border:1px solid #ce8fab70; border-radius:4px; color:#f3c4d7; background:#8a45651f; line-height:1; cursor:pointer; }
+.veilborne-stat-add:disabled { opacity:.28; cursor:not-allowed; }
 .veilborne-loadout-stats strong { font-variant-numeric:tabular-nums; }
 .veilborne-loadout-note { margin:12px 0 0; color:#a99ba5; font-size:10px; line-height:1.45; }
 .player-hud {
