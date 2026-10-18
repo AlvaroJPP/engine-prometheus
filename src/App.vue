@@ -1820,7 +1820,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <h4>Modelo do jogador</h4>
               <p class="muted">Substitua o visual do personagem controlado em Run. A importação direta usa 1,8 unidade; para escolher outro tamanho, abra Importar 3D, ajuste “Altura final” e clique em “Usar como jogador”. A colisão e as dimensões físicas acompanham a altura escolhida.</p>
               <input ref="playerModelFileInput" type="file" accept=".glb,model/gltf-binary" hidden @change="onPlayerModelSelected" />
-              <button class="primary environment-button" title="Substitui o visual do personagem usado ao executar a cena. A física e os controles permanecem iguais." @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
+              <button class="primary environment-button" title="Substitui o visual do jogador. A física acompanha a altura configurada no Importador 3D; os controles permanecem iguais." @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
               <div class="environment-file">
                 <span>♟ {{ playerModelName }}</span>
                 <button v-if="playerModelCustom" class="ghost" title="Remove o modelo personalizado e volta ao personagem padrão." @click="resetPlayerModel">Restaurar padrão</button>
