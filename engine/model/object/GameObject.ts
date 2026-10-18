@@ -62,7 +62,7 @@ export interface ObjectPatch {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
-  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize?: [number, number, number]
   colliderOffset?: [number, number, number]
 }
