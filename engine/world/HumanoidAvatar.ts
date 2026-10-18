@@ -1359,7 +1359,9 @@ export class HumanoidAvatar {
             triangle.getNormal(normal).normalize()
             // Horizontal faces are walkable floors/ceilings; lateral and steep
             // faces are physical walls for a moving mount.
-            if (Math.abs(normal.y) >= 0.82) return false
+            // Superfícies caminháveis (pisos e rampas) não podem bloquear o
+            // movimento horizontal; paredes e faces íngremes continuam sólidas.
+            if (normal.y >= 0.45 || normal.y <= -0.82) return false
             return mountBounds.intersectsTriangle(triangle)
           })
           if (blocked) return true
@@ -2402,7 +2404,9 @@ export class HumanoidAvatar {
             }
             // Ignore horizontal floor/roof faces during horizontal movement; the
             // landing solver uses downward BVH raycasts to find their real height.
-            if (Math.abs(normal.y) >= 0.82) return false
+            // Paredes bloqueiam; pisos e rampas ascendentes ficam a cargo do
+            // resolvedor vertical para que o jogador consiga caminhar sobre elas.
+            if (normal.y >= 0.45 || normal.y <= -0.82) return false
             return queryBox.intersectsTriangle(triangle)
           })
           if (blocked) return true
