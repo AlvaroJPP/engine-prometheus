@@ -116,31 +116,45 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
 <template>
   <header class="topbar">
-    <div class="brand">
-      <div class="logo" aria-hidden="true">P</div>
-      <div class="brand-copy">
-        <div class="title">Prometheus</div>
+    <div class="topbar-left">
+      <button class="brand-mark" type="button" aria-label="Prometheus Engine" title="Prometheus Engine">
+        <span class="logo" aria-hidden="true">P</span>
+      </button>
+      <span class="topbar-divider" aria-hidden="true"></span>
+
+      <div class="project-shell">
+        <div class="project-name-field">
+          <input :value="projectName" class="pname" aria-label="Nome do projeto" title="Edite o nome do projeto; alterações precisam ser salvas." spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
+          <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'" :title="dirty ? 'Há alterações não salvas' : 'Todas as alterações estão salvas'" :aria-label="dirty ? 'Projeto não salvo' : 'Projeto salvo'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
+        </div>
+        <span class="project-divider" aria-hidden="true"></span>
+        <details class="file-menu">
+          <summary data-tooltip="Crie um projeto, abra um arquivo existente ou salve as alterações.">
+            Arquivo
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+          </summary>
+          <div class="file-menu-popover">
+            <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
+            <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
+            <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
+            <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar como…</button>
+          </div>
+        </details>
       </div>
+
+      <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h8l2 2v8H3z" /><path d="M5 3v4h5V3M5 13V9h6v4" /></svg>
+        <span>Salvar</span>
+      </button>
     </div>
 
-    <div class="project">
-      <input :value="projectName" class="pname" aria-label="Nome do projeto" title="Edite o nome do projeto; alterações precisam ser salvas." spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
-      <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
+        <div class="mode-segment" aria-label="Modo do editor">
+      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">Editar</button>
+      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena" data-tooltip="Executa a cena para testar o jogador, as colisões e os eventos.">Jogar</button>
     </div>
 
-    <details class="file-menu">
-      <summary data-tooltip="Crie um projeto, abra um arquivo existente ou salve as alterações.">Arquivo <span aria-hidden="true">▾</span></summary>
-      <div class="file-menu-popover">
-        <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
-        <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
-        <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
-        <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar como…</button>
-      </div>
-    </details>
-
-    <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">Salvar</button>
-
-    <div class="global-search-wrap">
+    <div class="topbar-right">
+          <div class="global-search-wrap">
       <div class="global-search" :class="{ 'has-query': searchQuery.trim() }">
         <svg class="search-glass" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <circle cx="8.7" cy="8.7" r="5.7" />
@@ -177,18 +191,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         </div>
       </div>
     </div>
-
-    <div class="mode-segment" aria-label="Modo do editor">
-      <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">Editar</button>
-      <button :class="{ active: executionMode === 'running' }" @click="emit('run-world')" title="Executar cena" data-tooltip="Executa a cena para testar o jogador, as colisões e os eventos.">Jogar</button>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <button class="topbar-controls" type="button" title="Personalize mapas de teclas, ações de movimento e atalhos do jogador." @click="emit('open-control-maps')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 5h12M2 11h12" /><circle cx="10" cy="5" r="1.6" fill="#1d1b17" /><circle cx="6" cy="11" r="1.6" fill="#1d1b17" /></svg>
+        <span>Controles</span>
+      </button>
     </div>
 
-    <div class="topbar-spacer" />
-
-    <details class="render-settings">
+    <div class="viewport-tools-overlay" role="toolbar" aria-label="Controles da visualização do mundo">
+      <div class="viewport-camera-switch" role="group" aria-label="Câmera">
+        <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="8" cy="8" r="1.8" /></svg>
+          <span>1ª pessoa</span>
+        </button>
+        <button class="viewport-tool" :class="{ active: !firstPersonMode && cameraLabel === 'Câmera livre' }" type="button" :aria-pressed="!firstPersonMode && cameraLabel === 'Câmera livre'" :title="`Alterna o enquadramento da câmera. Atual: ${cameraLabel}.`" @click="emit('cycle-camera')">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5h12M3 5V3h10v2M4 5v8h8V5M6 8h4M6 10h4" /></svg>
+          <span>{{ cameraLabel }}</span>
+        </button>
+      </div>
+      <span class="viewport-tools-divider" aria-hidden="true"></span>
+          <details class="render-settings">
       <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
-        <span class="render-settings-icon" aria-hidden="true">◌</span>
-        {{ renderAll ? 'Render · Tudo' : 'Render' }}
+        <span class="render-settings-icon" aria-hidden="true"></span>
+        {{ renderAll ? 'Render: Tudo' : 'Render' }}
         <span class="render-settings-chevron">▾</span>
       </summary>
       <div class="render-settings-popover">
@@ -308,26 +333,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
       </div>
     </details>
-    <button
-      class="topbar-fullscreen"
-      type="button"
-      :class="{ active: worldFullscreen }"
-      :title="fullscreenToggleTitle"
-      :aria-label="fullscreenToggleTitle"
-      :aria-pressed="worldFullscreen"
-      @click="emit('toggle-world-fullscreen')"
-    >
-      <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" />
-      </svg>
-      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" />
-      </svg>
-      <span>{{ worldFullscreen ? 'Voltar ao editor' : 'Tela cheia do mundo' }}</span>
-    </button>
-    <button class="cam" :class="{ active: firstPersonMode }" :title="firstPersonMode ? 'Sair da visão em primeira pessoa.' : 'Entrar na visão em primeira pessoa para inspecionar o mundo do ponto de vista do jogador.'" @click="emit('toggle-first-person')">{{ firstPersonMode ? 'Sair 1ª pessoa' : '1ª pessoa' }}</button>
-    <button class="cam" :title="`Alterna o enquadramento da câmera. Atual: ${cameraLabel}.`" @click="emit('cycle-camera')">{{ cameraLabel === 'Câmera livre' ? 'Câmera livre' : cameraLabel }}</button>
-    <button class="cam" title="Personalize mapas de teclas, ações de movimento e atalhos do jogador." @click="emit('open-control-maps')">Controles</button>
+      <span class="viewport-tools-divider" aria-hidden="true"></span>
+      <button class="topbar-fullscreen" type="button" :class="{ active: worldFullscreen }" :title="fullscreenToggleTitle" :aria-label="fullscreenToggleTitle" :aria-pressed="worldFullscreen" @click="emit('toggle-world-fullscreen')">
+        <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" /></svg>
+      </button>
+    </div>
   </header>
 </template>
 
@@ -659,6 +670,384 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .file-menu > summary { padding-inline:7px; font-size:10px; }
   .topbar-fullscreen { width:30px; min-width:30px; padding:0; }
   .topbar-fullscreen span { display:none; }
+}
+
+
+/* Visual language based on the latest toolbar reference mockup. */
+.topbar {
+  position:relative;
+  z-index:40;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;
+  gap:16px;
+  height:56px;
+  min-height:56px;
+  padding:0 12px;
+  border-bottom:1px solid #2e2b25;
+  background:#14120f;
+  color:#f3efe6;
+  font-family:'IBM Plex Sans',sans-serif;
+}
+.topbar button { font-family:'IBM Plex Sans',sans-serif; }
+.topbar-left,.topbar-right { display:flex; align-items:center; gap:8px; min-width:0; }
+.topbar-left { justify-content:flex-start; }
+.topbar-right { justify-content:flex-end; }
+.brand-mark {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  cursor:pointer;
+}
+.brand-mark:hover { background:#26231e; }
+.brand-mark .logo {
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  border:1px solid #e8572b;
+  border-radius:7px;
+  background:#e8572b;
+  color:#14120f;
+  font-size:17px;
+  font-weight:800;
+  line-height:1;
+}
+.topbar-divider,.project-divider,.viewport-tools-divider {
+  display:block;
+  flex:none;
+  width:1px;
+  height:24px;
+  background:#2e2b25;
+}
+.project-shell {
+  display:flex;
+  align-items:center;
+  min-width:0;
+  height:36px;
+  border:1px solid #2e2b25;
+  border-radius:8px;
+  background:#1d1b17;
+}
+.project-name-field { display:flex; align-items:center; min-width:0; }
+.topbar .pname {
+  width:148px;
+  min-width:80px;
+  height:34px;
+  min-height:34px;
+  padding:0 10px 0 12px;
+  border:0;
+  border-radius:7px 0 0 7px;
+  outline:none;
+  background:transparent;
+  color:#f3efe6;
+  font:500 13px/1.2 'IBM Plex Sans',sans-serif;
+}
+.topbar .pname:hover,.topbar .pname:focus {
+  border-color:transparent;
+  background:#25221d;
+}
+.project-divider { height:20px; }
+.topbar .save-state {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:18px;
+  height:30px;
+  margin-right:4px;
+  overflow:hidden;
+  color:transparent;
+  font-size:0;
+}
+.topbar .save-state .dot { display:block; width:7px; height:7px; margin:0; }
+.topbar .save-state.is-saved .dot { background:#8cae78; }
+.topbar .save-state.is-dirty .dot { background:#e8572b; }
+.file-menu { align-self:stretch; display:flex; align-items:center; }
+.topbar .file-menu > summary {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  height:34px;
+  min-height:34px;
+  padding:0 12px;
+  border:0;
+  border-radius:0 7px 7px 0;
+  background:transparent;
+  color:#b5afa2;
+  font:500 13px/1 'IBM Plex Sans',sans-serif;
+  cursor:pointer;
+}
+.topbar .file-menu > summary:hover,.topbar .file-menu[open] > summary { background:#26231e; color:#f3efe6; }
+.topbar .file-menu > summary svg { flex:none; }
+.topbar .file-menu-popover {
+  top:calc(100% + 6px);
+  width:190px;
+  border-color:#3b3730;
+  border-radius:8px;
+  background:#1d1b17;
+  box-shadow:0 14px 34px #0009;
+}
+.topbar .file-menu-popover button { color:#f3efe6; }
+.topbar .file-menu-popover button:hover { background:#34302a; }
+.topbar kbd { border-color:#3b3730; border-radius:5px; background:#14120f; color:#b5afa2; }
+.topbar .topbar-save,.topbar .topbar-controls {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  flex:none;
+  height:36px;
+  min-height:36px;
+  padding:0 12px;
+  border:1px solid #2e2b25;
+  border-radius:8px;
+  background:#1d1b17;
+  color:#f3efe6;
+  font:500 13px/1 'IBM Plex Sans',sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.topbar .topbar-save:hover,.topbar .topbar-controls:hover { background:#26231e; border-color:#484136; }
+.topbar .topbar-save svg,.topbar .topbar-controls svg { flex:none; }
+.topbar .mode-segment {
+  display:flex;
+  align-self:stretch;
+  align-items:stretch;
+  justify-content:center;
+  gap:8px;
+  height:56px;
+  min-width:max-content;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.topbar .mode-segment button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  height:56px;
+  min-height:56px;
+  padding:0 16px;
+  border:0;
+  border-bottom:2px solid transparent;
+  border-radius:0;
+  background:transparent;
+  color:#b5afa2;
+  font:500 13px/1 'IBM Plex Sans',sans-serif;
+  cursor:pointer;
+}
+.topbar .mode-segment button:hover { background:#1d1b17; color:#f3efe6; }
+.topbar .mode-segment button.active {
+  border-bottom-color:#e8572b;
+  background:transparent;
+  color:#f3efe6;
+  box-shadow:none;
+}
+.topbar .global-search-wrap {
+  flex:0 1 260px;
+  width:min(260px,22vw);
+  max-width:260px;
+  min-width:155px;
+}
+.topbar .global-search {
+  height:36px;
+  min-height:36px;
+  gap:8px;
+  padding:0 8px 0 12px;
+  border:1px solid #2e2b25;
+  border-radius:8px;
+  background:#1d1b17;
+  color:#b5afa2;
+  box-shadow:none;
+  transition:border-color .12s ease,background-color .12s ease;
+}
+.topbar .global-search:hover { border-color:#494238; background:#211e19; }
+.topbar .global-search:focus-within {
+  border-color:#e8572b;
+  background:#1d1b17;
+  box-shadow:0 0 0 2px #e8572b24;
+}
+.topbar .global-search input {
+  min-height:0;
+  padding:0;
+  background:transparent;
+  color:#f3efe6;
+  font:400 13px/1.3 'IBM Plex Sans',sans-serif;
+}
+.topbar .global-search input::placeholder { color:#8b8478; }
+.topbar .global-search .search-glass { stroke:currentColor; }
+.topbar .search-shortcut {
+  gap:3px;
+  margin:0;
+  padding:3px 7px;
+  border:1px solid #e8572b;
+  border-radius:5px;
+  background:#14120f;
+}
+.topbar .search-shortcut kbd {
+  min-width:0;
+  height:auto;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#f3efe6;
+  font:500 10px/1 'IBM Plex Sans',sans-serif;
+  box-shadow:none;
+}
+.topbar .global-search-clear { min-height:22px; width:22px; border:0; background:transparent; color:#b5afa2; }
+.topbar .global-search-results {
+  top:calc(100% + 7px);
+  border:1px solid #3b3730;
+  border-radius:9px;
+  background:#1d1b17;
+  color:#f3efe6;
+  box-shadow:0 16px 38px #0009;
+}
+.topbar .global-search-results-heading { border-bottom-color:#2e2b25; color:#b5afa2; }
+.topbar .global-search-result { color:#f3efe6; }
+.topbar .global-search-result:hover { background:#34302a; }
+.topbar .global-search-result small { color:#b5afa2; }
+.topbar .global-search-empty { color:#b5afa2; }
+.viewport-tools-overlay {
+  position:fixed;
+  z-index:45;
+  top:68px;
+  right:12px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:calc(100vw - 24px);
+  padding:4px;
+  border:1px solid #2e2b25;
+  border-radius:12px;
+  background:rgba(20,18,15,.92);
+  color:#f3efe6;
+  box-shadow:0 8px 22px #0003;
+  backdrop-filter:blur(10px);
+}
+.viewport-camera-switch { display:flex; align-items:center; gap:2px; min-width:0; }
+.viewport-tool {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  height:36px;
+  min-height:36px;
+  padding:0 12px;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:#b5afa2;
+  font:500 12px/1 'IBM Plex Sans',sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.viewport-tool:hover { background:#26231e; color:#f3efe6; }
+.viewport-tool.active { background:#34302a; color:#f3efe6; }
+.viewport-tool svg { flex:none; }
+.viewport-tools-divider { height:24px; }
+.topbar .render-settings { position:relative; flex:none; }
+.topbar .render-settings-trigger {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  height:36px;
+  min-height:36px;
+  padding:0 10px;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:#f3efe6;
+  font:500 12px/1 'IBM Plex Sans',sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.topbar .render-settings-trigger:hover,.topbar .render-settings[open] .render-settings-trigger { background:#26231e; border-color:#3c372f; }
+.topbar .render-settings-trigger.active { color:#f3efe6; background:#26231e; }
+.topbar .render-settings-icon { width:8px; height:8px; border-radius:50%; background:#e8572b; font-size:0; }
+.topbar .render-settings-chevron { color:#b5afa2; font-size:12px; }
+.topbar .render-settings-popover {
+  top:calc(100% + 7px);
+  right:0;
+  width:min(360px,calc(100vw - 24px));
+  max-height:min(76vh,720px);
+  overflow:auto;
+  border-color:#3b3730;
+  border-radius:10px;
+  background:#1d1b17;
+  color:#f3efe6;
+  box-shadow:0 16px 40px #000a;
+}
+.topbar .render-settings-heading,.topbar .render-settings-section-title { color:#f3efe6; }
+.topbar .render-settings-description,.topbar .render-settings-help,.topbar .render-settings-note { color:#b5afa2; }
+.topbar .render-settings-field>span:first-child { color:#b5afa2; }
+.topbar .render-settings-number-wrap,.topbar .render-settings-select { border-color:#3b3730; background:#14120f; color:#f3efe6; }
+.topbar .render-settings input[type="number"],.topbar .render-settings select {
+  border-color:#3b3730;
+  background:#14120f;
+  color:#f3efe6;
+}
+.topbar .render-settings input[type="checkbox"],.topbar .render-settings input[type="range"] { accent-color:#e8572b; }
+.topbar .render-settings-range-labels { color:#8b8478; }
+.topbar .render-settings-everything { border-color:#2e2b25; background:#211e19; }
+.topbar .render-settings-everything strong { color:#f3efe6; }
+.topbar .render-settings-everything small { color:#b5afa2; }
+.topbar .render-settings-section { border-top-color:#2e2b25; }
+.topbar .render-settings-note { border-top-color:#2e2b25; }
+.topbar .topbar-fullscreen {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:#f3efe6;
+  cursor:pointer;
+}
+.topbar .topbar-fullscreen svg { display:block; width:16px; height:16px; }
+.topbar .topbar-fullscreen:hover,.topbar .topbar-fullscreen.active { border-color:#3c372f; background:#26231e; }
+.app.world-fullscreen .viewport-tools-overlay { top:12px; }
+@media(max-width:1180px) {
+  .topbar { gap:8px; }
+  .topbar-left,.topbar-right { gap:6px; }
+  .topbar .pname { width:112px; }
+  .topbar .global-search-wrap { width:200px; flex-basis:200px; }
+  .topbar .mode-segment button { padding-inline:12px; }
+}
+@media(max-width:960px) {
+  .topbar { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:5px; padding-inline:8px; }
+  .topbar .brand-mark { width:30px; }
+  .topbar-left,.topbar-right { gap:4px; }
+  .topbar .pname { width:88px; padding-inline:7px; }
+  .topbar .global-search-wrap { min-width:120px; width:160px; flex-basis:160px; }
+  .topbar .topbar-save,.topbar .topbar-controls { width:36px; padding:0; }
+  .topbar .topbar-save span,.topbar .topbar-controls span { display:none; }
+  .topbar .topbar-divider { display:none; }
+  .topbar .mode-segment button { padding-inline:10px; }
+}
+@media(max-width:760px) {
+  .topbar { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:3px; padding-inline:5px; }
+  .topbar .brand-mark { display:none; }
+  .topbar .pname { width:76px; min-width:58px; }
+  .topbar .global-search-wrap { width:120px; flex-basis:120px; min-width:100px; }
+  .topbar .mode-segment button { padding-inline:7px; font-size:11px; }
+  .viewport-tools-overlay { right:6px; gap:2px; padding:3px; transform:scale(.92); transform-origin:top right; }
+  .viewport-tool { gap:4px; padding-inline:7px; font-size:11px; }
 }
 
 </style>
