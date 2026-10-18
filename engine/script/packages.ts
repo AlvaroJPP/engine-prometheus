@@ -184,6 +184,13 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { name: 'boss_phase', label: 'Fase do chefe', type: 'number', defaultValue: 1, description: 'Fase atual calculada pela vida restante.', min: 1, max: 3, step: 1, readOnly: true },
       { name: 'eco_reward', label: 'Recompensa em Ecos', type: 'number', defaultValue: -1, description: 'Ecos concedidos ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
       { name: 'xp_reward', label: 'Recompensa de experiência', type: 'number', defaultValue: -1, description: 'Experiência concedida ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
+      { name: 'entity_role', label: 'Função VEILBORNE', type: 'string', defaultValue: 'combatant', description: 'combatant para inimigos/personagens ou loot para objetos coletáveis.' },
+      { name: 'loot_item_id', label: 'ID do item coletável', type: 'string', defaultValue: 'lesser_vitality_vial', description: 'ID do item que o jogador recebe ao interagir com este objeto configurado como loot.' },
+      { name: 'loot_quantity', label: 'Quantidade coletável', type: 'number', defaultValue: 1, description: 'Quantidade de itens recebida ao coletar este objeto.', min: 1, max: 99, step: 1 },
+      { name: 'loot_collected', label: 'Já coletado', type: 'boolean', defaultValue: false, description: 'Estado usado pelo runtime para evitar coleta repetida.', readOnly: true },
+      { name: 'drop_item_id', label: 'ID do item derrubado', type: 'string', defaultValue: '', description: 'ID opcional do item que este inimigo pode derrubar quando morrer.' },
+      { name: 'drop_chance', label: 'Chance de drop', type: 'number', defaultValue: 0.35, description: 'Probabilidade de drop de 0 a 1.', min: 0, max: 1, step: 0.05 },
+      { name: 'drop_quantity', label: 'Quantidade derrubada', type: 'number', defaultValue: 1, description: 'Quantidade de itens no drop.', min: 1, max: 99, step: 1 },
     ],
     triggers: [
       { id: 'combat_started', label: 'Combate iniciado', description: 'Um alvo hostil detectou o personagem ou recebeu o primeiro ataque.' },
