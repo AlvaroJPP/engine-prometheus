@@ -288,6 +288,7 @@ export class HumanoidAvatar {
   private maneuverRemaining = 0
   private maneuverCooldown = 0
   private maneuverAdmission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null = null
+  private combatStaggerRemaining = 0
   private maneuverSpeed = 0
   private readonly maneuverDirection = new THREE.Vector3()
   private postureBeforeSlide: PlayerPosture = 'standing'
@@ -336,6 +337,28 @@ export class HumanoidAvatar {
   /** Permite ao sistema de jogo validar/cobrar recursos antes de iniciar manobras. */
   setManeuverAdmission(admission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null): void {
     this.maneuverAdmission = admission
+  }
+
+  /** Atordoa o avatar temporariamente sem desativar a câmera ou o runtime inteiro. */
+  setCombatStagger(durationSeconds: number): void {
+    this.combatStaggerRemaining = Math.max(0, Number.isFinite(durationSeconds) ? durationSeconds : 0)
+    this.pressed.clear()
+    this.jumpRequested = false
+    this.mountedJumpRequested = false
+    this.dodgeRequested = false
+    this.slideRequested = false
+    this.rollRequested = false
+    if (this.combatStaggerRemaining > 0) {
+      if (this.maneuver === 'slide' || this.maneuver === 'roll') this.setPosture(this.postureBeforeSlide)
+      this.maneuver = null
+      this.maneuverRemaining = 0
+      this.maneuverSpeed = 0
+      this.animationController?.setState('idle', true)
+    }
+  }
+
+  isCombatStaggered(): boolean {
+    return this.combatStaggerRemaining > 0
   }
 
   private getStandingPlayerHeight(): number {
@@ -623,9 +646,19 @@ export class HumanoidAvatar {
   update(dt: number): void {
     if (!this.enabled) return
     const step = Math.min(dt, 0.05)
+    if (this.combatStaggerRemaining > 0) {
+      this.combatStaggerRemaining = Math.max(0, this.combatStaggerRemaining - step)
+      this.pressed.clear()
+      this.jumpRequested = false
+      this.mountedJumpRequested = false
+      this.dodgeRequested = false
+      this.slideRequested = false
+      this.rollRequested = false
+    }
+    const stunned = this.combatStaggerRemaining > 0
     const bindings = this.controlBindings()
-    const forwardInput = Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
-    const sideInput = Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
+    const forwardInput = stunned ? 0 : Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
+    const sideInput = stunned ? 0 : Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
     const length = Math.hypot(forwardInput, sideInput)
     const running = this.pressed.has(bindings.run) || this.sprintToggled
     let speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
