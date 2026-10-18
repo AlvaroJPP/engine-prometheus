@@ -29,3 +29,11 @@ jobs:
         run: npm run rigging:self-test
       - name: Type-check and build
         run: npm run build
+      - name: Install Tauri Linux dependencies
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y build-essential curl wget file libssl-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev patchelf
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Check Tauri Rust backend
+        run: cargo check --manifest-path src-tauri/Cargo.toml
