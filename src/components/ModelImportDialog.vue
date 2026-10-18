@@ -1848,71 +1848,78 @@ function clearCustomThumbnail() {
 }
 
 async function confirmImport() {
+  if (loading.value) return
   const root = model.value
-  if (!root || !fileName.value || loading.value) return
-  error.value = ''
-  const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
-  const chosenName = componentName.value.trim() || chosenPart?.name || root.name.trim() || 'Modelo 3D'
-  let imported: THREE.Object3D
-  let importedHeight = modelHeight.value
-
-  if (chosenPart && chosenPart.object !== root) {
-    root.updateMatrixWorld(true)
-    const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
-    imported = chosenPart.object.clone(true)
-    imported.matrix.copy(relativeMatrix)
-    imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
-    imported.matrixAutoUpdate = true
-    imported.name = chosenPart.name
-    const bounds = new THREE.Box3().setFromObject(imported)
-    const size = bounds.getSize(new THREE.Vector3())
-    const center = bounds.getCenter(new THREE.Vector3())
-    if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
-      error.value = 'Não foi possível calcular o tamanho da parte selecionada.'
-      return
-    }
-    imported.position.sub(center)
-    const scale = modelHeight.value / size.y
-    imported.scale.multiplyScalar(scale)
-    imported.position.multiplyScalar(scale)
-    imported.userData.importAnimations = root.userData.importAnimations ?? []
-    imported.userData.importGltfMetadata = root.userData.importGltfMetadata
-    importedHeight = modelHeight.value
-  } else {
-    imported = root
+  if (!root) {
+    error.value = 'Carregue um modelo 3D antes de salvar o componente.'
+    return
+  }
+  if (!fileName.value) {
+    error.value = 'Não foi possível identificar o arquivo de origem. Reabra o modelo e tente salvar novamente.'
+    return
   }
 
-  imported.userData.importColliderType = colliderType.value
-  imported.userData.importColliderSize = [...colliderSize.value]
-  imported.userData.importColliderOffset = [...colliderOffset.value]
-  imported.userData.importAnimationRoles = { ...animationRoles.value }
-  imported.userData.importControlBindings = { ...controlBindings.value }
-  imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
-  const behaviorPackageSettings: Record<string, ImportBehaviorPackageDraft> = {}
-  for (const packageId of selectedBehaviorPackageIds.value) {
-    const draft = ensureImportBehaviorPackageDraft(packageId)
-    behaviorPackageSettings[packageId] = {
-      variables: { ...draft.variables },
-      config: structuredClone(draft.config),
-    }
-  }
-  imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
-
-  // Aguarda o salvamento antes de fechar. Em caso de erro, a prévia continua
-  // aberta e a mensagem fica visível para corrigir e tentar novamente.
-  const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
-  const sourceMetadata = root.userData.importGltfMetadata as { images?: Array<{ uri?: string }> } | undefined
-  const hasOnlyEmbeddedTextures = (sourceMetadata?.images ?? []).every(image =>
-    !image.uri || image.uri.startsWith('data:image/'),
-  )
-  const sourceGlbBytes = imported === root
-    && root.userData.importNeedsReexport !== true
-    && hasOnlyEmbeddedTextures
-    && root.userData.importSourceGlbBytes instanceof ArrayBuffer
-    ? root.userData.importSourceGlbBytes.slice(0)
-    : undefined
   loading.value = true
+  error.value = ''
   try {
+    const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+    const chosenName = componentName.value.trim() || chosenPart?.name || root.name.trim() || 'Modelo 3D'
+    let imported: THREE.Object3D
+    let importedHeight = modelHeight.value
+
+    if (chosenPart && chosenPart.object !== root) {
+      root.updateMatrixWorld(true)
+      const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
+      imported = chosenPart.object.clone(true)
+      imported.matrix.copy(relativeMatrix)
+      imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
+      imported.matrixAutoUpdate = true
+      imported.name = chosenPart.name
+      const bounds = new THREE.Box3().setFromObject(imported)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
+        throw new Error('Não foi possível calcular o tamanho da parte selecionada.')
+      }
+      imported.position.sub(center)
+      const scale = modelHeight.value / size.y
+      imported.scale.multiplyScalar(scale)
+      imported.position.multiplyScalar(scale)
+      imported.userData.importAnimations = root.userData.importAnimations ?? []
+      imported.userData.importGltfMetadata = root.userData.importGltfMetadata
+      importedHeight = modelHeight.value
+    } else {
+      imported = root
+    }
+
+    imported.userData.importColliderType = colliderType.value
+    imported.userData.importColliderSize = [...colliderSize.value]
+    imported.userData.importColliderOffset = [...colliderOffset.value]
+    imported.userData.importAnimationRoles = { ...animationRoles.value }
+    imported.userData.importControlBindings = { ...controlBindings.value }
+    imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
+    const behaviorPackageSettings: Record<string, ImportBehaviorPackageDraft> = {}
+    for (const packageId of selectedBehaviorPackageIds.value) {
+      const draft = ensureImportBehaviorPackageDraft(packageId)
+      behaviorPackageSettings[packageId] = {
+        variables: { ...draft.variables },
+        config: structuredClone(draft.config),
+      }
+    }
+    imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
+
+    const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
+    const sourceMetadata = root.userData.importGltfMetadata as { images?: Array<{ uri?: string }> } | undefined
+    const hasOnlyEmbeddedTextures = (sourceMetadata?.images ?? []).every(image =>
+      !image.uri || image.uri.startsWith('data:image/'),
+    )
+    const sourceGlbBytes = imported === root
+      && root.userData.importNeedsReexport !== true
+      && hasOnlyEmbeddedTextures
+      && root.userData.importSourceGlbBytes instanceof ArrayBuffer
+      ? root.userData.importSourceGlbBytes.slice(0)
+      : undefined
+
     const saved = await props.saveModel({
       name: chosenName,
       model: imported,
@@ -1922,7 +1929,7 @@ async function confirmImport() {
       sourceGlbBytes,
     })
     if (!saved) {
-      error.value = 'O salvamento não foi concluído. Verifique se outra operação está em andamento e tente novamente.'
+      error.value = 'O aplicativo não confirmou o salvamento. Verifique o status do editor no rodapé e tente novamente.'
       return
     }
 
@@ -1932,14 +1939,12 @@ async function confirmImport() {
     if (imported === root) model.value = null
     emit('close')
   } catch (cause) {
-    error.value = cause instanceof Error
-      ? 'Não foi possível salvar o modelo: ' + cause.message
-      : 'Não foi possível salvar o modelo. Tente novamente.'
+    const message = cause instanceof Error ? cause.message : String(cause || 'Erro desconhecido')
+    error.value = 'Não foi possível salvar o componente: ' + message
   } finally {
     loading.value = false
   }
 }
-
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', captureControlBindingKey, true)
   disposePreview()
@@ -2463,8 +2468,11 @@ onBeforeUnmount(() => {
       </div>
 
       <footer class="model-import-footer">
-        <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ isEditingSavedComponent ? 'Editando componente existente' : props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : loading ? 'Carregando ativo…' : 'Nenhum ativo selecionado' }}</span></div>
-        <div class="model-footer-actions"><button class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset || isEditingSavedComponent" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" :title="isEditingSavedComponent ? 'Salva as alterações no componente existente, sem criar uma cópia.' : 'Salva o modelo e suas configurações como componente reutilizável.'" @click="confirmImport"><span>{{ loading ? '…' : isEditingSavedComponent ? '✓' : '＋' }}</span> {{ loading ? 'Salvando…' : isEditingSavedComponent ? 'Salvar alterações' : 'Salvar componente' }}</button></div>
+        <div class="model-footer-leading">
+          <div class="model-footer-state"><span class="model-import-status-dot" :class="{ ready: !!model, busy: loading }"></span><span>{{ loading ? (isEditingSavedComponent ? 'Salvando alterações…' : 'Salvando componente…') : isEditingSavedComponent ? 'Editando componente existente' : props.initialAsset ? 'Pré-visualização do componente' : model ? 'Componente pronto para salvar' : 'Nenhum ativo selecionado' }}</span></div>
+          <p v-if="error" class="model-footer-error" role="alert" aria-live="assertive">{{ error }}</p>
+        </div>
+        <div class="model-footer-actions"><button type="button" class="model-import-secondary" title="Fecha a janela sem salvar um novo componente." @click="emit('close')">{{ props.initialAsset ? 'Fechar prévia' : 'Cancelar' }}</button><button v-if="model" type="button" class="model-import-secondary" :disabled="loading" title="Usa este modelo como visual do jogador, em vez de salvá-lo como componente comum." @click="useAsPlayerModel">Usar como jogador</button><button v-if="!props.initialAsset || isEditingSavedComponent" type="button" class="model-import-primary" :disabled="!model || loading || !componentName.trim()" :title="isEditingSavedComponent ? 'Salva as alterações no componente existente, sem criar uma cópia.' : 'Salva o modelo e suas configurações como componente reutilizável.'" @click="confirmImport"><span>{{ loading ? '…' : isEditingSavedComponent ? '✓' : '＋' }}</span> {{ loading ? 'Salvando…' : isEditingSavedComponent ? 'Salvar alterações' : 'Salvar componente' }}</button></div>
       </footer>
     </section>
   </div>
@@ -2560,4 +2568,10 @@ onBeforeUnmount(() => {
 .model-preview-image-actions button:first-child{border-color:#9b704d;background:#493526;color:#ffe0c3}
 .model-preview-image-actions button:disabled{opacity:.45;cursor:not-allowed}
 .model-preview-image-error{margin:8px 0 0;color:#ffaaa3;font-size:9px;line-height:1.45}
+
+.model-footer-leading{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.model-footer-error{margin:0;max-width:780px;color:#ffaaa3;font-size:10px;line-height:1.35;overflow-wrap:anywhere}
+.model-import-footer{flex-wrap:wrap}
+.model-import-footer .model-footer-actions{flex:none}
+@media(max-width:760px){.model-footer-error{font-size:9px}.model-import-footer{align-items:stretch}.model-import-footer .model-footer-actions{width:100%;justify-content:flex-end}}
 </style>
