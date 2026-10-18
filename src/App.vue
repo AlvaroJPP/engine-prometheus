@@ -5277,15 +5277,15 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   .chips { bottom:72px !important; }
 }
 @media(max-width:760px) {
-  .viewport-actions { left:48px; top:10px; }
+  .viewport-actions { left:54px; top:10px; }
   .viewport-actions .quick-add-trigger { padding-inline:8px; }
   .viewport-actions .model-import-launch { padding-inline:8px !important; }
   .viewport-actions .quick-add-trigger { gap:4px; }
   .viewport-fps { max-width:calc(100% - 90px); right:8px !important; bottom:36px !important; gap:6px !important; }
   .viewport-render-stats { gap:6px !important; padding-left:6px !important; }
   .viewport-render-stats span:nth-child(n+2) { display:none; }
-  .chips { left:48px !important; bottom:70px !important; }
-  .axes { left:48px !important; bottom:36px !important; }
+  .chips { left:54px !important; bottom:70px !important; }
+  .axes { left:54px !important; bottom:36px !important; }
 }
 
 </style>
