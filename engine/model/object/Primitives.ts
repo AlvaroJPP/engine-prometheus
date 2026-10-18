@@ -18,7 +18,7 @@ export interface PrimitiveInit {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
-  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize?: Vec3
   colliderOffset?: Vec3
   texturePreset?: TexturePreset
