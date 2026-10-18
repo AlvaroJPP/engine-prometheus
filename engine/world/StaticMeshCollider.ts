@@ -194,6 +194,7 @@ export function raycastStaticMesh(
   worldRay: THREE.Ray,
   near = 0,
   far = Number.POSITIVE_INFINITY,
+  accept?: (hit: StaticMeshRayHit) => boolean,
 ): StaticMeshRayHit | null {
   const data = getStaticMeshCollisionData(root)
   if (!data) return null
@@ -201,17 +202,23 @@ export function raycastStaticMesh(
   root.updateWorldMatrix(true, true)
   const worldToRoot = root.matrixWorld.clone().invert()
   const localRay = worldRay.clone().applyMatrix4(worldToRoot)
-  const hit = data.boundsTree.raycastFirst(localRay, THREE.DoubleSide)
-  if (!hit?.face) return null
+  const hits = data.boundsTree.raycast(localRay, THREE.DoubleSide)
+  let nearest: StaticMeshRayHit | null = null
 
-  const point = hit.point.clone().applyMatrix4(root.matrixWorld)
-  const distance = worldRay.origin.distanceTo(point)
-  if (distance < near || distance > far) return null
+  for (const hit of hits) {
+    if (!hit.face) continue
+    const point = hit.point.clone().applyMatrix4(root.matrixWorld)
+    const distance = worldRay.origin.distanceTo(point)
+    if (distance < near || distance > far || (nearest && distance >= nearest.distance)) continue
 
-  const normal = hit.face.normal.clone()
-    .applyMatrix3(new THREE.Matrix3().getNormalMatrix(root.matrixWorld))
-    .normalize()
-  return { point, normal, distance, faceIndex: hit.faceIndex ?? -1 }
+    const normal = hit.face.normal.clone()
+      .applyMatrix3(new THREE.Matrix3().getNormalMatrix(root.matrixWorld))
+      .normalize()
+    const candidate = { point, normal, distance, faceIndex: hit.faceIndex ?? -1 }
+    if (accept && !accept(candidate)) continue
+    nearest = candidate
+  }
+  return nearest
 }
 
 /** Invalida quando a geometria/visibilidade de partes do modelo é alterada no importador. */
