@@ -85,6 +85,10 @@ const {
   performanceMode,
   renderDistance,
   renderAll,
+  renderResolutionScale,
+  renderFpsLimit,
+  renderFogEnabled,
+  renderFogDistanceScale,
   playerModelName,
   playerModelCustom,
   setPlayerModelFile,
@@ -116,8 +120,13 @@ const {
   toggleGrid,
   togglePolygonLines,
   togglePerformanceMode,
+  setPerformanceMode,
   setRenderDistance,
   setRenderAll,
+  setRenderResolutionScale,
+  setRenderFpsLimit,
+  setRenderFogEnabled,
+  setRenderFogDistanceScale,
   removeSelected,
   onRename,
   onNumber,
@@ -1438,6 +1447,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :first-person-mode="firstPersonMode"
       :render-distance="renderDistance"
       :render-all="renderAll"
+      :performance-mode="performanceMode"
+      :render-resolution-scale="renderResolutionScale"
+      :render-fps-limit="renderFpsLimit"
+      :render-fog-enabled="renderFogEnabled"
+      :render-fog-distance-scale="renderFogDistanceScale"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
       :objects="objects"
@@ -1450,6 +1464,11 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @toggle-world-fullscreen="toggleWorldFullscreen"
       @render-distance-change="setRenderDistance"
       @render-all-change="setRenderAll"
+      @performance-mode-change="setPerformanceMode"
+      @render-resolution-scale-change="setRenderResolutionScale"
+      @render-fps-limit-change="setRenderFpsLimit"
+      @render-fog-enabled-change="setRenderFogEnabled"
+      @render-fog-distance-scale-change="setRenderFogDistanceScale"
       @toggle-first-person="toggleFirstPerson"
       @open-control-maps="controlMapsOpen = true"
       @mark-dirty="markDirty"
