@@ -368,8 +368,8 @@ fn run_skintokens_glb_sync(
     }
     let output_bytes = fs::read(&output)
         .map_err(|e| format!("SkinTokens terminou sem criar o GLB de saída: {e}"))?;
-    if output_bytes.len() < 12 || &output_bytes[0..4] != b"glTF" {
-        return Err("SkinTokens não gerou um GLB válido. O modelo original foi preservado.".into());
+    if output_bytes.len() < 12 || output_bytes.len() > MAX_GLB_BYTES || &output_bytes[0..4] != b"glTF" {
+        return Err("SkinTokens não gerou um GLB válido ou a saída ultrapassou o limite de 300 MB. O modelo original foi preservado.".into());
     }
     Ok(base64::engine::general_purpose::STANDARD.encode(output_bytes))
 }
