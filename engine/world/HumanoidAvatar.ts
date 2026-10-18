@@ -26,7 +26,7 @@ const WALKABLE_SURFACE_NORMAL_Y = 0.24
 const MAX_WALK_STEP_UP = 0.68
 const MAX_WALK_OFF_DROP = 1.1
 const LEDGE_EDGE_TOP_TOLERANCE = 0.045
-const LEDGE_EDGE_FLOOR_TOLERANCE = 0.28
+const LEDGE_EDGE_FLOOR_TOLERANCE = MAX_WALK_OFF_DROP + 0.12
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
   [0.48, 0], [-0.48, 0], [0, 0.48], [0, -0.48],
@@ -2825,12 +2825,20 @@ export class HumanoidAvatar {
     )
     if (candidates.length === 0) return null
 
-    const forwardOffset = PLAYER_RADIUS + 0.11
-    const lateralOffset = PLAYER_RADIUS * 0.72
-    const points = [-lateralOffset, 0, lateralOffset].map(lateral => ({
-      x: x + (leadingAxis === 'x' ? direction * forwardOffset : lateral),
-      z: z + (leadingAxis === 'z' ? direction * forwardOffset : lateral),
-    }))
+    const lateralOffset = PLAYER_RADIUS * 0.82
+    // Verifica mais de uma distância à frente. Uma única sonda pode ainda cair
+    // sobre a calçada superior quando o personagem encosta numa borda estreita.
+    const forwardOffsets = [PLAYER_RADIUS + 0.04, PLAYER_RADIUS + 0.18, PLAYER_RADIUS + 0.32]
+    const lateralOffsets = [-lateralOffset, 0, lateralOffset]
+    const points: Array<{ x: number; z: number }> = []
+    for (const forwardOffset of forwardOffsets) {
+      for (const lateral of lateralOffsets) {
+        points.push({
+          x: x + (leadingAxis === 'x' ? direction * forwardOffset : lateral),
+          z: z + (leadingAxis === 'z' ? direction * forwardOffset : lateral),
+        })
+      }
+    }
     const ray = new THREE.Ray(
       new THREE.Vector3(),
       new THREE.Vector3(0, -1, 0),
