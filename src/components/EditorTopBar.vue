@@ -1045,6 +1045,12 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .topbar .topbar-divider { display:none; }
   .topbar .mode-segment button { padding-inline:10px; }
 }
+@media(max-width:900px) {
+  .viewport-tools-overlay { transform:scale(.84); transform-origin:top right; }
+}
+@media(max-width:820px) {
+  .viewport-tools-overlay { transform:scale(.76); }
+}
 @media(max-width:760px) {
   .topbar { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:3px; padding-inline:5px; }
   .topbar .brand-mark { display:none; }
