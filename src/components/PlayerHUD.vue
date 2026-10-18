@@ -245,6 +245,59 @@ onBeforeUnmount(() => {
   if (hudSheetPreviewUrl.value) URL.revokeObjectURL(hudSheetPreviewUrl.value)
 })
 
+function createAlquimiaSvg(name: string): Blob {
+  const art: Record<string, string> = {
+    nameplate: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 150"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#10172a" stop-opacity=".96"/><stop offset="1" stop-color="#28192e" stop-opacity=".94"/></linearGradient><linearGradient id="copper"><stop stop-color="#75452f"/><stop offset=".5" stop-color="#e5b17b"/><stop offset="1" stop-color="#75452f"/></linearGradient></defs><path d="M18 14H565L602 48V105L565 136H18L7 119V31Z" fill="url(#bg)" stroke="url(#copper)" stroke-width="3"/><path d="M26 24H557L590 53V100L557 126H26L18 114V36Z" fill="none" stroke="#bd8c65" stroke-opacity=".58"/><path d="M36 42H115M36 49H82M505 112H574" stroke="#c9976d" stroke-width="2"/><path d="M42 75l13-13 13 13-13 13z" fill="none" stroke="#d8a77c" stroke-width="2"/><circle cx="55" cy="75" r="4" fill="#d8a77c"/><text x="83" y="73" fill="#f1d6b1" font-family="Georgia,serif" font-size="26" letter-spacing="3">ALQUIMISTA</text><text x="84" y="98" fill="#bba9bd" font-family="Georgia,serif" font-size="13" letter-spacing="2">CÍRCULO ESCARLATE</text><path d="M535 40l9 10-9 10-9-10zM556 40l9 10-9 10-9-10z" fill="none" stroke="#d8a77c"/></svg>',
+    sigil: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><defs><radialGradient id="glow"><stop stop-color="#b76c58" stop-opacity=".19"/><stop offset="1" stop-color="#12192b" stop-opacity="0"/></radialGradient></defs><circle cx="120" cy="120" r="115" fill="url(#glow)"/><g fill="none" stroke="#c78c65" stroke-width="2" stroke-opacity=".92"><circle cx="120" cy="120" r="91"/><circle cx="120" cy="120" r="78" stroke-dasharray="3 7"/><path d="M120 22L205 169H35Z M120 218L35 71H205Z"/><path d="M120 48L145 95L192 120L145 145L120 192L95 145L48 120L95 95Z" stroke-opacity=".65"/><path d="M120 72L168 120L120 168L72 120Z"/></g><circle cx="120" cy="120" r="8" fill="#d99b71"/><g fill="#e9c29a"><circle cx="120" cy="22" r="3"/><circle cx="205" cy="169" r="3"/><circle cx="35" cy="169" r="3"/><circle cx="120" cy="218" r="3"/></g></svg>',
+    statusbar: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 118"><defs><linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#1a1d31" stop-opacity=".97"/><stop offset="1" stop-color="#101522" stop-opacity=".96"/></linearGradient><linearGradient id="copper"><stop stop-color="#69402e"/><stop offset=".5" stop-color="#d9a476"/><stop offset="1" stop-color="#69402e"/></linearGradient></defs><path d="M15 9H735L751 25V92L735 108H15L7 98V20Z" fill="url(#panel)" stroke="url(#copper)" stroke-width="2.5"/><path d="M28 19H724L738 31V85L724 98H28L20 88V28Z" fill="none" stroke="#b77c58" stroke-opacity=".52"/><g fill="none" stroke="#c58c67" stroke-width="2"><path d="M42 34l10 10-10 10-10-10zM718 34l10 10-10 10-10-10z"/><path d="M74 34H330M74 42H280M430 76H686M490 84H686" stroke-opacity=".55"/></g><text x="76" y="70" fill="#e8c8a5" font-family="Georgia,serif" font-size="17" letter-spacing="2">VITALIDADE</text><rect x="238" y="54" width="178" height="17" rx="3" fill="#090e18" stroke="#95684e"/><rect x="242" y="58" width="130" height="9" rx="2" fill="#a83e4c"/><text x="444" y="70" fill="#e8c8a5" font-family="Georgia,serif" font-size="17" letter-spacing="2">ÉTER</text><rect x="505" y="54" width="178" height="17" rx="3" fill="#090e18" stroke="#95684e"/><rect x="509" y="58" width="115" height="9" rx="2" fill="#547eb4"/></svg>'
+  }
+  return new Blob([art[name] ?? art.nameplate], { type: 'image/svg+xml' })
+}
+
+async function applyAlquimiaHudPreset(): Promise<void> {
+  hudImageError.value = ''
+  hudImageNotice.value = ''
+  const presets = [
+    { key: 'nameplate', name: 'Alquimia Escarlate · Placa do jogador', x: 2, y: 2, width: 33 },
+    { key: 'sigil', name: 'Alquimia Escarlate · Sigilo mágico', x: 78, y: 3, width: 18 },
+    { key: 'statusbar', name: 'Alquimia Escarlate · Barras decorativas', x: 27, y: 85, width: 46 },
+  ]
+  const added: HudImageLayer[] = []
+  const urls = { ...hudImageUrls.value }
+  try {
+    for (const preset of presets) {
+      const id = 'hud-alquimia-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+      const blob = createAlquimiaSvg(preset.key)
+      await storeHudImage(id, blob)
+      urls[id] = URL.createObjectURL(blob)
+      added.push({
+        id,
+        name: preset.name,
+        x: preset.x,
+        y: preset.y,
+        width: preset.width,
+        opacity: 100,
+        visible: true,
+        fitScreen: false,
+      })
+    }
+    hudImageUrls.value = urls
+    settings.images.push(...added)
+    activeHudImageId.value = null
+    persistHudSettings()
+    hudImageNotice.value = 'Tema Alquimia Escarlate aplicado com ' + added.length + ' peças independentes. Você pode mover, redimensionar, ocultar e ajustar a opacidade de cada uma.'
+  } catch (error) {
+    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível aplicar o tema Alquimia Escarlate.'
+    for (const layer of added) {
+      const url = urls[layer.id]
+      if (url) URL.revokeObjectURL(url)
+      delete urls[layer.id]
+      try { await deleteHudImage(layer.id) } catch { /* mantém o erro original */ }
+    }
+    hudImageUrls.value = urls
+  }
+}
+
 function chooseHudImage(): void {
   hudImageError.value = ''
   hudImageInput.value?.click()
@@ -900,6 +953,11 @@ function resetSettings() {
 
       <div class="settings-field hud-images-field">
         <span>Imagens personalizadas do HUD</span>
+        <button type="button" class="hud-alquimia-apply" @click="applyAlquimiaHudPreset">
+          <span aria-hidden="true">✦</span>
+          <span><strong>Aplicar tema Alquimia Escarlate</strong><small>Adiciona placa, sigilo e barras decorativas como camadas editáveis</small></span>
+          <span aria-hidden="true">＋</span>
+        </button>
         <a class="hud-alquimia-library" :href="alquimiaLibraryUrl" target="_blank" rel="noreferrer">
           <span aria-hidden="true">✦</span>
           <span><strong>Biblioteca ALQUIMIA ESCARLATE</strong><small>Ver molduras, sigilos, botões e HUD de fantasia</small></span>
@@ -1303,6 +1361,13 @@ function resetSettings() {
 .hud-color-key-controls input[type=color] { width:100%; height:30px; padding:2px; border:1px solid #ffffff20; border-radius:4px; background:#0b1016; }
 .hud-color-key-controls input[type=range] { width:100%; accent-color:#e8572b; }
 .hud-color-key-controls.disabled { opacity:.5; }
+.hud-alquimia-apply { display:flex; align-items:center; gap:9px; width:100%; min-width:0; padding:10px; border:1px solid #bd765a88; border-radius:6px; background:linear-gradient(135deg,#251b2d,#101c2a); color:#edc6a4; text-align:left; cursor:pointer; }
+.hud-alquimia-apply:hover { border-color:#d69a71; background:linear-gradient(135deg,#342033,#17283a); }
+.hud-alquimia-apply>span:first-child { color:#e49a67; font-size:20px; }
+.hud-alquimia-apply>span:nth-child(2) { display:grid; flex:1; gap:3px; min-width:0; }
+.hud-alquimia-apply strong { font-size:10px; letter-spacing:.035em; }
+.hud-alquimia-apply small { color:#b9a9bb; font-size:9px; line-height:1.4; }
+.hud-alquimia-apply>span:last-child { color:#d99b71; font-size:14px; }
 .hud-alquimia-library { display:flex; align-items:center; gap:9px; min-width:0; padding:10px; border:1px solid #bd765a66; border-radius:6px; background:linear-gradient(135deg,#251b2d,#101c2a); color:#edc6a4; text-decoration:none; }
 .hud-alquimia-library:hover { border-color:#d69a71; background:linear-gradient(135deg,#342033,#17283a); }
 .hud-alquimia-library>span:first-child { color:#e49a67; font-size:20px; }
