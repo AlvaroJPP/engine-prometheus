@@ -1038,20 +1038,49 @@ export class HumanoidAvatar {
       const size = bounds.getSize(new THREE.Vector3())
       const originY = bounds.max.y + 0.25
       const lowestY = feetY - Math.max(1.25, size.y * 0.45)
-      const candidates = this.world.list().filter(object =>
+      const allCandidates = this.world.list().filter(object =>
         object.mesh !== root &&
         object.mesh.visible &&
-        object.mesh.userData.colliderType !== 'none' &&
-        object.mesh.userData.importedModel !== true,
+        object.mesh.userData.colliderType !== 'none',
+      )
+      const staticCandidates = allCandidates.filter(object =>
+        object.mesh.userData.colliderType === 'mesh' &&
+        getStaticMeshCollisionData(object.mesh) !== null,
+      )
+      const staticIds = new Set(staticCandidates.map(object => object.id))
+      const candidates = allCandidates.filter(object =>
+        !staticIds.has(object.id) && object.mesh.userData.importedModel !== true,
+      )
+      const raycaster = new THREE.Raycaster(
+        new THREE.Vector3(root.position.x, originY, root.position.z),
+        new THREE.Vector3(0, -1, 0),
+        0,
+        Math.max(1, originY - lowestY),
       )
 
-      if (candidates.length > 0) {
-        const raycaster = new THREE.Raycaster(
-          new THREE.Vector3(root.position.x, originY, root.position.z),
-          new THREE.Vector3(0, -1, 0),
-          0,
-          Math.max(1, originY - lowestY),
+      const makeTilt = (worldNormal: THREE.Vector3): THREE.Quaternion => {
+        // A normal em coordenadas locais remove o yaw da raiz. Uma rampa plana
+        // produz identidade; uma rampa inclinada gera pitch/roll sem virar o cavalo.
+        root.updateWorldMatrix(true, true)
+        const inverseRootRotation = root.getWorldQuaternion(new THREE.Quaternion()).invert()
+        const localNormal = worldNormal.clone().applyQuaternion(inverseRootRotation).normalize()
+        const tilt = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          localNormal,
         )
+
+        // Limita apenas a inclinação visual; a altura e as colisões continuam
+        // calculadas pelo movimento físico da raiz.
+        const maxTilt = THREE.MathUtils.degToRad(42)
+        const angle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(tilt.w), 0, 1))
+        if (angle > maxTilt && angle > 1e-5) {
+          return new THREE.Quaternion().identity().slerp(tilt, maxTilt / angle).multiply(baseQuaternion)
+        }
+        return tilt.multiply(baseQuaternion)
+      }
+
+      let foundSupport = false
+      if (candidates.length > 0) {
         const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
         const normalMatrix = new THREE.Matrix3()
 
@@ -1061,8 +1090,6 @@ export class HumanoidAvatar {
             object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
           )
           if (!owner) continue
-          // A raiz invisível de outro GLB é somente um proxy, não uma superfície.
-          if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
 
           const worldNormal = hit.face.normal.clone()
             .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
@@ -1070,29 +1097,27 @@ export class HumanoidAvatar {
           if (worldNormal.y < 0.25) continue
           if (hit.point.y > feetY + 0.35 || hit.point.y < lowestY) continue
 
-          // A normal em coordenadas locais remove o yaw da raiz. Uma rampa plana
-          // produz identidade; uma rampa inclinada gera pitch/roll sem virar o cavalo.
-          root.updateWorldMatrix(true, true)
-          const inverseRootRotation = root.getWorldQuaternion(new THREE.Quaternion()).invert()
-          const localNormal = worldNormal.applyQuaternion(inverseRootRotation).normalize()
-          const tilt = new THREE.Quaternion().setFromUnitVectors(
-            new THREE.Vector3(0, 1, 0),
-            localNormal,
-          )
-
-          // Limita apenas a inclinação visual; a altura e as colisões continuam
-          // calculadas pelo movimento físico da raiz.
-          const maxTilt = THREE.MathUtils.degToRad(42)
-          const angle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(tilt.w), 0, 1))
-          if (angle > maxTilt && angle > 1e-5) {
-            const limitedTilt = new THREE.Quaternion().identity()
-              .slerp(tilt, maxTilt / angle)
-            targetQuaternion = limitedTilt.multiply(baseQuaternion)
-          } else {
-            targetQuaternion = tilt.multiply(baseQuaternion)
-          }
+          targetQuaternion = makeTilt(worldNormal)
+          foundSupport = true
           break
         }
+      }
+
+      if (!foundSupport && staticCandidates.length > 0) {
+        let bestHit: ReturnType<typeof raycastStaticMesh> = null
+        for (const object of staticCandidates) {
+          const hit = raycastStaticMesh(
+            object.mesh,
+            raycaster.ray,
+            0,
+            Math.max(1, originY - lowestY),
+            candidate => candidate.normal.y >= 0.25 &&
+              candidate.point.y <= feetY + 0.35 &&
+              candidate.point.y >= lowestY,
+          )
+          if (hit && (!bestHit || hit.point.y > bestHit.point.y)) bestHit = hit
+        }
+        if (bestHit) targetQuaternion = makeTilt(bestHit.normal)
       }
     }
 
