@@ -7,6 +7,11 @@ const props = defineProps<{
   firstPersonMode: boolean
   renderDistance: number
   renderAll: boolean
+  performanceMode: 'quality' | 'balanced' | 'economy' | 'auto'
+  renderResolutionScale: number
+  renderFpsLimit: number
+  renderFogEnabled: boolean
+  renderFogDistanceScale: number
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
   objects: Array<{ id: string; name: string }>
@@ -23,6 +28,11 @@ const emit = defineEmits<{
   'toggle-first-person': []
   'render-distance-change': [value: number]
   'render-all-change': [value: boolean]
+  'performance-mode-change': [value: 'quality' | 'balanced' | 'economy' | 'auto']
+  'render-resolution-scale-change': [value: number]
+  'render-fps-limit-change': [value: number]
+  'render-fog-enabled-change': [value: boolean]
+  'render-fog-distance-scale-change': [value: number]
   'open-control-maps': []
   'run-world': []
   'edit-world': []
@@ -167,7 +177,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
           <span><strong>Renderizar tudo</strong><small>Ignora o limite global para objetos, modelos 3D e grama dentro da cena.</small></span>
         </label>
-        <p class="render-settings-note">Distâncias menores reduzem a carga de renderização ao ocultar objetos distantes. A grama também usa níveis de detalhe para economizar GPU.</p>
+        <div class="render-settings-section">
+          <div class="render-settings-section-title">Qualidade geral</div>
+          <label class="render-settings-field"><span>Perfil</span>
+            <select class="render-settings-select" :value="performanceMode" @change="emit('performance-mode-change', ($event.target as HTMLSelectElement).value as 'quality' | 'balanced' | 'economy' | 'auto')">
+              <option value="quality">Qualidade</option><option value="balanced">Equilibrado</option><option value="economy">Econômico</option><option value="auto">Automático</option>
+            </select>
+          </label>
+        </div>
+        <div class="render-settings-section">
+          <div class="render-settings-section-title">GPU e fluidez</div>
+          <label class="render-settings-field"><span>Escala da resolução</span>
+            <select class="render-settings-select" :value="renderResolutionScale" @change="emit('render-resolution-scale-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0">Seguir perfil</option><option value="0.5">50%</option><option value="0.65">65%</option><option value="0.75">75%</option><option value="0.85">85%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.25">125%</option>
+            </select>
+          </label>
+          <label class="render-settings-field"><span>Limite de FPS</span>
+            <select class="render-settings-select" :value="renderFpsLimit" @change="emit('render-fps-limit-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0">Seguir perfil</option><option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option><option value="120">120 FPS</option>
+            </select>
+          </label>
+          <p class="render-settings-help">Reduzir a escala e limitar FPS pode aliviar a GPU em cenas pesadas.</p>
+        </div>
+        <div class="render-settings-section">
+          <div class="render-settings-section-title">Neblina atmosférica</div>
+          <label class="render-settings-everything"><input type="checkbox" :checked="renderFogEnabled" @change="emit('render-fog-enabled-change', ($event.target as HTMLInputElement).checked)" /><span><strong>Ativar neblina</strong><small>Ajuda a disfarçar o horizonte e o limite de visão.</small></span></label>
+          <label class="render-settings-field render-settings-fog-field"><span>Alcance da neblina</span><strong class="render-settings-output">{{ Math.round(renderFogDistanceScale * 100) }}%</strong></label>
+          <input class="render-settings-range" type="range" min="50" max="200" step="5" :value="Math.round(renderFogDistanceScale * 100)" :disabled="!renderFogEnabled" @input="emit('render-fog-distance-scale-change', Number(($event.target as HTMLInputElement).value) / 100)" />
+        </div>
+        <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
       </div>
     </details>
     <button
@@ -423,7 +461,13 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .render-settings > summary { list-style:none; cursor:pointer; user-select:none; }
 .render-settings > summary::-webkit-details-marker { display:none; }
 .render-settings-trigger.active { background:#292314; border-color:#7d5b1b; color:#f5c56b; }
-.render-settings-popover { position:absolute; z-index:200; top:calc(100% + 7px); right:0; width:min(330px,calc(100vw - 24px)); box-sizing:border-box; padding:14px; border:1px solid #252a33; border-radius:7px; background:#14171c; color:#e6e8ec; box-shadow:0 12px 32px #0009; }
+.render-settings-popover { position:absolute; z-index:200; top:calc(100% + 7px); right:0; width:min(390px,calc(100vw - 24px)); max-height:min(76vh,720px); overflow:auto; box-sizing:border-box; padding:14px; border:1px solid #252a33; border-radius:7px; background:#14171c; color:#e6e8ec; box-shadow:0 12px 32px #0009; }
+.render-settings-section { padding:10px 0; border-top:1px solid #252a33; }
+.render-settings-section-title { margin-bottom:9px; color:#d6dae2; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.render-settings-help { margin:7px 0 0; color:#818b9a; font-size:10px; line-height:1.45; }
+.render-settings-select { width:145px; max-width:48%; padding:6px 7px; border:1px solid #303744; border-radius:4px; background:#0e1013; color:#e6e8ec; font:inherit; }
+.render-settings-output { min-width:42px; color:#f5c56b; font:11px 'IBM Plex Mono',monospace; text-align:right; }
+.render-settings-fog-field { margin-top:12px; }
 .render-settings-heading { font-size:12px; font-weight:700; }
 .render-settings-description,.render-settings-note { margin:7px 0 12px; color:#9aa1ae; font-size:11px; line-height:1.5; }
 .render-settings-field { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:11px; font-weight:600; }
