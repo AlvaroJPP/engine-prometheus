@@ -7,6 +7,7 @@ const props = defineProps<{
   fps: number
   controlMapName: string
   firstPerson: boolean
+  settingsOpen: boolean
   worldFullscreen: boolean
   bindings: Record<string, string>
 }>()
@@ -14,6 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'toggle-camera'): void
   (event: 'exit-runtime'): void
+  (event: 'settings-open-change', value: boolean): void
 }>()
 
 type HudSettings = {
@@ -42,7 +44,10 @@ const defaults: HudSettings = {
 }
 const settings = reactive<HudSettings>({ ...defaults, quickSlots: [...defaults.quickSlots] })
 const showControls = ref(true)
-const showSettings = ref(false)
+const showSettings = computed({
+  get: () => props.settingsOpen,
+  set: (value: boolean) => emit('settings-open-change', value),
+})
 const fpsLabel = computed(() => props.fps > 0 ? Math.round(props.fps) : '--')
 const hudStyle = computed(() => ({ '--hud-scale': String(settings.scale) }))
 const bottomClasses = computed(() => ({ 'dock-right': settings.dock === 'right' }))
@@ -114,9 +119,7 @@ function resetSettings() {
         <span class="hud-camera">{{ cameraMode }}</span>
         <span class="hud-session-divider" />
         <span class="hud-fps">{{ fpsLabel }} <small>FPS</small></span>
-        <button class="hud-settings-trigger" type="button" @click="showSettings = !showSettings" :aria-expanded="showSettings" title="Personalizar HUD">⚙</button>
       </div>
-      <button v-else class="hud-settings-trigger standalone-settings" type="button" @click="showSettings = !showSettings" :aria-expanded="showSettings" title="Personalizar HUD">⚙</button>
     </div>
 
     <div v-if="showSettings" class="hud-settings-panel" role="dialog" aria-label="Personalizar interface do jogador">
@@ -227,9 +230,7 @@ function resetSettings() {
 .hud-camera { color:#aab5c3; font-weight:500; }
 .hud-fps { color:#e5f7cf; font-family:'IBM Plex Mono',monospace; }
 .hud-fps small { color:#9ba8b5; font-family:inherit; font-size:9px; }
-.hud-settings-trigger { display:grid; place-items:center; width:26px; height:26px; border:1px solid #ffffff24; border-radius:5px; background:#ffffff08; color:#f5b64c; font-size:16px; cursor:pointer; pointer-events:auto; }
-.hud-settings-trigger:hover,.settings-close:hover { border-color:#f5a52488; background:#f5a52418; }
-.standalone-settings { align-self:flex-start; }
+.settings-close:hover { border-color:#f5a52488; background:#f5a52418; }
 .hud-settings-panel { position:absolute; z-index:30; top:calc(104px * var(--hud-scale)); left:clamp(10px,2vw,26px); right:auto; width:min(350px,calc(100vw - 24px)); max-height:min(480px,calc(100dvh - 128px)); overflow:auto; overscroll-behavior:contain; padding:15px; border-radius:9px; pointer-events:auto; text-shadow:none; }
 .settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .settings-heading>div { display:flex; flex-direction:column; gap:4px; }
