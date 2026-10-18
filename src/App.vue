@@ -45,6 +45,7 @@ function cloneSavedBehaviorPackageSettings(
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
+const sidebarCollapsed = ref(false)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running'>('edit')
 const worldFullscreen = ref(false)
@@ -1548,7 +1549,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 </script>
 
 <template>
-  <div class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen }">
+  <div class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="projectName"
       :dirty="dirty"
@@ -1644,6 +1645,21 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @toggle-performance-mode="togglePerformanceMode"
     />
 
+    <button
+      v-if="sidebarCollapsed"
+      class="sidebar-hamburger"
+      type="button"
+      aria-label="Expandir painel lateral"
+      title="Expandir hierarquia e biblioteca"
+      :aria-expanded="!sidebarCollapsed"
+      @click="sidebarCollapsed = false"
+    >
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+        <path d="m7 7 3 3-3 3" />
+      </svg>
+    </button>
+
     <div class="main">
       <SceneHierarchy
         v-model:root-open="rootOpen"
@@ -1668,6 +1684,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @use-animation-source="useSavedAnimationSource"
         @open-model-import="previewAnimationSourceAsset = null; previewComponentAsset = null; modelImportOpen = true"
         @open-components="backfillMissingComponentThumbnails"
+        @collapse-sidebar="sidebarCollapsed = true"
       />
 
       <!-- Viewport -->
@@ -5286,6 +5303,167 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   .viewport-render-stats span:nth-child(n+2) { display:none; }
   .chips { left:54px !important; bottom:70px !important; }
   .axes { left:54px !important; bottom:36px !important; }
+}
+
+
+/* Collapsible workspace sidebar and labeled recovery toolbar. */
+.sidebar-hamburger {
+  position:fixed;
+  z-index:29;
+  top:68px;
+  left:12px;
+  display:grid;
+  place-items:center;
+  width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  border:1px solid #3b3730;
+  border-radius:8px;
+  background:rgba(29,27,23,.97);
+  color:#f3efe6;
+  box-shadow:0 5px 16px #0004;
+  cursor:pointer;
+}
+.sidebar-hamburger svg { display:block; width:19px; height:19px; }
+.sidebar-hamburger:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
+.sidebar-hamburger:focus-visible,.sidebar-collapse-button:focus-visible { outline:2px solid #e8572b; outline-offset:2px; }
+
+.panel.left .panel-head {
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  min-height:46px;
+  height:46px;
+  padding:5px 10px;
+  border-bottom:1px solid #2e2b25 !important;
+  background:#191713 !important;
+}
+.panel.left .panel-head-title { display:flex; flex:1; flex-direction:column; gap:1px; min-width:0; }
+.panel.left .panel-head .eyebrow { font-size:9px; letter-spacing:.1em; }
+.panel.left .panel-head .h { overflow:hidden; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.sidebar-collapse-button {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:32px;
+  height:32px;
+  min-height:32px;
+  padding:0;
+  border:1px solid #3b3730;
+  border-radius:7px;
+  background:#1d1b17;
+  color:#b5afa2;
+  cursor:pointer;
+}
+.sidebar-collapse-button svg { display:block; width:18px; height:18px; }
+.sidebar-collapse-button:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
+.app.sidebar-collapsed .panel.left { display:none !important; }
+
+/* When the panel is hidden, expose tool names in a proper flyout-style rail,
+   rather than leaving the icon-only viewport toolbar stranded to the right. */
+.app.sidebar-collapsed .toolbar {
+  top:114px !important;
+  left:12px !important;
+  right:auto !important;
+  width:176px !important;
+  min-width:176px !important;
+  max-width:calc(100vw - 24px) !important;
+  max-height:calc(100dvh - 128px) !important;
+  padding:7px !important;
+  gap:6px !important;
+  align-items:stretch !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  border:1px solid #3b3730 !important;
+  border-radius:10px !important;
+  background:rgba(20,18,15,.98) !important;
+  box-shadow:0 12px 30px #0007 !important;
+  backdrop-filter:blur(12px);
+}
+.app.sidebar-collapsed .toolbar .toolbar-group {
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:3px;
+}
+.app.sidebar-collapsed .toolbar .toolbar-separator {
+  width:auto;
+  height:1px;
+  margin:1px 2px;
+  background:#2e2b25;
+}
+.app.sidebar-collapsed .toolbar .tool {
+  display:flex !important;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start !important;
+  gap:9px;
+  width:100% !important;
+  min-width:0 !important;
+  height:35px !important;
+  min-height:35px !important;
+  padding:0 9px !important;
+  border:1px solid transparent !important;
+  border-radius:7px !important;
+  background:transparent !important;
+  color:#d7d0c4 !important;
+  text-align:left;
+}
+.app.sidebar-collapsed .toolbar .tool:hover {
+  border-color:#3b3730 !important;
+  background:#26231e !important;
+  color:#f3efe6 !important;
+}
+.app.sidebar-collapsed .toolbar .tool.active {
+  border-color:#75412e !important;
+  background:#34241c !important;
+  color:#ff997d !important;
+}
+.app.sidebar-collapsed .toolbar .tool-ico {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:21px;
+  font-size:17px;
+  text-align:center;
+}
+.app.sidebar-collapsed .toolbar .tool-label {
+  position:static !important;
+  display:block;
+  flex:1;
+  width:auto !important;
+  height:auto !important;
+  min-width:0;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:hidden !important;
+  clip:auto !important;
+  border:0 !important;
+  color:inherit;
+  font-size:11px;
+  font-weight:500;
+  line-height:1.25;
+  text-align:left;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.app.sidebar-collapsed .toolbar .tool:focus-visible {
+  outline:2px solid #e8572b;
+  outline-offset:1px;
+}
+.app.world-fullscreen .sidebar-hamburger { display:none !important; }
+@media(max-width:760px) {
+  .panel.left .panel-head { min-height:44px; height:44px; padding-inline:7px; gap:7px; }
+  .app.sidebar-collapsed .toolbar {
+    top:112px !important;
+    left:8px !important;
+    width:166px !important;
+    min-width:166px !important;
+    max-height:calc(100dvh - 124px) !important;
+  }
+  .sidebar-hamburger { left:8px; }
 }
 
 </style>
