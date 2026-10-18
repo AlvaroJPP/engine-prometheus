@@ -416,7 +416,7 @@ export class Engine {
       ['forca', 10], ['destreza', 10], ['intelecto', 10], ['vontade', 10], ['resistencia', 10],
       ['res_fisica', 0], ['res_chama', 0], ['res_geada', 0], ['res_tempestade', 0],
       ['res_sangue', 0], ['res_sombra', 0], ['res_espirito', 0], ['res_arcano', 0],
-      ['ecos', 0], ['nivel', 1], ['experiencia', 0], ['experiencia_proximo_nivel', 100], ['pontos_atributo', 0],
+      ['ecos', 0], ['nivel', 1], ['experiencia', 0], ['experiencia_proximo_nivel', 100], ['pontos_atributo', 0], ['arquetipo', 'custom'],
       ['morto', false], ['arma_equipada', 'starter_arcane_sword'],
       ['magia_1', VEILBORNE_DEFAULT_SPELL_SLOTS[0]],
       ['magia_2', VEILBORNE_DEFAULT_SPELL_SLOTS[1]],
