@@ -62,6 +62,10 @@ const quickAddOpen = ref(false)
 const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: SavedComponent['colliderType']; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: SavedComponent['kind']; libraryType?: SavedComponent['libraryType']; logic?: SavedComponent['logic']; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
 const previewAnimationSourceAsset = ref<{ id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType: 'animation-source' } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
+const placeableSavedComponents = computed(() => savedComponents.value.filter(component => component.libraryType !== 'animation-source'))
+const savedAnimationSourceOptions = computed(() => savedComponents.value
+  .filter(component => component.libraryType === 'animation-source')
+  .map(({ id, name, height, thumbnail }) => ({ id, name, height, thumbnail })))
 const componentBusy = ref(false)
 let componentThumbnailBackfillRunning = false
 const {
@@ -1015,7 +1019,6 @@ async function handleSaveAnimationSource(payload: { name: string; bytes: ArrayBu
     status.value = 'Fonte de animações "' + source.name + '" salva. Ela fica na biblioteca de fontes e não será inserida no mundo.'
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível salvar a fonte de animações.'
-    throw error
   } finally {
     componentBusy.value = false
   }
@@ -1028,7 +1031,9 @@ async function useSavedAnimationSource(id: string) {
     if (source.libraryType !== 'animation-source') {
       throw new Error('Este item não está categorizado como fonte de animações.')
     }
-    previewComponentAsset.value = null
+    // Se a janela já está aberta, mantém intacto o modelo A que está sendo editado.
+    // Se está fechada, o modelo A deverá ser carregado no importador depois da fonte.
+    if (!modelImportOpen.value) previewComponentAsset.value = null
     previewAnimationSourceAsset.value = {
       id: source.id,
       name: source.name,
@@ -1570,7 +1575,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
       :objects="objects"
-      :components="savedComponents"
+      :components="placeableSavedComponents"
       @select-object="selectItem"
       @place-component="placeSavedComponent"
       @open-model-import="previewComponentAsset = null; modelImportOpen = true"
@@ -2436,7 +2441,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :animation-source-asset="previewAnimationSourceAsset" :control-map="activeControlMap.bindings" :save-model="handleModelImport" @close="closeModelImport" @use-player="handleUsePlayerModel" @save-animation-source="handleSaveAnimationSource" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :animation-source-asset="previewAnimationSourceAsset" :animation-source-options="savedAnimationSourceOptions" :control-map="activeControlMap.bindings" :save-model="handleModelImport" @close="closeModelImport" @use-player="handleUsePlayerModel" @save-animation-source="handleSaveAnimationSource" @load-animation-source="useSavedAnimationSource" />
   </div>
 </template>
 
