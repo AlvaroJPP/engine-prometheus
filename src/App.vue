@@ -101,6 +101,7 @@ const {
   grassMiddleDetailDistance,
   grassOcclusionEnabled,
   grassOcclusionIntervalMs,
+  wallOcclusionQuality,
   grassWindPercent,
   playerModelName,
   playerModelCustom,
@@ -150,6 +151,7 @@ const {
   setGrassDetailDistance,
   setGrassOcclusionEnabled,
   setGrassOcclusionInterval,
+  setWallOcclusionQuality,
   setGrassWindPercent,
   removeSelected,
   onRename,
@@ -1488,6 +1490,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-middle-detail-distance="grassMiddleDetailDistance"
       :grass-occlusion-enabled="grassOcclusionEnabled"
       :grass-occlusion-interval-ms="grassOcclusionIntervalMs"
+      :wall-occlusion-quality="wallOcclusionQuality"
       :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
@@ -1517,6 +1520,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @grass-middle-detail-change="(value) => setGrassDetailDistance('middle', value)"
       @grass-occlusion-enabled-change="setGrassOcclusionEnabled"
       @grass-occlusion-interval-change="setGrassOcclusionInterval"
+      @wall-occlusion-quality-change="setWallOcclusionQuality"
       @grass-wind-change="setGrassWindPercent"
       @toggle-first-person="toggleFirstPerson"
       @open-control-maps="controlMapsOpen = true"
