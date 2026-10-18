@@ -1469,9 +1469,10 @@ export class GrassLayer {
     }
 
     const proceduralBuckets = this.renderBands.map(() => [] as GrassInstance[])
-    const modelBuckets = this.renderBands.map(() =>
-      this.modelParts.map(() => [] as GrassInstance[]),
-    )
+    // Quando o modelo detalhado está desativado, não aloque arrays por peça do GLB.
+    const modelBuckets = this.renderBands.map(() => this.useDetailedGrassModel && this.modelParts.length > 0
+      ? this.modelParts.map(() => [] as GrassInstance[])
+      : [] as GrassInstance[][])
     const maxRenderDistance = this.renderBands[2]?.maxDistance ?? Number.POSITIVE_INFINITY
     const paddedRenderDistance = Number.isFinite(maxRenderDistance) ? maxRenderDistance + 1.0 : Number.POSITIVE_INFINITY
     const paddedRenderDistanceSquared = paddedRenderDistance * paddedRenderDistance
@@ -1578,7 +1579,7 @@ export class GrassLayer {
       const staged = this.acquireStagedBandMesh(band, procedural.length)
       const modelMeshes: Array<THREE.InstancedMesh | undefined> = []
       const modelCapacities: number[] = []
-      if (bandIndex < 2) {
+      if (bandIndex < 2 && this.useDetailedGrassModel) {
         for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
           const records = modelBuckets[bandIndex]![partIndex]!
           if (records.length === 0) {
@@ -1626,7 +1627,7 @@ export class GrassLayer {
       staged.mesh.visible = procedural.length > 0
 
       // O pacote GLB é usado nos anéis próximos; longe dele, usamos geometria simples.
-      if (bandIndex >= 2 || this.modelParts.length === 0) continue
+      if (bandIndex >= 2 || !this.useDetailedGrassModel || this.modelParts.length === 0) continue
       const byPart = modelBuckets[bandIndex]!
       for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
         const records = byPart[partIndex]!
