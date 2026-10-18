@@ -2,6 +2,11 @@ import * as THREE from 'three'
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
 import type { GameObject } from '../model/object/GameObject'
 import type { World } from './World'
+import {
+  getStaticMeshCollisionData,
+  releaseStaticMeshCollider,
+  visitStaticMeshTriangles,
+} from './StaticMeshCollider'
 
 export interface CollisionPair {
   a: string
@@ -36,7 +41,7 @@ const CCD_MIN_STEPS = 4
 const CCD_MAX_STEPS = 64
 const CCD_FRACTION = 0.35
 
-type ColliderType = 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
+type ColliderType = 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
 
 /** Calcula colisão pela malha-raiz (proxy), sem percorrer todos os triângulos dos filhos GLB/FBX. */
 function getRootBounds(mesh: THREE.Mesh): THREE.Box3 {
@@ -87,6 +92,8 @@ export class CollisionSystem {
     const triangles = this.importedTriangleGeometries.get(id)
     triangles?.geometry.dispose()
     this.importedTriangleGeometries.delete(id)
+    const object = this.world.get(id)
+    if (object) releaseStaticMeshCollider(object.mesh)
     // World.dispose já liberou a geometria/material do helper ligado à raiz.
     this.debugHelpers.delete(id)
   }
@@ -201,7 +208,7 @@ export class CollisionSystem {
    */
   private colliderType(object: GameObject): ColliderType {
     const value = object.mesh.userData.colliderType
-    if (value === 'box' || value === 'sphere' || value === 'capsule' || value === 'none') return value
+    if (value === 'box' || value === 'sphere' || value === 'capsule' || value === 'mesh' || value === 'none') return value
     return 'auto'
   }
 
@@ -220,7 +227,7 @@ export class CollisionSystem {
     const offset = Array.isArray(offsetData) && offsetData.length === 3
       ? offsetData.map((n: unknown) => typeof n === 'number' && Number.isFinite(n) ? n : 0) as [number, number, number]
       : [0, 0, 0] as [number, number, number]
-    if (type === 'auto' && (object.mesh.userData.importedModel === true || (!manualSize && offset.every(value => Math.abs(value) < 1e-9))) ) {
+    if ((type === 'auto' || type === 'mesh') && (object.mesh.userData.importedModel === true || (!manualSize && offset.every(value => Math.abs(value) < 1e-9))) ) {
       // A raiz do modelo importado é uma caixa proxy invisível para seleção e transformação.
       // Mantemos um casco convexo reduzido para broadphase e pares modelo-modelo; quando
       // um modelo automático encontra um corpo convexo, a decisão final usa os triângulos reais.
@@ -303,8 +310,9 @@ export class CollisionSystem {
    * Aplica morph targets e ossos para manter a malha alinhada à pose renderizada.
    */
   private getImportedTriangleGeometry(object: GameObject): THREE.BufferGeometry | null {
-    if (this.colliderType(object) !== 'auto' || object.mesh.userData.importedModel !== true) {
-      return this.getColliderGeometry(object)
+    if (!this.isAutomaticImportedMesh(object)) return this.getColliderGeometry(object)
+    if (this.colliderType(object) === 'mesh') {
+      return getStaticMeshCollisionData(object.mesh)?.geometry ?? null
     }
 
     const root = object.mesh
@@ -565,7 +573,7 @@ export class CollisionSystem {
   }
 
   private inverseMass(object: GameObject): number {
-    if (object.mesh.userData.locked === true) return 0
+    if (object.mesh.userData.locked === true || this.isStaticMeshCollider(object)) return 0
     const mass = object.mesh.userData.mass
     if (typeof mass !== 'number' || !Number.isFinite(mass)) return 1
     return mass <= 0 ? 0 : 1 / Math.max(0.0001, mass)
@@ -786,7 +794,12 @@ export class CollisionSystem {
   }
 
   private isAutomaticImportedMesh(object: GameObject): boolean {
-    return object.mesh.userData.importedModel === true && this.colliderType(object) === 'auto'
+    return object.mesh.userData.importedModel === true &&
+      (this.colliderType(object) === 'auto' || this.colliderType(object) === 'mesh')
+  }
+
+  private isStaticMeshCollider(object: GameObject): boolean {
+    return object.mesh.userData.importedModel === true && this.colliderType(object) === 'mesh'
   }
 
   /**
@@ -802,6 +815,16 @@ export class CollisionSystem {
   ): Contact | null {
     const aIsMesh = this.isAutomaticImportedMesh(aObject)
     const bIsMesh = this.isAutomaticImportedMesh(bObject)
+    const aIsStaticMesh = this.isStaticMeshCollider(aObject)
+    const bIsStaticMesh = this.isStaticMeshCollider(bObject)
+
+    if (aIsStaticMesh && bIsStaticMesh) return null
+    if (aIsStaticMesh) return this.intersectTriangleMeshWithConvex(aObject, b)
+    if (bIsStaticMesh) {
+      const contact = this.intersectTriangleMeshWithConvex(bObject, a)
+      if (contact) contact.normal.negate()
+      return contact
+    }
 
     if (aIsMesh && !bIsMesh) {
       return this.intersectTriangleMeshWithConvex(aObject, b)
@@ -866,19 +889,12 @@ export class CollisionSystem {
       return overlap > CONTACT_TOLERANCE
     }
 
-    for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
-      const ia = index ? index.getX(triangleIndex * 3) : triangleIndex * 3
-      const ib = index ? index.getX(triangleIndex * 3 + 1) : triangleIndex * 3 + 1
-      const ic = index ? index.getX(triangleIndex * 3 + 2) : triangleIndex * 3 + 2
-      pointA.fromBufferAttribute(position, ia).applyMatrix4(root.matrixWorld)
-      pointB.fromBufferAttribute(position, ib).applyMatrix4(root.matrixWorld)
-      pointC.fromBufferAttribute(position, ic).applyMatrix4(root.matrixWorld)
-
+    const testTriangle = (): void => {
       triangleBounds.setFromPoints(trianglePoints)
-      if (!triangleBounds.intersectsBox(shapeBounds)) continue
+      if (!triangleBounds.intersectsBox(shapeBounds)) return
 
       triangleNormal.copy(pointB).sub(pointA).cross(edgeCA.copy(pointC).sub(pointA))
-      if (triangleNormal.lengthSq() <= AXIS_EPSILON_SQ) continue
+      if (triangleNormal.lengthSq() <= AXIS_EPSILON_SQ) return
       triangleNormal.normalize()
 
       // O plano do triângulo precisa atravessar o volume convexo; apenas tocar
@@ -886,9 +902,9 @@ export class CollisionSystem {
       const plane = pointA.dot(triangleNormal)
       const shapePlane = this.project(shape.vertices, triangleNormal)
       if (plane <= shapePlane.min + CONTACT_TOLERANCE ||
-          plane >= shapePlane.max - CONTACT_TOLERANCE) continue
+          plane >= shapePlane.max - CONTACT_TOLERANCE) return
       const depth = Math.min(plane - shapePlane.min, shapePlane.max - plane)
-      if (bestContact && depth >= bestContact.depth) continue
+      if (bestContact && depth >= bestContact.depth) return
 
       edgeAB.copy(pointB).sub(pointA)
       edgeBC.copy(pointC).sub(pointB)
@@ -900,7 +916,7 @@ export class CollisionSystem {
         axis.copy(faceNormal)
         if (!overlapsOnAxis(axis)) { separated = true; break }
       }
-      if (separated) continue
+      if (separated) return
 
       // Eixos formados pelo produto vetorial das arestas dos dois corpos.
       const triangleEdges = [edgeAB, edgeBC, edgeCA]
@@ -911,7 +927,7 @@ export class CollisionSystem {
         }
         if (separated) break
       }
-      if (separated) continue
+      if (separated) return
 
       triangleCenter.copy(pointA).add(pointB).add(pointC).multiplyScalar(1 / 3)
       const normal = triangleNormal.clone()
@@ -919,6 +935,27 @@ export class CollisionSystem {
       bestContact = { normal, depth }
     }
 
+    if (this.isStaticMeshCollider(object)) {
+      visitStaticMeshTriangles(root, shapeBounds, (triangle) => {
+        pointA.copy(triangle.a)
+        pointB.copy(triangle.b)
+        pointC.copy(triangle.c)
+        testTriangle()
+        // Examina os demais triângulos próximos para escolher o contato de
+        // menor profundidade, sem voltar a percorrer toda a cidade.
+        return false
+      })
+    } else {
+      for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
+        const ia = index ? index.getX(triangleIndex * 3) : triangleIndex * 3
+        const ib = index ? index.getX(triangleIndex * 3 + 1) : triangleIndex * 3 + 1
+        const ic = index ? index.getX(triangleIndex * 3 + 2) : triangleIndex * 3 + 2
+        pointA.fromBufferAttribute(position, ia).applyMatrix4(root.matrixWorld)
+        pointB.fromBufferAttribute(position, ib).applyMatrix4(root.matrixWorld)
+        pointC.fromBufferAttribute(position, ic).applyMatrix4(root.matrixWorld)
+        testTriangle()
+      }
+    }
     return bestContact
   }
 
