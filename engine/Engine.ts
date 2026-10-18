@@ -340,6 +340,23 @@ export class Engine {
     this.viewport.invalidate()
   }
 
+  /** Ajusta de forma independente a escala de resolução e o limite de FPS. */
+  setRenderOptions(options: { resolutionScale?: number | null; fpsLimit?: number | null }): void {
+    this.viewport.setRenderOptions(options)
+  }
+
+  /** Liga/desliga a neblina atmosférica. */
+  setFogEnabled(enabled: boolean): void {
+    this.world.setFogEnabled(enabled)
+    this.viewport.invalidate()
+  }
+
+  /** Define o alcance visual da neblina entre 50% e 200%. */
+  setFogDistanceScale(scale: number): void {
+    this.world.setFogDistanceScale(scale)
+    this.viewport.invalidate()
+  }
+
   /** Compatibilidade com chamadas antigas do modo desempenho. */
   setPerformanceMode(enabled: boolean): void {
     const preset = enabled ? 'economy' : 'quality'
