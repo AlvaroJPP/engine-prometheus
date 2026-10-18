@@ -845,8 +845,10 @@ export class Engine {
 
   private updateVeilborneRespawn(dt: number, player: VeilborneCombatant): void {
     if (player.alive) {
-      this.veilbornePlayerRespawnRemainingSeconds = 0
-      if (this.logic.getVariable('morte_contagem') !== undefined) this.logic.setVariable('morte_contagem', 0)
+      if (this.veilbornePlayerRespawnRemainingSeconds > 0) this.veilbornePlayerRespawnRemainingSeconds = 0
+      if (this.logic.getVariable('morte_contagem') !== undefined && this.logic.getVariable('morte_contagem') !== 0) {
+        this.logic.setVariable('morte_contagem', 0)
+      }
       return
     }
     if (this.veilbornePlayerRespawnRemainingSeconds <= 0) return
