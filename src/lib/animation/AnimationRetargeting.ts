@@ -44,6 +44,8 @@ export type RetargetAnimationResult = {
   collapsedTracks: string[]
   /** Trilhas de escala inseguras foram preservadas na escala original do rig de destino. */
   unsafeScaleTracks: string[]
+  /** Translações locais incompatíveis foram ignoradas para preservar o comprimento e a posição dos membros. */
+  unsafePositionTracks: string[]
 }
 
 export type TransformTrackPath = {
@@ -192,6 +194,7 @@ export function retargetAnimationClip(
   const invalidTracks: string[] = []
   const collapsedTracks: string[] = []
   const unsafeScaleTracks: string[] = []
+  const unsafePositionTracks: string[] = []
   const collapsedSources = new Set(collapsedSourceNames)
   const claimedTargets = new Set<string>()
   const quaternionGroups = new Map<string, {
@@ -276,8 +279,37 @@ export function retargetAnimationClip(
     const values: number[] = []
     if ((path.property === 'position' || path.property === 'scale') && stride === 3) {
       if (path.property === 'position') {
+        const sourceRole = signatureForBoneName(path.nodeName).role
+        const targetRole = signatureForBoneName(targetBone.name).role
+        const isRootTrack = sourceRole === 'root' && ['root', 'pelvis'].includes(targetRole)
+        const isPelvisTrack = sourceRole === 'pelvis' && ['pelvis', 'root'].includes(targetRole)
+        // Retargeting entre rigs diferentes não deve reposicionar juntas locais
+        // de pernas, braços ou coluna: isso altera o comprimento da cadeia e pode
+        // colapsar/deslocar a metade inferior inteira. Só transferimos movimento
+        // de raiz/pelve, e apenas quando o deslocamento permanece plausível.
+        if (!isRootTrack && !isPelvisTrack) {
+          skipTrack(track, unsafePositionTracks)
+          continue
+        }
         const sourceRestVector = safeRestVector(sourceRest.position, new THREE.Vector3())
         const targetRestVector = targetBone.position.clone()
+        const maxOffset = Math.max(0.05, targetSourceHeight * (isRootTrack ? 2 : 0.15))
+        let unsafePosition = false
+        for (let frame = 0; frame < times.length; frame += 1) {
+          const offset = frame * 3
+          const dx = (sourceValues[offset]! - sourceRestVector.x) * scaleRatio
+          const dy = (sourceValues[offset + 1]! - sourceRestVector.y) * scaleRatio
+          const dz = (sourceValues[offset + 2]! - sourceRestVector.z) * scaleRatio
+          if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dz) ||
+              Math.hypot(dx, dy, dz) > maxOffset) {
+            unsafePosition = true
+            break
+          }
+        }
+        if (unsafePosition) {
+          skipTrack(track, unsafePositionTracks)
+          continue
+        }
         for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
           values.push(
@@ -418,6 +450,7 @@ export function retargetAnimationClip(
     invalidTracks,
     collapsedTracks,
     unsafeScaleTracks,
+    unsafePositionTracks,
   }
 }
 
