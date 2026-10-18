@@ -1063,3 +1063,39 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 }
 
 </style>
+
+/* Keep the camera/render controls inside the viewport's usable width.
+   The inspector occupies the last 340px of the editor, so the toolbar must
+   stop before that panel instead of sitting underneath it. */
+.viewport-tools-overlay {
+  right: 352px;
+  max-width: calc(100vw - 640px);
+}
+.viewport-tools-overlay .render-settings-popover {
+  max-height: min(64vh, 560px);
+  overscroll-behavior: contain;
+}
+@media (max-width: 1180px) {
+  .viewport-tools-overlay {
+    right: 352px;
+    max-width: calc(100vw - 620px);
+  }
+}
+@media (max-width: 900px) {
+  .viewport-tools-overlay {
+    right: 352px;
+    max-width: calc(100vw - 620px);
+  }
+}
+@media (max-width: 760px) {
+  .viewport-tools-overlay {
+    top: 62px;
+    right: 8px;
+    max-width: calc(100vw - 16px);
+  }
+  .viewport-tools-overlay .render-settings-popover {
+    right: 0;
+    width: min(340px, calc(100vw - 24px));
+    max-height: calc(100dvh - 86px);
+  }
+}
