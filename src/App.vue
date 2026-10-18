@@ -50,6 +50,10 @@ const sidebarCollapsed = ref(false)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running'>('edit')
 const worldFullscreen = ref(false)
+const playerHudSettingsOpen = ref(false)
+watch(executionMode, (mode) => {
+  if (mode !== 'running') playerHudSettingsOpen.value = false
+})
 const fullscreenTransition = ref(false)
 const controlMapsOpen = ref(false)
 const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
@@ -1580,6 +1584,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
+      :hud-settings-open="playerHudSettingsOpen"
       :objects="objects"
       :components="placeableSavedComponents"
       @select-object="selectItem"
@@ -1588,6 +1593,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @run-world="runWorld"
       @edit-world="returnToEdit"
       @toggle-world-fullscreen="toggleWorldFullscreen"
+      @toggle-hud-settings="playerHudSettingsOpen = !playerHudSettingsOpen"
       @render-distance-change="setRenderDistance"
       @render-all-change="setRenderAll"
       @performance-mode-change="setPerformanceMode"
@@ -1734,24 +1740,13 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           :fps="fps"
           :control-map-name="activeControlMap.name"
           :first-person="firstPersonMode"
+          :settings-open="playerHudSettingsOpen"
           :world-fullscreen="worldFullscreen"
           :bindings="activeControlMap.bindings"
           @toggle-camera="cycleCameraView"
           @exit-runtime="returnToEdit"
+          @settings-open-change="playerHudSettingsOpen = $event"
         />
-        <button
-          v-if="worldFullscreen"
-          class="world-fullscreen-exit"
-          type="button"
-          aria-label="Sair da tela cheia do mundo"
-          title="Voltar ao editor (Esc)"
-          @click="toggleWorldFullscreen"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" />
-          </svg>
-          <span>Sair da tela cheia <kbd>Esc</kbd></span>
-        </button>
         <div class="viewport-actions" aria-label="Ações rápidas da cena">
           <div class="quick-add-wrap">
             <button class="quick-add-trigger" :aria-expanded="quickAddOpen" title="Adicionar objetos à cena." data-tooltip="Crie primitivas, plataformas, ponto inicial do jogador e exemplos interativos." @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
@@ -4957,56 +4952,9 @@ button:disabled { cursor: not-allowed; }
   border:0 !important;
   overflow:hidden !important;
 }
-.app.world-fullscreen .viewport > :not(.canvas):not(.world-fullscreen-exit):not(.player-hud) {
+.app.world-fullscreen .viewport > :not(.canvas):not(.player-hud) {
   display:none !important;
 }
-.app.world-fullscreen .world-fullscreen-exit {
-  position:absolute;
-  z-index:10005;
-  top:14px;
-  right:14px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  min-height:36px;
-  padding:0 12px;
-  border:1px solid #3a4351;
-  border-radius:6px;
-  background:#14181fe8;
-  color:#e6e8ec;
-  box-shadow:0 8px 24px #0006;
-  font-size:11px;
-  font-weight:600;
-  cursor:pointer;
-  backdrop-filter:blur(12px);
-}
-.app.world-fullscreen .world-fullscreen-exit svg { width:15px; height:15px; flex:none; }
-.app.world-fullscreen .world-fullscreen-exit:hover {
-  border-color:#8a641c;
-  background:#292314;
-  color:#f5c56b;
-}
-.app.world-fullscreen .world-fullscreen-exit kbd {
-  padding:2px 5px;
-  border:1px solid #394250;
-  border-radius:4px;
-  color:#9aa1ae;
-  font:10px 'IBM Plex Mono',monospace;
-}
-.app.world-fullscreen.is-running .world-fullscreen-exit,
-.app.world-fullscreen.is-running .world-fullscreen-exit * {
-  pointer-events:auto !important;
-}
-@media(max-width:600px) {
-  .app.world-fullscreen .world-fullscreen-exit {
-    top:8px;
-    right:8px;
-    min-height:32px;
-    padding:0 9px;
-  }
-}
-
 /* Cohesive warm charcoal / coral theme from the latest toolbar reference. */
 :root {
   --bg:#14120f;
@@ -5166,23 +5114,6 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 }
 
 .app.world-fullscreen { background:#14120f !important; }
-.app.world-fullscreen .world-fullscreen-exit {
-  border-color:#2e2b25 !important;
-  border-radius:8px !important;
-  background:rgba(29,27,23,.96) !important;
-  color:#f3efe6 !important;
-  box-shadow:0 8px 22px #0004 !important;
-}
-.app.world-fullscreen .world-fullscreen-exit:hover {
-  border-color:#75412e !important;
-  background:#34241c !important;
-  color:#f3efe6 !important;
-}
-.app.world-fullscreen .world-fullscreen-exit kbd {
-  border-color:#3b3730 !important;
-  color:#b5afa2 !important;
-}
-
 /* Keep the viewport controls reachable when the scene is fullscreen.
    The header becomes a zero-height overlay container; only its viewport toolbar remains. */
 .app.world-fullscreen > .topbar {
@@ -5208,21 +5139,6 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   z-index:10005 !important;
   pointer-events:auto !important;
 }
-/* Keep the exit control away from the render popover in fullscreen. */
-.app.world-fullscreen .world-fullscreen-exit {
-  top:12px !important;
-  left:170px !important;
-  right:auto !important;
-}
-@media(max-width:760px) {
-  .app.world-fullscreen .world-fullscreen-exit {
-    top:98px !important;
-    left:12px !important;
-    right:auto !important;
-  }
-}
-
-
 /* Clean viewport layout: creation actions left, view controls right, diagnostics at the bottom. */
 .viewport-actions {
   position:absolute;
