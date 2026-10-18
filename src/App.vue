@@ -59,7 +59,8 @@ const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
 const quickAddOpen = ref(false)
-const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: SavedComponent['colliderType']; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: SavedComponent['kind']; logic?: SavedComponent['logic']; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
+const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: SavedComponent['colliderType']; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: SavedComponent['kind']; libraryType?: SavedComponent['libraryType']; logic?: SavedComponent['logic']; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
+const previewAnimationSourceAsset = ref<{ id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType: 'animation-source' } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 let componentThumbnailBackfillRunning = false
@@ -979,6 +980,69 @@ async function handleUsePlayerModel(payload: { name: string; bytes: ArrayBuffer;
   await setPlayerModelAsset(payload.bytes, payload.name, payload.animationRoles)
 }
 
+async function handleSaveAnimationSource(payload: { name: string; bytes: ArrayBuffer; height: number }) {
+  if (componentBusy.value) throw new Error('A biblioteca está ocupada. Tente salvar a fonte novamente.')
+  if (!(payload.bytes instanceof ArrayBuffer) || payload.bytes.byteLength <= 20) {
+    throw new Error('O GLB da fonte de animações está vazio ou inválido.')
+  }
+  componentBusy.value = true
+  try {
+    let thumbnail: string | undefined
+    try {
+      thumbnail = await generateComponentThumbnail(payload.bytes)
+    } catch {
+      thumbnail = undefined
+    }
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2)
+    const source: SavedComponent = {
+      id,
+      name: payload.name.trim() || 'Fonte de animação',
+      libraryType: 'animation-source',
+      kind: 'object',
+      height: Number.isFinite(payload.height) && payload.height > 0 ? payload.height : 2,
+      colliderType: 'none',
+      colliderSize: [1, 1, 1],
+      colliderOffset: [0, 0, 0],
+      animationRoles: {},
+      thumbnail,
+      bytes: payload.bytes.slice(0),
+      createdAt: Date.now(),
+    }
+    await saveComponentAsset(source)
+    await refreshSavedComponents()
+    status.value = 'Fonte de animações "' + source.name + '" salva. Ela fica na biblioteca de fontes e não será inserida no mundo.'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível salvar a fonte de animações.'
+    throw error
+  } finally {
+    componentBusy.value = false
+  }
+}
+
+async function useSavedAnimationSource(id: string) {
+  try {
+    const source = await getSavedComponent(id)
+    if (!source) throw new Error('Esta fonte de animações não está mais na biblioteca.')
+    if (source.libraryType !== 'animation-source') {
+      throw new Error('Este item não está categorizado como fonte de animações.')
+    }
+    previewComponentAsset.value = null
+    previewAnimationSourceAsset.value = {
+      id: source.id,
+      name: source.name,
+      bytes: source.bytes.slice(0),
+      height: source.height,
+      libraryType: 'animation-source',
+    }
+    modelImportOpen.value = true
+    status.value = 'Carregando "' + source.name + '" como origem de animações; o modelo A continua sendo o destino.'
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível carregar a fonte de animações.'
+  }
+}
+
 async function previewSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
@@ -992,6 +1056,7 @@ async function previewSavedComponent(id: string) {
       colliderSize: [...component.colliderSize],
       colliderOffset: [...component.colliderOffset],
       kind: component.kind,
+      libraryType: component.libraryType ?? 'object',
       logic: component.logic,
       animationRoles: component.animationRoles,
       controlBindings: component.controlBindings,
@@ -1008,6 +1073,7 @@ async function previewSavedComponent(id: string) {
 function closeModelImport() {
   modelImportOpen.value = false
   previewComponentAsset.value = null
+  previewAnimationSourceAsset.value = null
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -1096,6 +1162,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
             ? [...rawOffset] as [number, number, number]
             : [0, 0, 0],
           kind: 'object',
+          libraryType: 'object',
           logic: undefined,
           behaviorPackageIds: Array.isArray(modelData.importBehaviorPackageIds)
             ? [...new Set((modelData.importBehaviorPackageIds as unknown[]).filter((value): value is string => typeof value === 'string'))]
@@ -1183,6 +1250,9 @@ async function handleModelImport(payload: { name: string; model: import('three')
       const updated: SavedComponent = {
         ...existing,
         name: payload.name.trim() || existing.name,
+        libraryType: modelData.importHasModifiedAnimations === true
+          ? 'animated-model'
+          : (existing.libraryType ?? 'object'),
         height: Number.isFinite(payload.height) && payload.height > 0 ? payload.height : existing.height,
         bytes: exported,
         colliderType: rawColliderType === 'sphere' || rawColliderType === 'capsule' || rawColliderType === 'none'
@@ -1262,6 +1332,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       colliderSize: Array.isArray(size) && size.length === 3 ? [...size] as [number, number, number] : [1, 1, 1],
       colliderOffset: Array.isArray(offset) && offset.length === 3 ? [...offset] as [number, number, number] : [0, 0, 0],
       kind: payload.model.userData.sceneKind === 'entity' ? 'entity' : 'object',
+      libraryType: payload.model.userData.importHasModifiedAnimations === true ? 'animated-model' : 'object',
       logic: Array.isArray(payload.model.userData.componentLogic) ? payload.model.userData.componentLogic as LogicRule[] : undefined,
       behaviorPackageIds: Array.isArray(rawPackageIds)
         ? [...new Set(rawPackageIds.filter((id): id is string => typeof id === 'string'))]
@@ -1306,6 +1377,10 @@ async function placeSavedComponent(id: string) {
   try {
     const component = await getSavedComponent(id)
     if (!component) throw new Error('Este componente não está mais na biblioteca.')
+    if (component.libraryType === 'animation-source') {
+      status.value = '"' + component.name + '" é uma fonte de animações. Use "Usar origem" na biblioteca para carregá-la no retargeting; fontes não são inseridas no mundo.'
+      return
+    }
     const loader = new GLTFLoader()
     const model = await new Promise<import('three').Object3D>((resolve, reject) => {
       loader.parse(component.bytes.slice(0), '', gltf => {
@@ -1582,7 +1657,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         @delete-component="removeSavedComponent"
         @preview-component="previewSavedComponent"
         @move-component="moveSavedComponentGroup"
-        @open-model-import="previewComponentAsset = null; modelImportOpen = true"
+        @use-animation-source="useSavedAnimationSource"
+        @open-model-import="previewAnimationSourceAsset = null; previewComponentAsset = null; modelImportOpen = true"
         @open-components="backfillMissingComponentThumbnails"
       />
 
@@ -2360,7 +2436,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         <div class="project-io-meta"><span>Não feche o aplicativo durante esta operação</span><strong>{{ ioProgress.percent }}%</strong></div>
       </section>
     </div>
-    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :control-map="activeControlMap.bindings" :save-model="handleModelImport" @close="closeModelImport" @use-player="handleUsePlayerModel" />
+    <ModelImportDialog :open="modelImportOpen" :initial-asset="previewComponentAsset" :animation-source-asset="previewAnimationSourceAsset" :control-map="activeControlMap.bindings" :save-model="handleModelImport" @close="closeModelImport" @use-player="handleUsePlayerModel" @save-animation-source="handleSaveAnimationSource" />
   </div>
 </template>
 
