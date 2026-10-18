@@ -1032,8 +1032,9 @@ async function useSavedAnimationSource(id: string) {
       throw new Error('Este item não está categorizado como fonte de animações.')
     }
     // Se a janela já está aberta, mantém intacto o modelo A que está sendo editado.
-    // Se está fechada, o modelo A deverá ser carregado no importador depois da fonte.
-    if (!modelImportOpen.value) previewComponentAsset.value = null
+    // Se estiver fechada, abre a fonte primeiro; depois, carregue o modelo A como destino.
+    const targetAlreadyOpen = modelImportOpen.value
+    if (!targetAlreadyOpen) previewComponentAsset.value = null
     previewAnimationSourceAsset.value = {
       id: source.id,
       name: source.name,
@@ -1042,7 +1043,9 @@ async function useSavedAnimationSource(id: string) {
       libraryType: 'animation-source',
     }
     modelImportOpen.value = true
-    status.value = 'Carregando "' + source.name + '" como origem de animações; o modelo A continua sendo o destino.'
+    status.value = targetAlreadyOpen
+      ? 'Carregando "' + source.name + '" como origem; o modelo A aberto foi mantido como destino.'
+      : 'Fonte "' + source.name + '" carregada. Abra o modelo A no importador para usá-lo como destino.'
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível carregar a fonte de animações.'
   }
