@@ -2404,6 +2404,7 @@ async function loadCatalogAsset(asset: {
     const sourceBytes = asset.bytes.slice(0)
     const loaded = await parseGlbBytes(sourceBytes)
     loaded.userData.importSourceGlbBytes = sourceBytes.slice(0)
+    loaded.userData.importAttribution = asset.sourceName ?? 'Modelo procedural criado pelo Engine Prometheus.'
     await showLoadedModel(loaded, chosenFileName, asset.height)
     fileName.value = chosenFileName
     componentName.value = asset.name
@@ -2433,9 +2434,6 @@ async function loadCatalogAsset(asset: {
     }
 
     activeSetupTab.value = 'model'
-    if (asset.sourceName) {
-      error.value = ''
-    }
   } catch (cause) {
     error.value = 'Não foi possível carregar o modelo inicial: ' + (cause instanceof Error ? cause.message : String(cause || 'erro desconhecido'))
     fileName.value = ''
