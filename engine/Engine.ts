@@ -1286,7 +1286,7 @@ export class Engine {
     root.userData.wireframeVisible = false
     root.userData.mass = 1
     // O colisor é configurado no importador e fica independente da malha visual.
-    root.userData.colliderType = model.userData.importColliderType === 'box' || model.userData.importColliderType === 'sphere' || model.userData.importColliderType === 'capsule' || model.userData.importColliderType === 'none'
+    root.userData.colliderType = model.userData.importColliderType === 'box' || model.userData.importColliderType === 'sphere' || model.userData.importColliderType === 'capsule' || model.userData.importColliderType === 'mesh' || model.userData.importColliderType === 'none
       ? model.userData.importColliderType
       : 'box'
     const importedColliderSize = model.userData.importColliderSize
