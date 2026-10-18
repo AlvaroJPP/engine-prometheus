@@ -1273,11 +1273,16 @@ export class Engine {
     )
     // Migra cidades/cenários estáticos antigos que ainda tinham a caixa proxy
     // como colisor. A heurística corresponde ao padrão do importador 3D.
+    const cityFootprint = Math.max(renderedSize.x, renderedSize.z)
+    const cityAspectRatio = cityFootprint / Math.max(renderedSize.y, 0.1)
     const isStaticCityLike = importedAnimations.length === 0 &&
       !hasAnimatedColliderGeometry &&
       (
-        (Math.max(renderedSize.x, renderedSize.z) >= 18 && triangleCount >= 1_000) ||
-        (meshCount >= 36 && Math.max(renderedSize.x, renderedSize.z) >= 8)
+        (cityFootprint >= 18 && triangleCount >= 1_000) ||
+        (meshCount >= 36 && cityFootprint >= 8) ||
+        // A previously imported city may already have been normalized to a
+        // small final height. Use its proportions as a migration signal too.
+        (cityFootprint >= 8 && cityAspectRatio >= 3 && triangleCount >= 800)
       )
     console.info('[Engine] Modelo na cena:', {
       name: root.name,
