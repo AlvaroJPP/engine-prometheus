@@ -22,6 +22,11 @@ import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
+import {
+  blendAnimationActions,
+  getAnimationBlendDuration,
+  isLocomotionAnimation,
+} from './world/AnimationTransitions'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
@@ -251,12 +256,22 @@ export class Engine {
             if (restingAction && actions) {
               restingAction.setLoop(THREE.LoopRepeat, Infinity)
               restingAction.clampWhenFinished = false
-              restingAction.reset().fadeIn(0.15).play()
               const fallbackAction = object.mesh.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-              if (fallbackAction && fallbackAction !== restingAction && fallbackAction.isRunning()) fallbackAction.fadeOut(0.15)
-              for (const action of Object.values(actions)) {
-                if (action && action !== restingAction && action.isRunning()) action.fadeOut(0.15)
-              }
+              const previousRole = mountedTransition
+              const previousAction = transitionAction
+                ?? (previousRole ? actions[previousRole] : undefined)
+                ?? Object.values(actions).find(action => action?.isRunning())
+                ?? fallbackAction
+              blendAnimationActions(
+                [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
+                previousAction,
+                restingAction,
+                {
+                  duration: getAnimationBlendDuration(previousRole, restingRole),
+                  synchronizePhase: isLocomotionAnimation(previousRole) && isLocomotionAnimation(restingRole),
+                  restart: true,
+                },
+              )
               object.mesh.userData.importAnimationState = restingRole
             } else {
               transitionAction?.stop()
