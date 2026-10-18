@@ -52,6 +52,13 @@ type ImportModelStateDraft = {
   value: PackageScalar
   visibleWhenMatched: boolean
 }
+type ModelImportBatchItem = {
+  partId: string
+  name: string
+  model: THREE.Object3D
+  height: number
+}
+
 type ModelImportPayload = {
   name: string
   model: THREE.Object3D
@@ -59,6 +66,7 @@ type ModelImportPayload = {
   thumbnail?: string
   componentId?: string
   sourceGlbBytes?: ArrayBuffer
+  batchModels?: ModelImportBatchItem[]
 }
 
 const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
@@ -85,6 +93,10 @@ const dimensions = ref<[number, number, number]>([0, 0, 0])
 const model = shallowRef<THREE.Object3D | null>(null)
 const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }>>([])
 const selectedPartId = ref('')
+const batchSelectedPartIds = ref<string[]>([])
+const batchSavedPartIds = ref<string[]>([])
+const batchNotice = ref('')
+const batchSelectedCount = computed(() => batchSelectedPartIds.value.length)
 const soloPartId = ref('')
 const partSearch = ref('')
 const componentName = ref('')
@@ -804,12 +816,50 @@ function refreshPreviewParts() {
   }
 
   previewParts.value = parts
+  const validIds = new Set(parts.map(part => part.id))
+  batchSelectedPartIds.value = batchSelectedPartIds.value.filter(id => validIds.has(id))
+  batchSavedPartIds.value = batchSavedPartIds.value.filter(id => validIds.has(id))
   if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = ''
   if (!parts.some(part => part.id === soloPartId.value)) soloPartId.value = ''
 }
 
 function findPreviewPart(id: string) {
   return previewParts.value.find(part => part.id === id)
+}
+
+function isObjectWithin(object: THREE.Object3D, ancestor: THREE.Object3D): boolean {
+  let current: THREE.Object3D | null = object
+  while (current) {
+    if (current === ancestor) return true
+    current = current.parent
+  }
+  return false
+}
+
+function toggleBatchPartSelection(
+  part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number },
+  checked: boolean,
+) {
+  if (!checked) {
+    batchSelectedPartIds.value = batchSelectedPartIds.value.filter(id => id !== part.id)
+    return
+  }
+
+  // A seleção usa grupos mutuamente exclusivos: salvar um grupo já inclui seus
+  // descendentes, então selecionar um filho substitui o pai e vice-versa.
+  const next = batchSelectedPartIds.value.filter(id => {
+    const selected = findPreviewPart(id)
+    if (!selected) return false
+    return selected.id !== part.id
+      && !isObjectWithin(selected.object, part.object)
+      && !isObjectWithin(part.object, selected.object)
+  })
+  next.push(part.id)
+  batchSelectedPartIds.value = next
+}
+
+function clearBatchSelection() {
+  batchSelectedPartIds.value = []
 }
 
 function setColliderFromPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
@@ -1324,6 +1374,9 @@ function clearLoadedModel() {
   controlBindings.value = { ...DEFAULT_MODEL_CONTROL_BINDINGS }
   previewParts.value = []
   selectedPartId.value = ''
+  batchSelectedPartIds.value = []
+  batchSavedPartIds.value = []
+  batchNotice.value = ''
   soloPartId.value = ''
   partSearch.value = ''
   componentName.value = ''
