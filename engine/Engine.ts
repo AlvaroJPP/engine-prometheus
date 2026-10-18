@@ -852,8 +852,8 @@ export class Engine {
       this.notifyBehaviorPackageChanged(id)
     }
     this.veilborneCollectedLootVisibility.clear()
-    this.logic.setVariable('item_use_request', '')
-    this.logic.setVariable('loot_notice', '')
+    if (this.logic.getVariable('item_use_request') !== undefined) this.logic.setVariable('item_use_request', '')
+    if (this.logic.getVariable('loot_notice') !== undefined) this.logic.setVariable('loot_notice', '')
     this.veilborneLootNoticeRemainingSeconds = 0
   }
 
