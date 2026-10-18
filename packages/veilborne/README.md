@@ -28,13 +28,15 @@ Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetiv
 - As quatro teclas de habilidade lançam os feitiços configurados em `magia_1` a `magia_4`; os padrões são Dardo do Véu, Explosão de Brasa, Corrente Glacial e Dreno Rubro.
 - Armas e feitiços aplicam dano calculado por atributos, respeitam resistências elementais do alvo, consomem vigor/éter, acumulam postura e podem matar.
 - Feitiços têm tempo de conjuração e recarga; Explosão de Brasa e outros feitiços de área podem acertar múltiplos alvos; estados de queimadura, sangramento e veneno causam dano periódico.
+- Os sigilos podem ser selecionados por `T` (ciclar sigilo, por padrão) e ativados por `H` (usar item, por padrão). Selo de Ruptura explode quando inimigos entram no círculo; Lentidão e Silêncio aplicam seus estados; Marca do Caçador aumenta em 20% o dano recebido pelo alvo marcado.
+- Selo Guardião cria uma proteção visual temporária e expõe `ward_remaining` e `ward_absorption`; o consumo real da absorção será conectado quando o sistema de ataques recebidos/IA estiver pronto.
 - Dreno Rubro recupera vida a partir do dano causado; Passo Entre Véus faz um deslocamento curto com consulta de raio contra a geometria da cena.
 - O personagem do jogador usa variáveis globais `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos e `arma_equipada`. Isso permite usar os valores no Visual Script e na HUD já configurável.
 - Para se tornar alvo do combate inicial, um objeto precisa ter o componente VEILBORNE instalado. A variável do pacote `faction` usa `hostile` como padrão; `neutral` ou `player` exclui o objeto do alvo automático. Resistências podem ser ajustadas nas variáveis do componente.
 
 ### Ainda em implementação
 
-A primeira integração não equivale a um RPG completo. Ainda faltam IA hostil ligada a movimento/ataques, colisores de armas e hitboxes de animação, sigilos ativados no mundo, inventário/equipamento com interface, chefes em fases, checkpoints e persistência entre sessões. Os efeitos visuais atuais são protótipos geométricos e precisam ser trocados por VFX/SFX de produção.
+A integração inicial já possui ataques físicos, conjuração e ativação básica de sigilos, mas ainda não equivale a um RPG completo. Faltam IA hostil ligada a movimento e ataques recebidos, consumo da absorção do Selo Guardião, colisores de armas/hitboxes ligados a animações, inventário/equipamento com interface, chefes em fases, checkpoints e persistência entre sessões. Os efeitos visuais atuais são protótipos geométricos e precisam ser trocados por VFX/SFX de produção.
 
 ## Próximas etapas de implementação
 
