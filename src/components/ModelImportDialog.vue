@@ -1926,6 +1926,113 @@ function clearCustomThumbnail() {
   thumbnailImageError.value = ''
 }
 
+async function saveSelectedParts() {
+  if (loading.value) return
+  const root = model.value
+  if (!root) {
+    error.value = 'Carregue um modelo 3D antes de selecionar partes.'
+    return
+  }
+
+  const parts = batchSelectedPartIds.value
+    .map(id => findPreviewPart(id))
+    .filter((part): part is NonNullable<typeof part> => Boolean(part))
+  if (parts.length === 0) {
+    error.value = 'Marque pelo menos uma parte da hierarquia para salvar em lote.'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+  batchNotice.value = ''
+  const entries: ModelImportBatchItem[] = []
+  try {
+    root.updateMatrixWorld(true)
+    const scaleFactor = modelHeight.value / Math.max(originalHeight.value, 0.05)
+
+    for (const part of parts) {
+      const relativeMatrix = new THREE.Matrix4()
+        .copy(root.matrixWorld)
+        .invert()
+        .multiply(part.object.matrixWorld)
+      const imported = cloneSkinnedModel(part.object)
+      imported.matrix.copy(relativeMatrix)
+      imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
+      imported.matrixAutoUpdate = true
+      imported.name = part.name
+      imported.traverse(node => { node.visible = true })
+      imported.updateMatrixWorld(true)
+
+      const bounds = new THREE.Box3().setFromObject(imported)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
+        throw new Error(`Não foi possível calcular as dimensões de "${part.name}".`)
+      }
+
+      imported.position.sub(center)
+      imported.scale.multiplyScalar(scaleFactor)
+      imported.position.multiplyScalar(scaleFactor)
+      imported.updateMatrixWorld(true)
+
+      const scaledSize: [number, number, number] = [
+        Math.max(0.05, size.x * scaleFactor),
+        Math.max(0.05, size.y * scaleFactor),
+        Math.max(0.05, size.z * scaleFactor),
+      ]
+      let partColliderSize = scaledSize
+      if (colliderType.value === 'sphere') {
+        const diameter = Math.max(0.05, Math.min(...scaledSize))
+        partColliderSize = [diameter, diameter, diameter]
+      }
+
+      imported.userData.importColliderType = colliderType.value
+      imported.userData.importColliderSize = partColliderSize
+      // Cada parte é centralizada durante a extração, então seu colisor também
+      // começa no centro local próprio, sem herdar o offset do modelo-cidade.
+      imported.userData.importColliderOffset = [0, 0, 0]
+      imported.userData.importAnimations = []
+      imported.userData.importAnimationRoles = {}
+      imported.userData.importControlBindings = { ...controlBindings.value }
+      imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
+      const behaviorPackageSettings: Record<string, ImportBehaviorPackageDraft> = {}
+      for (const packageId of selectedBehaviorPackageIds.value) {
+        const draft = ensureImportBehaviorPackageDraft(packageId)
+        behaviorPackageSettings[packageId] = {
+          variables: { ...draft.variables },
+          config: clonePackageJsonRecord(draft.config),
+        }
+      }
+      imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
+      imported.userData.sceneKind = 'object'
+      imported.userData.componentLogic = []
+
+      entries.push({
+        partId: part.id,
+        name: part.name,
+        model: imported,
+        height: Math.max(0.05, scaledSize[1]),
+      })
+    }
+
+    const saved = await props.saveModel({
+      name: fileName.value.replace(/\\.[^.]+$/, '') || 'Importação em lote',
+      model: root,
+      height: modelHeight.value,
+      batchModels: entries,
+    })
+    if (!saved) throw new Error('O aplicativo não confirmou a gravação dos componentes.')
+
+    batchSavedPartIds.value = [...new Set([...batchSavedPartIds.value, ...entries.map(entry => entry.partId)])]
+    batchSelectedPartIds.value = []
+    batchNotice.value = `Salvos ${entries.length} componentes. A importação continua aberta; selecione outras partes para criar mais componentes sem reabrir o arquivo.`
+  } catch (cause) {
+    error.value = 'Não foi possível salvar as partes selecionadas: ' + (cause instanceof Error ? cause.message : String(cause || 'Erro desconhecido'))
+  } finally {
+    loading.value = false
+  }
+}
+
 async function confirmImport() {
   if (loading.value) return
   const root = model.value
