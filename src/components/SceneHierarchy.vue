@@ -24,11 +24,6 @@ const libraryCategoryLabels: Record<'object' | 'animated-model' | 'animation-sou
   'animated-model': 'Animações modificadas',
   'animation-source': 'Fontes de animação',
 }
-const libraryCategoryCounts = computed(() => ({
-  object: props.components.filter(component => (component.libraryType ?? 'object') === 'object').length,
-  'animated-model': props.components.filter(component => component.libraryType === 'animated-model').length,
-  'animation-source': props.components.filter(component => component.libraryType === 'animation-source').length,
-}))
 const hierarchySearch = ref('')
 const componentSearch = ref('')
 const editingComponentId = ref<string | null>(null)
@@ -81,6 +76,13 @@ const props = defineProps<{
   rootOpen: boolean
   components: ComponentEntry[]
 }>()
+
+const libraryCategoryCounts = computed(() => ({
+  object: props.components.filter(component => (component.libraryType ?? 'object') === 'object').length,
+  'animated-model': props.components.filter(component => component.libraryType === 'animated-model').length,
+  'animation-source': props.components.filter(component => component.libraryType === 'animation-source').length,
+}))
+
 
 const filteredObjects = computed(() => {
   const query = hierarchySearch.value.trim().toLocaleLowerCase('pt-BR')
