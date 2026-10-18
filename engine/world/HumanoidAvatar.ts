@@ -35,6 +35,11 @@ const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0.96, 0], [-0.96, 0], [0, 0.96], [0, -0.96],
   [0.58, 0.58], [0.58, -0.58], [-0.58, 0.58], [-0.58, -0.58],
   [0.68, 0.68], [0.68, -0.68], [-0.68, 0.68], [-0.68, -0.68],
+  // Anel intermediário entre as sondas cardinais e diagonais: melhora o contato
+  // com degraus estreitos, quinas chanfradas e superfícies low-poly irregulares.
+  // O raio permanece dentro da pegada física para não detectar piso longe do corpo.
+  [0.831, 0.344], [0.344, 0.831], [-0.344, 0.831], [-0.831, 0.344],
+  [-0.831, -0.344], [-0.344, -0.831], [0.344, -0.831], [0.831, -0.344],
 ]
 const DODGE_SPEED = 10
 const DODGE_DURATION = 0.22
