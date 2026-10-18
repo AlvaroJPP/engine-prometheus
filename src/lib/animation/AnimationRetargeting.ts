@@ -338,7 +338,9 @@ export function retargetAnimationClip(
     const resultValues: number[] = []
     const interpolants = contributions.map(contribution => ({
       contribution,
-      interpolant: contribution.track.createInterpolant(),
+      interpolant: (contribution.track as THREE.KeyframeTrack & {
+        createInterpolant: () => { evaluate: (time: number) => ArrayLike<number> }
+      }).createInterpolant(),
       inverseSourceRest: contribution.sourceRestQuaternion.clone().invert(),
       inverseSourceParentWorld: contribution.sourceParentWorld?.clone().invert() ?? null,
     }))
