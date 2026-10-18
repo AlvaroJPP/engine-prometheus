@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "rig:similarity": "node --experimental-strip-types scripts/analyze-rig-similarity.mjs",
-    "rig:similarity:self-test": "node --experimental-strip-types scripts/analyze-rig-similarity.mjs --self-test"
+    "rig:similarity:self-test": "node --experimental-strip-types scripts/analyze-rig-similarity.mjs --self-test",
+    "rigging:self-test": "node --experimental-strip-types scripts/rigging-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
