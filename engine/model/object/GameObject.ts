@@ -13,6 +13,8 @@ export interface ObjectInfo {
   id: string
   name: string
   type: ObjectType
+  /** Indica que o objeto visual vem de um modelo 3D importado. */
+  importedModel?: boolean
   x: number
   y: number
   z: number
