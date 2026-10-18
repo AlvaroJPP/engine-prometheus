@@ -1341,7 +1341,7 @@ export class Engine {
     // Projetos salvos antes de existir "Malha estática" guardavam cidades como
     // caixas sólidas. Corrige esses cenários ao abrir o mundo para que ruas,
     // rampas e vãos usem a geometria real sem exigir reimportação manual.
-    if (isStaticCityLike && root.userData.colliderType === 'box') {
+    if ((isStaticCityLike || model.userData.importColliderType === 'mesh') && root.userData.colliderType === 'box') {
       root.userData.colliderType = 'mesh'
       root.userData.colliderOffset = [0, 0, 0]
       console.info('[Engine] Colisor de cenário atualizado automaticamente para malha estática:', root.name)
