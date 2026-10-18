@@ -363,17 +363,55 @@
       "timed_parry_window_and_counter_result",
       "incoming_damage_pipeline",
       "ward_absorption_consumption",
-      "player_elemental_resistances"
+      "player_elemental_resistances",
+      "hostile_ai_perception_and_direct_pursuit",
+      "enemy_ai_profiles_and_attack_cooldowns",
+      "enemy_attacks_call_incoming_damage_pipeline",
+      "enemy_attack_animation_role_requests",
+      "boss_phase_damage_scaling",
+      "parry_counterattack_scaled_by_equipped_weapon",
+      "elemental_resistance_globals_initialized"
     ],
     "notYetConnected": [
+      "enemy_pathfinding_and_line_of_sight",
       "weapon_animation_hitboxes",
-      "enemy_ai_and_incoming_player_damage_integration",
-      "enemy_ai",
       "inventory_ui",
       "persistent_progression",
       "production_vfx_sfx",
-      "boss_phase_runtime",
-      "checkpoints_and_death_recovery"
-    ]
+      "checkpoints_and_death_recovery",
+      "quest_and_dialogue_runtime",
+      "boss_unique_attack_patterns"
+    ],
+    "enemyAIProfiles": [
+      "melee",
+      "ranged_caster",
+      "flanker",
+      "guard_breaker",
+      "boss_phases"
+    ],
+    "enemyAIControls": {
+      "enabledVariable": "ai_enabled",
+      "profileVariable": "ai_profile",
+      "customStatsToggle": "ai_custom_stats",
+      "configurableStats": [
+        "perception_range",
+        "attack_range",
+        "move_speed",
+        "attack_damage",
+        "attack_damage_type",
+        "attack_cooldown",
+        "attack_posture_damage"
+      ],
+      "states": [
+        "idle",
+        "pursue",
+        "attack",
+        "recover"
+      ],
+      "limitations": [
+        "no_pathfinding",
+        "distance_based_perception_no_line_of_sight"
+      ]
+    }
   }
 }
