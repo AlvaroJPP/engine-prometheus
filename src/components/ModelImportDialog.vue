@@ -5,7 +5,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
-import { getStaticMeshCollisionData } from '@/engine/world/StaticMeshCollider'
+import {
+  getStaticMeshCollisionData,
+  invalidateStaticMeshCollider,
+  releaseStaticMeshCollider,
+} from '@engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
@@ -1076,6 +1080,8 @@ function selectPreviewPart(part: { id: string; name: string; object: THREE.Objec
 function togglePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (soloPartId.value) restorePreviewVisibility()
   part.object.visible = !part.object.visible
+  if (model.value) invalidateStaticMeshCollider(model.value)
+  updateColliderPreview()
 }
 
 function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
@@ -1086,6 +1092,7 @@ function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Obj
   } else {
     // Os ancestrais precisam permanecer visíveis: no Three.js, esconder um pai
     // também esconde todos os seus descendentes, mesmo que o filho esteja visible=true.
+    invalidateStaticMeshCollider(root)
     root.traverse(node => {
       const isPart = node === part.object
       const isChild = isDescendantOf(node, part.object)
@@ -1136,7 +1143,9 @@ function isDescendantOf(node: THREE.Object3D, ancestor: THREE.Object3D) {
 }
 
 function restorePreviewVisibility() {
-  model.value?.traverse(node => { node.visible = true })
+  const root = model.value
+  root?.traverse(node => { node.visible = true })
+  if (root) invalidateStaticMeshCollider(root)
   soloPartId.value = ''
 }
 
@@ -1154,15 +1163,18 @@ function restoreModelRenderableMeshes(root: THREE.Object3D) {
   root.traverse(node => {
     if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
   })
+  invalidateStaticMeshCollider(root)
 }
 
 function deletePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (!model.value || !part.object.parent) return
+  invalidateStaticMeshCollider(model.value)
   part.object.removeFromParent()
   model.value.userData.importNeedsReexport = true
   model.value.updateMatrixWorld(true)
   refreshPreviewParts()
   refreshModelDiagnostics()
+  updateColliderPreview()
   if (model.value) fitCamera(model.value)
 }
 
@@ -1649,6 +1661,7 @@ function clearLoadedModel(preserveRetargetSource = false) {
   animationClipRevision.value = 0
   if (model.value) {
     scene?.remove(model.value)
+    releaseStaticMeshCollider(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
     recoveredTextures?.forEach(texture => texture.dispose())
     const ownedUrls = new Set<string>()
