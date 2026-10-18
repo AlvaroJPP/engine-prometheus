@@ -341,18 +341,19 @@
       "ground_sigil_traps_and_enemy_enter_triggers",
       "hunter_mark_increases_incoming_damage",
       "burn_bleed_poison_damage_over_time",
-      "temporary_ward_visual_and_absorption_state"
+      "temporary_ward_visual_and_absorption_state",
+      "dodge_roll_slide_stamina_costs"
     ],
     "notYetConnected": [
       "weapon_animation_hitboxes",
-      "player_dodge_stamina_cost",
       "timed_parry",
       "enemy_ai",
       "inventory_ui",
       "persistent_progression",
       "production_vfx_sfx",
       "enemy_ai_and_incoming_player_damage_integration",
-      "ward_absorption_consumption"
+      "ward_absorption_consumption",
+      "timed_parry_and_block_damage_reduction"
     ]
   }
 }
