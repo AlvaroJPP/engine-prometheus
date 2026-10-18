@@ -1557,11 +1557,18 @@ export class HumanoidAvatar {
       : (bounds.min.x + bounds.max.x) * 0.5
     const lateralHalf = (axis === 'x' ? size.z : size.x) * 0.34
     const lateralSamples = [lateralCenter - lateralHalf, lateralCenter, lateralCenter + lateralHalf]
-    const candidates = this.world.list().filter(object =>
+    const allCandidates = this.world.list().filter(object =>
       object.mesh !== root &&
       object.mesh.visible &&
-      object.mesh.userData.colliderType !== 'none' &&
-      object.mesh.userData.importedModel !== true,
+      object.mesh.userData.colliderType !== 'none',
+    )
+    const staticCandidates = allCandidates.filter(object =>
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    const staticIds = new Set(staticCandidates.map(object => object.id))
+    const candidates = allCandidates.filter(object =>
+      !staticIds.has(object.id) && object.mesh.userData.importedModel !== true,
     )
     const originY = feetY + height + 0.65
     const raycaster = new THREE.Raycaster()
@@ -1582,7 +1589,7 @@ export class HumanoidAvatar {
         const owner = candidates.find(object =>
           object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
         )
-        if (!owner || owner.mesh.userData.importedModel === true) continue
+        if (!owner) continue
         const normal = hit.face.normal.clone()
           .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
           .normalize()
@@ -1591,9 +1598,15 @@ export class HumanoidAvatar {
         const rise = hit.point.y - feetY
         if (rise < -0.12 || rise > 0.5) continue
         if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
-        // Hits come sorted from nearest to farthest; only the uppermost valid
-        // support at this probe is relevant.
         break
+      }
+
+      for (const object of staticCandidates) {
+        const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, height + 1.15, candidate => {
+          const rise = candidate.point.y - feetY
+          return candidate.normal.y >= 0.45 && rise >= -0.12 && rise <= 0.5
+        })
+        if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
       }
     }
     return bestSurface
