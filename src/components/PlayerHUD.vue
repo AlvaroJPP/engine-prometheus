@@ -10,6 +10,7 @@ const props = defineProps<{
   settingsOpen: boolean
   worldFullscreen: boolean
   bindings: Record<string, string>
+  gameVariables: Record<string, boolean | number | string>
 }>()
 
 const emit = defineEmits<{
@@ -67,6 +68,12 @@ type HudSettings = {
   dock: 'left' | 'right'
   quickSlots: string[]
   images: HudImageLayer[]
+  vitalityVariable: string
+  vitalityMaxVariable: string
+  vitalityMaxValue: number
+  etherVariable: string
+  etherMaxVariable: string
+  etherMaxValue: number
 }
 
 const STORAGE_KEY = 'engine-prometheus.player-hud.v1'
@@ -82,6 +89,12 @@ const defaults: HudSettings = {
   dock: 'left',
   quickSlots: ['Habilidade 1', 'Habilidade 2', 'Item 1', 'Item 2'],
   images: [],
+  vitalityVariable: 'vida',
+  vitalityMaxVariable: '',
+  vitalityMaxValue: 100,
+  etherVariable: 'eter',
+  etherMaxVariable: '',
+  etherMaxValue: 100,
 }
 const settings = reactive<HudSettings>({ ...defaults, quickSlots: [...defaults.quickSlots], images: [] })
 const showControls = ref(true)
@@ -126,6 +139,29 @@ const showSettings = computed({
 const fpsLabel = computed(() => props.fps > 0 ? Math.round(props.fps) : '--')
 const hudStyle = computed(() => ({ '--hud-scale': String(settings.scale) }))
 const bottomClasses = computed(() => ({ 'dock-right': settings.dock === 'right' }))
+const numericGameVariableNames = computed(() => Object.entries(props.gameVariables)
+  .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+  .map(([name]) => name)
+  .sort((a, b) => a.localeCompare(b)))
+const alquimiaStatusLayer = computed(() => settings.images.find(layer =>
+  layer.id === 'hud-alquimia-statusbar' && layer.visible && !layer.fitScreen && Boolean(hudImageUrls.value[layer.id]),
+))
+function readHudStat(valueVariable: string, maxVariable: string, fallbackMax: number) {
+  const raw = props.gameVariables[valueVariable.trim()]
+  const value = typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, raw) : null
+  const rawMax = maxVariable.trim() ? props.gameVariables[maxVariable.trim()] : undefined
+  const maximum = typeof rawMax === 'number' && Number.isFinite(rawMax) && rawMax > 0
+    ? rawMax
+    : boundedHudNumber(fallbackMax, 100, 1, 1_000_000)
+  return {
+    value,
+    maximum,
+    percent: value === null ? 0 : Math.min(100, Math.max(0, value / maximum * 100)),
+    label: value === null ? '—' : Math.round(value) + ' / ' + Math.round(maximum),
+  }
+}
+const vitalityStat = computed(() => readHudStat(settings.vitalityVariable, settings.vitalityMaxVariable, settings.vitalityMaxValue))
+const etherStat = computed(() => readHudStat(settings.etherVariable, settings.etherMaxVariable, settings.etherMaxValue))
 
 function openHudImageDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -945,6 +981,27 @@ function resetSettings() {
       @pointerdown="beginHudImageDrag($event, layer)"
     >
 
+    <div
+      v-if="alquimiaStatusLayer"
+      class="hud-alquimia-live-bars"
+      :style="{
+        left: alquimiaStatusLayer.x + '%',
+        top: alquimiaStatusLayer.y + '%',
+        width: alquimiaStatusLayer.width + '%',
+        opacity: alquimiaStatusLayer.opacity / 100,
+      }"
+      aria-label="Barras do jogador conectadas às variáveis globais"
+    >
+      <div class="hud-live-track hud-live-vitality" :title="'Vitalidade: ' + vitalityStat.label" role="progressbar" :aria-valuenow="vitalityStat.value ?? 0" :aria-valuemin="0" :aria-valuemax="vitalityStat.maximum" :aria-label="'Vitalidade ' + vitalityStat.label">
+        <div class="hud-live-fill" :style="{ width: vitalityStat.percent + '%' }" />
+        <span>{{ vitalityStat.label }}</span>
+      </div>
+      <div class="hud-live-track hud-live-ether" :title="'Éter: ' + etherStat.label" role="progressbar" :aria-valuenow="etherStat.value ?? 0" :aria-valuemin="0" :aria-valuemax="etherStat.maximum" :aria-label="'Éter ' + etherStat.label">
+        <div class="hud-live-fill" :style="{ width: etherStat.percent + '%' }" />
+        <span>{{ etherStat.label }}</span>
+      </div>
+    </div>
+
     <div v-if="showSettings" class="hud-settings-panel" role="dialog" aria-label="Personalizar interface do jogador">
       <div class="settings-heading">
         <div><span class="hud-eyebrow">ENGINE PROMETHEUS</span><strong>Personalizar HUD</strong></div>
@@ -976,6 +1033,35 @@ function resetSettings() {
           <input v-for="(slot, index) in settings.quickSlots" :key="index" v-model="settings.quickSlots[index]" :aria-label="'Rótulo do atalho ' + (index + 1)" maxlength="22">
         </div>
         <small>Os espaços são personalizáveis; ainda não estão conectados a inventário ou habilidades do jogo.</small>
+      </div>
+
+      <div class="settings-field hud-runtime-bars-settings">
+        <span>Barras conectadas ao Visual Script</span>
+        <p class="hud-runtime-help">As barras leem variáveis globais numéricas durante o modo Run. Crie/atualize essas variáveis nos eventos do Visual Script; se a variável não existir ou não for numérica, o HUD mostrará “—”, sem inventar um valor.</p>
+        <datalist id="hud-game-variable-suggestions">
+          <option v-for="name in numericGameVariableNames" :key="name" :value="name" />
+        </datalist>
+        <label>Vitalidade · variável atual
+          <input v-model.trim="settings.vitalityVariable" list="hud-game-variable-suggestions" maxlength="80" placeholder="vida">
+        </label>
+        <label>Vitalidade · variável de máximo (opcional)
+          <input v-model.trim="settings.vitalityMaxVariable" list="hud-game-variable-suggestions" maxlength="80" placeholder="deixe vazio para usar o máximo padrão">
+        </label>
+        <label>Vitalidade · máximo padrão
+          <input v-model.number="settings.vitalityMaxValue" type="number" min="1" max="1000000" step="1">
+        </label>
+        <div class="hud-runtime-separator" />
+        <label>Éter · variável atual
+          <input v-model.trim="settings.etherVariable" list="hud-game-variable-suggestions" maxlength="80" placeholder="eter">
+        </label>
+        <label>Éter · variável de máximo (opcional)
+          <input v-model.trim="settings.etherMaxVariable" list="hud-game-variable-suggestions" maxlength="80" placeholder="deixe vazio para usar o máximo padrão">
+        </label>
+        <label>Éter · máximo padrão
+          <input v-model.number="settings.etherMaxValue" type="number" min="1" max="1000000" step="1">
+        </label>
+        <small v-if="numericGameVariableNames.length">Variáveis numéricas encontradas: {{ numericGameVariableNames.join(', ') }}</small>
+        <small v-else>Nenhuma variável global numérica foi encontrada ainda. Você pode configurar os nomes agora e criá-las no Visual Script.</small>
       </div>
 
       <div class="settings-field hud-images-field">
@@ -1309,6 +1395,76 @@ function resetSettings() {
   }
 }
 
+
+.hud-alquimia-live-bars {
+  position:absolute;
+  z-index:23;
+  aspect-ratio:760 / 112;
+  pointer-events:none;
+  user-select:none;
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+  text-shadow:0 1px 2px #000;
+}
+.hud-live-track {
+  position:absolute;
+  display:flex;
+  align-items:center;
+  left:31.84%;
+  top:51.78%;
+  width:22.35%;
+  height:8.04%;
+  overflow:hidden;
+  background:#090e18;
+  box-shadow:0 0 0 1px #090e18;
+}
+.hud-live-vitality { --hud-live-color:#a83e4c; }
+.hud-live-ether { left:66.97%; --hud-live-color:#547eb4; }
+.hud-live-fill {
+  position:absolute;
+  inset:0 auto 0 0;
+  max-width:100%;
+  background:var(--hud-live-color);
+  transition:width .12s linear;
+}
+.hud-live-track span {
+  position:relative;
+  z-index:1;
+  width:100%;
+  color:#fff1df;
+  font-size:clamp(5px,.62vw,9px);
+  line-height:1;
+  text-align:center;
+  white-space:nowrap;
+}
+.hud-runtime-bars-settings .hud-runtime-help {
+  margin:0;
+  color:#b9c3cf;
+  font-size:10px;
+  line-height:1.5;
+}
+.hud-runtime-bars-settings > label {
+  display:grid;
+  gap:5px;
+  color:#d3d9e1;
+  font-size:10px;
+}
+.hud-runtime-bars-settings input {
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  padding:7px 8px;
+  border:1px solid #ffffff24;
+  border-radius:5px;
+  background:#0c1118;
+  color:#edf1f5;
+  font:inherit;
+}
+.hud-runtime-bars-settings input:focus {
+  border-color:#b98259;
+  outline:1px solid #b98259;
+}
+.hud-runtime-bars-settings small { color:#9daab8; font-size:9px; line-height:1.5; overflow-wrap:anywhere; }
+.hud-runtime-separator { height:1px; margin:3px 0; background:#ffffff1c; }
 
 .hud-custom-image {
   position:absolute;
