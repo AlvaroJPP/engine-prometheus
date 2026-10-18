@@ -12,6 +12,15 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
+import {
+  createReusableAnimationAsset,
+  findAnimationNode,
+  getTransformTrackPath,
+  parseReusableAnimationClip,
+  retargetAnimationClip,
+  suggestTargetBone,
+} from '@/lib/animation/AnimationRetargeting'
+import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
 
 type ImportBehaviorPackageDraft = {
   variables: Record<string, PackageScalar>
@@ -276,6 +285,52 @@ const rigDuration = ref(1)
 const rigClipName = ref('Animacao personalizada')
 const rigClipRole = ref<AnimationRole>('mount')
 const rigMessage = ref('')
+
+// Biblioteca de animações reutilizáveis. Armazena clipes e poses de repouso,
+// sem guardar a geometria do modelo de origem.
+const RETARGET_ANIMATION_LIBRARY_KEY = 'engine-prometheus.reusable-animations.v1'
+const retargetFileInput = ref<HTMLInputElement | null>(null)
+const retargetSourceRoot = shallowRef<THREE.Object3D | null>(null)
+const retargetSourceFileName = ref('')
+const retargetSourceClipIndex = ref(0)
+const retargetLibrary = ref<ReusableAnimationAsset[]>([])
+const selectedRetargetLibraryId = ref('')
+const selectedRetargetLibraryClip = shallowRef<THREE.AnimationClip | null>(null)
+const retargetBoneMap = ref<Record<string, string>>({})
+const retargetClipName = ref('')
+const retargetMessage = ref('')
+const retargetLoading = ref(false)
+const retargetLibraryAsset = computed(() =>
+  retargetLibrary.value.find(asset => asset.id === selectedRetargetLibraryId.value) ?? null,
+)
+const retargetSourceClips = computed(() =>
+  (retargetSourceRoot.value?.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [],
+)
+const retargetSourceClip = computed(() => selectedRetargetLibraryId.value
+  ? selectedRetargetLibraryClip.value
+  : retargetSourceClips.value[retargetSourceClipIndex.value] ?? null,
+)
+const retargetSourceNodeNames = computed(() => {
+  const asset = retargetLibraryAsset.value
+  if (asset) return asset.sourceNodeNames.filter(name => !!asset.sourcePose[name])
+  const root = retargetSourceRoot.value
+  const clip = retargetSourceClip.value
+  if (!root || !clip) return []
+  const names = [...new Set(clip.tracks
+    .map(getTransformTrackPath)
+    .filter((path): path is NonNullable<ReturnType<typeof getTransformTrackPath>> => path !== null)
+    .map(path => path.nodeName))]
+  return names.filter(name => !!findAnimationNode(root, name))
+})
+const retargetTargetBones = computed(() => {
+  if (rigBones.value.length) return rigBones.value
+  const bones: THREE.Bone[] = []
+  model.value?.traverse(node => { if (node instanceof THREE.Bone) bones.push(node) })
+  return bones
+})
+const hasRetargetMapping = computed(() =>
+  retargetSourceNodeNames.value.some(name => !!retargetBoneMap.value[name]),
+)
 const boneRotationDraft = ref({ x: 0, y: 0, z: 0 })
 const bonePositionDraft = ref({ x: 0, y: 0, z: 0 })
 const selectedRigBone = computed(() => rigBones.value.find(bone => bone.name === selectedRigBoneName.value) ?? null)
@@ -1374,6 +1429,7 @@ function removeImportPackageModelState(packageId: string, stateId: string) {
 }
 
 function clearLoadedModel() {
+  clearRetargetSource()
   selectedBehaviorPackageIds.value = []
   selectedBehaviorPackageSettings.value = {}
   customThumbnail.value = null
@@ -1732,6 +1788,7 @@ async function chooseFile(event: Event) {
 
 watch(() => props.open, async (open) => {
   if (open) {
+    loadRetargetAnimationLibrary()
     window.addEventListener('keydown', captureControlBindingKey, true)
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
     initPreview()
@@ -1782,10 +1839,258 @@ watch(() => props.open, async (open) => {
   } else {
     window.removeEventListener('keydown', captureControlBindingKey, true)
     listeningForBinding.value = null
+    clearRetargetSource()
+    retargetMessage.value = ''
     disposePreview()
     error.value = ''
   }
 })
+
+function loadRetargetAnimationLibrary() {
+  try {
+    const raw = window.localStorage.getItem(RETARGET_ANIMATION_LIBRARY_KEY)
+    if (!raw) {
+      retargetLibrary.value = []
+      return
+    }
+    const parsed: unknown = JSON.parse(raw)
+    retargetLibrary.value = Array.isArray(parsed)
+      ? parsed.filter((item): item is ReusableAnimationAsset => Boolean(
+        item && typeof item === 'object'
+        && typeof (item as ReusableAnimationAsset).id === 'string'
+        && typeof (item as ReusableAnimationAsset).name === 'string'
+        && typeof (item as ReusableAnimationAsset).sourceName === 'string'
+        && (item as ReusableAnimationAsset).clipJson
+        && typeof (item as ReusableAnimationAsset).clipJson === 'object'
+        && Array.isArray((item as ReusableAnimationAsset).sourceNodeNames)
+        && (item as ReusableAnimationAsset).sourcePose
+        && typeof (item as ReusableAnimationAsset).sourcePose === 'object',
+      ))
+      : []
+  } catch (cause) {
+    console.warn('[AnimationRetargeting] Não foi possível ler a biblioteca local.', cause)
+    retargetLibrary.value = []
+  }
+}
+
+function persistRetargetAnimationLibrary() {
+  try {
+    window.localStorage.setItem(RETARGET_ANIMATION_LIBRARY_KEY, JSON.stringify(retargetLibrary.value))
+    return true
+  } catch (cause) {
+    console.warn('[AnimationRetargeting] Não foi possível salvar a biblioteca local.', cause)
+    retargetMessage.value = 'Não foi possível guardar a animação. A biblioteca local pode estar sem espaço.'
+    return false
+  }
+}
+
+function clearRetargetSource() {
+  const previous = retargetSourceRoot.value
+  retargetSourceRoot.value = null
+  if (previous) disposeModel(previous)
+  retargetSourceFileName.value = ''
+  retargetSourceClipIndex.value = 0
+  selectedRetargetLibraryId.value = ''
+  selectedRetargetLibraryClip.value = null
+  retargetBoneMap.value = {}
+  retargetClipName.value = ''
+}
+
+async function chooseRetargetAnimationSource(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  retargetLoading.value = true
+  retargetMessage.value = ''
+  error.value = ''
+  try {
+    if (!file.name.toLowerCase().endsWith('.glb')) {
+      throw new Error('Escolha um arquivo GLB com animações incorporadas.')
+    }
+    const loaded = await parseGlbBytes(await file.arrayBuffer())
+    loaded.updateWorldMatrix(true, true)
+    const clips = (loaded.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    if (clips.length === 0) {
+      disposeModel(loaded)
+      throw new Error('Esse GLB não contém clipes de animação. Escolha um modelo animado.')
+    }
+    clearRetargetSource()
+    retargetSourceRoot.value = loaded
+    retargetSourceFileName.value = file.name
+    retargetSourceClipIndex.value = 0
+    retargetClipName.value = clips[0]?.name?.trim() || file.name.replace(/\.glb$/i, '')
+    retargetMessage.value = `Origem carregada: ${clips.length} animação(ões). Faça o mapeamento para o rig de destino e aplique.`
+  } catch (cause) {
+    retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível abrir o modelo de animação.'
+  } finally {
+    retargetLoading.value = false
+    if (retargetFileInput.value) retargetFileInput.value.value = ''
+  }
+}
+
+function onRetargetSourceClipChanged() {
+  const clip = retargetSourceClip.value
+  if (clip) retargetClipName.value = clip.name?.trim() || 'Animação reutilizada'
+  retargetMessage.value = ''
+  retargetBoneMap.value = {}
+}
+
+function selectRetargetLibraryAsset(id: string) {
+  selectedRetargetLibraryId.value = id
+  selectedRetargetLibraryClip.value = null
+  if (id) {
+    const asset = retargetLibrary.value.find(item => item.id === id)
+    if (!asset) {
+      selectedRetargetLibraryId.value = ''
+      return
+    }
+    try {
+      selectedRetargetLibraryClip.value = parseReusableAnimationClip(asset)
+      if (retargetSourceRoot.value) {
+        const previous = retargetSourceRoot.value
+        retargetSourceRoot.value = null
+        disposeModel(previous)
+      }
+      retargetSourceFileName.value = ''
+      retargetClipName.value = asset.name
+      rigClipRole.value = asset.role
+      retargetMessage.value = `Animação "${asset.name}" carregada da biblioteca. Selecione os ossos de destino e aplique-a ao modelo atual.`
+    } catch (cause) {
+      retargetMessage.value = cause instanceof Error ? cause.message : 'A animação salva está inválida.'
+      selectedRetargetLibraryId.value = ''
+      selectedRetargetLibraryClip.value = null
+    }
+  } else {
+    selectedRetargetLibraryClip.value = null
+    retargetMessage.value = retargetSourceRoot.value
+      ? 'Usando a animação do arquivo GLB carregado.'
+      : 'Carregue um GLB animado ou escolha uma animação da biblioteca.'
+  }
+  retargetBoneMap.value = {}
+}
+
+function setRetargetBoneMapping(sourceName: string, targetName: string) {
+  retargetBoneMap.value = { ...retargetBoneMap.value, [sourceName]: targetName }
+}
+
+function retargetableAssetForCurrentSource(): ReusableAnimationAsset | null {
+  const libraryAsset = retargetLibraryAsset.value
+  if (libraryAsset) {
+    return {
+      ...libraryAsset,
+      name: retargetClipName.value.trim() || libraryAsset.name,
+      role: rigClipRole.value,
+    }
+  }
+  const root = retargetSourceRoot.value
+  const clip = retargetSourceClip.value
+  if (!root || !clip) return null
+  const asset = createReusableAnimationAsset(
+    root,
+    clip,
+    retargetSourceFileName.value || root.name || 'Modelo de origem',
+    rigClipRole.value,
+  )
+  asset.name = retargetClipName.value.trim() || asset.name
+  return asset
+}
+
+function saveRetargetAnimationToLibrary() {
+  const root = retargetSourceRoot.value
+  const clip = retargetSourceClip.value
+  if (!root || !clip || selectedRetargetLibraryId.value) {
+    retargetMessage.value = 'Carregue uma animação de um arquivo GLB antes de guardá-la na biblioteca.'
+    return
+  }
+  try {
+    const asset = createReusableAnimationAsset(
+      root,
+      clip,
+      retargetSourceFileName.value || root.name || 'Modelo de origem',
+      rigClipRole.value,
+    )
+    asset.name = retargetClipName.value.trim() || asset.name
+    retargetLibrary.value = [...retargetLibrary.value, asset]
+    if (persistRetargetAnimationLibrary()) {
+      retargetMessage.value = `"${asset.name}" foi guardada na biblioteca local e poderá ser usada em outros modelos.`
+    }
+  } catch (cause) {
+    retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível guardar essa animação.'
+  }
+}
+
+function deleteRetargetLibraryAsset() {
+  const id = selectedRetargetLibraryId.value
+  if (!id) return
+  retargetLibrary.value = retargetLibrary.value.filter(asset => asset.id !== id)
+  selectedRetargetLibraryId.value = ''
+  selectedRetargetLibraryClip.value = null
+  retargetBoneMap.value = {}
+  if (persistRetargetAnimationLibrary()) retargetMessage.value = 'Animação removida da biblioteca local.'
+}
+
+function applyRetargetedAnimation() {
+  const root = model.value
+  const clip = retargetSourceClip.value
+  const targetBones = retargetTargetBones.value
+  if (!root || !clip || targetBones.length === 0) {
+    retargetMessage.value = 'O modelo de destino precisa ter um rig. Crie o rig ou carregue um modelo que já possua ossos.'
+    return
+  }
+
+  const asset = retargetableAssetForCurrentSource()
+  if (!asset) {
+    retargetMessage.value = 'Carregue um GLB animado ou escolha uma animação da biblioteca.'
+    return
+  }
+
+  try {
+    previewMixer?.stopAllAction()
+    if (rigBones.value.length && Object.keys(rigRestPose.value).length > 0) {
+      applyRigPose(targetBones, rigRestPose.value)
+    }
+    root.updateWorldMatrix(true, true)
+    const targetHeight = originalHeight.value > 1e-5
+      ? originalHeight.value
+      : Math.max(0.1, new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3()).y)
+    const name = retargetClipName.value.trim() || asset.name || clip.name || 'Animação reutilizada'
+    const result = retargetAnimationClip(asset, targetBones, retargetBoneMap.value, name, targetHeight)
+    const currentClips = [...((root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? previewAnimations.value)]
+    const newIndex = currentClips.length
+    currentClips.push(result.clip)
+    const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
+    root.userData.importNeedsReexport = true
+    root.userData.importAnimations = currentClips
+    root.userData.importAnimationRoles = nextRoles
+    animationRoles.value = nextRoles
+    animationClipRevision.value += 1
+    previewAnimationIndex.value = newIndex
+    refreshModelDiagnostics()
+    selectPreviewAnimation(newIndex)
+    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) transferida(s)${result.skippedTracks.length ? `; ${result.skippedTracks.length} trilha(s) ignorada(s) por falta de mapeamento compatível` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
+  } catch (cause) {
+    retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
+  }
+}
+
+watch(
+  () => [
+    selectedRetargetLibraryId.value,
+    retargetSourceClip.value?.uuid ?? '',
+    retargetSourceNodeNames.value.join('|'),
+    retargetTargetBones.value.map(bone => bone.name).join('|'),
+  ].join('::'),
+  () => {
+    const next: Record<string, string> = {}
+    const targets = retargetTargetBones.value
+    for (const sourceName of retargetSourceNodeNames.value) {
+      next[sourceName] = suggestTargetBone(sourceName, targets)
+    }
+    retargetBoneMap.value = next
+    if (retargetSourceClip.value && !retargetClipName.value.trim()) {
+      retargetClipName.value = retargetSourceClip.value.name || 'Animação reutilizada'
+    }
+  },
+)
 
 function selectPreviewAnimation(index: number) {
   previewAnimationIndex.value = index
@@ -2332,6 +2637,54 @@ onBeforeUnmount(() => {
           <section v-if="activeSetupTab === 'rigging'" class="model-panel-section model-rigging-section">
             <div class="model-panel-heading"><span>04</span> RIGGING E ANIMAÇÃO POR OSSOS <b>{{ rigBones.length }}</b></div>
             <p class="model-panel-hint">Crie um esqueleto para modelos estáticos ou use os ossos de um modelo que já seja rigado. Depois ajuste a pose dos ossos e grave quadros-chave em tempos diferentes.</p>
+            <div class="model-retarget-panel">
+              <div class="model-rigging-subtitle">CAPTURAR E REUTILIZAR ANIMAÇÕES</div>
+              <p class="model-panel-hint">Carregue um GLB animado de outro modelo, guarde o movimento na biblioteca e transfira as rotações para os ossos do rig atual. O arquivo original pode ser fechado depois de salvar na biblioteca.</p>
+              <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="chooseRetargetAnimationSource" />
+              <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
+              <p v-if="retargetSourceFileName" class="model-retarget-source">Origem: <strong>{{ retargetSourceFileName }}</strong></p>
+              <label v-if="retargetSourceRoot" class="model-rigging-field">Animação extraída
+                <select v-model.number="retargetSourceClipIndex" @change="onRetargetSourceClipChanged">
+                  <option v-for="(clip, index) in retargetSourceClips" :key="clip.uuid" :value="index">{{ clip.name || ('Animação ' + (index + 1)) }} · {{ clip.duration.toFixed(2) }} s</option>
+                </select>
+              </label>
+              <label class="model-rigging-field">Biblioteca local de animações
+                <select :value="selectedRetargetLibraryId" @change="selectRetargetLibraryAsset(($event.target as HTMLSelectElement).value)">
+                  <option value="">Usar arquivo GLB carregado acima</option>
+                  <option v-for="asset in retargetLibrary" :key="asset.id" :value="asset.id">{{ asset.name }} · {{ asset.duration.toFixed(2) }} s</option>
+                </select>
+              </label>
+              <button v-if="selectedRetargetLibraryId" type="button" class="model-rigging-secondary" @click="deleteRetargetLibraryAsset">Excluir da biblioteca local</button>
+              <label v-if="retargetSourceClip" class="model-rigging-field">Nome do clipe no modelo de destino
+                <input v-model.trim="retargetClipName" maxlength="80" placeholder="Ex.: Caminhada reutilizada" />
+              </label>
+              <label v-if="retargetSourceClip" class="model-rigging-field">Papel no jogo
+                <select v-model="rigClipRole">
+                  <option v-for="role in animationRoleBaseOptions.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
+                </select>
+              </label>
+              <div v-if="retargetSourceClip && retargetSourceNodeNames.length" class="model-retarget-mapping-wrap">
+                <div class="model-rigging-subtitle">MAPEAR OSSOS DE ORIGEM → RIG ATUAL <span>{{ retargetSourceNodeNames.length }}</span></div>
+                <p class="model-panel-hint">O sistema sugere nomes parecidos automaticamente. Ajuste as associações manualmente; “Ignorar” deixa o osso sem transferência.</p>
+                <div class="model-retarget-mappings">
+                  <label v-for="sourceName in retargetSourceNodeNames" :key="sourceName" class="model-retarget-map-row">
+                    <span :title="sourceName">{{ sourceName }}</span>
+                    <select :value="retargetBoneMap[sourceName] ?? ''" :disabled="retargetTargetBones.length === 0" @change="setRetargetBoneMapping(sourceName, ($event.target as HTMLSelectElement).value)">
+                      <option value="">Ignorar</option>
+                      <option v-for="bone in retargetTargetBones" :key="bone.uuid" :value="bone.name">{{ bone.name }}</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <p v-else-if="retargetSourceClip" class="model-control-note">Nenhuma trilha de posição, rotação ou escala compatível foi encontrada neste clipe.</p>
+              <div class="model-retarget-actions">
+                <button type="button" class="model-rigging-secondary" :disabled="!retargetSourceRoot || !retargetSourceClip || !!selectedRetargetLibraryId || retargetLoading" @click="saveRetargetAnimationToLibrary">Guardar na biblioteca</button>
+                <button type="button" class="model-rigging-primary" :disabled="!model || !retargetSourceClip || !retargetTargetBones.length || !hasRetargetMapping || isReadOnlyPreview || retargetLoading" @click="applyRetargetedAnimation">Retargetar e adicionar ao rig</button>
+              </div>
+              <p class="model-control-note">A biblioteca fica salva neste aplicativo/dispositivo. Depois de carregar outro modelo e preparar o rig dele, selecione aqui a animação salva, refaça o mapeamento de ossos se necessário e aplique.</p>
+              <p v-if="retargetMessage" class="model-rigging-status">{{ retargetMessage }}</p>
+            </div>
+            <div class="model-rigging-separator"></div>
             <label class="model-rigging-field">Modelo de rig
               <select v-model="rigPreset" :disabled="!model || !!props.initialAsset || loading" title="Escolha a estrutura de rig sugerida para o tipo de modelo selecionado.">
                 <option v-for="option in rigPresetOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -2743,7 +3096,7 @@ onBeforeUnmount(() => {
 .model-file-input{display:none}.model-file-dropzone{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;padding:13px 10px;border:1px dashed #4a505c;border-radius:5px;background:#20242b;color:#d9dde5;text-align:left;cursor:pointer}.model-file-dropzone:hover{border-color:#b98255;background:#29251f}.model-file-dropzone:disabled{opacity:.5;cursor:wait}.model-dropzone-icon{display:grid;place-items:center;width:28px;height:28px;border:1px solid #66503c;border-radius:4px;background:#33271e;color:#e1aa78;font-size:19px}.model-file-dropzone strong{font-size:10px}.model-file-dropzone small{color:#929aa7;font-size:9px}.model-dropzone-formats{color:#b7bdc8;font-size:8px;line-height:1.5}.model-hierarchy-section{padding-top:14px}.model-preview-parts{display:flex;flex-direction:column;gap:3px;max-height:none;overflow:visible}.model-preview-part{display:flex;align-items:center;gap:2px;min-width:0;padding:3px;border:1px solid transparent;border-radius:3px;background:transparent}.model-preview-part:hover{background:#252930}.model-preview-part.is-selected{border-color:#805b3d;background:#34291f}.model-preview-part-select{display:flex;align-items:center;gap:5px;flex:1;min-width:0;padding:4px 2px;border:0;background:transparent;color:#d5dae3;text-align:left;cursor:pointer}.model-preview-part-index{color:#727c8b;font:8px ui-monospace,monospace}.model-tree-cube{color:#d4a171;font-size:12px}.model-preview-part-name{flex:1;min-width:0;overflow:hidden;color:#cfd4de;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-preview-part-select small{flex:none;color:#8d96a5;font-size:8px}.model-preview-part-eye,.model-preview-part-solo{width:20px;height:21px;flex:none;border:1px solid #3b414b;border-radius:3px;background:#262a31;color:#b8c0cc;font-size:9px;cursor:pointer}.model-preview-part-solo.active{border-color:#ba8759;color:#f3c79f}.model-preview-part-delete{width:19px;height:21px;flex:none;border:1px solid transparent;border-radius:3px;background:transparent;color:#a77c78;font-size:15px;line-height:1;cursor:pointer}.model-preview-part-delete:hover{border-color:#6a3936;background:#3c2525;color:#ffb7ad}.model-preview-show-all{width:100%;margin-top:8px;padding:7px;border:1px solid #3c424d;border-radius:3px;background:#272b33;color:#c5cbd5;font-size:9px;cursor:pointer}.model-hierarchy-empty{display:flex;flex-direction:column;align-items:center;padding:24px 10px;text-align:center;color:#697382}.model-hierarchy-empty>span{font-size:25px;color:#4d5664}.model-hierarchy-empty p{margin:8px 0 4px;color:#aab1bd;font-size:10px}.model-hierarchy-empty small{font-size:9px;line-height:1.5}
 .model-import-center-panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:#13151a}.model-viewport-topline,.model-viewport-statusbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:31px;padding:0 12px;background:#1b1e24;color:#87909e;font:8px ui-monospace,monospace;letter-spacing:.07em}.model-viewport-topline{border-bottom:1px solid #2b3038}.model-viewport-topline span:first-child,.model-viewport-statusbar span:first-child{display:flex;align-items:center;gap:7px}.model-viewport-topline i,.model-viewport-statusbar i{width:5px;height:5px;border-radius:50%;background:#bd8a60}.model-viewport-statusbar{border-top:1px solid #2b3038;letter-spacing:0}.model-viewport-statusbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.model-viewport-statusbar span:last-child{color:#8d96a4}.model-viewport-statusbar b{color:#555e6b}
 .model-import-preview{position:relative;flex:1;min-height:280px;overflow:hidden;background-color:#171a20;background-image:radial-gradient(#343943 0.7px,transparent .7px);background-size:18px 18px}.model-import-preview canvas{display:block;width:100%;height:100%;min-height:280px;outline:0}.model-import-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:#171a20b8;pointer-events:none}.model-import-empty button{pointer-events:auto}.upload-glyph{display:grid;place-items:center;width:53px;height:53px;border:1px solid #555d6b;border-radius:9px;background:#22262e;color:#d7a06d;font-size:30px}.model-import-empty strong{font-size:14px;font-weight:600;color:#e1e4ea}.model-import-empty small{color:#929aa8;font-size:10px}.model-import-empty .model-import-primary{margin-top:4px}.preview-animation-controls{position:absolute;top:10px;right:10px;display:flex;align-items:flex-end;gap:6px;padding:7px;border:1px solid #414752;border-radius:4px;background:#1b1e24ed}.preview-animation-controls label{display:flex;flex-direction:column;gap:4px;color:#d4a171;font:8px ui-monospace,monospace;letter-spacing:.06em}.preview-animation-controls select{max-width:210px;padding:6px;border:1px solid #414752;border-radius:3px;background:#252932;color:#e0e4eb;font-size:9px}.preview-animation-controls button{padding:6px 8px;border:1px solid #9b704d;border-radius:3px;background:#493526;color:#ffe0c3;font-size:9px;cursor:pointer}.preview-animation-empty{position:absolute;top:10px;right:10px;padding:7px;border:1px solid #414752;border-radius:4px;background:#1b1e24ed;color:#aeb5c1;font-size:9px}.preview-badge{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #414752;border-radius:3px;background:#1b1e24e8;color:#c2c9d4;font:8px ui-monospace,monospace;letter-spacing:.1em;pointer-events:none}.model-live-dot{width:5px;height:5px;border-radius:50%;background:#82bd9c}.preview-dimensions{position:absolute;bottom:35px;left:12px;padding:7px 9px;border:1px solid #414752;border-radius:3px;background:#1b1e24ed;color:#e0e4eb;font:9px ui-monospace,monospace;pointer-events:none}.preview-dimensions b{color:#606a78}.preview-dimensions small{margin-left:4px;color:#8d96a4;font-size:8px}.model-viewport-controls{position:absolute;right:10px;bottom:10px;display:flex;gap:10px;color:#7e8795;font:7px ui-monospace,monospace;pointer-events:none}.model-import-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:#13151aeb;color:#e2e5ec;font-size:12px}.model-import-loading small{color:#8f98a6;font-size:9px}.model-loading-spinner{width:25px;height:25px;border:2px solid #414752;border-top-color:#d4a171;border-radius:50%;animation:model-import-spin .8s linear infinite}@keyframes model-import-spin{to{transform:rotate(360deg)}}
-.model-rigging-field{display:flex;flex-direction:column;gap:5px;margin-top:9px;color:#aeb6c4;font-size:10px}.model-rigging-field input,.model-rigging-field select{width:100%;box-sizing:border-box;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;padding:8px;font:10px Inter,ui-sans-serif,system-ui,sans-serif}.model-rigging-primary,.model-rigging-secondary{width:100%;margin-top:8px;padding:8px;border:1px solid #9b704d;border-radius:4px;background:#493526;color:#ffe0c3;font-size:10px;font-weight:650;cursor:pointer}.model-rigging-secondary{border-color:#424752;background:#252932;color:#d1d5dd}.model-rigging-primary:disabled,.model-rigging-secondary:disabled{opacity:.45;cursor:not-allowed}.model-rigging-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:11px}.model-rigging-summary span{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid #343943;border-radius:4px;background:#202329}.model-rigging-summary small{color:#8f98a6;font-size:8px}.model-rigging-summary strong{color:#e2ad7c;font:600 14px ui-monospace,monospace}.model-rigging-rotation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.model-rigging-subtitle{grid-column:1/-1;margin-top:8px;color:#c69b75;font-size:9px;font-weight:750;letter-spacing:.08em}.model-rigging-rotation label{display:flex;flex-direction:column;gap:4px;color:#aeb6c4;font-size:9px}.model-rigging-rotation input{min-width:0;width:100%;box-sizing:border-box;padding:7px 4px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:10px ui-monospace,monospace}.model-rigging-frames{display:flex;flex-direction:column;gap:4px;margin-top:8px}.model-rigging-frames button{display:flex;justify-content:space-between;gap:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#202329;color:#d1d5dd;font-size:9px;cursor:pointer}.model-rigging-frames button.active{border-color:#9b704d;background:#34291f}.model-rigging-frames span{color:#999fac}.model-rigging-separator{height:1px;margin:13px 0;background:#30343c}.model-rigging-status{padding:8px;border:1px solid #4d4538;border-radius:4px;background:#28251f;color:#e2c7a9;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
+.model-retarget-panel{margin:14px 0 16px;padding:11px;border:1px solid #41414a;border-radius:5px;background:#1b1e24}.model-retarget-source{margin:7px 0;color:#8e98a7;font-size:9px;overflow-wrap:anywhere}.model-retarget-source strong{color:#d7dce5;font-weight:600}.model-retarget-mapping-wrap{margin-top:11px;padding-top:7px;border-top:1px solid #343943}.model-retarget-mapping-wrap .model-rigging-subtitle{display:flex;justify-content:space-between;gap:8px}.model-retarget-mapping-wrap .model-rigging-subtitle span{color:#aeb6c4}.model-retarget-mappings{display:flex;flex-direction:column;gap:5px;max-height:240px;overflow:auto;margin-top:7px;padding-right:2px}.model-retarget-map-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:7px;color:#b5bdc9;font-size:9px}.model-retarget-map-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.model-retarget-map-row select{width:100%;min-width:0;padding:6px 5px;border:1px solid #3a414d;border-radius:3px;background:#20242c;color:#e3e7ee;font-size:9px}.model-retarget-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}.model-retarget-actions button{height:100%;min-height:35px;line-height:1.4}.model-rigging-field{display:flex;flex-direction:column;gap:5px;margin-top:9px;color:#aeb6c4;font-size:10px}.model-rigging-field input,.model-rigging-field select{width:100%;box-sizing:border-box;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;padding:8px;font:10px Inter,ui-sans-serif,system-ui,sans-serif}.model-rigging-primary,.model-rigging-secondary{width:100%;margin-top:8px;padding:8px;border:1px solid #9b704d;border-radius:4px;background:#493526;color:#ffe0c3;font-size:10px;font-weight:650;cursor:pointer}.model-rigging-secondary{border-color:#424752;background:#252932;color:#d1d5dd}.model-rigging-primary:disabled,.model-rigging-secondary:disabled{opacity:.45;cursor:not-allowed}.model-rigging-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:11px}.model-rigging-summary span{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid #343943;border-radius:4px;background:#202329}.model-rigging-summary small{color:#8f98a6;font-size:8px}.model-rigging-summary strong{color:#e2ad7c;font:600 14px ui-monospace,monospace}.model-rigging-rotation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.model-rigging-subtitle{grid-column:1/-1;margin-top:8px;color:#c69b75;font-size:9px;font-weight:750;letter-spacing:.08em}.model-rigging-rotation label{display:flex;flex-direction:column;gap:4px;color:#aeb6c4;font-size:9px}.model-rigging-rotation input{min-width:0;width:100%;box-sizing:border-box;padding:7px 4px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:10px ui-monospace,monospace}.model-rigging-frames{display:flex;flex-direction:column;gap:4px;margin-top:8px}.model-rigging-frames button{display:flex;justify-content:space-between;gap:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#202329;color:#d1d5dd;font-size:9px;cursor:pointer}.model-rigging-frames button.active{border-color:#9b704d;background:#34291f}.model-rigging-frames span{color:#999fac}.model-rigging-separator{height:1px;margin:13px 0;background:#30343c}.model-rigging-status{padding:8px;border:1px solid #4d4538;border-radius:4px;background:#28251f;color:#e2c7a9;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
 .model-import-right-panel .model-panel-section{padding:15px 13px}.model-height-label{display:flex;align-items:center;justify-content:space-between;color:#c4cad4;font-size:10px}.model-height-label strong{color:#e2ad7c;font:600 15px ui-monospace,monospace}.model-height-label strong small{font-size:9px;color:#9a8068}.model-height-entry{display:flex;align-items:center;gap:8px;margin-top:9px}.model-height-number{width:100%;min-width:0;padding:8px 9px;border:1px solid #424854;border-radius:3px;background:#202329;color:#e4e8ef;font:600 12px ui-monospace,monospace}.model-height-number:focus{outline:1px solid #b27e50;border-color:#b27e50}.model-height-number:disabled{opacity:.4}.model-height-entry span{flex-shrink:0;color:#8e96a4;font-size:9px}.model-height-unit-note{margin:6px 0 0;color:#888f9c;font-size:9px;line-height:1.4}.model-height-slider{width:100%;margin:17px 0 13px;accent-color:#cb925e;cursor:pointer}.model-height-slider:disabled{opacity:.4}.model-height-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.model-height-presets button{padding:7px 2px;border:1px solid #3c424c;border-radius:3px;background:#252931;color:#b9c0cb;font-size:9px;cursor:pointer}.model-height-presets button.active{border-color:#9b704d;background:#3a2c22;color:#f2c79f}.model-height-presets button:disabled{opacity:.4;cursor:default}.model-import-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:15px}.model-import-dimensions>div{display:flex;flex-direction:column;gap:7px;padding:8px 5px;border:1px solid #343943;border-radius:3px;background:#202329;min-width:0}.model-import-dimensions small{font-size:7px;color:#8c95a3;letter-spacing:.04em}.model-import-dimensions strong{overflow:hidden;font:600 11px ui-monospace,monospace;color:#e0e4eb;text-overflow:ellipsis}.model-asset-info-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #2b3038;color:#8f98a6;font-size:9px}.model-asset-info-row:last-child{border-bottom:0}.model-asset-info-row strong{max-width:65%;overflow:hidden;color:#cbd1db;font-size:9px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}.model-import-error{margin:10px;padding:9px;border:1px solid #743d3a;border-radius:4px;background:#3a2526;color:#ffb6ae;font-size:10px;line-height:1.5;overflow-wrap:anywhere}.model-import-tip{margin:0 13px 14px;color:#7f8997;font-size:9px;line-height:1.6}
 .model-diagnostics{margin:0;border:1px solid #343943;border-radius:4px;background:#202329;padding:9px}.model-diagnostics summary{cursor:pointer;color:#c6cbd4;font-size:9px;font-weight:800;letter-spacing:.06em}.model-diagnostics-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:10px}.model-diagnostics-summary span{display:flex;justify-content:space-between;gap:4px;padding:5px;background:#292d35;border-radius:3px;color:#9da5b2;font-size:9px}.model-diagnostics-summary b{color:#f1bd85}.model-diagnostics-hint{color:#929aa8;font-size:9px;line-height:1.5}.model-diagnostics-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}.model-texture-repair p{margin:7px 0;color:#929aa8;font-size:9px;line-height:1.5}.model-texture-repair-item{display:grid;grid-template-columns:1fr;gap:5px;margin-top:8px;padding:7px;border:1px solid #343943;border-radius:4px;background:#20232a}.model-texture-repair-item label{color:#dce0e8;font-size:9px}.model-texture-repair-item select{width:100%;padding:7px;border:1px solid #414752;border-radius:4px;background:#191c22;color:#e7e9ef;font-size:10px}.model-texture-repair-item button{padding:7px;border:1px solid #a66e3d;border-radius:4px;background:#3d3025;color:#ffd2a3;font-size:10px;cursor:pointer}.model-texture-repair-item button:disabled{opacity:.45;cursor:wait}.model-texture-repair-message{display:block;margin-top:8px;color:#d9b58f;font-size:9px;line-height:1.5}.model-diagnostic-row{padding:6px;border:1px solid #343943;border-radius:3px;background:#191c22}.model-diagnostic-title{display:flex;gap:6px;min-width:0;align-items:center}.model-diagnostic-title b{flex:none;color:#d49b62;font-size:8px}.model-diagnostic-title span{overflow:hidden;color:#dce0e8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.model-diagnostic-row small{display:block;margin-top:4px;color:#929aa8;font-size:8px;line-height:1.45;overflow-wrap:anywhere}
 .model-import-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;padding:9px 16px;border-top:1px solid #343944;background:#1d2026;color:#969eac;font-size:10px}.model-footer-state{display:flex;align-items:center;gap:8px}.model-footer-actions{display:flex;gap:8px}.model-import-primary,.model-import-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border-radius:4px;font-size:10px;font-weight:650;cursor:pointer}.model-import-primary{border:1px solid #d19a64;background:#d19a64;color:#211911}.model-import-primary:hover:not(:disabled){background:#e0ad7d}.model-import-primary:disabled{opacity:.4;cursor:not-allowed}.model-import-secondary{border:1px solid #424752;background:#252932;color:#d1d5dd}.model-import-secondary:hover{background:#333842}
