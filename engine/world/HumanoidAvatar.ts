@@ -538,7 +538,6 @@ export class HumanoidAvatar {
         displacement.copy(requestedDirection).multiplyScalar(speed * step)
       }
       const direction = displacement
-      const oldFeetY = this.mesh.position.y
       const horizontalMovementBounds = this.getHorizontalMovementBounds()
 
       // Faça a varredura horizontal em incrementos pequenos. Um único teste no
@@ -617,12 +616,24 @@ export class HumanoidAvatar {
       terrainDrop >= -0.08 &&
       terrainDrop <= Math.max(0.32, speed * step * 1.5)
 
+    // Acompanha também descidas pequenas em malhas importadas, sem esperar
+    // que a gravidade alcance a superfície. Isso evita alternar entre andar e cair
+    // quando o piso é estreito ou a rampa desce menos por quadro que a gravidade.
+    const objectDropLimit = Math.max(0.32, speed * step * 1.5)
+    const canFollowObjectSlopeDown = wasGrounded &&
+      length > 0 &&
+      landing !== null &&
+      this.verticalVelocity <= 0 &&
+      landing <= oldY + 0.08 &&
+      landing >= oldY - objectDropLimit
+
     const canLandOnObject = landing !== null &&
       this.verticalVelocity <= 0 &&
       landing >= newGroundY &&
       (
         nextY <= landing + 0.05 ||
-        (wasGrounded && length > 0 && landing >= oldY - 0.3 && landing <= oldY + 0.5)
+        (wasGrounded && length > 0 && landing >= oldY - 0.3 && landing <= oldY + 0.52) ||
+        canFollowObjectSlopeDown
       )
 
     // Plataformas/rampas têm prioridade sobre o terreno base. Caso contrário,
@@ -2539,12 +2550,12 @@ export class HumanoidAvatar {
         const blocked = visitStaticMeshTriangles(root, queryBox, triangle => {
           triangle.getNormal(normal).normalize()
           if (blockCeilings) {
-            // A head-volume query blocks ceilings independently of triangle winding.
-            return Math.abs(normal.y) >= 0.45 && queryBox.intersectsTriangle(triangle)
+            // Teto inclinado também pode estar invertido no arquivo de origem.
+            return Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y && queryBox.intersectsTriangle(triangle)
           }
-          // Ignore horizontal floor/roof faces during horizontal movement; the
-          // landing solver uses downward BVH raycasts to find their real height.
-          if (normal.y >= 0.45 || normal.y <= -0.82) return false
+          // Piso e rampas são tratados pelas sondas verticais; somente faces
+          // relativamente verticais bloqueiam o deslocamento horizontal.
+          if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) return false
           return queryBox.intersectsTriangle(triangle)
         })
         if (blocked) return true
@@ -2621,15 +2632,17 @@ export class HumanoidAvatar {
           triangle.getNormal(normal).normalize()
 
           if (root.userData.importedModel === true) {
-            // No salto, somente faces voltadas para baixo bloqueiam a cabeça.
+            // No salto, superfícies de teto bloqueiam mesmo que a triangulação
+            // tenha winding invertido; paredes verticais são filtradas pela normal.
             if (blockCeilings) {
-              if (Math.abs(normal.y) < 0.45 || normal.y > 0.45) continue
+              if (Math.abs(normal.y) < WALKABLE_SURFACE_NORMAL_Y) continue
               if (playerBox.intersectsTriangle(triangle)) return true
               continue
             }
 
-            // A decisão horizontal não deve filtrar normais inclinadas: modelos
-            // low-poly têm triângulos oblíquos que ainda formam paredes sólidas.
+            // Não trate um piso/rampa como parede quando o volume dos pés o toca.
+            // Faces laterais continuam bloqueando, inclusive em modelos low-poly.
+            if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) continue
             if (playerBox.intersectsTriangle(triangle)) return true
 
             // Complementa o teste da caixa com pontos ao longo do corpo. Isso
@@ -2644,8 +2657,8 @@ export class HumanoidAvatar {
             // Para primitivas e plataformas, preservar o tratamento de piso,
             // rampa e teto já existente.
             if (blockCeilings) {
-              if (normal.y > -0.45) continue
-            } else if (normal.y >= 0.45) {
+              if (normal.y > -WALKABLE_SURFACE_NORMAL_Y) continue
+            } else if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) {
               continue
             }
             triangle.closestPointToPoint(center, closest)
