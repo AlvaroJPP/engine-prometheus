@@ -79,13 +79,14 @@ type ModelImportPayload = {
   batchModels?: ModelImportBatchItem[]
 }
 
-const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
+const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: 'object' | 'entity'; libraryType?: 'object' | 'animated-model' | 'animation-source'; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null; animationSourceAsset?: { id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType?: 'animation-source' } | null }>()
 const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
 const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
 
 const emit = defineEmits<{
   close: []
   'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
+  'save-animation-source': [payload: { name: string; bytes: ArrayBuffer; height: number }]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -311,6 +312,7 @@ watch(skinTokensExecutablePath, value => {
 const RETARGET_ANIMATION_LIBRARY_KEY = 'engine-prometheus.reusable-animations.v1'
 const retargetFileInput = ref<HTMLInputElement | null>(null)
 const retargetSourceRoot = shallowRef<THREE.Object3D | null>(null)
+const retargetSourceBytes = shallowRef<ArrayBuffer | null>(null)
 const retargetSourceFileName = ref('')
 const retargetSourceClipIndex = ref(0)
 const retargetLibrary = ref<ReusableAnimationAsset[]>([])
@@ -2157,6 +2159,7 @@ watch(() => props.open, async (open) => {
         const loaded = await parseGlbBytes(props.initialAsset.bytes.slice(0))
         loaded.userData.importAnimationRoles = props.initialAsset.animationRoles
         loaded.userData.importControlBindings = props.initialAsset.controlBindings
+        loaded.userData.importHasModifiedAnimations = props.initialAsset.libraryType === 'animated-model'
         fileName.value = props.initialAsset.name
         await showLoadedModel(loaded, props.initialAsset.name, props.initialAsset.height ?? 2)
 
@@ -2246,6 +2249,7 @@ function persistRetargetAnimationLibrary() {
 function clearRetargetSource() {
   const previous = retargetSourceRoot.value
   retargetSourceRoot.value = null
+  retargetSourceBytes.value = null
   if (previous) disposeModel(previous)
   retargetSourceFileName.value = ''
   retargetSourceClipIndex.value = 0
@@ -2266,7 +2270,9 @@ async function chooseRetargetAnimationSource(event: Event) {
     if (!file.name.toLowerCase().endsWith('.glb')) {
       throw new Error('Escolha um arquivo GLB com animações incorporadas.')
     }
-    const loaded = await parseGlbBytes(await file.arrayBuffer())
+    const sourceBytes = await file.arrayBuffer()
+    const loaded = await parseGlbBytes(sourceBytes)
+    loaded.userData.importSourceGlbBytes = sourceBytes.slice(0)
     loaded.updateWorldMatrix(true, true)
     const clips = (loaded.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
     if (clips.length === 0) {
@@ -2287,6 +2293,7 @@ async function chooseRetargetAnimationSource(event: Event) {
 
     clearRetargetSource()
     retargetSourceRoot.value = loaded
+    retargetSourceBytes.value = sourceBytes.slice(0)
     retargetSourceFileName.value = file.name
     retargetSourceClipIndex.value = 0
     retargetClipName.value = clips[0]?.name?.trim() || file.name.replace(/\.glb$/i, '')
@@ -2320,6 +2327,7 @@ function selectRetargetLibraryAsset(id: string) {
       if (retargetSourceRoot.value) {
         const previous = retargetSourceRoot.value
         retargetSourceRoot.value = null
+        retargetSourceBytes.value = null
         disposeModel(previous)
       }
       retargetSourceFileName.value = ''
@@ -2731,6 +2739,7 @@ function applyRetargetedAnimation() {
     else currentClips.push(result.clip)
     const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
     root.userData.importNeedsReexport = true
+    root.userData.importHasModifiedAnimations = true
     root.userData.importAnimations = currentClips
     // A transferência muda ossos, não deve ocultar as malhas ligadas ao rig.
     restoreModelRenderableMeshes(root)
@@ -3533,6 +3542,7 @@ onBeforeUnmount(() => {
               <p class="model-panel-hint">Carregue um GLB animado de outro modelo, guarde o movimento na biblioteca e transfira as rotações para os ossos do rig atual. O arquivo original pode ser fechado depois de salvar na biblioteca.</p>
               <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="chooseRetargetAnimationSource" />
               <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading || retargetAutonomousLoading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
+              <button v-if="retargetSourceRoot && retargetSourceBytes" type="button" class="model-rigging-secondary model-retarget-save-source" :disabled="retargetLoading || retargetAutonomousLoading" @click="saveRetargetSourceToLibrary">▣ Salvar modelo B na biblioteca de importados</button>
               <p v-if="retargetSourceFileName" class="model-retarget-source">Origem: <strong>{{ retargetSourceFileName }}</strong></p>
               <label v-if="retargetSourceRoot" class="model-rigging-field">Animação extraída
                 <select v-model.number="retargetSourceClipIndex" :disabled="retargetAutonomousLoading" @change="onRetargetSourceClipChanged">
