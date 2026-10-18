@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -300,6 +300,11 @@ const retargetBoneMap = ref<Record<string, string>>({})
 const retargetClipName = ref('')
 const retargetMessage = ref('')
 const retargetLoading = ref(false)
+const retargetSourcePreviewCanvas = ref<HTMLCanvasElement | null>(null)
+const retargetTargetPreviewCanvas = ref<HTMLCanvasElement | null>(null)
+const retargetSourcePreviewPlaying = ref(true)
+const retargetTargetPreviewPlaying = ref(true)
+const retargetPreviewStatus = ref('Selecione uma animação e mapeie os ossos para gerar a prévia no destino.')
 const retargetLibraryAsset = computed(() =>
   retargetLibrary.value.find(asset => asset.id === selectedRetargetLibraryId.value) ?? null,
 )
@@ -1994,6 +1999,244 @@ function retargetableAssetForCurrentSource(): ReusableAnimationAsset | null {
   return asset
 }
 
+type RetargetPreviewStage = {
+  key: 'source' | 'target'
+  renderer: THREE.WebGLRenderer
+  scene: THREE.Scene
+  camera: THREE.PerspectiveCamera
+  controls: OrbitControls
+  resizeObserver: ResizeObserver
+  frame: number
+  clock: THREE.Clock
+  root: THREE.Object3D | null
+  mixer: THREE.AnimationMixer | null
+}
+
+let retargetSourcePreviewStage: RetargetPreviewStage | null = null
+let retargetTargetPreviewStage: RetargetPreviewStage | null = null
+
+// Clones do preview precisam de geometria/material próprios para a limpeza das
+// miniaturas nunca liberar recursos do modelo real que continuará no editor.
+function cloneRetargetPreviewObject(source: THREE.Object3D): THREE.Object3D {
+  const clone = cloneSkinnedModel(source)
+  clone.traverse(node => {
+    if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
+      node.geometry = node.geometry.clone()
+      node.material = Array.isArray(node.material)
+        ? node.material.map(material => material.clone())
+        : node.material.clone()
+    }
+  })
+  return clone
+}
+
+function disposeRetargetPreviewObject(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>()
+  const materials = new Set<THREE.Material>()
+  root.traverse(node => {
+    if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
+      geometries.add(node.geometry)
+      const list = Array.isArray(node.material) ? node.material : [node.material]
+      list.forEach(material => materials.add(material))
+    }
+  })
+  geometries.forEach(geometry => geometry.dispose())
+  // Os materiais são clones; as texturas são referências compartilhadas e não
+  // devem ser descartadas enquanto o modelo principal estiver aberto.
+  materials.forEach(material => material.dispose())
+}
+
+function createRetargetPreviewStage(canvasElement: HTMLCanvasElement, key: 'source' | 'target'): RetargetPreviewStage {
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color('#20232a')
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 1000)
+  const renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true, alpha: false })
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.NoToneMapping
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
+  renderer.setSize(Math.max(1, canvasElement.clientWidth), Math.max(1, canvasElement.clientHeight), false)
+
+  scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 2))
+  const keyLight = new THREE.DirectionalLight(0xffffff, 2.2)
+  keyLight.position.set(4, 8, 6)
+  scene.add(keyLight)
+  const fillLight = new THREE.DirectionalLight(0x9dbaff, 0.75)
+  fillLight.position.set(-5, 3, -4)
+  scene.add(fillLight)
+
+  const controls = new OrbitControls(camera, canvasElement)
+  controls.enableDamping = true
+  controls.enablePan = true
+  const stage: RetargetPreviewStage = {
+    key,
+    renderer,
+    scene,
+    camera,
+    controls,
+    resizeObserver: new ResizeObserver(() => {
+      const width = Math.max(1, canvasElement.clientWidth)
+      const height = Math.max(1, canvasElement.clientHeight)
+      renderer.setSize(width, height, false)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+    }),
+    frame: 0,
+    clock: new THREE.Clock(),
+    root: null,
+    mixer: null,
+  }
+  stage.resizeObserver.observe(canvasElement)
+
+  const renderFrame = () => {
+    stage.frame = requestAnimationFrame(renderFrame)
+    stage.controls.update()
+    const delta = Math.min(stage.clock.getDelta(), 0.1)
+    const playing = stage.key === 'source'
+      ? retargetSourcePreviewPlaying.value
+      : retargetTargetPreviewPlaying.value
+    if (playing) stage.mixer?.update(delta)
+    stage.renderer.render(stage.scene, stage.camera)
+  }
+  stage.clock.start()
+  renderFrame()
+  return stage
+}
+
+function fitRetargetPreviewCamera(stage: RetargetPreviewStage, object: THREE.Object3D) {
+  object.updateWorldMatrix(true, true)
+  const bounds = new THREE.Box3().setFromObject(object)
+  if (bounds.isEmpty()) return
+  const size = bounds.getSize(new THREE.Vector3())
+  const center = bounds.getCenter(new THREE.Vector3())
+  const span = Math.max(size.x, size.y, size.z, 0.1)
+  stage.controls.target.copy(center)
+  stage.camera.position.set(center.x + span * 1.7, center.y + span * 1.1, center.z + span * 2.1)
+  stage.camera.near = Math.max(0.01, span / 1000)
+  stage.camera.far = Math.max(100, span * 100)
+  stage.camera.updateProjectionMatrix()
+  stage.controls.update()
+}
+
+function setRetargetPreviewObject(stage: RetargetPreviewStage, root: THREE.Object3D | null, clip: THREE.AnimationClip | null = null) {
+  if (stage.mixer) {
+    stage.mixer.stopAllAction()
+    if (stage.root) stage.mixer.uncacheRoot(stage.root)
+  }
+  stage.mixer = null
+  if (stage.root) {
+    stage.scene.remove(stage.root)
+    disposeRetargetPreviewObject(stage.root)
+  }
+  stage.root = root
+  if (!root) return
+  stage.scene.add(root)
+  root.updateWorldMatrix(true, true)
+  fitRetargetPreviewCamera(stage, root)
+  if (clip) {
+    stage.mixer = new THREE.AnimationMixer(root)
+    stage.mixer.clipAction(clip).reset().play()
+    stage.clock.start()
+    if (stage.key === 'source') retargetSourcePreviewPlaying.value = true
+    else retargetTargetPreviewPlaying.value = true
+  }
+}
+
+function ensureRetargetPreviewStages() {
+  if (!retargetSourcePreviewStage && retargetSourcePreviewCanvas.value) {
+    retargetSourcePreviewStage = createRetargetPreviewStage(retargetSourcePreviewCanvas.value, 'source')
+  }
+  if (!retargetTargetPreviewStage && retargetTargetPreviewCanvas.value) {
+    retargetTargetPreviewStage = createRetargetPreviewStage(retargetTargetPreviewCanvas.value, 'target')
+  }
+}
+
+function disposeRetargetPreviewStage(stage: RetargetPreviewStage | null) {
+  if (!stage) return
+  cancelAnimationFrame(stage.frame)
+  stage.resizeObserver.disconnect()
+  stage.controls.dispose()
+  stage.mixer?.stopAllAction()
+  if (stage.root) {
+    stage.scene.remove(stage.root)
+    disposeRetargetPreviewObject(stage.root)
+  }
+  stage.scene.clear()
+  stage.renderer.dispose()
+}
+
+function disposeRetargetPreviews() {
+  disposeRetargetPreviewStage(retargetSourcePreviewStage)
+  disposeRetargetPreviewStage(retargetTargetPreviewStage)
+  retargetSourcePreviewStage = null
+  retargetTargetPreviewStage = null
+}
+
+function refreshRetargetSourcePreview() {
+  const stage = retargetSourcePreviewStage
+  const source = retargetSourceRoot.value
+  const clip = retargetSourceClip.value
+  if (!stage || !source || !clip) {
+    if (stage) setRetargetPreviewObject(stage, null)
+    retargetSourcePreviewPlaying.value = false
+    return
+  }
+  setRetargetPreviewObject(stage, cloneRetargetPreviewObject(source), clip)
+  retargetSourcePreviewPlaying.value = true
+}
+
+function refreshRetargetTargetPreview() {
+  const stage = retargetTargetPreviewStage
+  const sourceClip = retargetSourceClip.value
+  const target = model.value
+  if (!stage) return
+  if (!target) {
+    setRetargetPreviewObject(stage, null)
+    retargetPreviewStatus.value = 'Carregue o modelo que receberá a animação.'
+    return
+  }
+
+  const previewModel = cloneRetargetPreviewObject(target)
+  try {
+    const previewBones: THREE.Bone[] = []
+    previewModel.traverse(node => { if (node instanceof THREE.Bone) previewBones.push(node) })
+    if (Object.keys(rigRestPose.value).length > 0) applyRigPose(previewBones, rigRestPose.value)
+    if (!sourceClip) {
+      setRetargetPreviewObject(stage, previewModel)
+      retargetPreviewStatus.value = 'Selecione uma animação de origem.'
+      return
+    }
+    const asset = retargetableAssetForCurrentSource()
+    if (!asset) {
+      setRetargetPreviewObject(stage, previewModel)
+      retargetPreviewStatus.value = 'Não foi possível ler a animação de origem.'
+      return
+    }
+    const bounds = new THREE.Box3().setFromObject(previewModel)
+    const measuredHeight = bounds.isEmpty() ? 0 : bounds.getSize(new THREE.Vector3()).y
+    const targetHeight = originalHeight.value > 1e-5 ? originalHeight.value : Math.max(0.1, measuredHeight)
+    const clipName = retargetClipName.value.trim() || asset.name || sourceClip.name || 'Prévia retargetada'
+    const result = retargetAnimationClip(asset, previewBones, retargetBoneMap.value, clipName, targetHeight)
+    setRetargetPreviewObject(stage, previewModel, result.clip)
+    retargetPreviewStatus.value = 'Prévia no destino: ' + result.mappedTracks + ' trilha(s) transferida(s)' +
+      (result.skippedTracks.length ? '; ' + result.skippedTracks.length + ' ignorada(s).' : '.')
+  } catch (cause) {
+    setRetargetPreviewObject(stage, previewModel)
+    retargetPreviewStatus.value = cause instanceof Error
+      ? cause.message
+      : 'Não foi possível gerar a prévia no modelo de destino.'
+  }
+}
+
+function toggleRetargetSourcePreviewPlayback() {
+  retargetSourcePreviewPlaying.value = !retargetSourcePreviewPlaying.value
+  if (retargetSourcePreviewPlaying.value) retargetSourcePreviewStage?.clock.start()
+}
+
+function toggleRetargetTargetPreviewPlayback() {
+  retargetTargetPreviewPlaying.value = !retargetTargetPreviewPlaying.value
+  if (retargetTargetPreviewPlaying.value) retargetTargetPreviewStage?.clock.start()
+}
+
 function saveRetargetAnimationToLibrary() {
   const root = retargetSourceRoot.value
   const clip = retargetSourceClip.value
@@ -2089,6 +2332,42 @@ watch(
     if (retargetSourceClip.value && !retargetClipName.value.trim()) {
       retargetClipName.value = retargetSourceClip.value.name || 'Animação reutilizada'
     }
+  },
+)
+
+watch(
+  () => [
+    activeSetupTab.value,
+    retargetSourceRoot.value?.uuid ?? '',
+    retargetSourceClip.value?.uuid ?? '',
+    selectedRetargetLibraryId.value,
+  ].join('::'),
+  async () => {
+    await nextTick()
+    if (activeSetupTab.value !== 'rigging' || !retargetSourceClip.value) {
+      disposeRetargetPreviews()
+      return
+    }
+    ensureRetargetPreviewStages()
+    refreshRetargetSourcePreview()
+    refreshRetargetTargetPreview()
+  },
+)
+
+watch(
+  () => [
+    activeSetupTab.value,
+    model.value?.uuid ?? '',
+    retargetSourceClip.value?.uuid ?? '',
+    JSON.stringify(retargetBoneMap.value),
+    retargetTargetBones.value.map(bone => bone.name).join('|'),
+    JSON.stringify(rigRestPose.value),
+  ].join('::'),
+  async () => {
+    await nextTick()
+    if (activeSetupTab.value !== 'rigging' || !retargetSourceClip.value) return
+    ensureRetargetPreviewStages()
+    refreshRetargetTargetPreview()
   },
 )
 
@@ -2483,6 +2762,7 @@ async function confirmImport() {
 }
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', captureControlBindingKey, true)
+  disposeRetargetPreviews()
   disposePreview()
 })
 </script>
@@ -2679,6 +2959,33 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <p v-else-if="retargetSourceClip" class="model-control-note">Nenhuma trilha de posição, rotação ou escala compatível foi encontrada neste clipe.</p>
+              <div v-if="retargetSourceClip" class="model-retarget-previews">
+                <article class="model-retarget-preview-card">
+                  <header class="model-retarget-preview-heading">
+                    <strong>01 · Animação capturada</strong>
+                    <small>{{ retargetSourceClip.name || 'Clipe de origem' }}</small>
+                  </header>
+                  <div class="model-retarget-preview-viewport">
+                    <canvas ref="retargetSourcePreviewCanvas" aria-label="Prévia da animação capturada no modelo de origem"></canvas>
+                    <div v-if="!retargetSourceRoot" class="model-retarget-preview-overlay">
+                      A biblioteca guarda o clipe e as poses, não o modelo original. Carregue o GLB de origem para visualizar este lado.
+                    </div>
+                  </div>
+                  <button type="button" class="model-rigging-secondary model-retarget-preview-play" :disabled="!retargetSourceRoot" @click="toggleRetargetSourcePreviewPlayback">{{ retargetSourcePreviewPlaying ? 'Ⅱ Pausar origem' : '▶ Reproduzir origem' }}</button>
+                </article>
+                <article class="model-retarget-preview-card">
+                  <header class="model-retarget-preview-heading">
+                    <strong>02 · No modelo de destino</strong>
+                    <small>Prévia temporária — ainda não salva</small>
+                  </header>
+                  <div class="model-retarget-preview-viewport">
+                    <canvas ref="retargetTargetPreviewCanvas" aria-label="Prévia da animação retargetada no modelo de destino"></canvas>
+                    <div v-if="!model" class="model-retarget-preview-overlay">Carregue o modelo de destino para ver a animação aplicada a ele.</div>
+                  </div>
+                  <p class="model-retarget-preview-status">{{ retargetPreviewStatus }}</p>
+                  <button type="button" class="model-rigging-secondary model-retarget-preview-play" :disabled="!model" @click="toggleRetargetTargetPreviewPlayback">{{ retargetTargetPreviewPlaying ? 'Ⅱ Pausar destino' : '▶ Reproduzir destino' }}</button>
+                </article>
+              </div>
               <div class="model-retarget-actions">
                 <button type="button" class="model-rigging-secondary" :disabled="!retargetSourceRoot || !retargetSourceClip || !!selectedRetargetLibraryId || retargetLoading" @click="saveRetargetAnimationToLibrary">Guardar na biblioteca</button>
                 <button type="button" class="model-rigging-primary" :disabled="!model || !retargetSourceClip || !retargetTargetBones.length || !hasRetargetMapping || isReadOnlyPreview || retargetLoading" @click="applyRetargetedAnimation">Retargetar e adicionar ao rig</button>
@@ -3177,4 +3484,14 @@ onBeforeUnmount(() => {
 .model-import-batch-save{border-color:#805b3d;color:#f0c69e}
 .model-import-batch-save:hover:not(:disabled){border-color:#bd8a60;background:#34291f}
 .model-import-footer .model-footer-actions{flex-wrap:wrap;justify-content:flex-end}
+.model-retarget-previews{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.model-retarget-preview-card{min-width:0;padding:8px;border:1px solid #343943;border-radius:4px;background:#171a20}
+.model-retarget-preview-heading{display:flex;flex-direction:column;gap:4px;margin-bottom:7px;min-width:0}
+.model-retarget-preview-heading strong{color:#e1e5ed;font-size:9px;font-weight:750}
+.model-retarget-preview-heading small{overflow:hidden;color:#8f98a6;font-size:8px;text-overflow:ellipsis;white-space:nowrap}
+.model-retarget-preview-viewport{position:relative;min-height:140px;overflow:hidden;border:1px solid #303641;border-radius:3px;background:#20232a;background-image:radial-gradient(#343943 .7px,transparent .7px);background-size:14px 14px}
+.model-retarget-preview-viewport canvas{display:block;width:100%;height:140px;outline:0}
+.model-retarget-preview-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:12px;background:#171a20d9;color:#aeb6c4;font-size:9px;line-height:1.5;text-align:center;pointer-events:none}
+.model-retarget-preview-status{margin:7px 0 0;color:#aeb6c4;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
+.model-retarget-preview-play{margin-top:6px}
 </style>
