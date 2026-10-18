@@ -124,6 +124,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   let playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
   let autoPerformanceHealthySamples = 0
+  let lastAutoPerformanceChangeAt = 0
   let runtimeMode = false
   let statusTimer = 0
   let environmentSyncTimer = 0
@@ -362,7 +363,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
     const current = appliedPerformancePreset
     let next = current
+    const frameWorkMs = stats.cpuRenderMs + stats.cpuUpdateMs
+
     if (stats.fps <= 18 || stats.triangles >= 4_000_000) {
+      // Queda severa: reduza o custo imediatamente para evitar travamentos longos.
       next = 'economy'
       autoPerformanceHealthySamples = 0
     } else if (current === 'quality') {
@@ -372,14 +376,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       if (stats.fps < 23 || stats.triangles >= 4_000_000) {
         next = 'economy'
         autoPerformanceHealthySamples = 0
-      } else if (stats.fps >= 52 && stats.triangles < 1_500_000) {
+      } else if (stats.fps >= 40 && frameWorkMs < 16.5 && stats.triangles < 1_500_000) {
+        // O perfil equilibrado limita a 45 FPS; exigir 52 FPS aqui tornava
+        // impossível voltar à qualidade, mesmo quando a GPU tinha folga.
         autoPerformanceHealthySamples += 1
         if (autoPerformanceHealthySamples >= 4) next = 'quality'
       } else {
         autoPerformanceHealthySamples = 0
       }
-    } else if (stats.fps >= 48 && stats.triangles < 2_000_000) {
-      // Só recupera qualidade depois de várias janelas saudáveis para evitar oscilações.
+    } else if (stats.fps >= 26 && frameWorkMs < 21.5 && stats.triangles < 2_000_000) {
+      // O perfil econômico limita a 30 FPS. Use também o tempo de trabalho,
+      // em vez de esperar por 48 FPS que esse próprio perfil não pode alcançar.
       autoPerformanceHealthySamples += 1
       if (autoPerformanceHealthySamples >= 4) next = 'balanced'
     } else {
@@ -387,6 +394,14 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
 
     if (next === current) return
+
+    const rank: Record<AppliedPerformancePreset, number> = { economy: 0, balanced: 1, quality: 2 }
+    const isUpgrade = rank[next] > rank[current]
+    // A troca de perfil altera resolução/LOD e densidade. Um intervalo mínimo
+    // evita saltos visuais em sequência quando a carga está no limite.
+    if (isUpgrade && performance.now() - lastAutoPerformanceChangeAt < 3500) return
+
+    lastAutoPerformanceChangeAt = performance.now()
     appliedPerformancePreset = next
     autoPerformanceHealthySamples = 0
     engine.setPerformancePreset(next)
