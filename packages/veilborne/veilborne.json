@@ -294,7 +294,7 @@
   "runtimeIntegration": {
     "controls": {
       "primaryAction": "quick_attack",
-      "secondaryAction": "heavy_attack",
+      "secondaryAction": "secondaryAction (G default: hold to charge for up to 2 seconds, release to attack)",
       "ability1": "spell_slot_1",
       "ability2": "spell_slot_2",
       "ability3": "spell_slot_3",
@@ -303,7 +303,8 @@
       "sigilCycle": "reload (T in the default WASD profile)",
       "sigilActivate": "useItem (H in the default WASD profile)",
       "block": "block (R in the default WASD profile; hold)",
-      "parry": "parry (Y by default; costs 14 stamina; a successful parry refunds 12 and triggers a weapon-scaled counterattack)"
+      "parry": "parry (Y by default; costs 14 stamina; a successful parry refunds 12 and triggers a weapon-scaled counterattack)",
+      "targetLock": "targetLock (O default for WASD/arrows/ESDF; M for IJKL profile)"
     },
     "playerGlobalVariables": [
       "vida",
@@ -340,7 +341,11 @@
       "res_sombra",
       "res_espirito",
       "res_arcano",
-      "jogador_atordoado"
+      "jogador_atordoado",
+      "alvo_travado",
+      "alvo_veilborne_id",
+      "carregando_ataque",
+      "carga_ataque"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -375,7 +380,12 @@
       "enemy_posture_break_stagger_and_recovery",
       "player_posture_break_stagger_lock",
       "enemy_ai_custom_stats_and_profiles",
-      "enemy_spotted_attack_and_lost_target_events"
+      "enemy_spotted_attack_and_lost_target_events",
+      "target_lock_with_marker_and_facing",
+      "chargeable_heavy_attack",
+      "heavy_attack_charge_state_globals",
+      "player_attack_animation_requests",
+      "player_posture_break_stagger"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
