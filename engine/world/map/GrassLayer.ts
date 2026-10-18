@@ -19,6 +19,7 @@ export type GrassPerformancePreset = 'quality' | 'balanced' | 'economy'
 
 export interface GrassRenderOptions {
   visible?: boolean
+  useDetailedModel?: boolean
   densityPercent?: number
   renderDistanceMode?: 'global' | 'all' | 'custom'
   renderDistance?: number
@@ -309,6 +310,7 @@ export class GrassLayer {
   private renderDirty = true
   private configuredRenderDistance: number | null = GRASS_VIEW_DISTANCE
   private grassRenderDistanceMode: 'global' | 'all' | 'custom' = 'global'
+  private useDetailedGrassModel = true
   private grassCustomRenderDistance = GRASS_VIEW_DISTANCE
   private grassDensityPercent = 100
   private nearDetailDistanceOverride: number | null = null
@@ -1550,7 +1552,7 @@ export class GrassLayer {
         if (bandIndex >= 0) {
           const band = this.renderBands[bandIndex]!
           if (this.paintedHash(tuft) % band.stride === 0) {
-            if (this.modelParts.length > 0 && bandIndex < 2) {
+            if (this.useDetailedGrassModel && this.modelParts.length > 0 && bandIndex < 2) {
               const variant = this.paintedVariant(tuft)
               const instance = this.paintedModelInstance(tuft)
               for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
@@ -1911,6 +1913,10 @@ export class GrassLayer {
     if (options.visible !== undefined && options.visible !== this.mesh.visible) {
       this.mesh.visible = options.visible
       visibilityChanged = true
+    }
+    if (options.useDetailedModel !== undefined && options.useDetailedModel !== this.useDetailedGrassModel) {
+      this.useDetailedGrassModel = options.useDetailedModel
+      rebuild = true
     }
     if (options.densityPercent !== undefined && Number.isFinite(options.densityPercent)) {
       const next = Math.round(THREE.MathUtils.clamp(options.densityPercent, 10, 100))
