@@ -32,6 +32,7 @@ Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetiv
 - Selo Guardião cria uma proteção visual temporária e expõe `ward_remaining` e `ward_absorption`; o consumo real da absorção será conectado quando o sistema de ataques recebidos/IA estiver pronto.
 - Dreno Rubro recupera vida a partir do dano causado; Passo Entre Véus faz um deslocamento curto com consulta de raio contra a geometria da cena.
 - O personagem do jogador usa variáveis globais `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos e `arma_equipada`. Isso permite usar os valores no Visual Script e na HUD já configurável.
+- As esquivas, rolamentos e deslizes existentes agora podem cobrar vigor quando o VEILBORNE está ativo: esquiva 22, rolamento 30 e deslize 24. Sem o pacote, o callback de admissão libera o comportamento normal do avatar.
 - Para se tornar alvo do combate inicial, um objeto precisa ter o componente VEILBORNE instalado. A variável do pacote `faction` usa `hostile` como padrão; `neutral` ou `player` exclui o objeto do alvo automático. Resistências podem ser ajustadas nas variáveis do componente.
 
 ### Ainda em implementação
@@ -40,7 +41,7 @@ A integração inicial já possui ataques físicos, conjuração e ativação b�
 
 ## Próximas etapas de implementação
 
-1. Consumir vigor também em esquivas/bloqueios e adicionar aparo com janela de tempo real.
+1. Adicionar aparo com janela de tempo real e ligar bloqueios à redução de dano.
 2. Ligar hitboxes a clipes de animação, combos, atordoamento e execução.
 3. Conectar feitiços a projéteis, colisão e VFX/SFX substituíveis.
 4. Criar colocação e ativação de sigilos no terreno, em alvos e por gatilhos.
