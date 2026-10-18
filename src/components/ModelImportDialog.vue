@@ -1884,30 +1884,34 @@ async function runSkinTokensRigging() {
     if (operation === 'rig') {
       loaded.userData.importRigGenerated = true
       loaded.userData.importRigPreset = generatedPreset
-      loaded.userData.importNeedsReexport = true
-      loaded.traverse(node => {
-        if (!(node instanceof THREE.Bone)) return
+    }
+    loaded.userData.importNeedsReexport = true
+    loaded.traverse(node => {
+      if (!(node instanceof THREE.Bone)) return
+      if (operation === 'rig') {
         node.userData.generatedRigBone = true
         node.userData.generatedRigPreset = generatedPreset
-        detectedBones.push(node)
-      })
-      if (!detectedBones.length) throw new Error('A IA terminou, mas o GLB resultante não contém ossos reconhecíveis.')
-    } else {
-      loaded.userData.importNeedsReexport = true
-    }
+      }
+      detectedBones.push(node)
+    })
+    if (!detectedBones.length) throw new Error('O resultado da IA não contém ossos reconhecíveis. Confira o relatório/diagnóstico do SkinTokens e tente novamente.')
 
     await showLoadedModel(loaded, displayName, targetHeight)
+    // Também disponibiliza os ossos preservados na operação de pesos, sem marcá-los
+    // como rig gerado nem liberar o reposicionamento de juntas de um esqueleto existente.
+    rigBones.value = detectedBones
+    selectedRigBoneName.value = detectedBones[0]?.name ?? ''
+    rigRestPose.value = captureRigPose(detectedBones)
+    rigKeyframes.value = []
+    rigFrameTime.value = 0
+    rigDuration.value = 1
     if (operation === 'rig') {
       rigPreset.value = generatedPreset
-      rigBones.value = detectedBones
-      selectedRigBoneName.value = detectedBones[0]?.name ?? ''
-      rigRestPose.value = captureRigPose(detectedBones)
-      rigKeyframes.value = []
-      rigFrameTime.value = 0
-      rigDuration.value = 1
       rigMessage.value = 'Rig criado pela IA local. Revise a posição dos ossos e teste a deformação antes de criar animações.'
-      refreshRigHelper()
+    } else {
+      rigMessage.value = 'Os pesos foram recalculados pela IA. O esqueleto existente foi preservado; a posição das juntas permanece bloqueada para evitar alteração acidental do rig original.'
     }
+    refreshRigHelper()
     skinTokensMessage.value = operation === 'rig'
       ? 'Rig por IA concluído: ' + detectedBones.length + ' ossos. O modelo agora está na prévia; confira juntas, pesos e pose antes de salvar.'
       : 'Pesos de deformação recalculados pela IA local. O esqueleto do modelo foi preservado; confira as deformações antes de salvar.'
