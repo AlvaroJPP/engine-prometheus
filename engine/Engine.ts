@@ -1179,7 +1179,7 @@ export class Engine {
     if (previous === nextState) return
     this.logic.setPackageVariable(instance.id, 'ai_state', nextState)
     this.notifyBehaviorPackageChanged(instance.ownerObjectId)
-    if (nextState === 'pursue' && previous === 'idle') {
+    if ((nextState === 'pursue' || nextState === 'attack' || nextState === 'recover') && previous === 'idle') {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_spotted')
     } else if (nextState === 'idle' && (previous === 'pursue' || previous === 'attack' || previous === 'recover')) {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_lost_target')
@@ -1211,6 +1211,7 @@ export class Engine {
     }
 
     for (const { instance, object } of this.getVeilborneHostilePackages()) {
+      if (!player.alive) break
       const previousState = typeof instance.variables.ai_state === 'string' ? instance.variables.ai_state : 'idle'
       if (instance.variables.ai_enabled === false) {
         this.setVeilborneAIState(instance, 'idle')
@@ -1278,10 +1279,9 @@ export class Engine {
       const slowStatus = targetState.statuses.find(status => status.id === 'slow')
       const slowMultiplier = slowStatus ? Math.max(0.2, 1 - slowStatus.potency) : 1
       if ((movingToward || movingAway) && moveSpeed > 0) {
-        const sign = movingAway ? -1 : 1
         const stepDistance = Math.min(moveSpeed * slowMultiplier * step, Math.max(0, Math.abs(distance - attackRange * (movingAway ? 0.72 : 0.94))))
-        nextX -= directionX * stepDistance * (movingAway ? -1 : 1)
-        nextZ -= directionZ * stepDistance * (movingAway ? -1 : 1)
+        nextX += directionX * stepDistance * (movingAway ? -1 : 1)
+        nextZ += directionZ * stepDistance * (movingAway ? -1 : 1)
         nextX = Math.max(-49, Math.min(49, nextX))
         nextZ = Math.max(-49, Math.min(49, nextZ))
         moving = stepDistance > 1e-5
