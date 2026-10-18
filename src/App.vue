@@ -974,7 +974,7 @@ function disposeComponentSource(root: THREE.Object3D) {
   textures.forEach(texture => texture.dispose())
 }
 
-async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string }): Promise<boolean> {
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string; sourceGlbBytes?: ArrayBuffer }): Promise<boolean> {
   if (componentBusy.value) return false
 
   if (payload.componentId) {
@@ -1020,18 +1020,27 @@ async function handleModelImport(payload: { name: string; model: import('three')
   let savedComponentId: string | null = null
   let saveError: unknown = null
   try {
-    exportRoot = cloneSkinnedModel(payload.model)
-    exportRoot.userData = { ...exportRoot.userData }
-    for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl', 'importRigPreset', 'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds', 'importBehaviorPackageSettings']) {
-      delete exportRoot.userData[key]
-    }
+    let result: ArrayBuffer
+    if (payload.sourceGlbBytes instanceof ArrayBuffer && payload.sourceGlbBytes.byteLength > 20) {
+      // GLB já foi validado pelo GLTFLoader. Preserve o arquivo original quando
+      // não houve edição da malha: evita falhas do GLTFExporter com texturas/
+      // extensões válidas que o Three consegue carregar, mas não reexportar.
+      result = payload.sourceGlbBytes.slice(0)
+    } else {
+      exportRoot = cloneSkinnedModel(payload.model)
+      exportRoot.userData = { ...exportRoot.userData }
+      for (const key of ['importAnimations', 'importGltfMetadata', 'importRecoveredTextures', 'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl', 'importRigPreset', 'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds', 'importBehaviorPackageSettings', 'importSourceGlbBytes', 'importNeedsReexport']) {
+        delete exportRoot.userData[key]
+      }
 
-    const exporter = new GLTFExporter()
-    const result = await exporter.parseAsync(exportRoot, {
-      binary: true,
-      animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [],
-    })
-    if (!(result instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
+      const exporter = new GLTFExporter()
+      const exported = await exporter.parseAsync(exportRoot, {
+        binary: true,
+        animations: (payload.model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? [],
+      })
+      if (!(exported instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
+      result = exported
+    }
 
     const id = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
