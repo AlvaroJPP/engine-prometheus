@@ -253,11 +253,13 @@ export class HumanoidAvatar {
   }
 
   private getMaxWalkStepUp(): number {
-    return Math.max(0.015, MAX_WALK_STEP_UP * this.getBodyScale())
+    // Mantém uma margem mínima absoluta para personagens pequenos navegarem degraus e guias comuns.
+    return Math.max(0.15, MAX_WALK_STEP_UP * this.getBodyScale())
   }
 
   private getMaxWalkOffDrop(): number {
-    return Math.max(0.025, MAX_WALK_OFF_DROP * this.getBodyScale())
+    // Uma queda pequena não deve virar uma parede intransponível ao reduzir o tamanho do avatar.
+    return Math.max(0.25, MAX_WALK_OFF_DROP * this.getBodyScale())
   }
 
   private getLedgeEdgeTopTolerance(): number {
