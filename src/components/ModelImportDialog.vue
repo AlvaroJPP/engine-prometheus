@@ -1850,6 +1850,11 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   scene.add(loaded)
   fitCamera(loaded)
   updateColliderPreview()
+  // Se o modelo B foi escolhido primeiro, importar o modelo A não deve apagar
+  // a origem salva. Leva o usuário de volta ao painel de retargeting após carregar A.
+  if (preserveRetargetSource && (retargetSourceRoot.value || selectedRetargetLibraryId.value)) {
+    activeSetupTab.value = 'rigging'
+  }
 }
 
 async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
