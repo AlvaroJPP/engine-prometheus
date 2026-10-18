@@ -1734,6 +1734,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           :fps="fps"
           :control-map-name="activeControlMap.name"
           :first-person="firstPersonMode"
+          :world-fullscreen="worldFullscreen"
           :bindings="activeControlMap.bindings"
           @toggle-camera="cycleCameraView"
           @exit-runtime="returnToEdit"
