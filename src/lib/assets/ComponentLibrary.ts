@@ -13,6 +13,8 @@ export interface SavedComponent {
   colliderType: SavedComponentCollider
   colliderSize: [number, number, number]
   colliderOffset: [number, number, number]
+  /** Pacotes de comportamento que serão instalados automaticamente quando o componente for colocado no mundo. */
+  behaviorPackageIds?: string[]
   /** Papéis atribuídos aos clipes no preview, indexados pelo índice da animação. */
   animationRoles?: Record<string, import('@engine').AnimationRole>
   /** Miniatura visual gerada pela prévia 3D do modelo importado. */
