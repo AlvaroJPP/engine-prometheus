@@ -70,6 +70,21 @@ function addBox(parent, name, size, position) {
   }
 }
 
+// An unknown long object defaults to a generic chain aligned with its longest axis.
+{
+  const root = new THREE.Group()
+  root.name = 'LongUnclassifiedProp'
+  addBox(root, 'UnclassifiedGeometry', [4, 1, 1], [0, 0, 0])
+  const analysis = analyzeRiggingInput(root)
+  assert.equal(analysis.recommendedPreset, 'chain')
+  const result = autoRigModel(root, 'auto')
+  assert.equal(result.preset, 'chain')
+  root.updateWorldMatrix(true, true)
+  const positions = result.bones.map(bone => bone.getWorldPosition(new THREE.Vector3()))
+  assert.ok(positions[positions.length - 1].x > positions[0].x + 3, 'generic chain should follow the longest X axis')
+  assert.ok(Math.abs(positions[positions.length - 1].y - positions[0].y) < 1e-5, 'chain should not be vertical for a horizontal prop')
+}
+
 // A loaded skinned model must be preserved rather than receiving a second rig.
 {
   const root = new THREE.Group()
