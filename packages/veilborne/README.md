@@ -1,14 +1,15 @@
 # VEILBORNE — Dark Fantasy RPG Framework
 
-Pacote de mecânicas modulares de RPG medieval sombrio para o Engine Prometheus: magos guerreiros que combinam armas físicas, feitiços, sigilos preparados e recursos de combate.
+Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guerreiros combinam armas físicas, feitiços, sigilos preparados, defesa ativa e combate contra criaturas hostis.
 
-## Conteúdo
+## Conteúdo inicial
 
-- `veilborne.json`: manifesto de sistemas e estado da integração.
-- `content.json`: catálogo inicial com 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 perfis de inimigos/chefes, efeitos de estado e progressão.
+- `veilborne.json`: manifesto das mecânicas e estado de integração.
+- `content.json`: 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 perfis iniciais de inimigos/chefes e regras de progressão.
 - `engine/script/packages.ts`: registro do componente **VEILBORNE — RPG Sombrio** no editor.
-- `engine/script/VeilborneCombat.ts`: cálculos reutilizáveis de dano, escalamento por atributos, resistências, recursos, postura, efeitos de estado, esquiva, aparo e catálogos iniciais de combate.
-- `engine/Engine.ts`: integração inicial dos comandos e dos efeitos de combate ao runtime.
+- `engine/script/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
+- `engine/Engine.ts`: combate, sigilos, aparo/bloqueio, pipeline de dano recebido e primeira IA hostil.
+- `engine/input/ControlMaps.ts` e `src/components/ControlMapsDialog.vue`: teclas de bloqueio e aparo configuráveis.
 
 ## Controles padrão (perfil WASD)
 
@@ -16,38 +17,39 @@ Pacote de mecânicas modulares de RPG medieval sombrio para o Engine Prometheus:
 |---|---|
 | F | Ataque rápido |
 | G | Ataque pesado |
-| 1–4 | Lançar o feitiço configurado em `magia_1` até `magia_4` |
-| T | Ciclar o sigilo preparado |
-| H | Ativar o sigilo selecionado |
+| 1–4 | Feitiços configurados em `magia_1` até `magia_4` |
+| T | Ciclar sigilo preparado |
+| H | Ativar sigilo selecionado |
 | R (segurar) | Bloquear / defender |
 | Y | Aparo com janela de 0,2 s |
 | V | Esquiva rápida (custo de vigor) |
 | X | Deslizar (custo de vigor) |
 | B | Rolamento (custo de vigor) |
 
-As teclas são configuráveis em **Configurações → Mapas de controles**. O VEILBORNE usa o mapa ativo do jogador em vez de forçar um conjunto paralelo de teclas.
+As teclas são remapeáveis em **Configurações → Mapas de controles**. O runtime usa o mapa de controles ativo.
 
-## Sistemas já conectados
+## Sistemas conectados
 
-- **Componente de personagem/alvo:** instale `VEILBORNE — RPG Sombrio` no objeto que deve participar do combate. Alvos recebem dano quando seu pacote está habilitado e `faction` é `hostile` (ou não definida). Use `neutral` ou `player` para excluí-los do alvo hostil automático.
-- **Combate corpo a corpo:** ataques rápidos e pesados com custo de vigor, alcance aproximado, direção do personagem, escalamento por Força/Destreza/Intelecto/Vontade, dano de postura e crítico em alvo próximo da quebra de postura.
-- **Magias:** slots 1–4, custo de éter, conjuração, recarga, dano único ou em área, resistências elementais, efeitos visuais provisórios; Dreno Rubro recupera parte da vida causada e Passo Entre Véus executa deslocamento curto com raycast.
-- **Sigilos:** Selo Guardião, Selo de Ruptura, Marca do Caçador, Círculo de Lentidão e Selo do Silêncio. As armadilhas no terreno disparam quando alvos hostis entram no raio. Marca do Caçador aumenta em 20% o dano recebido.
-- **Recursos:** vida, éter, vigor e postura são expostos em variáveis globais; o HUD existente pode ler `vida`, `vida_max`, `eter`, `eter_max`, `vigor` e `vigor_max`.
-- **Manobras:** esquiva (22 vigor), rolamento (30) e deslize (24) consultam o sistema de recursos enquanto VEILBORNE está ativo.
-- **Aparo, bloqueio e escudo:** bloqueio reduz o dano restante e consome vigor; o aparo tem janela de 0,2 s, custa vigor, nega o golpe bem-aparado e abre uma oportunidade de contra-ataque. O Selo Guardião absorve dano através da mesma entrada de dano.
-- **Entrada para dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` permite que futuros controladores de IA e ataques invoquem o pipeline de resistência, escudo, bloqueio, aparo e morte.
+- **Personagem/alvo:** instale `VEILBORNE — RPG Sombrio` no objeto que deve participar do combate. Alvos com pacote ativo e `faction=hostile` (ou sem facção definida) recebem dano e podem executar IA. `neutral` e `player` excluem o objeto da lista de inimigos.
+- **Combate físico:** ataques rápidos e pesados, custos de vigor, alcance/direção aproximados, escalamento por atributos, dano de postura e golpes críticos em inimigos próximos da quebra de postura.
+- **Magias:** quatro slots, custo de éter, tempo de conjuração, recarga, dano único/área e resistências elementais. Dreno Rubro recupera parte do dano causado; Passo Entre Véus usa raycast para limitar o deslocamento.
+- **Sigilos:** Selo Guardião, Selo de Ruptura, Marca do Caçador, Círculo de Lentidão e Selo do Silêncio. Armadilhas no terreno ativam quando um hostil entra no raio; Marca do Caçador aumenta em 20% o dano recebido pelo alvo marcado.
+- **IA hostil inicial:** perfis `melee`, `ranged_caster`, `flanker`, `guard_breaker` e `boss_phases`. A IA detecta o jogador por distância, persegue ou mantém distância de conjurador, ataca com recarga e tipo de dano configuráveis, muda de estado, dispara eventos de pacote e toca `primary_action` ou `ability_1` quando há clipe mapeado. Chefes mudam o multiplicador de dano em 60% e 25% de vida.
+- **Bloqueio e aparo:** segurar bloqueio reduz o dano restante e consome vigor. O aparo tem uma janela de 0,2 s, custa vigor, nega um ataque e gera um contra-ataque calculado pela arma equipada. O Selo Guardião absorve uma quantidade limitada de dano.
+- **Manobras:** esquiva (22 vigor), rolamento (30) e deslize (24) consultam recursos enquanto o VEILBORNE está ativo.
+- **Recursos e HUD:** variáveis globais incluem `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos, resistências e estados de combate. Podem alimentar o HUD e o Visual Script.
+- **Dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` resolve resistência elemental, escudo, bloqueio, aparo e morte; a IA inicial já usa essa entrada.
 
-## Limitações atuais — importante
+## Limitações atuais
 
-O fluxo de dano recebido está implementado como método público, mas **o motor ainda não possui uma IA hostil que se aproxime e ataque automaticamente o jogador** para acionar esse método no gameplay. Portanto, bloqueio, aparo e absorção do escudo precisam dessa integração para serem testados contra ataques reais de inimigos.
+Esta é uma **primeira fatia jogável**, não um RPG completo. A IA ainda usa perseguição direta e percepção por distância: não tem pathfinding, navegação inteligente ao redor de obstáculos ou line-of-sight. Os ataques do jogador usam alcance e direção aproximados; hitboxes ainda não estão sincronizadas com janelas específicas das animações. Feitiços e sigilos usam efeitos geométricos provisórios.
 
-Os ataques do jogador selecionam alvos VEILBORNE próximos e à frente por distância/direção aproximadas; hitboxes alinhadas a clipes de animação ainda não estão conectadas. Os efeitos visuais são protótipos geométricos. Ainda faltam inventário/equipamento com interface, progressão persistente, checkpoints, chefes com fases em execução e testes de gameplay visual.
+Ainda faltam inventário/equipamento com interface, progressão e salvamento persistentes, checkpoints, respawn e recuperação de recursos, árvore de habilidades, diálogos/missões e chefes com padrões de ataque exclusivos. Essas partes devem ser adicionadas por subsistemas reutilizáveis, não por soluções específicas para cada modelo.
 
 ## Próximas etapas
 
-1. Ligar hitboxes e janelas de dano a clipes de animação; completar combos, atordoamento e execução.
-2. Criar IA hostil com patrulha, percepção, perseguição e ataques que chamem `applyVeilborneIncomingDamage`.
-3. Trocar os efeitos geométricos por VFX/SFX substituíveis.
-4. Criar inventário e equipamento persistentes, progressão, checkpoints e recuperação de recursos.
-5. Criar HUD VEILBORNE para vigor, recargas, estados e sigilos; validar tudo com testes de execução.
+1. Adicionar navegação e percepção com linha de visão à IA e melhorar a resposta a obstáculos.
+2. Sincronizar dano com animações, colisões/hitboxes, combos, atordoamento e execução.
+3. Construir inventário/equipamento e progressão persistente, checkpoints e morte/recuperação.
+4. Criar HUD própria de combate com vigor, recargas, estados e sigilos equipados.
+5. Trocar os efeitos geométricos por VFX/SFX configuráveis e validar o gameplay em execução.
