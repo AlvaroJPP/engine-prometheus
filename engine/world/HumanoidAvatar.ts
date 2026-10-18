@@ -26,7 +26,6 @@ const WALKABLE_SURFACE_NORMAL_Y = 0.24
 const MAX_WALK_STEP_UP = 0.68
 const MAX_WALK_OFF_DROP = 1.1
 const LEDGE_EDGE_TOP_TOLERANCE = 0.045
-const LEDGE_EDGE_FLOOR_TOLERANCE = MAX_WALK_OFF_DROP + 0.12
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
   // Interior probes stabilize broad floors; outer probes catch narrow step lips.
@@ -270,8 +269,8 @@ export class HumanoidAvatar {
   }
 
   private getPlayerHeight(): number {
-    if (this.posture === 'prone') return Math.max(0.05, this.standingPlayerHeight * (0.62 / PLAYER_HEIGHT))
-    if (this.posture === 'crouching') return Math.max(0.05, this.standingPlayerHeight * (1.12 / PLAYER_HEIGHT))
+    if (this.posture === 'prone') return Math.max(0.01, this.standingPlayerHeight * (0.62 / PLAYER_HEIGHT))
+    if (this.posture === 'crouching') return Math.max(0.01, this.standingPlayerHeight * (1.12 / PLAYER_HEIGHT))
     return this.standingPlayerHeight
   }
 
@@ -530,7 +529,7 @@ export class HumanoidAvatar {
     }
 
     if (this.pressed.has(bindings.jump) && this.grounded) {
-      this.verticalVelocity = JUMP_SPEED
+      this.verticalVelocity = JUMP_SPEED * Math.sqrt(this.getBodyScale())
       this.grounded = false
     }
     this.verticalVelocity -= GRAVITY * step
@@ -635,7 +634,7 @@ export class HumanoidAvatar {
             // da escada e a própria colisão lateral cancela a subida.
             // findObjectLanding repõe os pés exatamente sobre o triângulo do degrau
             // no fim deste mesmo frame.
-            const candidateY = Math.max(previousY, stepUp) + 0.065
+            const candidateY = Math.max(previousY, stepUp) + 0.065 * this.getBodyScale()
             this.mesh.position.y = candidateY
             if (!this.collidesWithObjects()) {
               horizontalStepY = candidateY
@@ -678,27 +677,28 @@ export class HumanoidAvatar {
     // Mantém contato com rampas descendentes: sem essa tolerância, a gravidade
     // deixa o avatar alguns frames no ar e alterna walk/jump rapidamente.
     const terrainDrop = oldY - newGroundY
+    const bodyScale = this.getBodyScale()
     const canFollowSlopeDown = wasGrounded &&
       length > 0 &&
       this.verticalVelocity <= 0 &&
-      terrainDrop >= -0.08 &&
-      terrainDrop <= Math.max(0.32, speed * step * 1.5)
+      terrainDrop >= -0.08 * bodyScale &&
+      terrainDrop <= Math.max(0.32 * bodyScale, speed * step * 1.5)
 
     // Acompanha também descidas pequenas em malhas importadas, sem esperar
     // que a gravidade alcance a superfície. Isso evita alternar entre andar e cair
     // quando o piso é estreito ou a rampa desce menos por quadro que a gravidade.
-    const objectDropLimit = Math.max(0.38, speed * step * 1.5)
+    const objectDropLimit = Math.max(0.38 * bodyScale, speed * step * 1.5)
     const canFollowObjectSlopeDown = wasGrounded &&
       length > 0 &&
       landing !== null &&
       this.verticalVelocity <= 0 &&
-      landing <= oldY + 0.08 &&
+      landing <= oldY + 0.08 * bodyScale &&
       landing >= oldY - objectDropLimit
 
     const canLandOnObject = landing !== null &&
       this.verticalVelocity <= 0 &&
       (
-        nextY <= landing + 0.05 ||
+        nextY <= landing + 0.05 * bodyScale ||
         (wasGrounded && length > 0 && landing >= oldY - this.getMaxWalkOffDrop() && landing <= oldY + this.getMaxWalkStepUp()) ||
         canFollowObjectSlopeDown
       )
@@ -1247,7 +1247,7 @@ export class HumanoidAvatar {
       const moveAxis = (axis: 'x' | 'z', delta: number): void => {
         if (Math.abs(delta) < 1e-8) return
         const origin = root.position[axis]
-        const maxSubstep = Math.max(0.005, Math.min(0.08, this.getPlayerRadius() * 0.25))
+        const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
         const count = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
         let lastSafe = origin
         let lastSafeY = root.position.y
@@ -1718,7 +1718,7 @@ export class HumanoidAvatar {
         if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
 
         const rise = hit.point.y - feetY
-        if (rise < -0.12 * this.getBodyScale() || rise > this.getMaxWalkStepUp()) continue
+        if (rise < -0.12 || rise > MAX_WALK_STEP_UP) continue
         if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
         break
       }
@@ -1726,7 +1726,7 @@ export class HumanoidAvatar {
       for (const object of staticCandidates) {
         const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, height + 1.15, candidate => {
           const rise = candidate.point.y - feetY
-          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 * this.getBodyScale() && rise <= this.getMaxWalkStepUp()
+          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 && rise <= MAX_WALK_STEP_UP
         })
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
       }
@@ -2591,7 +2591,7 @@ export class HumanoidAvatar {
     const playerBox = this.playerBox()
     const playerHeight = this.getPlayerHeight()
     const playerRadius = this.getPlayerRadius()
-    const sampleY = blockCeilings ? Math.max(0.05, playerHeight - playerRadius) : playerHeight * 0.5
+    const sampleY = blockCeilings ? Math.max(playerHeight * 0.5, playerHeight - playerRadius) : playerHeight * 0.5
     const center = new THREE.Vector3(this.mesh.position.x, this.mesh.position.y + sampleY, this.mesh.position.z)
     const radiusSq = playerRadius * playerRadius
     const triangle = new THREE.Triangle()
@@ -2599,11 +2599,14 @@ export class HumanoidAvatar {
     const normal = new THREE.Vector3()
     // Distribui contatos ao longo da altura física atual: ao rastejar, os
     // pontos altos deixam de bloquear o jogador como se ele estivesse em pé.
-    const contactCount = Math.max(2, Math.ceil(playerHeight / 0.26))
+    const bodyScale = this.getBodyScale()
+    const contactSpacing = 0.26 * bodyScale
+    const contactCount = Math.max(2, Math.min(16, Math.ceil(playerHeight / Math.max(0.01, contactSpacing))))
+    const innerBodyHeight = Math.max(0.005, Math.min(0.05 * bodyScale, playerHeight * 0.1))
     const playerContactPoints = Array.from({ length: contactCount }, (_, index) =>
       new THREE.Vector3(
         this.mesh.position.x,
-        this.mesh.position.y + Math.min(playerHeight - 0.05, 0.13 + index * 0.26),
+        this.mesh.position.y + Math.min(playerHeight - innerBodyHeight, 0.13 * bodyScale + index * contactSpacing),
         this.mesh.position.z,
       ),
     )
@@ -2690,7 +2693,7 @@ export class HumanoidAvatar {
         coarseBounds.min.x -= this.getPlayerRadius() + broadphasePadding
         coarseBounds.max.x += this.getPlayerRadius() + broadphasePadding
         coarseBounds.min.y -= this.getStandingPlayerHeight() + broadphasePadding
-        coarseBounds.max.y += 0.75
+        coarseBounds.max.y += broadphasePadding
         coarseBounds.min.z -= this.getPlayerRadius() + broadphasePadding
         coarseBounds.max.z += this.getPlayerRadius() + broadphasePadding
         if (!playerBox.intersectsBox(coarseBounds)) continue
@@ -2741,7 +2744,7 @@ export class HumanoidAvatar {
               const topY = Math.max(a.y, b.y, c.y)
               const bottomY = Math.min(a.y, b.y, c.y)
               const isLowLedgeFace = topY <= walkOffEdge.topY + LEDGE_EDGE_TOP_TOLERANCE &&
-                bottomY >= walkOffEdge.floorY - LEDGE_EDGE_FLOOR_TOLERANCE
+                bottomY >= walkOffEdge.floorY - this.getLedgeEdgeFloorTolerance()
               if (isLowLedgeFace) continue
             }
             if (playerBox.intersectsTriangle(triangle)) return true
@@ -2895,7 +2898,7 @@ export class HumanoidAvatar {
     let bestSurface: number | null = null
 
     for (const point of points) {
-      ray.origin.set(point.x, feetY + 0.025, point.z)
+      ray.origin.set(point.x, feetY + 0.025 * this.getBodyScale(), point.z)
       for (const object of candidates) {
         if (getStaticMeshCollisionData(object.mesh)) {
           const hit = raycastStaticMesh(
@@ -2906,7 +2909,7 @@ export class HumanoidAvatar {
             candidate => {
               const drop = feetY - candidate.point.y
               return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
-                drop >= 0.035 &&
+                drop >= 0.035 * this.getBodyScale() &&
                 drop <= this.getMaxWalkOffDrop()
             },
           )
@@ -2924,7 +2927,7 @@ export class HumanoidAvatar {
           true,
         )
         for (const hit of hits) {
-          if (!hit.face || hit.point.y > feetY - 0.035) continue
+          if (!hit.face || hit.point.y > feetY - 0.035 * this.getBodyScale()) continue
           const normal = hit.face.normal.clone()
             .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
             .normalize()
@@ -2964,7 +2967,7 @@ export class HumanoidAvatar {
       // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
       // também reconhece uma superfície estreita que cruzou entre dois frames.
       const canStepOntoSurface = this.grounded && rise >= -this.getMaxWalkOffDrop() && rise <= this.getMaxWalkStepUp()
-      const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
+      const crossedSurface = nextY <= surfaceY + 0.04 * this.getBodyScale() && oldY >= surfaceY - 0.82 * this.getBodyScale()
       return canStepOntoSurface || crossedSurface
     }
 
@@ -3016,7 +3019,7 @@ export class HumanoidAvatar {
         if (!box) continue
         const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
           playerBox.max.z > box.min.z && playerBox.min.z < box.max.z
-        if (!horizontalOverlap || oldY < box.max.y - 0.08 || nextY > box.max.y) continue
+        if (!horizontalOverlap || oldY < box.max.y - 0.08 * this.getBodyScale() || nextY > box.max.y) continue
         if (landing === null || box.max.y > landing) landing = box.max.y
       }
     }
