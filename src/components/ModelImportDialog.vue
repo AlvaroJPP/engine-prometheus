@@ -1093,6 +1093,22 @@ function restorePreviewVisibility() {
   soloPartId.value = ''
 }
 
+/** Restaura a renderização de malhas importadas antes de avaliar uma animação. */
+function restoreModelRenderableMeshes(root: THREE.Object3D) {
+  root.traverse(node => {
+    node.visible = true
+    if (!(node instanceof THREE.Mesh)) return
+    const materials = Array.isArray(node.material) ? node.material : [node.material]
+    for (const material of materials) material.visible = true
+    // Malhas esqueléticas não devem ser descartadas pelo frustum com bounds de repouso.
+    if (node instanceof THREE.SkinnedMesh) node.frustumCulled = false
+  })
+  root.updateMatrixWorld(true)
+  root.traverse(node => {
+    if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
+  })
+}
+
 function deletePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
   if (!model.value || !part.object.parent) return
   part.object.removeFromParent()
@@ -1709,7 +1725,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   loaded.scale.setScalar(initialScale)
   const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
   loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
-  loaded.updateMatrixWorld(true)
+  restoreModelRenderableMeshes(loaded)
   modelHeight.value = safeTargetHeight
   colliderSize.value = [Math.max(0.05, dimensions.value[0] * safeTargetHeight / height), safeTargetHeight, Math.max(0.05, dimensions.value[2] * safeTargetHeight / height)]
   controlBindings.value = normalizeControlBindings(loaded.userData.importControlBindings)
@@ -2283,18 +2299,25 @@ let retargetTargetPreviewStage: RetargetPreviewStage | null = null
 // miniaturas nunca liberar recursos do modelo real que continuará no editor.
 function cloneRetargetPreviewObject(source: THREE.Object3D): THREE.Object3D {
   const clone = cloneSkinnedModel(source)
+  clone.updateMatrixWorld(true)
   clone.traverse(node => {
     // A prévia de peças permite ocultar/isolá-las durante a inspeção do modelo.
-    // Essa visibilidade é apenas uma ferramenta temporária: um preview de
-    // animação precisa mostrar o personagem inteiro, incluindo a malha abaixo da pelve.
+    // A cena de animação sempre apresenta o personagem completo.
     node.visible = true
-    if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
+    if (node instanceof THREE.Mesh) {
+      // Evita que uma submalha deformada pela animação desapareça por bounds
+      // de repouso desatualizados, principalmente nas pernas e na pelve.
+      node.frustumCulled = false
+      const materials = Array.isArray(node.material) ? node.material : [node.material]
+      for (const material of materials) material.visible = true
       node.geometry = node.geometry.clone()
       node.material = Array.isArray(node.material)
         ? node.material.map(material => material.clone())
         : node.material.clone()
+      if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
     }
   })
+  clone.updateMatrixWorld(true)
   return clone
 }
 
@@ -2585,6 +2608,8 @@ function applyRetargetedAnimation() {
     const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
     root.userData.importNeedsReexport = true
     root.userData.importAnimations = currentClips
+    // A transferência muda ossos, não deve ocultar as malhas ligadas ao rig.
+    restoreModelRenderableMeshes(root)
     root.userData.importAnimationRoles = nextRoles
     animationRoles.value = nextRoles
     animationClipRevision.value += 1
@@ -2597,6 +2622,7 @@ function applyRetargetedAnimation() {
       result.conflictingTracks.length ? `${result.conflictingTracks.length} em conflito com outra trilha do mesmo osso` : '',
       result.invalidTracks.length ? `${result.invalidTracks.length} com dados inválidos` : '',
       result.collapsedTracks.length ? `${result.collapsedTracks.length} posições/escalas de juntas recolhidas foram ignoradas (as rotações foram combinadas)` : '',
+      result.unsafeScaleTracks.length ? `${result.unsafeScaleTracks.length} canais de escala inseguros foram ignorados para preservar a geometria do modelo A` : '',
     ].filter(Boolean).join('; ')
     const mergedSummary = result.mergedTracks
       ? `; ${result.mergedTracks} rotação(ões) de juntas ausentes combinada(s)`
