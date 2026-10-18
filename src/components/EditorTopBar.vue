@@ -710,6 +710,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   background:transparent;
   cursor:pointer;
 }
+.brand-mark { cursor:default; }
 .brand-mark:hover { background:transparent; }
 .brand-mark .logo {
   display:grid;
