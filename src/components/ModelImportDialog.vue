@@ -945,6 +945,9 @@ function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
 
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
   colliderType.value = value
+  // Malha estática usa o transform das superfícies reais. Não aplica o offset
+  // de caixas/cápsulas de um modo anterior, para preview e runtime coincidirem.
+  if (value === 'mesh') colliderOffset.value = [0, 0, 0]
   if (value === 'sphere') {
     const diameter = Math.max(0.05, Math.min(...colliderSize.value))
     colliderSize.value = [diameter, diameter, diameter]
@@ -2412,7 +2415,9 @@ watch(() => props.open, async (open) => {
           colliderSize.value = [...savedColliderSize] as [number, number, number]
         }
         const savedColliderOffset = props.initialAsset.colliderOffset
-        if (Array.isArray(savedColliderOffset) && savedColliderOffset.length === 3
+        if (colliderType.value === 'mesh') {
+          colliderOffset.value = [0, 0, 0]
+        } else if (Array.isArray(savedColliderOffset) && savedColliderOffset.length === 3
           && savedColliderOffset.every(value => Number.isFinite(value))) {
           colliderOffset.value = [...savedColliderOffset] as [number, number, number]
         }
