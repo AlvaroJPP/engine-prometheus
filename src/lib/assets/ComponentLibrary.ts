@@ -67,33 +67,47 @@ export async function listSavedComponents(): Promise<Array<Omit<SavedComponent, 
   }
 }
 
-export async function saveComponentAsset(component: SavedComponent): Promise<void> {
-  if (!component.id.trim()) throw new Error('O componente precisa ter um identificador antes de ser salvo.')
-  if (!(component.bytes instanceof ArrayBuffer) || component.bytes.byteLength === 0) {
-    throw new Error('O arquivo 3D está vazio ou não é um GLB válido.')
+export async function saveComponentAssets(components: SavedComponent[]): Promise<void> {
+  if (components.length === 0) return
+  const ids = new Set<string>()
+  for (const component of components) {
+    if (!component.id.trim()) throw new Error('Cada componente precisa ter um identificador antes de ser salvo.')
+    if (ids.has(component.id)) throw new Error('O lote contém identificadores duplicados.')
+    ids.add(component.id)
+    if (!(component.bytes instanceof ArrayBuffer) || component.bytes.byteLength === 0) {
+      throw new Error(`O arquivo 3D de "${component.name}" está vazio ou não é um GLB válido.`)
+    }
   }
 
   const db = await openDatabase()
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, 'readwrite')
-      const request = transaction.objectStore(STORE_NAME).put(component)
+      const store = transaction.objectStore(STORE_NAME)
       let requestError: DOMException | null = null
 
-      request.onerror = () => {
-        requestError = request.error
+      for (const component of components) {
+        const request = store.put(component)
+        request.onerror = () => {
+          requestError = request.error
+        }
       }
+
       transaction.oncomplete = () => resolve()
       transaction.onerror = () => reject(
-        transaction.error ?? requestError ?? new Error('A gravação da biblioteca falhou.'),
+        transaction.error ?? requestError ?? new Error('A gravação em lote da biblioteca falhou.'),
       )
       transaction.onabort = () => reject(
-        transaction.error ?? requestError ?? new Error('A gravação do componente foi cancelada pelo armazenamento local.'),
+        transaction.error ?? requestError ?? new Error('O lote de componentes foi cancelado pelo armazenamento local.'),
       )
     })
   } finally {
     db.close()
   }
+}
+
+export async function saveComponentAsset(component: SavedComponent): Promise<void> {
+  await saveComponentAssets([component])
 }
 
 export async function getSavedComponent(id: string): Promise<SavedComponent | null> {
