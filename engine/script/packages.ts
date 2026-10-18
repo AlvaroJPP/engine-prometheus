@@ -171,6 +171,7 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { name: 'res_espirito', label: 'Resistência espiritual (%)', type: 'number', defaultValue: 0, description: 'Resistência a magia espiritual.', min: -100, max: 95, step: 1 },
       { name: 'res_arcano', label: 'Resistência arcana (%)', type: 'number', defaultValue: 0, description: 'Resistência a magia arcana.', min: -100, max: 95, step: 1 },
       { name: 'ai_enabled', label: 'IA ativa', type: 'boolean', defaultValue: true, description: 'Permite que este objeto persiga e ataque o jogador durante a execução.' },
+      { name: 'ai_custom_stats', label: 'Usar atributos de IA personalizados', type: 'boolean', defaultValue: false, description: 'Quando ativado, usa alcance, velocidade, dano, tipo de dano e recarga informados manualmente.' },
       { name: 'ai_profile', label: 'Perfil de IA', type: 'string', defaultValue: 'melee', description: 'melee, ranged_caster, flanker, guard_breaker ou boss_phases.' },
       { name: 'ai_state', label: 'Estado da IA', type: 'string', defaultValue: 'idle', description: 'Estado atual: idle, pursue, attack, recover ou dead.', readOnly: true },
       { name: 'perception_range', label: 'Alcance de percepção', type: 'number', defaultValue: 18, description: 'Distância máxima para detectar o jogador.', min: 1, max: 60, step: 0.5 },
