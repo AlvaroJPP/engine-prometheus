@@ -73,6 +73,8 @@ export interface PlayerModelData {
   name: string
   /** Conteúdo binário GLB codificado em Base64 para manter o modelo junto do projeto. */
   glbData: string
+  /** Altura de destino em unidades do mundo, escolhida no Importador 3D. */
+  height?: number
   /** Mapeamento de clipes configurado no Model Workspace, indexado pelo índice da animação. */
   animationRoles?: Record<string, import('../script/packages').AnimationRole>
 }
