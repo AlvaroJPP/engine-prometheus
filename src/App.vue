@@ -1285,6 +1285,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @set-tool="setTool"
       @set-transform="setTransform"
       @toggle-graph="graphOpen = !graphOpen"
+      @open-model-import="previewComponentAsset = null; modelImportOpen = true"
       @add-primitive="addPrimitive"
       @add-spawn-platform="addSpawnPlatform"
       @add-clickable-example="addClickableCubeExample"
