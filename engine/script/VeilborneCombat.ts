@@ -7,7 +7,7 @@
  */
 export type VeilborneDamageType = 'physical' | 'fire' | 'frost' | 'storm' | 'blood' | 'shadow' | 'spirit' | 'arcane'
 export type VeilborneAttribute = 'strength' | 'dexterity' | 'intellect' | 'will'
-export type VeilborneStatusId = 'burn' | 'bleed' | 'poison' | 'frost' | 'shock' | 'curse' | 'silence' | 'slow' | 'stagger' | 'life_drain'
+export type VeilborneStatusId = 'burn' | 'bleed' | 'poison' | 'frost' | 'shock' | 'curse' | 'silence' | 'slow' | 'stagger' | 'life_drain' | 'marked'
 
 export interface VeilborneResources {
   vitality: number
@@ -327,4 +327,43 @@ export const VEILBORNE_DEFAULT_SPELL_SLOTS = Object.freeze([
   'frost_chain',
   'blood_siphon',
 ] as const)
+export interface VeilborneRuntimeSigil extends VeilborneSigilProfile {
+  name: string
+  category: 'offensive' | 'defensive' | 'trap' | 'utility' | 'movement'
+  shape: 'circle' | 'triangle' | 'eye' | 'hexagon' | 'square'
+  trigger: 'on_cast' | 'enemy_enter'
+  effect: 'ward' | 'blast' | 'mark' | 'slow' | 'silence'
+  visualColor: number
+  postureDamage?: number
+  statusEffect?: VeilborneStatusId
+  statusPotency?: number
+}
+
+/** Sigilos iniciais usados pelo runtime; seus dados podem ser substituídos por conteúdo de projeto. */
+export const VEILBORNE_RUNTIME_SIGILS: Readonly<Record<string, VeilborneRuntimeSigil>> = Object.freeze({
+  ward: {
+    id: 'ward', name: 'Selo Guardião', category: 'defensive', shape: 'circle', trigger: 'on_cast',
+    effect: 'ward', radius: 0, durationSeconds: 8, etherCost: 18, cooldownSeconds: 12, visualColor: 0x9b80ff,
+  },
+  blast: {
+    id: 'blast', name: 'Selo de Ruptura', category: 'offensive', shape: 'triangle', trigger: 'enemy_enter',
+    effect: 'blast', radius: 3.5, durationSeconds: 20, etherCost: 20, cooldownSeconds: 10,
+    damage: 42, damageType: 'arcane', postureDamage: 28, visualColor: 0xff604c,
+  },
+  hunter_mark: {
+    id: 'hunter_mark', name: 'Marca do Caçador', category: 'utility', shape: 'eye', trigger: 'on_cast',
+    effect: 'mark', radius: 18, durationSeconds: 12, etherCost: 14, cooldownSeconds: 8, visualColor: 0xe94b70,
+    statusEffect: 'marked', statusPotency: 1.2,
+  },
+  slow_field: {
+    id: 'slow_field', name: 'Círculo de Lentidão', category: 'trap', shape: 'hexagon', trigger: 'enemy_enter',
+    effect: 'slow', radius: 5, durationSeconds: 8, etherCost: 17, cooldownSeconds: 14, visualColor: 0x75dfff,
+    statusEffect: 'slow', statusPotency: 0.45,
+  },
+  silence_seal: {
+    id: 'silence_seal', name: 'Selo do Silêncio', category: 'trap', shape: 'square', trigger: 'enemy_enter',
+    effect: 'silence', radius: 3, durationSeconds: 10, etherCost: 16, cooldownSeconds: 16, visualColor: 0xdca4ff,
+    statusEffect: 'silence', statusPotency: 1,
+  },
+})
 
