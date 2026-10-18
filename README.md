@@ -32,9 +32,10 @@ A análise funciona offline para arquivos `.glb` e `.gltf`; no `.gltf`, basta o 
 
 O importador 3D integra o [SkinTokens](https://github.com/VAST-AI-Research/SkinTokens) por meio de um executável local. O Engine Prometheus não chama serviços de inferência na nuvem e não precisa de API key, assinatura nem créditos.
 
-No Windows, a instalação inicial exige Git, Rust/Cargo e ferramentas de compilação MSVC. Na raiz do repositório do Engine Prometheus, execute no PowerShell:
+No Windows, atualize o repositório e faça a instalação inicial. São necessários Git, Rust/Cargo e ferramentas de compilação MSVC. Na raiz do repositório do Engine Prometheus, execute no PowerShell:
 
 ```powershell
+git pull origin main
 powershell -ExecutionPolicy Bypass -File .\scripts\install-skintokens.ps1
 ```
 
