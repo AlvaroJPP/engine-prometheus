@@ -58,11 +58,31 @@ const selectedBehaviorPackageDefinitions = computed(() => BEHAVIOR_PACKAGE_DEFIN
   selectedBehaviorPackageIds.value.includes(definition.id),
 ))
 
-const previewPackageModelNodes = computed(() => previewParts.value.map(part => ({
-  path: getPreviewModelNodePath(part.object),
-  name: part.name,
-  meshCount: part.meshCount,
-})).filter(node => node.path))
+const previewPackageModelNodes = computed(() => {
+  const baseModel = model.value
+  if (!baseModel) return []
+  const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
+  const activeRoot = chosenPart?.object ?? baseModel
+  const result = previewParts.value
+    .filter(part => part.object !== activeRoot && isDescendantOf(part.object, activeRoot))
+    .map(part => ({
+      path: getPreviewModelNodePath(part.object, activeRoot),
+      name: part.name,
+      meshCount: part.meshCount,
+    }))
+    .filter(node => node.path)
+  const rootPath = getPreviewModelNodePath(activeRoot, activeRoot)
+  const rootPart = chosenPart
+    ? { path: rootPath, name: chosenPart.name, meshCount: chosenPart.meshCount }
+    : {
+        path: rootPath,
+        name: baseModel.name.trim() || 'Modelo inteiro',
+        meshCount: previewParts.value.reduce((count, part) => part.depth === 0 ? count + part.meshCount : count, 0),
+      }
+  // A raiz fica disponível no seletor, mas os filhos aparecem primeiro para
+  // que a criação de um novo estado visual escolha uma parte, não o modelo inteiro.
+  return rootPart.meshCount > 0 ? [...result, rootPart] : result
+})
 
 type ModelDiagnostic = {
   id: string
@@ -1159,8 +1179,8 @@ function setImportPackageControlBinding(packageId: string, key: keyof ModelContr
   if (key === 'interact') updateImportPackageConfigValue(packageId, 'interactionKey', value)
 }
 
-function getPreviewModelNodePath(node: THREE.Object3D): string {
-  const root = model.value
+function getPreviewModelNodePath(node: THREE.Object3D, rootOverride?: THREE.Object3D): string {
+  const root = rootOverride ?? model.value
   if (!root) return ''
   const segments: string[] = []
   let current: THREE.Object3D | null = node
@@ -1172,7 +1192,11 @@ function getPreviewModelNodePath(node: THREE.Object3D): string {
     segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
     current = parent
   }
-  return segments.join('/')
+  if (current !== root) return ''
+  // O Engine coloca o GLB sob ImportedVisualPivot e inclui esse pivô e o nó
+  // raiz do modelo nos caminhos usados pelas regras de estado visual.
+  const modelLabel = root.name.trim() || root.type
+  return ['ImportedVisualPivot', modelLabel, ...segments].join('/')
 }
 
 function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
