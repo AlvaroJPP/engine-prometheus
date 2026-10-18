@@ -18,6 +18,15 @@ const JUMP_SPEED = 6.2
 const GRAVITY = 18
 const PLAYER_RADIUS = 0.32
 const PLAYER_HEIGHT = 1.8
+// Considera rampas e degraus com inclinação acentuada caminháveis, mas continua
+// tratando faces quase verticais como paredes.
+const WALKABLE_SURFACE_NORMAL_Y = 0.32
+const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [0.48, 0], [-0.48, 0], [0, 0.48], [0, -0.48],
+  [0.82, 0], [-0.82, 0], [0, 0.82], [0, -0.82],
+  [0.58, 0.58], [0.58, -0.58], [-0.58, 0.58], [-0.58, -0.58],
+]
 const DODGE_SPEED = 10
 const DODGE_DURATION = 0.22
 const SLIDE_SPEED = 7.8
@@ -556,7 +565,7 @@ export class HumanoidAvatar {
           }
 
           const stepUp = wasGrounded
-            ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, oldFeetY)
+            ? this.findStepUpSurface(this.mesh.position.x, this.mesh.position.z, this.mesh.position.y, axis, Math.sign(delta))
             : null
           if (stepUp !== null) {
             const previousY = this.mesh.position.y
@@ -2452,6 +2461,25 @@ export class HumanoidAvatar {
   }
 
   /**
+   * Sonda várias posições dentro da pegada do personagem. O centro sozinho perde
+   * escadas estreitas, quinas e pequenas faces triangulares se cair entre vértices.
+   * O deslocamento frontal é usado durante a subida para alcançar a borda antes
+   * de a caixa do personagem ficar presa na face vertical.
+   */
+  private getFootProbePoints(
+    x: number,
+    z: number,
+    leadingAxis?: 'x' | 'z',
+    leadingDirection = 0,
+  ): Array<{ x: number; z: number }> {
+    const leadingOffset = THREE.MathUtils.clamp(leadingDirection, -1, 1) * PLAYER_RADIUS * 0.16
+    return PLAYER_SUPPORT_PROBE_FACTORS.map(([factorX, factorZ]) => ({
+      x: x + factorX * PLAYER_RADIUS + (leadingAxis === 'x' ? leadingOffset : 0),
+      z: z + factorZ * PLAYER_RADIUS + (leadingAxis === 'z' ? leadingOffset : 0),
+    }))
+  }
+
+  /**
    * Colisão por contato com os triângulos reais das malhas, em coordenadas de mundo.
    * Faces superiores são piso/rampa; laterais e inferiores bloqueiam o jogador.
    * O AABB é usado somente para descartar malhas distantes rapidamente.
@@ -2634,13 +2662,24 @@ export class HumanoidAvatar {
    * Sem isso, o teste lateral bloqueia o personagem na borda vertical da
    * primeira plataforma e ele nunca chega à superfície superior da rampa.
    */
-  private findStepUpSurface(x: number, z: number, feetY: number): number | null {
+  /**
+   * Encontra degraus ou superfícies de rampa sob a pegada do jogador.
+   * Consulta o BVH para cidades estáticas e raios comuns para objetos do editor.
+   */
+  private findStepUpSurface(
+    x: number,
+    z: number,
+    feetY: number,
+    leadingAxis: 'x' | 'z',
+    leadingDirection: number,
+  ): number | null {
     const playerHeight = this.getPlayerHeight()
+    const reach = playerHeight + 1.15
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(x, feetY + playerHeight + 0.65, z),
       new THREE.Vector3(0, -1, 0),
       0,
-      playerHeight + 1.15,
+      reach,
     )
     const allCandidates = this.world.list().filter(object =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
@@ -2652,34 +2691,47 @@ export class HumanoidAvatar {
       staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
     )
     const candidates = allCandidates.filter(object => !staticMeshColliderIds.has(object.id))
-    const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+    const points = this.getFootProbePoints(x, z, leadingAxis, leadingDirection)
     let bestSurface: number | null = null
+    const normalMatrix = new THREE.Matrix3()
 
-    for (const hit of hits) {
-      if (!hit.face) continue
-      const root = candidates.find(object =>
-        object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
-      )
-      if (!root) continue
-      // Importados não são degraus físicos genéricos: seus pisos são tratados
-      // separadamente a partir do BVH, mas não se sobe pela lateral de um objeto.
-      if (root.mesh.userData.importedModel === true) continue
-      const normal = hit.face.normal.clone()
-        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
-        .normalize()
-      if (normal.y < 0.45) continue
-      const rise = hit.point.y - feetY
-      if (rise >= -0.12 && rise <= 0.5 && (bestSurface === null || hit.point.y > bestSurface)) {
-        bestSurface = hit.point.y
+    for (const point of points) {
+      raycaster.ray.origin.set(point.x, feetY + playerHeight + 0.65, point.z)
+      if (candidates.length > 0) {
+        const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
+        for (const hit of hits) {
+          if (!hit.face) continue
+          const owner = candidates.find(object =>
+            object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
+          )
+          if (!owner || owner.mesh.userData.importedModel === true) continue
+          const normal = hit.face.normal.clone()
+            .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+            .normalize()
+          if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
+          const rise = hit.point.y - feetY
+          // A amostra pode estar na borda do pé, mas não pode içar o jogador
+          // para uma parede ou plataforma alta que só aparece mais adiante.
+          if (rise < -0.12 || rise > 0.52) continue
+          if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
+          break
+        }
       }
-    }
 
-    for (const object of staticCandidates) {
-      const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, playerHeight + 1.15, candidate => {
-        const rise = candidate.point.y - feetY
-        return candidate.normal.y >= 0.45 && rise >= -0.12 && rise <= 0.5
-      })
-      if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
+      for (const object of staticCandidates) {
+        const hit = raycastStaticMesh(
+          object.mesh,
+          raycaster.ray,
+          0,
+          reach,
+          candidate => {
+            const rise = candidate.point.y - feetY
+            return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
+              rise >= -0.12 && rise <= 0.52
+          },
+        )
+        if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
+      }
     }
     return bestSurface
   }
@@ -2688,17 +2740,10 @@ export class HumanoidAvatar {
     const playerBox = this.playerBox()
     let landing: number | null = null
 
-    // Detecta a superfície real de objetos inclinados (rampas) com um raio
-    // vertical. Isso evita usar o AABB, cuja altura máxima não representa a rampa.
     const raycaster = new THREE.Raycaster()
     raycaster.ray.direction.set(0, -1, 0)
-    // Procura superfícies de apoio em todos os objetos sólidos, não apenas
-    // nos objetos cuja raiz está rotacionada. Rampas também podem ser construídas
-    // com várias plataformas individuais, e suas faces superiores precisam sustentar
-    // o jogador mesmo quando cada plataforma tem rotação zero.
-    const allSlopeCandidates = this.world.list().filter((object) =>
-      object.mesh.visible &&
-      object.mesh.userData.colliderType !== 'none',
+    const allSlopeCandidates = this.world.list().filter(object =>
+      object.mesh.visible && object.mesh.userData.colliderType !== 'none',
     )
     const staticMeshColliderIds = new Set(allSlopeCandidates
       .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
@@ -2707,61 +2752,70 @@ export class HumanoidAvatar {
       staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
     )
     const slopeCandidates = allSlopeCandidates.filter(object => !staticMeshColliderIds.has(object.id))
-    const rayOriginY = Math.max(oldY, nextY) + PLAYER_HEIGHT + 2
-    raycaster.ray.origin.set(this.mesh.position.x, rayOriginY, this.mesh.position.z)
-    if (slopeCandidates.length > 0) {
-      const hits = raycaster.intersectObjects(slopeCandidates.map(object => object.mesh), true)
-      for (const hit of hits) {
-        if (!hit.face) continue
-        const object = slopeCandidates.find(candidate => candidate.mesh === hit.object || candidate.mesh.getObjectById(hit.object.id))
-        if (!object) continue
-        // A raiz de um modelo importado é uma caixa proxy invisível. Nunca use sua
-        // face superior como chão: o pouso automático deve vir da malha visual filha.
-        if (object.mesh.userData.importedModel === true && hit.object === object.mesh) continue
-        const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)
-        const normal = hit.face.normal.clone().applyMatrix3(normalMatrix).normalize()
-        if (normal.y < 0.45) continue
+    const rayOriginY = Math.max(oldY, nextY) + this.getPlayerHeight() + 2
+    const probes = this.getFootProbePoints(this.mesh.position.x, this.mesh.position.z)
+    const normalMatrix = new THREE.Matrix3()
 
-        const surfaceY = hit.point.y
-        const rise = surfaceY - oldY
-        const canStepOntoSlope = this.grounded && rise >= -0.3 && rise <= 0.5
-        // Ao correr e saltar em direção à rampa, a posição horizontal pode avançar
-        // vários centímetros por frame. A superfície pode subir entre duas amostras;
-        // uma tolerância fixa de 0,12 m faz o avatar atravessar a rampa e cair.
-        // Aceita o cruzamento recente da superfície até 0,75 m abaixo da posição
-        // anterior, mas somente durante a descida (o chamador já valida a velocidade).
-        const crossedSurface = nextY <= surfaceY && oldY >= surfaceY - 0.75
-        if (!canStepOntoSlope && !crossedSurface) continue
-        if (landing === null || surfaceY > landing) landing = surfaceY
-        break
+    const isReachableSupport = (surfaceY: number): boolean => {
+      const rise = surfaceY - oldY
+      // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
+      // também reconhece uma superfície estreita que cruzou entre dois frames.
+      const canStepOntoSurface = this.grounded && rise >= -0.36 && rise <= 0.52
+      const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
+      return canStepOntoSurface || crossedSurface
+    }
+
+    for (const probe of probes) {
+      raycaster.ray.origin.set(probe.x, rayOriginY, probe.z)
+
+      if (slopeCandidates.length > 0) {
+        const hits = raycaster.intersectObjects(slopeCandidates.map(object => object.mesh), true)
+        for (const hit of hits) {
+          if (!hit.face) continue
+          const owner = slopeCandidates.find(candidate =>
+            candidate.mesh === hit.object || candidate.mesh.getObjectById(hit.object.id),
+          )
+          if (!owner) continue
+          // A raiz do modelo importado é um proxy invisível; só os filhos visuais são piso.
+          if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
+          const normal = hit.face.normal.clone()
+            .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+            .normalize()
+          if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
+          if (!isReachableSupport(hit.point.y)) continue
+          if (landing === null || hit.point.y > landing) landing = hit.point.y
+          // Os hits estão ordenados do mais próximo (maior Y) ao mais distante.
+          break
+        }
+      }
+
+      for (const object of staticCandidates) {
+        const hit = raycastStaticMesh(
+          object.mesh,
+          raycaster.ray,
+          0,
+          Number.POSITIVE_INFINITY,
+          candidate => candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
+            isReachableSupport(candidate.point.y),
+        )
+        if (hit && (landing === null || hit.point.y > landing)) landing = hit.point.y
       }
     }
 
-    // Cidades e terrenos estáticos consultam somente os triângulos que cruzam
-    // o raio vertical; os demais triângulos da cidade não são visitados.
-    for (const object of staticCandidates) {
-      const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, Number.POSITIVE_INFINITY, candidate => {
-        if (candidate.normal.y < 0.45) return false
-        const rise = candidate.point.y - oldY
-        const canStepOntoSlope = this.grounded && rise >= -0.3 && rise <= 0.5
-        const crossedSurface = nextY <= candidate.point.y && oldY >= candidate.point.y - 0.75
-        return canStepOntoSlope || crossedSurface
-      })
-      if (hit && (landing === null || hit.point.y > landing)) landing = hit.point.y
-    }
-
-    // Objetos não inclinados continuam usando o colisor configurado.
-    if (nextY > oldY) return landing
-    for (const object of this.world.list()) {
-      if (!object.mesh.visible || object.mesh.userData.colliderType === 'mesh') continue
-      const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
-      if (rotatedRamp) continue
-      const box = getColliderBounds(object.mesh)
-      if (!box) continue
-      const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
-        playerBox.max.z > box.min.z && playerBox.min.z < box.max.z
-      if (!horizontalOverlap || oldY < box.max.y - 0.08 || nextY > box.max.y) continue
-      if (landing === null || box.max.y > landing) landing = box.max.y
+    // Colisores simples continuam fornecendo a superfície superior de plataformas
+    // e caixas; malhas estáticas usam os triângulos reais acima.
+    if (nextY <= oldY) {
+      for (const object of this.world.list()) {
+        if (!object.mesh.visible || object.mesh.userData.colliderType === 'none' || object.mesh.userData.colliderType === 'mesh') continue
+        const rotatedRamp = Math.abs(object.mesh.rotation.x) > 0.02 || Math.abs(object.mesh.rotation.z) > 0.02
+        if (rotatedRamp) continue
+        const box = getColliderBounds(object.mesh)
+        if (!box) continue
+        const horizontalOverlap = playerBox.max.x > box.min.x && playerBox.min.x < box.max.x &&
+          playerBox.max.z > box.min.z && playerBox.min.z < box.max.z
+        if (!horizontalOverlap || oldY < box.max.y - 0.08 || nextY > box.max.y) continue
+        if (landing === null || box.max.y > landing) landing = box.max.y
+      }
     }
     return landing
   }
