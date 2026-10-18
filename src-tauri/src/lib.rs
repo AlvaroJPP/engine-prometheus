@@ -282,6 +282,138 @@ fn load_gltf_zip(zip_path: String) -> Result<String, String> {
     serde_json::to_string(&document).map_err(|e| format!("Não foi possível preparar o glTF para pré-visualização: {e}"))
 }
 
+#[derive(serde::Serialize)]
+struct ZipModelFile {
+    path: String,
+    base64: String,
+}
+
+#[derive(serde::Serialize)]
+struct ZipModelBundle {
+    primary_path: String,
+    files: Vec<ZipModelFile>,
+}
+
+/// Abre um pacote ZIP com um modelo 3D e preserva os caminhos dos arquivos auxiliares.
+/// Os caminhos são usados no frontend para resolver materiais e texturas sem extrair
+/// arquivos em locais acessíveis fora do sandbox.
+#[tauri::command]
+fn load_model_zip(zip_path: String) -> Result<ZipModelBundle, String> {
+    use base64::Engine as _;
+
+    let zip_file = PathBuf::from(&zip_path);
+    if !zip_file.is_file()
+        || zip_file.extension().and_then(|e| e.to_str())
+            .map(|e| !e.eq_ignore_ascii_case("zip")).unwrap_or(true)
+    {
+        return Err("Selecione um arquivo ZIP válido.".into());
+    }
+
+    let temp = tempfile::tempdir().map_err(|e| format!("Não foi possível criar pasta temporária: {e}"))?;
+    let input = File::open(&zip_file).map_err(|e| format!("Não foi possível abrir o ZIP: {e}"))?;
+    let mut archive = zip::ZipArchive::new(input).map_err(|e| format!("ZIP inválido ou corrompido: {e}"))?;
+    if archive.len() > 20_000 {
+        return Err("O ZIP contém arquivos demais (limite: 20.000).".into());
+    }
+
+    let mut extracted_bytes: u64 = 0;
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|e| format!("Não foi possível ler item do ZIP: {e}"))?;
+        let relative = entry.enclosed_name()
+            .ok_or_else(|| format!("O ZIP contém um caminho inseguro: {}", entry.name()))?
+            .to_path_buf();
+        extracted_bytes = extracted_bytes.saturating_add(entry.size());
+        if extracted_bytes > 1_500_000_000 {
+            return Err("O conteúdo descompactado excede o limite de 1,5 GB.".into());
+        }
+        let destination = temp.path().join(relative);
+        if entry.is_dir() {
+            fs::create_dir_all(&destination).map_err(|e| format!("Não foi possível criar pasta extraída: {e}"))?;
+        } else {
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent).map_err(|e| format!("Não foi possível criar pasta extraída: {e}"))?;
+            }
+            let mut output = File::create(&destination).map_err(|e| format!("Não foi possível extrair arquivo: {e}"))?;
+            std::io::copy(&mut entry, &mut output).map_err(|e| format!("Falha ao extrair arquivo: {e}"))?;
+            output.flush().map_err(|e| format!("Falha ao gravar arquivo extraído: {e}"))?;
+        }
+    }
+
+    fn extension(path: &Path) -> String {
+        path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase()
+    }
+    fn is_model(path: &Path) -> bool {
+        matches!(extension(path).as_str(), "glb" | "gltf" | "fbx" | "obj" | "stl" | "ply" | "dae" | "3ds")
+    }
+    fn is_package_resource(path: &Path) -> bool {
+        is_model(path) || matches!(
+            extension(path).as_str(),
+            "bin" | "mtl" | "png" | "jpg" | "jpeg" | "webp" | "bmp" | "gif" |
+            "tga" | "dds" | "ktx" | "ktx2" | "basis" | "avif" | "tif" | "tiff" |
+            "hdr" | "exr"
+        )
+    }
+    fn model_priority(path: &Path) -> u8 {
+        match extension(path).as_str() {
+            "glb" => 0,
+            "gltf" => 1,
+            "fbx" => 2,
+            "obj" => 3,
+            "dae" => 4,
+            "3ds" => 5,
+            "stl" => 6,
+            "ply" => 7,
+            _ => u8::MAX,
+        }
+    }
+    fn collect_files(root: &Path, directory: &Path, output: &mut Vec<PathBuf>) -> Result<(), String> {
+        let entries = fs::read_dir(directory).map_err(|e| format!("Não foi possível listar arquivos do ZIP: {e}"))?;
+        for entry in entries {
+            let path = entry.map_err(|e| format!("Não foi possível ler um arquivo extraído: {e}"))?.path();
+            if path.is_dir() {
+                collect_files(root, &path, output)?;
+            } else if path.is_file() && is_package_resource(&path) {
+                if !path.starts_with(root) {
+                    return Err("Um recurso do ZIP tentou sair da pasta temporária.".into());
+                }
+                output.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let mut paths = Vec::new();
+    collect_files(temp.path(), temp.path(), &mut paths)?;
+    let mut models: Vec<PathBuf> = paths.iter().filter(|path| is_model(path)).cloned().collect();
+    models.sort_by(|a, b| model_priority(a).cmp(&model_priority(b)).then_with(|| a.cmp(b)));
+    let primary = models.first().cloned().ok_or_else(|| {
+        "Não encontrei um modelo 3D no ZIP. Formatos aceitos: GLB, glTF, FBX, OBJ, STL, PLY, DAE e 3DS.".to_string()
+    })?;
+    paths.sort();
+
+    const MAX_PACKAGE_BYTES: u64 = 400 * 1024 * 1024;
+    let mut package_bytes: u64 = 0;
+    let mut files = Vec::with_capacity(paths.len());
+    for path in paths {
+        let bytes = fs::read(&path).map_err(|e| format!("Não foi possível ler {}: {e}", path.display()))?;
+        package_bytes = package_bytes.saturating_add(bytes.len() as u64);
+        if package_bytes > MAX_PACKAGE_BYTES {
+            return Err("Os arquivos do modelo e suas texturas excedem o limite de 400 MB por pacote. Divida o ZIP ou reduza o tamanho das texturas.".into());
+        }
+        let relative = path.strip_prefix(temp.path())
+            .map_err(|_| "Caminho de arquivo inválido dentro do ZIP.".to_string())?;
+        files.push(ZipModelFile {
+            path: relative.to_string_lossy().replace('\\', "/"),
+            base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        });
+    }
+    let primary_path = primary.strip_prefix(temp.path())
+        .map_err(|_| "Caminho do modelo principal inválido dentro do ZIP.".to_string())?
+        .to_string_lossy().replace('\\', "/");
+
+    Ok(ZipModelBundle { primary_path, files })
+}
+
 /// Resolve o checkpoint mantido ao lado do executável SkinTokens instalado pelo script oficial do Engine.
 fn skintokens_checkpoint_for(executable: &Path) -> Option<PathBuf> {
     let root = executable.parent()?.parent()?.parent()?;
@@ -426,6 +558,7 @@ pub fn run() {
             read_project_asset,
             prune_project_assets,
             load_gltf_zip,
+            load_model_zip,
             run_skintokens_glb,
             skintokens_doctor
         ])
