@@ -35,7 +35,7 @@ export interface ObjectInfo {
   textureRepeat: number
   faceTextures: FaceTextureMap
   mass: number
-  colliderType: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
+  colliderType: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none
   colliderSize: [number, number, number]
   colliderOffset: [number, number, number]
 }
@@ -62,7 +62,7 @@ export interface ObjectPatch {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
-  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'none'
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none
   colliderSize?: [number, number, number]
   colliderOffset?: [number, number, number]
 }
