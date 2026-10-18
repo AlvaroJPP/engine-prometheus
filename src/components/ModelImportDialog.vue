@@ -2408,9 +2408,14 @@ watch(() => props.open, async (open) => {
         // Ao editar, restaure também o colisor armazenado. Sem isso, abrir e
         // salvar um componente substituía silenciosamente a colisão por um box.
         const savedColliderType = props.initialAsset.colliderType
-        colliderType.value = savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'mesh' || savedColliderType === 'none'
-          ? savedColliderType
-          : 'box'
+        // Atualiza componentes de cidade salvos antes do colisor côncavo.
+        // Para modelos comuns, mantém a forma que o usuário já havia escolhido.
+        const restoreStaticCityCollider = Boolean(model.value && shouldDefaultToStaticCityCollider(model.value))
+        colliderType.value = restoreStaticCityCollider
+          ? 'mesh'
+          : savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'mesh' || savedColliderType === 'none'
+            ? savedColliderType
+            : 'box'
         const savedColliderSize = props.initialAsset.colliderSize
         if (Array.isArray(savedColliderSize) && savedColliderSize.length === 3
           && savedColliderSize.every(value => Number.isFinite(value))) {
