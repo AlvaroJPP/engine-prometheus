@@ -662,6 +662,248 @@ export class Engine {
     return true
   }
 
+
+  private tryActivateVeilborneCheckpoint(): boolean {
+    if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return false
+    const position = this.avatar.mesh.position
+    const checkpoint = this.logic.listPackages()
+      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg' &&
+        instance.variables.entity_role === 'checkpoint')
+      .map(instance => ({ instance, object: this.world.get(instance.ownerObjectId) }))
+      .filter((entry): entry is { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> } =>
+        !!entry.object && this.world.isObjectVisible(entry.object),
+      )
+      .map(entry => ({
+        ...entry,
+        distance: Math.hypot(
+          entry.object.mesh.position.x - position.x,
+          entry.object.mesh.position.z - position.z,
+        ),
+        verticalDistance: Math.abs(entry.object.mesh.position.y - position.y),
+      }))
+      .filter(entry => entry.distance <= 2.8 && entry.verticalDistance <= 3)
+      .sort((a, b) => a.distance - b.distance)[0]
+    if (!checkpoint) return false
+
+    const bounds = new THREE.Box3().setFromObject(checkpoint.object.mesh)
+    const spawnY = Number.isFinite(bounds.max.y) ? bounds.max.y + 0.05 : checkpoint.object.mesh.position.y + 0.8
+    this.logic.setVariable('checkpoint_id', checkpoint.object.id)
+    this.logic.setVariable('checkpoint_x', checkpoint.object.mesh.position.x)
+    this.logic.setVariable('checkpoint_y', spawnY)
+    this.logic.setVariable('checkpoint_z', checkpoint.object.mesh.position.z)
+    for (const instance of this.logic.listPackages()) {
+      if (instance.packageId !== 'veilborne_rpg' || instance.variables.entity_role !== 'checkpoint') continue
+      const active = instance.ownerObjectId === checkpoint.object.id
+      this.logic.setPackageVariable(instance.id, 'checkpoint_active', active)
+      this.notifyBehaviorPackageChanged(instance.ownerObjectId)
+    }
+
+    if (checkpoint.instance.variables.checkpoint_restore_resources !== false) {
+      this.logic.setVariable('vida', this.readVeilborneNumber('vida_max', 100))
+      this.logic.setVariable('eter', this.readVeilborneNumber('eter_max', 100))
+      this.logic.setVariable('vigor', this.readVeilborneNumber('vigor_max', 100))
+      this.logic.setVariable('postura', 0)
+      this.logic.setVariable('morto', false)
+      this.logic.setVariable('jogador_morreu', false)
+      this.logic.setVariable('jogador_atordoado', false)
+      const player = this.getVeilbornePlayerCombatant()
+      player.statuses = []
+      player.alive = true
+      this.syncVeilbornePlayerCombatant(player)
+    }
+    const name = typeof checkpoint.instance.variables.checkpoint_name === 'string'
+      ? checkpoint.instance.variables.checkpoint_name
+      : 'Santuário'
+    this.logic.setVariable('loot_notice', 'Santuário ativado: ' + name)
+    this.veilborneLootNoticeRemainingSeconds = 2.4
+    this.triggerBehaviorPackageEvent(checkpoint.object.id, 'veilborne_rpg', 'checkpoint_used')
+    this.spawnVeilborneEffect(
+      checkpoint.object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)),
+      0xe9bf75,
+      0.7,
+      0.55,
+    )
+    this.viewport.invalidate()
+    return true
+  }
+
+  private tryPickupVeilborneEchoCache(): boolean {
+    if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return false
+    const position = this.avatar.mesh.position
+    const cache = this.logic.listPackages()
+      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg' &&
+        instance.variables.entity_role === 'echo_cache')
+      .map(instance => ({ instance, object: this.world.get(instance.ownerObjectId) }))
+      .filter((entry): entry is { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> } =>
+        !!entry.object && this.world.isObjectVisible(entry.object),
+      )
+      .map(entry => ({
+        ...entry,
+        distance: Math.hypot(
+          entry.object.mesh.position.x - position.x,
+          entry.object.mesh.position.z - position.z,
+        ),
+        verticalDistance: Math.abs(entry.object.mesh.position.y - position.y),
+      }))
+      .filter(entry => entry.distance <= 2.4 && entry.verticalDistance <= 3)
+      .sort((a, b) => a.distance - b.distance)[0]
+    if (!cache) return false
+    const amount = cache.instance.variables.echoes_amount
+    const recovered = typeof amount === 'number' && Number.isFinite(amount)
+      ? Math.max(0, Math.floor(amount))
+      : Math.max(0, Math.floor(this.readVeilborneNumber('ecos_perdidos', 0)))
+    if (recovered <= 0) return false
+
+    this.logic.setVariable('ecos', Math.max(0, this.readVeilborneNumber('ecos', 0)) + recovered)
+    this.logic.setVariable('ecos_perdidos', 0)
+    this.veilborneSpawnedLootIds.delete(cache.object.id)
+    this.veilborneEchoCacheObjectId = null
+    this.removeObject(cache.object.id)
+    this.logic.setVariable('loot_notice', 'Ecos recuperados: ' + recovered)
+    this.veilborneLootNoticeRemainingSeconds = 2.6
+    this.spawnVeilborneEffect(
+      position.clone().add(new THREE.Vector3(0, 0.9, 0)),
+      0xe9bf75,
+      0.62,
+      0.4,
+    )
+    this.viewport.invalidate()
+    return true
+  }
+
+  private spawnVeilborneEchoCache(amount: number, position: THREE.Vector3): void {
+    const value = Math.max(0, Math.floor(amount))
+    if (value <= 0) return
+    if (this.veilborneEchoCacheObjectId && this.world.get(this.veilborneEchoCacheObjectId)) return
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xe9bf75,
+      emissive: 0x9e682b,
+      emissiveIntensity: 1.1,
+      metalness: 0.35,
+      roughness: 0.2,
+    })
+    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 1), material)
+    mesh.name = 'VEILBORNE_ECHO_CACHE'
+    mesh.castShadow = true
+    mesh.position.copy(position)
+    mesh.position.y += 0.4
+    const id = 'veilborne-echo-cache-' + uuid()
+    const object = this.world.add({
+      id,
+      name: 'Ecos perdidos',
+      type: 'sphere' as ObjectType,
+      mesh,
+    })
+    this.veilborneSpawnedLootIds.add(object.id)
+    this.veilborneEchoCacheObjectId = object.id
+    const installed = this.installBehaviorPackage(object.id, 'veilborne_rpg')
+    this.logic.setPackageVariable(installed.id, 'entity_role', 'echo_cache')
+    this.logic.setPackageVariable(installed.id, 'faction', 'neutral')
+    this.logic.setPackageVariable(installed.id, 'echoes_amount', value)
+    this.logic.setPackageVariable(installed.id, 'ai_enabled', false)
+    this.logic.setPackageVariable(installed.id, 'drop_item_id', '')
+    this.notifyBehaviorPackageChanged(object.id)
+  }
+
+  private handleVeilbornePlayerDeath(): void {
+    this.veilborneHeavyChargeStartedAt = null
+    this.veilborneBlocking = false
+    this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
+    this.logic.setVariable('carregando_ataque', false)
+    this.logic.setVariable('carga_ataque', 0)
+    this.logic.setVariable('bloqueando', false)
+    this.logic.setVariable('jogador_morreu', true)
+    this.veilbornePlayerRespawnRemainingSeconds = 2.2
+    this.logic.setVariable('morte_contagem', this.veilbornePlayerRespawnRemainingSeconds)
+
+    const deathPosition = this.avatar.mesh.position.clone()
+    this.logic.setVariable('ponto_de_morte_x', deathPosition.x)
+    this.logic.setVariable('ponto_de_morte_y', deathPosition.y)
+    this.logic.setVariable('ponto_de_morte_z', deathPosition.z)
+
+    // Uma segunda morte antes da recuperação elimina o cache anterior.
+    if (this.readVeilborneNumber('ecos_perdidos', 0) > 0) {
+      if (this.veilborneEchoCacheObjectId) {
+        this.veilborneSpawnedLootIds.delete(this.veilborneEchoCacheObjectId)
+        if (this.world.get(this.veilborneEchoCacheObjectId)) this.removeObject(this.veilborneEchoCacheObjectId)
+        this.veilborneEchoCacheObjectId = null
+      }
+      this.logic.setVariable('ecos_perdidos', 0)
+    }
+    const echoes = Math.max(0, Math.floor(this.readVeilborneNumber('ecos', 0)))
+    if (echoes > 0) {
+      this.logic.setVariable('ecos', 0)
+      this.logic.setVariable('ecos_perdidos', echoes)
+      this.spawnVeilborneEchoCache(echoes, deathPosition)
+      this.logic.setVariable('loot_notice', 'Você morreu. Os Ecos foram deixados no local.')
+    } else {
+      this.logic.setVariable('loot_notice', 'Você morreu. Retorno ao último santuário...')
+    }
+    this.veilborneLootNoticeRemainingSeconds = 2.4
+    this.spawnVeilborneEffect(deathPosition.add(new THREE.Vector3(0, 0.8, 0)), 0xb65269, 0.9, 0.6)
+  }
+
+  private updateVeilborneRespawn(dt: number, player: VeilborneCombatant): void {
+    if (player.alive) {
+      this.veilbornePlayerRespawnRemainingSeconds = 0
+      if (this.logic.getVariable('morte_contagem') !== undefined) this.logic.setVariable('morte_contagem', 0)
+      return
+    }
+    if (this.veilbornePlayerRespawnRemainingSeconds <= 0) return
+    this.veilbornePlayerRespawnRemainingSeconds = Math.max(0, this.veilbornePlayerRespawnRemainingSeconds - Math.max(0, Math.min(dt, 0.1)))
+    this.logic.setVariable('morte_contagem', this.veilbornePlayerRespawnRemainingSeconds)
+    if (this.veilbornePlayerRespawnRemainingSeconds > 0) return
+    this.respawnVeilbornePlayer(player)
+  }
+
+  private respawnVeilbornePlayer(player: VeilborneCombatant): void {
+    const checkpointId = this.logic.getVariable('checkpoint_id')
+    let spawnPosition: THREE.Vector3 | null = null
+    if (typeof checkpointId === 'string' && checkpointId) {
+      const checkpoint = this.world.get(checkpointId)
+      if (checkpoint) {
+        checkpoint.mesh.updateMatrixWorld(true)
+        const bounds = new THREE.Box3().setFromObject(checkpoint.mesh)
+        spawnPosition = new THREE.Vector3(
+          checkpoint.mesh.position.x,
+          Number.isFinite(bounds.max.y) ? bounds.max.y + 0.05 : checkpoint.mesh.position.y + 0.8,
+          checkpoint.mesh.position.z,
+        )
+      } else {
+        spawnPosition = new THREE.Vector3(
+          this.readVeilborneNumber('checkpoint_x', 0),
+          this.readVeilborneNumber('checkpoint_y', 1),
+          this.readVeilborneNumber('checkpoint_z', 0),
+        )
+      }
+    } else if (this.veilborneDefaultSpawnPosition) {
+      spawnPosition = this.veilborneDefaultSpawnPosition.clone()
+    }
+    if (!spawnPosition) spawnPosition = this.avatar.mesh.position.clone()
+    this.avatar.mesh.position.copy(spawnPosition)
+    this.avatar.resetVerticalState()
+    this.orbit.target.set(spawnPosition.x, spawnPosition.y + 0.9, spawnPosition.z)
+
+    player.resources.vitality = player.resources.maxVitality
+    player.resources.ether = player.resources.maxEther
+    player.resources.stamina = player.resources.maxStamina
+    player.resources.posture = 0
+    player.alive = true
+    player.statuses = []
+    this.syncVeilbornePlayerCombatant(player)
+    this.logic.setVariable('morto', false)
+    this.logic.setVariable('jogador_morreu', false)
+    this.logic.setVariable('jogador_atordoado', false)
+    this.logic.setVariable('morte_contagem', 0)
+    this.veilbornePlayerRespawnRemainingSeconds = 0
+    this.avatar.setCombatStagger(0)
+    this.clearVeilborneTargetLock()
+    this.logic.setVariable('loot_notice', 'Você retornou ao santuário.')
+    this.veilborneLootNoticeRemainingSeconds = 2.2
+    this.spawnVeilborneEffect(spawnPosition.clone().add(new THREE.Vector3(0, 1, 0)), 0xe9bf75, 0.95, 0.65)
+    this.viewport.invalidate()
+  }
+
   private tryPickupVeilborneLoot(): boolean {
     if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return false
     const position = this.avatar.mesh.position
@@ -850,6 +1092,7 @@ export class Engine {
       if (this.world.get(id)) this.removeObject(id)
     }
     this.veilborneSpawnedLootIds.clear()
+    this.veilborneEchoCacheObjectId = null
     for (const [id, wasVisible] of this.veilborneCollectedLootVisibility) {
       if (!this.world.get(id)) continue
       this.world.update(id, { visible: wasVisible })
@@ -1158,10 +1401,7 @@ export class Engine {
     const appliedDamage = before - player.resources.vitality
     this.syncVeilbornePlayerCombatant(player)
     if (!player.alive) {
-      this.logic.setVariable('jogador_morreu', true)
-      this.veilborneHeavyChargeStartedAt = null
-      this.logic.setVariable('carregando_ataque', false)
-      this.logic.setVariable('carga_ataque', 0)
+      this.handleVeilbornePlayerDeath()
     }
     if (blocked) this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xb0d9ff, 0.55, 0.25)
     this.viewport.invalidate()
@@ -1887,6 +2127,7 @@ export class Engine {
     }
 
     const player = this.getVeilbornePlayerCombatant()
+    this.updateVeilborneRespawn(step, player)
     this.updateVeilborneTargetLock(player)
     if (this.veilborneHeavyChargeStartedAt !== null) {
       const charge = Math.min(1, Math.max(0, (performance.now() / 1000 - this.veilborneHeavyChargeStartedAt) / 2))
