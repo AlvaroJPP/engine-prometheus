@@ -25,14 +25,20 @@ type ImportModelStateDraft = {
   value: PackageScalar
   visibleWhenMatched: boolean
 }
+type ModelImportPayload = {
+  name: string
+  model: THREE.Object3D
+  height: number
+  thumbnail?: string
+  componentId?: string
+}
 
-const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
+const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null }>()
 const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
 const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
 
 const emit = defineEmits<{
   close: []
-  import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string; componentId?: string }]
   'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
 }>()
 
@@ -1833,17 +1839,16 @@ function clearCustomThumbnail() {
   thumbnailImageError.value = ''
 }
 
-function confirmImport() {
-  if (!model.value || !fileName.value) return
+async function confirmImport() {
   const root = model.value
+  if (!root || !fileName.value || loading.value) return
+  error.value = ''
   const chosenPart = selectedPartId.value ? findPreviewPart(selectedPartId.value) : undefined
   const chosenName = componentName.value.trim() || chosenPart?.name || root.name.trim() || 'Modelo 3D'
   let imported: THREE.Object3D
   let importedHeight = modelHeight.value
 
   if (chosenPart && chosenPart.object !== root) {
-    // Clona somente o nó selecionado e preserva seu transform relativo à raiz.
-    // Isso permite importar uma árvore/grupo sem carregar o restante da floresta.
     root.updateMatrixWorld(true)
     const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
     imported = chosenPart.object.clone(true)
@@ -1885,16 +1890,35 @@ function confirmImport() {
   }
   imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
 
-  // Capture a miniatura antes de remover o modelo da cena de pré-visualização.
+  // Aguarda o salvamento antes de fechar. Em caso de erro, a prévia continua
+  // aberta e a mensagem fica visível para corrigir e tentar novamente.
   const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
+  loading.value = true
+  try {
+    const saved = await props.saveModel({
+      name: chosenName,
+      model: imported,
+      height: importedHeight,
+      thumbnail,
+      componentId: props.initialAsset?.id,
+    })
+    if (!saved) {
+      error.value = 'O salvamento não foi concluído. Verifique se outra operação está em andamento e tente novamente.'
+      return
+    }
 
-  // A animação da prévia não deve continuar ativa depois que o motor assumir o modelo.
-  previewMixer?.stopAllAction()
-  previewMixer = null
-  scene?.remove(root)
-  model.value = null
-  emit('import', { name: chosenName, model: imported, height: importedHeight, thumbnail, componentId: props.initialAsset?.id })
-  emit('close')
+    previewMixer?.stopAllAction()
+    previewMixer = null
+    scene?.remove(root)
+    if (imported === root) model.value = null
+    emit('close')
+  } catch (cause) {
+    error.value = cause instanceof Error
+      ? 'Não foi possível salvar o modelo: ' + cause.message
+      : 'Não foi possível salvar o modelo. Tente novamente.'
+  } finally {
+    loading.value = false
+  }
 }
 
 onBeforeUnmount(() => {
