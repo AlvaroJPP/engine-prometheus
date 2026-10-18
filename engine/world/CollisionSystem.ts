@@ -495,7 +495,7 @@ export class CollisionSystem {
           helper.geometry.dispose()
           ;(helper.material as THREE.Material).dispose()
         }
-        const edges = new THREE.WireframeGeometry(geometry)
+        const edges = this.createColliderDebugWireframe(object, geometry)
         helper = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x45e6a4, transparent: true, opacity: 0.95, depthTest: false }))
         helper.name = 'collider-debug-wireframe'
         helper.userData.editorOverlay = true
@@ -520,6 +520,47 @@ export class CollisionSystem {
       cachedCollider?.geometry.dispose()
       this.colliderGeometries.delete(id)
     }
+  }
+
+  /**
+   * Evita construir milhões de segmentos no modo de debug de uma cidade.
+   * A colisão continua consultando todos os triângulos do BVH; só o desenho
+   * diagnóstico é amostrado para manter o editor responsivo.
+   */
+  private createColliderDebugWireframe(object: GameObject, source: THREE.BufferGeometry): THREE.BufferGeometry {
+    if (!this.isStaticMeshCollider(object)) return new THREE.WireframeGeometry(source)
+    const position = source.getAttribute('position')
+    if (!position || position.count < 3) return new THREE.WireframeGeometry(source)
+
+    const index = source.getIndex()
+    const triangleCount = Math.floor((index ? index.count : position.count) / 3)
+    const maxDebugTriangles = 60_000
+    if (triangleCount <= maxDebugTriangles) return new THREE.WireframeGeometry(source)
+
+    const stride = Math.max(1, Math.ceil(triangleCount / maxDebugTriangles))
+    const output = new Float32Array(Math.ceil(triangleCount / stride) * 18)
+    let cursor = 0
+    const write = (vertexIndex: number) => {
+      output[cursor++] = position.getX(vertexIndex)
+      output[cursor++] = position.getY(vertexIndex)
+      output[cursor++] = position.getZ(vertexIndex)
+    }
+
+    for (let triangle = 0; triangle < triangleCount; triangle += stride) {
+      const a = index ? index.getX(triangle * 3) : triangle * 3
+      const b = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1
+      const d = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2
+      write(a); write(b)
+      write(b); write(d)
+      write(d); write(a)
+    }
+
+    const debugGeometry = new THREE.BufferGeometry()
+    debugGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(cursor === output.length ? output : output.slice(0, cursor), 3),
+    )
+    return debugGeometry
   }
 
   private resolveContinuousCollisions(objects: GameObject[]): void {
