@@ -1663,20 +1663,27 @@ export class HumanoidAvatar {
     const maxProbeX = centerX + insetX
     const minProbeZ = centerZ - insetZ
     const maxProbeZ = centerZ + insetZ
-    const candidates = this.world.list().filter(object => {
-      if (
-        object.mesh === root ||
-        !object.mesh.visible ||
-        object.mesh.userData.colliderType === 'none' ||
-        object.mesh.userData.importedModel === true
-      ) return false
+    const allCandidates = this.world.list().filter(object =>
+      object.mesh !== root &&
+      object.mesh.visible &&
+      object.mesh.userData.colliderType !== 'none',
+    )
+    // La cidade/terreno estático usa raycast BVH em vez de atravessar cada
+    // mesh filho em cada ponto de apoio da montaria.
+    const staticCandidates = allCandidates.filter(object =>
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    const staticIds = new Set(staticCandidates.map(object => object.id))
+    const candidates = allCandidates.filter(object => {
+      if (staticIds.has(object.id) || object.mesh.userData.importedModel === true) return false
       object.mesh.updateWorldMatrix(true, true)
       const box = getColliderBounds(object.mesh) ?? new THREE.Box3().setFromObject(object.mesh)
       return box.max.x >= minProbeX - 0.02 && box.min.x <= maxProbeX + 0.02 &&
         box.max.z >= minProbeZ - 0.02 && box.min.z <= maxProbeZ + 0.02 &&
         box.max.y >= feetY - maxSlopeDrop && box.min.y <= originY
     })
-    if (candidates.length === 0) return { flat, inclined, terrain }
+    if (candidates.length === 0 && staticCandidates.length === 0) return { flat, inclined, terrain }
 
     const raycaster = new THREE.Raycaster()
     raycaster.ray.direction.set(0, -1, 0)
@@ -1695,8 +1702,6 @@ export class HumanoidAvatar {
           object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
         )
         if (!owner) continue
-        // A raiz de um modelo importado é apenas o proxy do editor.
-        if (owner.mesh.userData.importedModel === true && hit.object === owner.mesh) continue
 
         const normal = hit.face.normal.clone()
           .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
@@ -1704,10 +1709,8 @@ export class HumanoidAvatar {
         if (normal.y < 0.12) continue
 
         const isInclinedSurface = normal.y < 0.9995
-        // Não use a amostra mais baixa como altura da montaria inteira: isso
-        // pode empurrar o corpo para dentro da rampa. Projeta cada interseção
-        // inclinada para o centro da pegada, calculando a altura real do plano
-        // no ponto de apoio da raiz.
+        // Projeta a amostra inclinada para o centro da pegada: usar o ponto
+        // mais baixo de uma rampa longa deixaria a montaria suspensa pelo outro lado.
         const surfaceY = isInclinedSurface && normal.y > 1e-4
           ? hit.point.y - (
             normal.x * (centerX - hit.point.x) +
@@ -1720,9 +1723,40 @@ export class HumanoidAvatar {
 
         if (isInclinedSurface) inclined.push(surfaceY)
         else flat.push(surfaceY)
-        // Hits vêm ordenados por distância; a primeira superfície caminhável
-        // neste ponto é a face de apoio relevante.
         break
+      }
+
+      for (const object of staticCandidates) {
+        const hit = raycastStaticMesh(
+          object.mesh,
+          raycaster.ray,
+          raycaster.near,
+          raycaster.far,
+          candidate => {
+            if (candidate.normal.y < 0.12) return false
+            const isInclinedSurface = candidate.normal.y < 0.9995
+            const surfaceY = isInclinedSurface && candidate.normal.y > 1e-4
+              ? candidate.point.y - (
+                candidate.normal.x * (centerX - candidate.point.x) +
+                candidate.normal.z * (centerZ - candidate.point.z)
+              ) / candidate.normal.y
+              : candidate.point.y
+            const rise = surfaceY - feetY
+            return rise <= maxRise &&
+              (rise >= -maxFlatDrop || (isInclinedSurface && rise >= -maxSlopeDrop))
+          },
+        )
+        if (!hit) continue
+        const normal = hit.normal
+        const isInclinedSurface = normal.y < 0.9995
+        const surfaceY = isInclinedSurface && normal.y > 1e-4
+          ? hit.point.y - (
+            normal.x * (centerX - hit.point.x) +
+            normal.z * (centerZ - hit.point.z)
+          ) / normal.y
+          : hit.point.y
+        if (isInclinedSurface) inclined.push(surfaceY)
+        else flat.push(surfaceY)
       }
     }
 
