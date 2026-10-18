@@ -27,6 +27,7 @@ export interface GrassRenderOptions {
   middleDetailDistance?: number | null
   occlusionEnabled?: boolean
   occlusionIntervalMs?: number
+  wallOcclusionQuality?: 'fast' | 'precise'
   windPercent?: number
 }
 
@@ -316,6 +317,8 @@ export class GrassLayer {
   private nearDetailDistanceOverride: number | null = null
   private middleDetailDistanceOverride: number | null = null
   private grassOcclusionEnabled = true
+  /** Quality mode only affects wall/object occlusion; grass rendering/LOD remains unchanged. */
+  private wallOcclusionQuality: 'fast' | 'precise' = 'precise'
   private grassOcclusionRecheckIntervalMs = GRASS_OCCLUSION_RECHECK_INTERVAL_MS
   private grassWindPercent = 100
   private performancePreset: GrassPerformancePreset = 'quality'
@@ -1339,6 +1342,15 @@ export class GrassLayer {
       return false
     }
 
+    // O modo econômico conserva a confirmação de chunks totalmente bloqueados,
+    // mas pula os raycasts extras das 16 subcélulas em coberturas parciais.
+    // Isso pode deixar um pouco mais de grama visível junto às paredes, porém
+    // não remove a oclusão de grama atrás de paredes inteiras.
+    if (this.wallOcclusionQuality === 'fast') {
+      this.clearOcclusionCellsForChunk(chunk)
+      return false
+    }
+
     // Cobertura parcial: avalia cada célula independentemente. A margem menor
     // para células já ocultas reduz oscilações visuais junto às bordas.
     this.refineChunkOcclusion(chunk, minX, minZ, cameraPosition, data)
@@ -1976,6 +1988,11 @@ export class GrassLayer {
         this.grassOcclusionRecheckIntervalMs = next
         rebuild = true
       }
+    }
+    if (options.wallOcclusionQuality !== undefined && options.wallOcclusionQuality !== this.wallOcclusionQuality) {
+      this.wallOcclusionQuality = options.wallOcclusionQuality
+      this.grassOcclusionNeedsEvaluation = true
+      rebuild = true
     }
     if (options.windPercent !== undefined && Number.isFinite(options.windPercent)) {
       const next = Math.round(THREE.MathUtils.clamp(options.windPercent, 0, 100))
