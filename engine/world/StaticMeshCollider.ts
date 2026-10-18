@@ -49,7 +49,9 @@ function isVisibleWithinRoot(node: THREE.Object3D, root: THREE.Object3D): boolea
     if (!current.visible) return false
     current = current.parent
   }
-  return current === root && root.visible
+  // A visibilidade da raiz é filtrada pelo mundo; ela não altera a geometria
+  // compilada e não deve transformar um cache válido em um cache vazio.
+  return current === root
 }
 
 /**
