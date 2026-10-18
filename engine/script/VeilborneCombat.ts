@@ -242,3 +242,89 @@ export function calculateVeilborneSigilCost(sigil: VeilborneSigilProfile, will: 
   const discount = clamp(Math.max(0, will) * 0.002, 0, 0.35)
   return Math.max(0, Math.ceil(sigil.etherCost * (1 - discount)))
 }
+
+export interface VeilborneRuntimeWeapon extends VeilborneWeaponProfile {
+  id: string
+  name: string
+  range: number
+}
+
+export interface VeilborneRuntimeSpell extends VeilborneSpellProfile {
+  name: string
+  range: number
+  radius: number
+  targeting: 'single' | 'area'
+  visualColor: number
+  statusEffect?: VeilborneStatusId
+  statusPotency?: number
+  statusDurationSeconds?: number
+}
+
+/** Arsenal inicial de runtime; projetos podem substituir esses perfis por dados de itens próprios. */
+export const VEILBORNE_RUNTIME_WEAPONS: Readonly<Record<string, VeilborneRuntimeWeapon>> = Object.freeze({
+  starter_arcane_sword: {
+    id: 'starter_arcane_sword', name: 'Lâmina do Véu', baseDamage: 18,
+    damageType: 'physical', scaling: { strength: 0.8, dexterity: 0.45 },
+    staminaCost: 16, postureDamage: 14, criticalMultiplier: 1.75, range: 2.65,
+  },
+  starter_rune_staff: {
+    id: 'starter_rune_staff', name: 'Cajado das Cinzas', baseDamage: 9,
+    damageType: 'arcane', scaling: { intellect: 0.9, will: 0.35 },
+    staminaCost: 10, postureDamage: 8, criticalMultiplier: 1.5, range: 2.9,
+  },
+  hunters_dagger: {
+    id: 'hunters_dagger', name: 'Adaga do Caçador', baseDamage: 11,
+    damageType: 'physical', scaling: { dexterity: 1.1 },
+    staminaCost: 9, postureDamage: 7, criticalMultiplier: 2.1, range: 1.85,
+  },
+  oathbreaker_greatsword: {
+    id: 'oathbreaker_greatsword', name: 'Espadão Quebrajuramentos', baseDamage: 29,
+    damageType: 'physical', scaling: { strength: 1.25 },
+    staminaCost: 28, postureDamage: 25, criticalMultiplier: 1.8, range: 3.2,
+  },
+})
+
+export const VEILBORNE_RUNTIME_SPELLS: Readonly<Record<string, VeilborneRuntimeSpell>> = Object.freeze({
+  arcane_bolt: {
+    id: 'arcane_bolt', name: 'Dardo do Véu', damage: 20, damageType: 'arcane',
+    etherCost: 8, castTimeSeconds: 0.18, cooldownSeconds: 0.45, scalingAttribute: 'intellect',
+    scaling: 0.8, postureDamage: 6, range: 24, radius: 0, targeting: 'single', visualColor: 0x8c7cff,
+  },
+  cinder_burst: {
+    id: 'cinder_burst', name: 'Explosão de Brasa', damage: 34, damageType: 'fire',
+    etherCost: 22, castTimeSeconds: 0.48, cooldownSeconds: 4, scalingAttribute: 'intellect',
+    scaling: 1.1, postureDamage: 18, range: 16, radius: 4.5, targeting: 'area', visualColor: 0xff713b,
+    statusEffect: 'burn', statusPotency: 3, statusDurationSeconds: 4,
+  },
+  frost_chain: {
+    id: 'frost_chain', name: 'Corrente Glacial', damage: 16, damageType: 'frost',
+    etherCost: 16, castTimeSeconds: 0.3, cooldownSeconds: 3, scalingAttribute: 'intellect',
+    scaling: 0.7, postureDamage: 8, range: 20, radius: 2, targeting: 'area', visualColor: 0x79ddff,
+    statusEffect: 'slow', statusPotency: 0.35, statusDurationSeconds: 3,
+  },
+  blood_siphon: {
+    id: 'blood_siphon', name: 'Dreno Rubro', damage: 14, damageType: 'blood',
+    etherCost: 18, castTimeSeconds: 0.26, cooldownSeconds: 5, scalingAttribute: 'will',
+    scaling: 0.8, postureDamage: 8, range: 12, radius: 0, targeting: 'single', visualColor: 0xd82e55,
+    statusEffect: 'bleed', statusPotency: 2, statusDurationSeconds: 5,
+  },
+  blink_step: {
+    id: 'blink_step', name: 'Passo Entre Véus', damage: 0, damageType: 'arcane',
+    etherCost: 20, castTimeSeconds: 0.05, cooldownSeconds: 6, scalingAttribute: 'will',
+    scaling: 0, postureDamage: 0, range: 7, radius: 0, targeting: 'single', visualColor: 0x9b69ff,
+  },
+  storm_lance: {
+    id: 'storm_lance', name: 'Lança da Tempestade', damage: 39, damageType: 'storm',
+    etherCost: 24, castTimeSeconds: 0.42, cooldownSeconds: 4.5, scalingAttribute: 'intellect',
+    scaling: 1.15, postureDamage: 18, range: 26, radius: 0.8, targeting: 'area', visualColor: 0xffe77a,
+    statusEffect: 'shock', statusPotency: 1, statusDurationSeconds: 2,
+  },
+})
+
+export const VEILBORNE_DEFAULT_SPELL_SLOTS = Object.freeze([
+  'arcane_bolt',
+  'cinder_burst',
+  'frost_chain',
+  'blood_siphon',
+] as const)
+
