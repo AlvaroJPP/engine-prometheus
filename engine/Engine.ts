@@ -140,6 +140,8 @@ export class Engine {
   private veilborneParryStartedAt = Number.NEGATIVE_INFINITY
   private readonly veilborneParryWindowSeconds = 0.2
   private veilbornePlayerStaggerRemainingSeconds = 0
+  private veilborneLockedTargetId: string | null = null
+  private veilborneLockMarker: THREE.Mesh | null = null
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -421,6 +423,7 @@ export class Engine {
       ['sigilo_1', 'ward'], ['sigilo_2', 'blast'], ['sigilo_3', 'hunter_mark'], ['sigilo_4', 'slow_field'],
       ['sigilo_selecionado', 1], ['sigilo_ativo', 'ward'],
       ['bloqueando', false], ['aparo_total', 0], ['aparo_sucesso', false], ['jogador_morreu', false], ['jogador_atordoado', false],
+      ['alvo_travado', false], ['alvo_veilborne_id', ''],
       ['ward_remaining', 0], ['ward_absorption', 0],
     ]
     for (const [name, value] of defaults) {
@@ -508,10 +511,25 @@ export class Engine {
 
   private findVeilborneTarget(maxRange: number): { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>>; distance: number } | null {
     const playerPosition = this.avatar.mesh.position
+    const hostiles = this.getVeilborneHostilePackages()
+    if (this.veilborneLockedTargetId) {
+      const locked = hostiles.find(candidate => candidate.object.id === this.veilborneLockedTargetId)
+      if (!locked) {
+        this.clearVeilborneTargetLock()
+      } else {
+        const distance = Math.hypot(
+          locked.object.mesh.position.x - playerPosition.x,
+          locked.object.mesh.position.z - playerPosition.z,
+        )
+        return distance <= maxRange
+          ? { instance: locked.instance, object: locked.object, distance }
+          : null
+      }
+    }
     const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
     let best: { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>>; distance: number; score: number } | null = null
 
-    for (const candidate of this.getVeilborneHostilePackages()) {
+    for (const candidate of hostiles) {
       const delta = candidate.object.mesh.position.clone().sub(playerPosition)
       delta.y = 0
       const distance = delta.length()
@@ -705,6 +723,7 @@ export class Engine {
     this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
     this.veilbornePlayerStaggerRemainingSeconds = 0
     this.avatar.setCombatStagger(0)
+    this.clearVeilborneTargetLock()
     if (this.logic.getVariable('jogador_atordoado') !== undefined) this.logic.setVariable('jogador_atordoado', false)
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
@@ -811,6 +830,10 @@ export class Engine {
     if (!this.cameraStateBeforeRun || !this.isVeilborneEnabled()) return false
     if (this.avatar.isCombatStaggered()) return true
     const bindings = this.playerControlBindings
+    if (code === bindings.targetLock) {
+      this.toggleVeilborneTargetLock()
+      return true
+    }
     if (code === bindings.block) {
       this.veilborneBlocking = true
       this.logic.setVariable('bloqueando', true)
@@ -1203,6 +1226,84 @@ export class Engine {
   }
 
 
+
+  private toggleVeilborneTargetLock(): void {
+    if (this.veilborneLockedTargetId) {
+      this.clearVeilborneTargetLock()
+      this.viewport.invalidate()
+      return
+    }
+    const target = this.findVeilborneTarget(30)
+    if (!target) {
+      this.logic.setVariable('alvo_travado', false)
+      this.logic.setVariable('alvo_veilborne_id', '')
+      return
+    }
+    this.veilborneLockedTargetId = target.object.id
+    this.logic.setVariable('alvo_travado', true)
+    this.logic.setVariable('alvo_veilborne_id', target.object.id)
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff526e,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    this.veilborneLockMarker = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.035, 7, 36), material)
+    this.veilborneLockMarker.rotation.x = Math.PI / 2
+    this.veilborneLockMarker.renderOrder = 24
+    this.world.scene.add(this.veilborneLockMarker)
+    const point = this.getVeilborneWorldPoint(target.object.id)
+    if (point) this.spawnVeilborneEffect(point, 0xff526e, 0.58, 0.35)
+    this.updateVeilborneTargetLock(this.getVeilbornePlayerCombatant())
+    this.viewport.invalidate()
+  }
+
+  private updateVeilborneTargetLock(player: VeilborneCombatant): void {
+    if (!this.veilborneLockedTargetId) return
+    if (!player.alive) {
+      this.clearVeilborneTargetLock()
+      return
+    }
+    const target = this.getVeilborneHostilePackages().find(candidate => candidate.object.id === this.veilborneLockedTargetId)
+    if (!target) {
+      this.clearVeilborneTargetLock()
+      return
+    }
+    const deltaX = target.object.mesh.position.x - this.avatar.mesh.position.x
+    const deltaZ = target.object.mesh.position.z - this.avatar.mesh.position.z
+    const distance = Math.hypot(deltaX, deltaZ)
+    if (distance > 45) {
+      this.clearVeilborneTargetLock()
+      return
+    }
+    if (distance > 0.001) {
+      this.avatar.mesh.rotation.y = Math.atan2(deltaX, deltaZ)
+      this.avatar.mesh.updateMatrixWorld(true)
+    }
+    if (this.veilborneLockMarker) {
+      const point = this.getVeilborneWorldPoint(target.object.id)
+      if (point) {
+        this.veilborneLockMarker.position.copy(point)
+        this.veilborneLockMarker.position.y = target.object.mesh.position.y + 1.05
+      }
+    }
+  }
+
+  private clearVeilborneTargetLock(): void {
+    this.veilborneLockedTargetId = null
+    if (this.veilborneLockMarker) {
+      this.world.scene.remove(this.veilborneLockMarker)
+      this.veilborneLockMarker.geometry.dispose()
+      const material = this.veilborneLockMarker.material
+      if (Array.isArray(material)) material.forEach(item => item.dispose())
+      else material.dispose()
+      this.veilborneLockMarker = null
+    }
+    if (this.logic.getVariable('alvo_travado') !== undefined) this.logic.setVariable('alvo_travado', false)
+    if (this.logic.getVariable('alvo_veilborne_id') !== undefined) this.logic.setVariable('alvo_veilborne_id', '')
+  }
+
   private setVeilborneAIState(instance: BehaviorPackageInstance, nextState: string): void {
     const previous = typeof instance.variables.ai_state === 'string' ? instance.variables.ai_state : 'idle'
     if (previous === nextState) return
@@ -1427,6 +1528,7 @@ export class Engine {
     }
 
     const player = this.getVeilbornePlayerCombatant()
+    this.updateVeilborneTargetLock(player)
     if (player.alive) {
       restoreVeilborneResource(player, 'stamina', 16 * step)
       restoreVeilborneResource(player, 'ether', 1.6 * step)
@@ -1828,6 +1930,7 @@ export class Engine {
       this.playerControlBindings.secondaryAction,
       this.playerControlBindings.block,
       this.playerControlBindings.parry,
+      this.playerControlBindings.targetLock,
       this.playerControlBindings.inventory,
       this.playerControlBindings.useItem,
       this.playerControlBindings.reload,
@@ -2818,6 +2921,7 @@ export class Engine {
     this.clearVeilborneEffects()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
+    this.clearVeilborneTargetLock()
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.dispose()
