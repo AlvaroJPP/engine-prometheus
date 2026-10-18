@@ -7,6 +7,7 @@ interface ComponentEntry {
   name: string
   kind?: 'object' | 'entity'
   group?: string
+  libraryType?: 'object' | 'animated-model' | 'animation-source'
   thumbnail?: string
   height: number
   colliderType: 'box' | 'sphere' | 'capsule' | 'none'
@@ -16,6 +17,17 @@ interface ComponentEntry {
 }
 
 const activeTab = ref<'hierarchy' | 'components'>('hierarchy')
+const activeLibraryCategory = ref<'object' | 'animated-model' | 'animation-source'>('object')
+const libraryCategoryLabels: Record<'object' | 'animated-model' | 'animation-source', string> = {
+  object: 'Objetos',
+  'animated-model': 'Animações modificadas',
+  'animation-source': 'Fontes de animação',
+}
+const libraryCategoryCounts = computed(() => ({
+  object: props.components.filter(component => (component.libraryType ?? 'object') === 'object').length,
+  'animated-model': props.components.filter(component => component.libraryType === 'animated-model').length,
+  'animation-source': props.components.filter(component => component.libraryType === 'animation-source').length,
+}))
 const hierarchySearch = ref('')
 const componentSearch = ref('')
 const editingComponentId = ref<string | null>(null)
@@ -101,7 +113,8 @@ const componentGroupOptions = computed(() => {
 const componentGroups = computed(() => {
   const query = componentSearch.value.trim().toLocaleLowerCase('pt-BR')
   const visibleComponents = props.components.filter(component =>
-    !query || component.name.toLocaleLowerCase('pt-BR').includes(query),
+    (component.libraryType ?? 'object') === activeLibraryCategory.value
+      && (!query || component.name.toLocaleLowerCase('pt-BR').includes(query)),
   )
   const names = componentGroupOptions.value.filter(name =>
     visibleComponents.some(component => componentGroup(component) === name)
@@ -164,6 +177,7 @@ const emit = defineEmits<{
   'move-component': [id: string, group: string]
   'open-model-import': []
   'open-components': []
+  'use-animation-source': [id: string]
 }>()
 </script>
 
@@ -241,14 +255,32 @@ const emit = defineEmits<{
 
     <div v-else class="component-library">
       <div class="component-library-intro">
-        <strong>Biblioteca reutilizável</strong>
-        <p>Importe um modelo uma vez. Depois insira cópias com o mesmo tamanho, materiais e colisor.</p>
+        <strong>Biblioteca de importados</strong>
+        <p>Organize seus modelos por uso: objetos para construir o mundo, modelos com animações modificadas e arquivos usados apenas como fontes de movimento.</p>
       </div>
 
+      <nav class="imported-category-tabs" aria-label="Categorias de importados">
+        <button v-for="category in (['object', 'animated-model', 'animation-source'] as const)" :key="category"
+          :class="{ active: activeLibraryCategory === category }"
+          :title="libraryCategoryLabels[category]"
+          @click="activeLibraryCategory = category; componentSearch = ''">
+          <span>{{ category === 'object' ? '▧' : category === 'animated-model' ? '♟' : '▶' }}</span>
+          <small>{{ libraryCategoryLabels[category] }}</small>
+          <b>{{ libraryCategoryCounts[category] }}</b>
+        </button>
+      </nav>
+
+      <label class="component-search-field">
+        <span aria-hidden="true">⌕</span>
+        <input v-model="componentSearch" type="search" placeholder="Buscar importados…" aria-label="Buscar na biblioteca de importados" />
+        <button v-if="componentSearch" type="button" aria-label="Limpar busca" @click="componentSearch = ''">×</button>
+      </label>
+
       <div class="component-groups-scroll">
-        <div v-if="!components.length" class="component-library-empty">
-          <span>▧</span><strong>Nenhum componente salvo</strong>
-          <small>Importe um modelo 3D para criar o primeiro componente reutilizável.</small>
+        <div v-if="!componentGroups.length && !componentSearch.trim()" class="component-library-empty">
+          <span>{{ activeLibraryCategory === 'object' ? '▧' : activeLibraryCategory === 'animated-model' ? '♟' : '▶' }}</span>
+          <strong>{{ activeLibraryCategory === 'object' ? 'Nenhum objeto importado' : activeLibraryCategory === 'animated-model' ? 'Nenhum modelo com animações modificadas' : 'Nenhuma fonte de animação' }}</strong>
+          <small>{{ activeLibraryCategory === 'animation-source' ? 'Carregue um GLB animado na aba de rigging e salve-o como fonte de animação.' : 'Use Importar modelo para adicionar arquivos à biblioteca.' }}</small>
         </div>
         <div v-else-if="!componentGroups.some(group => group.components.length)" class="component-library-empty">
           <span>⌕</span><strong>Nenhum resultado</strong>
@@ -277,18 +309,21 @@ const emit = defineEmits<{
                 <button class="saved-component-rename-cancel" title="Cancelar edição" aria-label="Cancelar edição" @click="cancelComponentRename">×</button>
               </div>
               <template v-else>
-                <span class="saved-component-art" :class="{ entity: component.kind === 'entity', 'has-thumbnail': !!component.thumbnail }" aria-hidden="true"><img v-if="component.thumbnail" :src="component.thumbnail" alt="" loading="lazy" /><span v-else>{{ component.kind === 'entity' ? '♟' : '▧' }}</span></span>
+                <span class="saved-component-art" :class="{ entity: component.kind === 'entity', 'has-thumbnail': !!component.thumbnail, 'animation-source-art': component.libraryType === 'animation-source', 'animated-model-art': component.libraryType === 'animated-model' }" aria-hidden="true"><img v-if="component.thumbnail" :src="component.thumbnail" alt="" loading="lazy" /><span v-else>{{ component.libraryType === 'animation-source' ? '▶' : component.kind === 'entity' ? '♟' : component.libraryType === 'animated-model' ? '♬' : '▧' }}</span></span>
                 <div class="saved-component-copy">
                   <strong :title="component.name">{{ component.name }}</strong>
-                  <small>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : 'Caixa' }}</small>
+                  <small v-if="component.libraryType === 'animation-source'">{{ component.height.toFixed(2) }} u · Fonte de animações</small>
+                  <small v-else-if="component.libraryType === 'animated-model'">{{ component.height.toFixed(2) }} u · Animações modificadas</small>
+                  <small v-else>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : 'Caixa' }}</small>
                 </div>
-                <button class="saved-component-insert" :title="'Inserir ' + component.name" @click="emit('place-component', component.id)">＋ Inserir</button>
+                <button v-if="component.libraryType === 'animation-source'" class="saved-component-insert saved-component-source" :title="'Carregar ' + component.name + ' como origem das animações'" @click="emit('use-animation-source', component.id)">Usar origem</button>
+                <button v-else class="saved-component-insert" :title="'Inserir ' + component.name" @click="emit('place-component', component.id)">＋ Inserir</button>
                 <details class="saved-component-menu">
                   <summary :aria-label="'Mais opções para ' + component.name" title="Mais opções">⋯</summary>
                   <div class="saved-component-menu-popover">
                     <button title="Altera o nome deste componente na biblioteca." @click="beginComponentRename(component)">Renomear</button>
-                    <button title="Abre o componente em pré-visualização e permite editar suas configurações, salvando no próprio componente." @click="emit('preview-component', component.id)">Editar / pré-visualizar</button>
-                    <label>Grupo
+                    <button v-if="component.libraryType !== 'animation-source'" title="Abre o componente em pré-visualização e permite editar suas configurações, salvando no próprio componente." @click="emit('preview-component', component.id)">Editar / pré-visualizar</button>
+                    <label v-if="component.libraryType !== 'animation-source'">Grupo
                       <select :value="componentGroup(component)" aria-label="Grupo do componente" @change="updateComponentGroup(component, $event)">
                         <option v-for="name in componentGroupOptions" :key="name" :value="name">{{ name }}</option>
                       </select>
@@ -312,7 +347,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .hierarchy-actions{display:flex;gap:5px;padding:0 10px 9px}.hierarchy-actions button{flex:1;min-width:0;padding:6px 4px;border:1px solid #414756;border-radius:4px;background:#292d37;color:#cbd2de;font-size:10px;cursor:pointer}.hierarchy-actions button:disabled{opacity:.4;cursor:default}.row.group-selected{outline:1px solid #b78048;outline-offset:-1px}.row-action{border:0;background:transparent;color:#8f99aa;cursor:pointer;padding:2px 3px;font-size:12px}.row-action.active{color:#f3c34e}
-.library-tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:7px 9px;border-bottom:1px solid #242a35;background:#171b23}.library-tabs button{min-width:0;padding:7px 4px;border:1px solid transparent;border-radius:4px;background:transparent;color:#9ba4b4;font-size:10px;cursor:pointer}.library-tabs button.active{border-color:#554034;background:#332720;color:#f0c39a}.library-tabs button span{margin-left:3px;color:#e9a76e}.component-library{min-height:0;flex:1;overflow:auto;padding:9px}.component-library-intro{padding:9px;border:1px solid #303744;border-radius:5px;background:#1b2029}.component-library-intro strong{font-size:11px;color:#e0e5ee}.component-library-intro p{margin:6px 0 0;color:#929caf;font-size:10px;line-height:1.5}.component-library-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 12px;color:#a5adbc;text-align:center}.component-library-empty>span{font-size:28px;color:#d99057}.component-library-empty strong{font-size:11px}.component-library-empty small{font-size:10px;line-height:1.5;color:#858fa0}.saved-component{display:flex;align-items:stretch;gap:3px;margin-top:7px}.saved-component-place{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:9px 7px;border:1px solid #303744;border-radius:5px;background:#202631;color:#dce2eb;text-align:left;cursor:pointer}.saved-component-place:hover{border-color:#bc7846;background:#2b2928}.saved-component-icon{display:grid;place-items:center;flex:none;width:31px;height:31px;border-radius:4px;background:#332920;color:#e9a76e;font-size:18px}.saved-component-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.saved-component-copy strong{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.saved-component-copy small{color:#929caf;font-size:9px}.saved-component-add{color:#e9a76e;font-size:18px}.saved-component-preview{width:28px;border:1px solid #303744;border-radius:4px;background:#202631;color:#e9a76e;cursor:pointer}.saved-component-preview:hover{border-color:#bc7846;background:#2b2928}.saved-component-delete{width:25px;border:1px solid #303744;border-radius:4px;background:#202631;color:#9a9fac;cursor:pointer}.saved-component-delete:hover{border-color:#a24e4e;color:#ff9696}
+.library-tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:7px 9px;border-bottom:1px solid #242a35;background:#171b23}.library-tabs button{min-width:0;padding:7px 4px;border:1px solid transparent;border-radius:4px;background:transparent;color:#9ba4b4;font-size:10px;cursor:pointer}.library-tabs button.active{border-color:#554034;background:#332720;color:#f0c39a}.library-tabs button span{margin-left:3px;color:#e9a76e}.component-library{min-height:0;flex:1;overflow:auto;padding:9px}.component-library-intro{padding:9px;border:1px solid #303744;border-radius:5px;background:#1b2029}.imported-category-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:8px 0;padding:4px;border:1px solid #303744;border-radius:5px;background:#171b23}.imported-category-tabs button{display:flex;min-width:0;min-height:54px;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px 2px;border:1px solid transparent;border-radius:4px;background:transparent;color:#9ba4b4;cursor:pointer}.imported-category-tabs button.active{border-color:#765538;background:#33271f;color:#f0c39a}.imported-category-tabs button>span{font-size:14px;color:#e9a76e}.imported-category-tabs button small{overflow:hidden;max-width:100%;font-size:9px;text-align:center;line-height:1.25}.imported-category-tabs button b{color:#d6a06d;font:9px ui-monospace,monospace}.component-search-field{display:flex;align-items:center;gap:6px;margin:8px 0;padding:0 7px;border:1px solid #303744;border-radius:4px;background:#141820;color:#9ba4b4}.component-search-field input{flex:1;min-width:0;width:100%;padding:7px 0;border:0;background:transparent;outline:0;color:#e0e5ee;font-size:10px}.component-search-field button{border:0;background:transparent;color:#9ba4b4}.component-library-intro{padding:9px;border:1px solid #303744;border-radius:5px;background:#1b2029}.component-library-intro strong{font-size:11px;color:#e0e5ee}.component-library-intro p{margin:6px 0 0;color:#929caf;font-size:10px;line-height:1.5}.component-library-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px 12px;color:#a5adbc;text-align:center}.component-library-empty>span{font-size:28px;color:#d99057}.component-library-empty strong{font-size:11px}.component-library-empty small{font-size:10px;line-height:1.5;color:#858fa0}.saved-component{display:flex;align-items:stretch;gap:3px;margin-top:7px}.saved-component-place{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:9px 7px;border:1px solid #303744;border-radius:5px;background:#202631;color:#dce2eb;text-align:left;cursor:pointer}.saved-component-place:hover{border-color:#bc7846;background:#2b2928}.saved-component-icon{display:grid;place-items:center;flex:none;width:31px;height:31px;border-radius:4px;background:#332920;color:#e9a76e;font-size:18px}.saved-component-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.saved-component-copy strong{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.saved-component-copy small{color:#929caf;font-size:9px}.saved-component-add{color:#e9a76e;font-size:18px}.saved-component-preview{width:28px;border:1px solid #303744;border-radius:4px;background:#202631;color:#e9a76e;cursor:pointer}.saved-component-preview:hover{border-color:#bc7846;background:#2b2928}.saved-component-delete{width:25px;border:1px solid #303744;border-radius:4px;background:#202631;color:#9a9fac;cursor:pointer}.saved-component-delete:hover{border-color:#a24e4e;color:#ff9696}
 .saved-component-edit{width:27px;flex:none;border:1px solid #303744;border-radius:4px;background:#202631;color:#b7c0ce;cursor:pointer}.saved-component-edit:hover{border-color:#bc7846;color:#f0c39a}.saved-component-rename{display:flex;align-items:center;gap:3px;flex:1;min-width:0}.saved-component-rename input{box-sizing:border-box;flex:1;min-width:0;width:100%;padding:8px 6px;border:1px solid #9b704d;border-radius:4px;background:#171b23;color:#e2e7ef;font-size:10px;outline:0}.saved-component-rename-save,.saved-component-rename-cancel{width:26px;flex:none;border:1px solid #39404c;border-radius:4px;background:#222732;color:#cdd4df;cursor:pointer}.saved-component-rename-save{border-color:#4b8065;color:#99e2b4}.saved-component-rename-save:disabled{opacity:.4;cursor:default}.saved-component-rename-cancel{color:#dda5a0}
 
 /* Refined hierarchy controls: consistent monochrome icons and clearer selection. */
