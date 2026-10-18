@@ -2479,7 +2479,14 @@ function refreshRetargetTargetPreview() {
     const measuredHeight = bounds.isEmpty() ? 0 : bounds.getSize(new THREE.Vector3()).y
     const targetHeight = originalHeight.value > 1e-5 ? originalHeight.value : Math.max(0.1, measuredHeight)
     const clipName = retargetClipName.value.trim() || asset.name || sourceClip.name || 'Prévia retargetada'
-    const result = retargetAnimationClip(asset, previewBones, retargetBoneMap.value, clipName, targetHeight)
+    const result = retargetAnimationClip(
+      asset,
+      previewBones,
+      retargetBoneMap.value,
+      clipName,
+      targetHeight,
+      retargetCollapsedSourceNames.value,
+    )
     setRetargetPreviewObject(stage, previewModel, result.clip)
     retargetPreviewStatus.value = 'Prévia no destino: ' + result.mappedTracks + ' trilha(s) transferida(s)' +
       (result.skippedTracks.length ? '; ' + result.skippedTracks.length + ' ignorada(s).' : '.')
