@@ -2076,7 +2076,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
                     <label class="field">Tipo de colisor
                       <select :value="selected.colliderType" @change="onColliderChange(selected.id, $event)">
                         <option value="auto">Automático (malha)</option>
-                        <option value="mesh">Malha estática (cidade / terreno · BVH)</option>
+                        <option v-if="selected.importedModel" value="mesh">Malha estática (cidade / terreno · BVH)</option>
                         <option value="box">Caixa (Box)</option>
                         <option value="sphere">Esfera (Sphere)</option>
                         <option value="capsule">Cápsula (Capsule)</option>
