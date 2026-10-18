@@ -838,6 +838,7 @@ function updateColliderPreview() {
       colliderPreviewNotice.value = 'Não foi possível preparar a malha estática. Confira se o modelo contém peças estáticas e se não ultrapassa 1,5 milhão de triângulos. Partes animadas não entram neste colisor.'
       return
     }
+    colliderPreviewNotice.value = `Malha pronta: ${collisionData.partCount} partes estáticas · ${collisionData.triangleCount.toLocaleString('pt-BR')} triângulos.`
     model.value.updateWorldMatrix(true, true)
     colliderPreview = new THREE.LineSegments(
       new THREE.WireframeGeometry(collisionData.geometry),
@@ -878,6 +879,35 @@ function updateColliderPreview() {
   }
   scene.add(colliderPreview)
   geometry.dispose()
+}
+
+/** Identifica cenários largos e multipartes para iniciar com colisão de malha estática. */
+function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
+  let meshCount = 0
+  let triangleCount = 0
+  let hasAnimatedGeometry = false
+  root.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return
+    const position = node.geometry.getAttribute('position')
+    if (!position || position.count < 3) return
+    meshCount += 1
+    if (node instanceof THREE.SkinnedMesh || (node.geometry.morphAttributes.position?.length ?? 0) > 0) {
+      hasAnimatedGeometry = true
+    }
+    const index = node.geometry.getIndex()
+    triangleCount += Math.floor((index ? index.count : position.count) / 3)
+  })
+
+  // Evita mudar o padrão de personagens, veículos e objetos estáticos comuns.
+  if (hasAnimatedGeometry || meshCount === 0) return false
+
+  // As dimensões são capturadas antes da normalização da altura para o preview.
+  const [width, height, depth] = dimensions.value
+  const footprint = Math.max(width, depth)
+  const wideLandscape = footprint >= 18 && footprint >= Math.max(6, height * 1.65)
+  const detailedScene = triangleCount >= 8_000 || meshCount >= 18
+  const manyIndependentParts = meshCount >= 36 && footprint >= 8
+  return (wideLandscape && detailedScene) || manyIndependentParts
 }
 
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
@@ -1843,6 +1873,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   componentName.value = loaded.name
   partSearch.value = ''
   const height = centerAndMeasure(loaded)
+  colliderType.value = shouldDefaultToStaticCityCollider(loaded) ? 'mesh' : 'box'
   const safeTargetHeight = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : 2
   const initialScale = safeTargetHeight / height
   loaded.scale.setScalar(initialScale)
@@ -3473,6 +3504,12 @@ async function saveSelectedParts() {
         partColliderSize = [diameter, diameter, diameter]
       }
 
+      if (colliderType.value === 'mesh') {
+        const partCollisionData = getStaticMeshCollisionData(imported)
+        if (!partCollisionData) {
+          throw new Error(`A parte "${part.name}" não pode usar malha estática. Ela precisa conter geometria estática e ficar abaixo de 1,5 milhão de triângulos.`)
+        }
+      }
       imported.userData.importColliderType = colliderType.value
       imported.userData.importColliderSize = partColliderSize
       // Cada parte é centralizada durante a extração, então seu colisor também
@@ -3567,6 +3604,12 @@ async function confirmImport() {
       imported = root
     }
 
+    if (colliderType.value === 'mesh') {
+      const staticCollisionData = getStaticMeshCollisionData(imported)
+      if (!staticCollisionData) {
+        throw new Error('Não foi possível compilar a malha estática deste componente. Use apenas geometrias estáticas com até 1,5 milhão de triângulos; partes animadas ficam fora deste colisor.')
+      }
+    }
     imported.userData.importColliderType = colliderType.value
     imported.userData.importColliderSize = [...colliderSize.value]
     imported.userData.importColliderOffset = [...colliderOffset.value]
