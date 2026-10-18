@@ -15,6 +15,15 @@ const props = defineProps<{
   renderDynamicResolution: boolean
   renderDynamicResolutionTargetFps: number
   renderDynamicResolutionMinScale: number
+  grassVisible: boolean
+  grassDensityPercent: number
+  grassRenderDistanceMode: 'global' | 'all' | 'custom'
+  grassRenderDistance: number
+  grassNearDetailDistance: number
+  grassMiddleDetailDistance: number
+  grassOcclusionEnabled: boolean
+  grassOcclusionIntervalMs: number
+  grassWindPercent: number
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
   objects: Array<{ id: string; name: string }>
@@ -39,6 +48,14 @@ const emit = defineEmits<{
   'render-dynamic-resolution-change': [value: boolean]
   'render-dynamic-resolution-target-fps-change': [value: number]
   'render-dynamic-resolution-min-scale-change': [value: number]
+  'grass-visible-change': [value: boolean]
+  'grass-density-change': [value: number]
+  'grass-render-distance-change': [value: string]
+  'grass-near-detail-change': [value: number]
+  'grass-middle-detail-change': [value: number]
+  'grass-occlusion-enabled-change': [value: boolean]
+  'grass-occlusion-interval-change': [value: number]
+  'grass-wind-change': [value: number]
   'open-control-maps': []
   'run-world': []
   'edit-world': []
@@ -50,6 +67,9 @@ const emit = defineEmits<{
 type SearchResult = { key: string; label: string; detail: string; action: 'object' | 'component' | 'save' | 'import' | 'edit' | 'run' | 'camera' | 'controls'; id?: string }
 const searchQuery = ref('')
 const fullscreenToggleTitle = computed(() => props.worldFullscreen ? 'Sair da tela cheia do mundo' : 'Expandir o mundo em tela cheia')
+const grassRenderDistanceOption = computed(() => props.grassRenderDistanceMode === 'custom'
+  ? String(props.grassRenderDistance)
+  : props.grassRenderDistanceMode)
 const searchResults = computed<SearchResult[]>(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase('pt-BR')
   if (!query) return []
@@ -183,6 +203,48 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
           <span><strong>Renderizar tudo</strong><small>Ignora o limite global para objetos, modelos 3D e grama dentro da cena.</small></span>
         </label>
+        <div class="render-settings-section">
+          <div class="render-settings-section-title">Grama e vegetação</div>
+          <label class="render-settings-everything">
+            <input type="checkbox" :checked="grassVisible" @change="emit('grass-visible-change', ($event.target as HTMLInputElement).checked)" />
+            <span><strong>Renderizar grama</strong><small>Desliga a camada visual sem apagar a grama pintada no mundo.</small></span>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Densidade visual</span>
+            <select class="render-settings-select" :value="grassDensityPercent" :disabled="!grassVisible" @change="emit('grass-density-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="25">Muito leve · 25%</option><option value="40">Leve · 40%</option><option value="60">Equilibrada · 60%</option><option value="80">Densa · 80%</option><option value="100">Máxima · 100%</option>
+            </select>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Alcance exclusivo da grama</span>
+            <select class="render-settings-select" :value="grassRenderDistanceOption" :disabled="!grassVisible" @change="emit('grass-render-distance-change', ($event.target as HTMLSelectElement).value)">
+              <option value="global">Seguir alcance geral</option><option value="all">Renderizar até o limite do mapa</option><option value="25">25 unidades</option><option value="50">50 unidades</option><option value="72">72 unidades</option><option value="100">100 unidades</option><option value="150">150 unidades</option><option value="200">200 unidades</option><option value="300">300 unidades</option><option value="500">500 unidades</option><option value="1000">1000 unidades</option>
+            </select>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Raio de grama detalhada</span>
+            <select class="render-settings-select" :value="grassNearDetailDistance" :disabled="!grassVisible" @change="emit('grass-near-detail-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0">Seguir perfil</option><option value="5">5 unidades</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="35">35 unidades</option><option value="40">40 unidades</option>
+            </select>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Raio de detalhe intermediário</span>
+            <select class="render-settings-select" :value="grassMiddleDetailDistance" :disabled="!grassVisible" @change="emit('grass-middle-detail-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0">Seguir perfil</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="40">40 unidades</option><option value="50">50 unidades</option><option value="60">60 unidades</option><option value="70">70 unidades</option><option value="80">80 unidades</option>
+            </select>
+          </label>
+          <label class="render-settings-everything render-settings-grass-check">
+            <input type="checkbox" :checked="grassOcclusionEnabled" :disabled="!grassVisible" @change="emit('grass-occlusion-enabled-change', ($event.target as HTMLInputElement).checked)" />
+            <span><strong>Oclusão da grama</strong><small>Evita montar instâncias de grama escondidas por objetos opacos. Desativar pode ajudar quando a cena não tem muitos obstáculos.</small></span>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Frequência da oclusão</span>
+            <select class="render-settings-select" :value="grassOcclusionIntervalMs" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('grass-occlusion-interval-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="250">Precisa · recalcula a cada 250 ms</option><option value="400">Equilibrada · 400 ms</option><option value="800">Leve · 800 ms</option><option value="1200">Economia · 1200 ms</option>
+            </select>
+          </label>
+          <label class="render-settings-field render-settings-fog-field"><span>Intensidade do vento</span>
+            <select class="render-settings-select" :value="grassWindPercent" :disabled="!grassVisible" @change="emit('grass-wind-change', Number(($event.target as HTMLSelectElement).value))">
+              <option value="0">Desativado</option><option value="25">Muito suave · 25%</option><option value="50">Médio · 50%</option><option value="75">Forte · 75%</option><option value="100">Máximo · 100%</option>
+            </select>
+          </label>
+          <p class="render-settings-help">A densidade usa amostragem por anéis, e os raios definem quando a grama detalhada dá lugar à geometria leve. Esses ajustes não apagam nem modificam os dados de grama pintada.</p>
+        </div>
         <div class="render-settings-section">
           <div class="render-settings-section-title">Qualidade geral</div>
           <label class="render-settings-field"><span>Perfil</span>
@@ -492,6 +554,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .render-settings-select { width:145px; max-width:48%; padding:6px 7px; border:1px solid #303744; border-radius:4px; background:#0e1013; color:#e6e8ec; font:inherit; }
 .render-settings-output { min-width:42px; color:#f5c56b; font:11px 'IBM Plex Mono',monospace; text-align:right; }
 .render-settings-fog-field { margin-top:12px; }
+.render-settings-grass-check { margin-top:12px; }
 .render-settings-heading { font-size:12px; font-weight:700; }
 .render-settings-description,.render-settings-note { margin:7px 0 12px; color:#9aa1ae; font-size:11px; line-height:1.5; }
 .render-settings-field { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:11px; font-weight:600; }
