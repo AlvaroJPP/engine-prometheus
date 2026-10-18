@@ -281,6 +281,130 @@ fn load_gltf_zip(zip_path: String) -> Result<String, String> {
     serde_json::to_string(&document).map_err(|e| format!("Não foi possível preparar o glTF para pré-visualização: {e}"))
 }
 
+/// Resolve o checkpoint mantido ao lado do executável SkinTokens instalado pelo script oficial do Engine.
+fn skintokens_checkpoint_for(executable: &Path) -> Option<PathBuf> {
+    let root = executable.parent()?.parent()?.parent()?;
+    let checkpoint = root.join("weights").join("grpo_1400.ckpt");
+    checkpoint.is_file().then_some(checkpoint)
+}
+
+fn skintokens_executable(path: &str) -> Result<PathBuf, String> {
+    let value = path.trim();
+    if value.is_empty() {
+        return Err("Informe o caminho do executável local skintokens (skintokens.exe no Windows).".into());
+    }
+    let executable = PathBuf::from(value);
+    if !executable.is_absolute() {
+        return Err("O caminho do executável SkinTokens precisa ser absoluto.".into());
+    }
+    if !executable.is_file() {
+        return Err(format!("Não encontrei o executável SkinTokens em: {}", executable.display()));
+    }
+    Ok(executable)
+}
+
+fn skintokens_command(executable: &Path) -> Command {
+    let mut command = Command::new(executable);
+    if let Some(checkpoint) = skintokens_checkpoint_for(executable) {
+        command.env("SKINTOKENS_CKPT", checkpoint);
+    }
+    command
+}
+
+fn run_skintokens_glb_sync(
+    executable_path: String,
+    glb_base64: String,
+    operation: String,
+    model_class: String,
+) -> Result<String, String> {
+    use base64::Engine as _;
+
+    let executable = skintokens_executable(&executable_path)?;
+    if operation != "rig" && operation != "skin" {
+        return Err("Operação de IA inválida. Escolha 'rig' ou 'skin'.".into());
+    }
+    if operation == "rig" && !["humanoid", "quadruped", "custom"].contains(&model_class.as_str()) {
+        return Err("Classe de modelo inválida. Use humanoid, quadruped ou custom.".into());
+    }
+    let input_bytes = base64::engine::general_purpose::STANDARD
+        .decode(glb_base64.as_bytes())
+        .map_err(|e| format!("O GLB enviado ao SkinTokens não é Base64 válido: {e}"))?;
+    const MAX_GLB_BYTES: usize = 300 * 1024 * 1024;
+    if input_bytes.len() < 12 || input_bytes.len() > MAX_GLB_BYTES || &input_bytes[0..4] != b"glTF" {
+        return Err("O modelo exportado não é um GLB válido ou ultrapassa o limite de 300 MB.".into());
+    }
+
+    let workspace = tempfile::tempdir()
+        .map_err(|e| format!("Não foi possível criar a área temporária para a IA: {e}"))?;
+    let input = workspace.path().join("input.glb");
+    let output = workspace.path().join("rigged.glb");
+    let report = workspace.path().join("report.json");
+    fs::write(&input, input_bytes)
+        .map_err(|e| format!("Não foi possível preparar o GLB para o SkinTokens: {e}"))?;
+
+    let mut command = skintokens_command(&executable);
+    command.arg(&operation).arg(&input).arg(&output).arg("--report").arg(&report).arg("--seed").arg("42");
+    if operation == "rig" {
+        command.arg("--class").arg(&model_class);
+    }
+    let result = command.output().map_err(|e| {
+        format!("Não consegui iniciar o SkinTokens. Confira o executável, as dependências e o checkpoint de 1,1 GB: {e}")
+    })?;
+    if !result.status.success() {
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        let report_text = fs::read_to_string(&report).unwrap_or_default();
+        let details = if !stderr.trim().is_empty() { stderr.trim() }
+            else if !report_text.trim().is_empty() { report_text.trim() }
+            else { stdout.trim() };
+        let details: String = details.chars().take(4_000).collect();
+        return Err(format!("SkinTokens terminou com código {}. {}", result.status.code().map_or("desconhecido".into(), |code| code.to_string()), if details.is_empty() { "Consulte a instalação local e verifique se há memória RAM suficiente.".into() } else { details }));
+    }
+    let output_bytes = fs::read(&output)
+        .map_err(|e| format!("SkinTokens terminou sem criar o GLB de saída: {e}"))?;
+    if output_bytes.len() < 12 || &output_bytes[0..4] != b"glTF" {
+        return Err("SkinTokens não gerou um GLB válido. O modelo original foi preservado.".into());
+    }
+    Ok(base64::engine::general_purpose::STANDARD.encode(output_bytes))
+}
+
+/// Executa rigging/pesos no computador do usuário; não usa uma API nem envia o modelo para a nuvem.
+#[tauri::command]
+async fn run_skintokens_glb(
+    executable_path: String,
+    glb_base64: String,
+    operation: String,
+    model_class: String,
+) -> Result<String, String> {
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        run_skintokens_glb_sync(executable_path, glb_base64, operation, model_class)
+    })
+    .await
+    .map_err(|e| format!("A tarefa de rigging por IA foi interrompida: {e}"))?;
+    result
+}
+
+/// Diagnostica o executável e confirma se ele consegue localizar o checkpoint local.
+#[tauri::command]
+async fn skintokens_doctor(executable_path: String) -> Result<String, String> {
+    let result = tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let executable = skintokens_executable(&executable_path)?;
+        let output = skintokens_command(&executable).arg("doctor").output()
+            .map_err(|e| format!("Não foi possível executar 'skintokens doctor': {e}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        let details = if stdout.is_empty() { stderr } else if stderr.is_empty() { stdout } else { format!("{stdout}\n{stderr}") };
+        if output.status.success() {
+            Ok(if details.is_empty() { "SkinTokens pronto.".into() } else { details })
+        } else {
+            Err(format!("SkinTokens doctor retornou código {}: {}", output.status.code().map_or("desconhecido".into(), |code| code.to_string()), if details.is_empty() { "Verifique o checkpoint e as dependências.".into() } else { details }))
+        }
+    })
+    .await
+    .map_err(|e| format!("A verificação do SkinTokens foi interrompida: {e}"))?;
+    result
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -293,7 +417,9 @@ pub fn run() {
             write_project_asset,
             read_project_asset,
             prune_project_assets,
-            load_gltf_zip
+            load_gltf_zip,
+            run_skintokens_glb,
+            skintokens_doctor
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
