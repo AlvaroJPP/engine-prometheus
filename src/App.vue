@@ -92,6 +92,15 @@ const {
   renderDynamicResolution,
   renderDynamicResolutionTargetFps,
   renderDynamicResolutionMinScale,
+  grassVisible,
+  grassDensityPercent,
+  grassRenderDistanceMode,
+  grassRenderDistance,
+  grassNearDetailDistance,
+  grassMiddleDetailDistance,
+  grassOcclusionEnabled,
+  grassOcclusionIntervalMs,
+  grassWindPercent,
   playerModelName,
   playerModelCustom,
   setPlayerModelFile,
@@ -133,6 +142,13 @@ const {
   setRenderDynamicResolution,
   setRenderDynamicResolutionTargetFps,
   setRenderDynamicResolutionMinScale,
+  setGrassVisible,
+  setGrassDensityPercent,
+  setGrassRenderDistance,
+  setGrassDetailDistance,
+  setGrassOcclusionEnabled,
+  setGrassOcclusionInterval,
+  setGrassWindPercent,
   removeSelected,
   onRename,
   onNumber,
@@ -1461,6 +1477,15 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :render-dynamic-resolution="renderDynamicResolution"
       :render-dynamic-resolution-target-fps="renderDynamicResolutionTargetFps"
       :render-dynamic-resolution-min-scale="renderDynamicResolutionMinScale"
+      :grass-visible="grassVisible"
+      :grass-density-percent="grassDensityPercent"
+      :grass-render-distance-mode="grassRenderDistanceMode"
+      :grass-render-distance="grassRenderDistance"
+      :grass-near-detail-distance="grassNearDetailDistance"
+      :grass-middle-detail-distance="grassMiddleDetailDistance"
+      :grass-occlusion-enabled="grassOcclusionEnabled"
+      :grass-occlusion-interval-ms="grassOcclusionIntervalMs"
+      :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
       :objects="objects"
@@ -1481,6 +1506,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @render-dynamic-resolution-change="setRenderDynamicResolution"
       @render-dynamic-resolution-target-fps-change="setRenderDynamicResolutionTargetFps"
       @render-dynamic-resolution-min-scale-change="setRenderDynamicResolutionMinScale"
+      @grass-visible-change="setGrassVisible"
+      @grass-density-change="setGrassDensityPercent"
+      @grass-render-distance-change="setGrassRenderDistance"
+      @grass-near-detail-change="(value) => setGrassDetailDistance('near', value)"
+      @grass-middle-detail-change="(value) => setGrassDetailDistance('middle', value)"
+      @grass-occlusion-enabled-change="setGrassOcclusionEnabled"
+      @grass-occlusion-interval-change="setGrassOcclusionInterval"
+      @grass-wind-change="setGrassWindPercent"
       @toggle-first-person="toggleFirstPerson"
       @open-control-maps="controlMapsOpen = true"
       @mark-dirty="markDirty"
