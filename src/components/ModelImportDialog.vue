@@ -935,7 +935,7 @@ function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
   if (hasAnimatedGeometry || hasAnimationClips || meshCount === 0) return false
 
   // As dimensões são capturadas antes da normalização da altura para o preview.
-  const [width, _height, depth] = dimensions.value
+  const [width, , depth] = dimensions.value
   const footprint = Math.max(width, depth)
   // Cidades com prédios altos também contam como cenários grandes; não exija
   // que a extensão horizontal seja maior que a altura do modelo.
