@@ -147,6 +147,9 @@ export class Engine {
   private readonly veilborneSpawnedLootIds = new Set<string>()
   private readonly veilborneCollectedLootVisibility = new Map<string, boolean>()
   private veilborneLootNoticeRemainingSeconds = 0
+  private veilborneDefaultSpawnPosition: THREE.Vector3 | null = null
+  private veilbornePlayerRespawnRemainingSeconds = 0
+  private veilborneEchoCacheObjectId: string | null = null
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -433,6 +436,8 @@ export class Engine {
       ['carregando_ataque', false], ['carga_ataque', 0],
       ['ward_remaining', 0], ['ward_absorption', 0],
       ['inventario_json', '[]'], ['item_use_request', ''], ['loot_notice', ''],
+      ['checkpoint_id', ''], ['checkpoint_x', 0], ['checkpoint_y', 0], ['checkpoint_z', 0],
+      ['ecos_perdidos', 0], ['ponto_de_morte_x', 0], ['ponto_de_morte_y', 0], ['ponto_de_morte_z', 0], ['morte_contagem', 0],
     ]
     for (const [name, value] of defaults) {
       if (this.logic.getVariable(name) === undefined) this.logic.setVariable(name, value)
@@ -509,6 +514,7 @@ export class Engine {
   private getVeilborneHostilePackages(): Array<{ instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> }> {
     return this.logic.listPackages()
       .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg')
+      .filter(instance => instance.variables.entity_role === undefined || instance.variables.entity_role === 'combatant')
       .filter(instance => instance.variables.faction === undefined || instance.variables.faction === 'hostile')
       .filter(instance => instance.variables.morto !== true && (typeof instance.variables.vida !== 'number' || instance.variables.vida > 0))
       .map(instance => ({ instance, object: this.world.get(instance.ownerObjectId) }))
@@ -1166,7 +1172,7 @@ export class Engine {
     if (!this.cameraStateBeforeRun || !this.isVeilborneEnabled()) return false
     if (this.avatar.isCombatStaggered()) return true
     const bindings = this.playerControlBindings
-    if (code === bindings.interact && this.tryPickupVeilborneLoot()) return true
+    if (code === bindings.interact && (this.tryActivateVeilborneCheckpoint() || this.tryPickupVeilborneEchoCache() || this.tryPickupVeilborneLoot())) return true
     if (code === bindings.targetLock) {
       this.toggleVeilborneTargetLock()
       return true
@@ -2164,6 +2170,19 @@ export class Engine {
       this.avatar.setEnabled(true)
       this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
       this.orbit.distance = 10
+      if (this.isVeilborneEnabled()) {
+        this.ensureVeilbornePlayerVariables()
+        this.veilborneDefaultSpawnPosition = this.avatar.mesh.position.clone()
+        this.veilbornePlayerRespawnRemainingSeconds = 0
+        if (this.readVeilborneNumber('ecos_perdidos', 0) > 0 && !this.veilborneEchoCacheObjectId) {
+          const cachePosition = new THREE.Vector3(
+            this.readVeilborneNumber('ponto_de_morte_x', this.avatar.mesh.position.x),
+            this.readVeilborneNumber('ponto_de_morte_y', this.avatar.mesh.position.y),
+            this.readVeilborneNumber('ponto_de_morte_z', this.avatar.mesh.position.z),
+          )
+          this.spawnVeilborneEchoCache(this.readVeilborneNumber('ecos_perdidos', 0), cachePosition)
+        }
+      }
       this.input.setRuntimeMode(true)
       this.transformControls.detach()
       this.transformControls.enabled = false
@@ -2172,6 +2191,8 @@ export class Engine {
     }
 
     this.runtimeModeActive = false
+    this.veilbornePlayerRespawnRemainingSeconds = 0
+    this.veilborneDefaultSpawnPosition = null
     this.veilbornePendingCast = null
     this.resetVeilborneLootForEditor()
     this.veilborneCooldowns.clear()
