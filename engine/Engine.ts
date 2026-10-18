@@ -604,7 +604,20 @@ export class Engine {
         stacks: 1,
       })
     }
+    if (result.postureBroken && target.alive) {
+      // Quebra de postura abre uma janela de vulnerabilidade e reinicia o medidor.
+      target.resources.posture = 0
+      applyVeilborneStatus(target, {
+        id: 'stagger',
+        potency: 1,
+        remainingSeconds: 1.15,
+        stacks: 1,
+      })
+    }
     this.syncVeilborneTarget(instance, target)
+    if (result.postureBroken) {
+      this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'posture_broken')
+    }
     if (result.killed) {
       this.veilborneTargetStates.delete(instance.ownerObjectId)
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'enemy_killed')
@@ -1284,6 +1297,13 @@ export class Engine {
       let moving = false
 
       const targetState = this.getVeilborneTargetCombatant(instance)
+      const staggerStatus = targetState.statuses.find(status => status.id === 'stagger')
+      if (staggerStatus) {
+        this.setVeilborneAIState(instance, 'staggered')
+        const staggerController = getAnimationControllerFromObject(object.mesh)
+        if (staggerController) staggerController.setState('idle')
+        continue
+      }
       const slowStatus = targetState.statuses.find(status => status.id === 'slow')
       const slowMultiplier = slowStatus ? Math.max(0.2, 1 - slowStatus.potency) : 1
       if ((movingToward || movingAway) && moveSpeed > 0) {
