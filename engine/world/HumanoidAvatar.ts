@@ -53,26 +53,28 @@ const ROLL_COOLDOWN = 0.52
 const MAX_EXACT_MOUNT_COLLISION_TRIANGLES = 6000
 
 const ANIMATION_FALLBACKS: Partial<Record<AnimationRole, AnimationRole[]>> = {
-  run: ['walk', 'idle'],
-  walk_slow: ['walk', 'idle'],
-  walk_backward: ['walk', 'idle'],
-  walk_left: ['walk_diagonal_left', 'walk', 'idle'],
-  walk_right: ['walk_diagonal_right', 'walk', 'idle'],
-  walk_diagonal_left: ['walk_left', 'walk', 'idle'],
-  walk_diagonal_right: ['walk_right', 'walk', 'idle'],
-  walk_backward_diagonal_left: ['walk_backward', 'walk_left', 'walk', 'idle'],
-  walk_backward_diagonal_right: ['walk_backward', 'walk_right', 'walk', 'idle'],
-  run_backward: ['run', 'walk', 'idle'],
-  run_left: ['run_diagonal_left', 'run', 'walk', 'idle'],
-  run_right: ['run_diagonal_right', 'run', 'walk', 'idle'],
-  run_diagonal_left: ['run_left', 'run', 'walk_diagonal_left', 'walk', 'idle'],
-  run_diagonal_right: ['run_right', 'run', 'walk_diagonal_right', 'walk', 'idle'],
-  run_backward_diagonal_left: ['run_backward', 'run_left', 'run', 'walk_backward', 'walk', 'idle'],
-  run_backward_diagonal_right: ['run_backward', 'run_right', 'run', 'walk_backward', 'walk', 'idle'],
+  // Locomoção nunca deve cair em idle: se o modelo não trouxer walk/run,
+  // o movimento procedural entra como fallback em vez de manter o corpo parado.
+  run: ['walk'],
+  walk_slow: ['walk'],
+  walk_backward: ['walk'],
+  walk_left: ['walk_diagonal_left', 'walk'],
+  walk_right: ['walk_diagonal_right', 'walk'],
+  walk_diagonal_left: ['walk_left', 'walk'],
+  walk_diagonal_right: ['walk_right', 'walk'],
+  walk_backward_diagonal_left: ['walk_backward', 'walk_left', 'walk'],
+  walk_backward_diagonal_right: ['walk_backward', 'walk_right', 'walk'],
+  run_backward: ['run', 'walk_backward', 'walk'],
+  run_left: ['run_diagonal_left', 'run', 'walk_left', 'walk'],
+  run_right: ['run_diagonal_right', 'run', 'walk_right', 'walk'],
+  run_diagonal_left: ['run_left', 'run', 'walk_diagonal_left', 'walk'],
+  run_diagonal_right: ['run_right', 'run', 'walk_diagonal_right', 'walk'],
+  run_backward_diagonal_left: ['run_backward', 'run_left', 'run', 'walk_backward', 'walk'],
+  run_backward_diagonal_right: ['run_backward', 'run_right', 'run', 'walk_backward', 'walk'],
   crouch: ['idle'],
-  crouch_walk: ['crouch', 'walk', 'idle'],
+  crouch_walk: ['crouch', 'walk'],
   prone: ['idle'],
-  prone_crawl: ['prone', 'walk', 'idle'],
+  prone_crawl: ['prone', 'walk'],
   jump: ['idle'],
 }
 
@@ -2735,11 +2737,19 @@ export class HumanoidAvatar {
   }
 
   private classifyAnimation(name: string): string {
-    const normalized = name.toLowerCase()
-    if (/jump|leap|fall/.test(normalized)) return 'jump'
-    if (/run|sprint/.test(normalized)) return 'run'
-    if (/walk|locomotion|move/.test(normalized)) return 'walk'
-    if (/idle|stand|breath/.test(normalized)) return 'idle'
+    const normalized = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .replace(/[\\s._|:-]+/g, '')
+
+    // Identifica o freio antes da palavra "run", para não usar o clipe de
+    // desaceleração como um ciclo contínuo de corrida.
+    if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
+    if (/jump|leap|hop|fall|saut|salto/.test(normalized)) return 'jump'
+    if (/run|running|sprint|jog|dash|gallop|canter/.test(normalized)) return 'run'
+    if (/walk|locomotion|move|stride|trot|step/.test(normalized)) return 'walk'
+    if (/idle|stand|rest|breath|neutral|stationary|wait/.test(normalized)) return 'idle'
     return 'other'
   }
 
@@ -2825,7 +2835,11 @@ export class HumanoidAvatar {
     // Retira a pose procedural do quadro anterior antes de o mixer avançar.
     // Assim, alternar entre agachado e em pé não acumula rotações nos ossos.
     this.clearPosturePoseOffsets()
-    const movingNow = moving && this.grounded
+    // Quando o modelo não possui clipe de salto, não deixe pequenas falhas
+    // momentâneas de grounded trocar a corrida pela pose idle. Nessa situação,
+    // o ciclo de locomoção continua acompanhando o movimento horizontal.
+    const hasJumpClip = this.animationActions.has('jump')
+    const movingNow = moving && (this.grounded || !hasJumpClip)
     const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
     this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
       this.proceduralLocomotionBlend,
@@ -2844,7 +2858,7 @@ export class HumanoidAvatar {
       1 - Math.exp(-Math.max(0, dt) * 5),
     )
     this.animationTime += dt * this.proceduralCycleSpeed
-    const state: AnimationRole = !this.grounded ? 'jump'
+    const state: AnimationRole = !this.grounded && hasJumpClip ? 'jump'
       : this.posture === 'prone' ? (moving ? 'prone_crawl' : 'prone')
         : this.posture === 'crouching' ? (moving ? 'crouch_walk' : 'crouch')
           : !moving ? 'idle'
