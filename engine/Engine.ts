@@ -725,6 +725,8 @@ export class Engine {
     const now = performance.now() / 1000
     const parried = isVeilborneParrySuccessful(now, this.veilborneParryStartedAt, this.veilborneParryWindowSeconds)
     if (parried) {
+      // Um aparo bem-sucedido consome a janela: não pode aparar vários golpes no mesmo instante.
+      this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
       player.resources.posture = Math.max(0, player.resources.posture - Math.max(18, postureDamage * 2))
       restoreVeilborneResource(player, 'stamina', 12)
       this.syncVeilbornePlayerCombatant(player)
