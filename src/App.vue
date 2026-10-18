@@ -93,6 +93,7 @@ const {
   renderDynamicResolutionTargetFps,
   renderDynamicResolutionMinScale,
   grassVisible,
+  grassUseDetailedModel,
   grassDensityPercent,
   grassRenderDistanceMode,
   grassRenderDistance,
@@ -143,6 +144,7 @@ const {
   setRenderDynamicResolutionTargetFps,
   setRenderDynamicResolutionMinScale,
   setGrassVisible,
+  setGrassUseDetailedModel,
   setGrassDensityPercent,
   setGrassRenderDistance,
   setGrassDetailDistance,
@@ -1478,6 +1480,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :render-dynamic-resolution-target-fps="renderDynamicResolutionTargetFps"
       :render-dynamic-resolution-min-scale="renderDynamicResolutionMinScale"
       :grass-visible="grassVisible"
+      :grass-use-detailed-model="grassUseDetailedModel"
       :grass-density-percent="grassDensityPercent"
       :grass-render-distance-mode="grassRenderDistanceMode"
       :grass-render-distance="grassRenderDistance"
@@ -1507,6 +1510,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @render-dynamic-resolution-target-fps-change="setRenderDynamicResolutionTargetFps"
       @render-dynamic-resolution-min-scale-change="setRenderDynamicResolutionMinScale"
       @grass-visible-change="setGrassVisible"
+      @grass-use-detailed-model-change="setGrassUseDetailedModel"
       @grass-density-change="setGrassDensityPercent"
       @grass-render-distance-change="setGrassRenderDistance"
       @grass-near-detail-change="(value) => setGrassDetailDistance('near', value)"
