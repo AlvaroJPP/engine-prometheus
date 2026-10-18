@@ -1,4 +1,4 @@
-export type SavedComponentCollider = 'box' | 'sphere' | 'capsule' | 'none'
+export type SavedComponentCollider = 'box' | 'sphere' | 'capsule' | 'mesh' | 'none
 
 export interface SavedComponent {
   /** Tipo semântico da instância colocada na cena. */
