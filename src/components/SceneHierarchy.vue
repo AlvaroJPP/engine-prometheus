@@ -10,7 +10,7 @@ interface ComponentEntry {
   libraryType?: 'object' | 'animated-model' | 'animation-source'
   thumbnail?: string
   height: number
-  colliderType: 'box' | 'sphere' | 'capsule' | 'none'
+  colliderType: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize: [number, number, number]
   colliderOffset: [number, number, number]
   createdAt: number
@@ -330,7 +330,7 @@ const emit = defineEmits<{
                   <strong :title="component.name">{{ component.name }}</strong>
                   <small v-if="component.libraryType === 'animation-source'">{{ component.height.toFixed(2) }} u · Fonte de animações</small>
                   <small v-else-if="component.libraryType === 'animated-model'">{{ component.height.toFixed(2) }} u · Animações modificadas</small>
-                  <small v-else>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : 'Caixa' }}</small>
+                  <small v-else>{{ component.height.toFixed(2) }} u · {{ component.colliderType === 'none' ? 'Sem colisor' : component.colliderType === 'sphere' ? 'Esfera' : component.colliderType === 'capsule' ? 'Cápsula' : component.colliderType === 'mesh' ? 'Malha estática' : 'Caixa' }}</small>
                 </div>
                 <button v-if="component.libraryType === 'animation-source'" class="saved-component-insert saved-component-source" :title="'Carregar ' + component.name + ' como origem das animações'" @click="emit('use-animation-source', component.id)">Usar origem</button>
                 <button v-else class="saved-component-insert" :title="'Inserir ' + component.name" @click="emit('place-component', component.id)">＋ Inserir</button>
