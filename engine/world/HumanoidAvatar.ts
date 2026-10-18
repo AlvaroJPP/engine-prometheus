@@ -890,13 +890,15 @@ export class HumanoidAvatar {
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
+    const staticMeshColliderIds = new Set(allCandidates
+      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
+      .map(object => object.id))
     const staticCandidates = allCandidates.filter(object =>
-      object.mesh.userData.importedModel === true &&
-      object.mesh.userData.colliderType === 'mesh' &&
-      getStaticMeshCollisionData(object.mesh) !== null,
+      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
     )
-    const staticIds = new Set(staticCandidates.map(object => object.id))
-    const candidates = allCandidates.filter(object => !staticIds.has(object.id))
+    // Não mande cenários estáticos gigantes para o Raycaster comum caso não
+    // caibam no limite de compilação BVH; o terreno base fica como fallback de piso.
+    const candidates = allCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const raycaster = new THREE.Raycaster(
       new THREE.Vector3(x, originY, z),
       new THREE.Vector3(0, -1, 0),
@@ -1499,6 +1501,7 @@ export class HumanoidAvatar {
         obstacle.userData.importedModel === true &&
         (
           (configuredCollider !== undefined && configuredCollider !== 'auto' && configuredCollider !== 'mesh') ||
+          (configuredCollider === 'mesh' && !getStaticMeshCollisionData(obstacle)) ||
           (configuredCollider === 'auto' && this.getImportedTriangleCount(obstacle) > MAX_EXACT_MOUNT_COLLISION_TRIANGLES)
         )
       ) {
@@ -2492,31 +2495,32 @@ export class HumanoidAvatar {
       const configuredCollider = root.userData.colliderType
       if (root.userData.importedModel === true && configuredCollider === 'mesh') {
         const staticData = getStaticMeshCollisionData(root)
-        if (staticData) {
-          const queryBox = blockCeilings
-            ? new THREE.Box3(
-                new THREE.Vector3(playerBox.min.x, playerBox.max.y - 0.12, playerBox.min.z),
-                new THREE.Vector3(playerBox.max.x, playerBox.max.y + 0.02, playerBox.max.z),
-              )
-            : playerBox
-          const blocked = visitStaticMeshTriangles(root, queryBox, triangle => {
-            triangle.getNormal(normal).normalize()
-            if (blockCeilings) {
-              // A head-volume query blocks ceilings independently of triangle winding.
-              return Math.abs(normal.y) >= 0.45 && queryBox.intersectsTriangle(triangle)
-            }
-            // Ignore horizontal floor/roof faces during horizontal movement; the
-            // landing solver uses downward BVH raycasts to find their real height.
-            // Paredes bloqueiam; pisos e rampas ascendentes ficam a cargo do
-            // resolvedor vertical para que o jogador consiga caminhar sobre elas.
-            if (normal.y >= 0.45 || normal.y <= -0.82) return false
-            return queryBox.intersectsTriangle(triangle)
-          })
-          if (blocked) return true
+        if (!staticData) {
+          // Modelos legados fora do limite BVH não devem desencadear uma varredura
+          // de milhões de triângulos a cada subpasso. Usa fallback conservador.
+          const fallbackBounds = getColliderBounds(root)
+          if (fallbackBounds && this.hasVolumeOverlap(playerBox, fallbackBounds)) return true
           continue
         }
-        // Non-static geometry (e.g. a skinned/morph model) falls back to the
-        // normal model path instead of building a stale BVH.
+        const queryBox = blockCeilings
+          ? new THREE.Box3(
+              new THREE.Vector3(playerBox.min.x, playerBox.max.y - 0.12, playerBox.min.z),
+              new THREE.Vector3(playerBox.max.x, playerBox.max.y + 0.02, playerBox.max.z),
+            )
+          : playerBox
+        const blocked = visitStaticMeshTriangles(root, queryBox, triangle => {
+          triangle.getNormal(normal).normalize()
+          if (blockCeilings) {
+            // A head-volume query blocks ceilings independently of triangle winding.
+            return Math.abs(normal.y) >= 0.45 && queryBox.intersectsTriangle(triangle)
+          }
+          // Ignore horizontal floor/roof faces during horizontal movement; the
+          // landing solver uses downward BVH raycasts to find their real height.
+          if (normal.y >= 0.45 || normal.y <= -0.82) return false
+          return queryBox.intersectsTriangle(triangle)
+        })
+        if (blocked) return true
+        continue
       }
 
       if (
@@ -2641,13 +2645,13 @@ export class HumanoidAvatar {
     const allCandidates = this.world.list().filter(object =>
       object.mesh.visible && object.mesh.userData.colliderType !== 'none',
     )
+    const staticMeshColliderIds = new Set(allCandidates
+      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
+      .map(object => object.id))
     const staticCandidates = allCandidates.filter(object =>
-      object.mesh.userData.importedModel === true &&
-      object.mesh.userData.colliderType === 'mesh' &&
-      getStaticMeshCollisionData(object.mesh) !== null,
+      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
     )
-    const staticIds = new Set(staticCandidates.map(object => object.id))
-    const candidates = allCandidates.filter(object => !staticIds.has(object.id))
+    const candidates = allCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const hits = raycaster.intersectObjects(candidates.map(object => object.mesh), true)
     let bestSurface: number | null = null
 
@@ -2696,13 +2700,13 @@ export class HumanoidAvatar {
       object.mesh.visible &&
       object.mesh.userData.colliderType !== 'none',
     )
+    const staticMeshColliderIds = new Set(allSlopeCandidates
+      .filter(object => object.mesh.userData.importedModel === true && object.mesh.userData.colliderType === 'mesh')
+      .map(object => object.id))
     const staticCandidates = allSlopeCandidates.filter(object =>
-      object.mesh.userData.importedModel === true &&
-      object.mesh.userData.colliderType === 'mesh' &&
-      getStaticMeshCollisionData(object.mesh) !== null,
+      staticMeshColliderIds.has(object.id) && getStaticMeshCollisionData(object.mesh) !== null,
     )
-    const staticIds = new Set(staticCandidates.map(object => object.id))
-    const slopeCandidates = allSlopeCandidates.filter(object => !staticIds.has(object.id))
+    const slopeCandidates = allSlopeCandidates.filter(object => !staticMeshColliderIds.has(object.id))
     const rayOriginY = Math.max(oldY, nextY) + PLAYER_HEIGHT + 2
     raycaster.ray.origin.set(this.mesh.position.x, rayOriginY, this.mesh.position.z)
     if (slopeCandidates.length > 0) {
