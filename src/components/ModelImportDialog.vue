@@ -2398,7 +2398,7 @@ async function loadCatalogAsset(asset: {
   starterAssetCatalogOpen.value = false
   loading.value = true
   error.value = ''
-  const chosenFileName = asset.name.replace(/\\.glb$/i, '') + '.glb'
+  const chosenFileName = asset.name.replace(/\.glb$/i, '') + '.glb'
   fileName.value = chosenFileName
   try {
     const sourceBytes = asset.bytes.slice(0)
