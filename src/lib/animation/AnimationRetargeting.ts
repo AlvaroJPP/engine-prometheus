@@ -21,6 +21,8 @@ export type ReusableAnimationAsset = {
   sourceParentWorldQuaternion?: Record<string, [number, number, number, number]>
   /** Orientação mundial do próprio osso em repouso; converte corretamente os eixos de flexão/torção entre rigs. */
   sourceBoneWorldQuaternion?: Record<string, [number, number, number, number]>
+  /** Objetos não ósseos da origem que contêm o rig e carregam movimento global (ex.: Armature.position). */
+  sourceMotionNodeNames?: string[]
   sourceNodeNames: string[]
   /** Nós do clipe que são ossos de fato; opcional para compatibilidade com a biblioteca antiga. */
   sourceBoneNames?: string[]
@@ -48,6 +50,8 @@ export type RetargetAnimationResult = {
   unsafeScaleTracks: string[]
   /** Translações locais incompatíveis foram ignoradas para preservar o comprimento e a posição dos membros. */
   unsafePositionTracks: string[]
+  /** Trilhas de deslocamento global aplicadas ao objeto raiz do modelo de destino. */
+  rootMotionTracks: number
 }
 
 export type TransformTrackPath = {
@@ -131,6 +135,17 @@ export function createReusableAnimationAsset(
     .map(path => path.nodeName)
     .filter(name => sourcePose[name] !== undefined))]
   const sourceBoneNames = sourceNodeNames.filter(name => findAnimationNode(root, name) instanceof THREE.Bone)
+  const sourceMotionNodeNames = [...new Set(clip.tracks
+    .map(getTransformTrackPath)
+    .filter((path): path is TransformTrackPath => path !== null && path.property === 'position')
+    .filter(path => {
+      const node = findAnimationNode(root, path.nodeName)
+      if (!node || node instanceof THREE.Bone) return false
+      let containsBone = false
+      node.traverse(child => { if (child instanceof THREE.Bone) containsBone = true })
+      return containsBone
+    })
+    .map(path => path.nodeName))]
   const sourceBoneNameSet = new Set(sourceBoneNames)
   const sourceParentNames: Record<string, string | null> = {}
   for (const name of sourceBoneNames) {
@@ -152,6 +167,7 @@ export function createReusableAnimationAsset(
     sourcePose,
     sourceParentWorldQuaternion,
     sourceBoneWorldQuaternion,
+    sourceMotionNodeNames,
     sourceNodeNames,
     sourceBoneNames,
     sourceParentNames,
@@ -182,6 +198,7 @@ export function retargetAnimationClip(
   name: string,
   targetSourceHeight: number,
   collapsedSourceNames: string[] = [],
+  targetRoot?: THREE.Object3D,
 ): RetargetAnimationResult {
   const sourceClip = parseReusableAnimationClip(asset)
   const targetByName = new Map<string, THREE.Bone>()
@@ -220,7 +237,15 @@ export function retargetAnimationClip(
     skippedTracks.push(track.name)
     category.push(track.name)
   }
+  const rootMotionContributions: Array<{
+    track: THREE.KeyframeTrack
+    sourceName: string
+    sourceRestPosition: THREE.Vector3
+    sourceParentWorld: THREE.Quaternion | null
+    order: number
+  }> = []
   let mappedSourceTracks = 0
+  let rootMotionTracks = 0
   let mergedTracks = 0
 
   for (let trackIndex = 0; trackIndex < sourceClip.tracks.length; trackIndex += 1) {
@@ -233,7 +258,7 @@ export function retargetAnimationClip(
     const targetName = boneMap[path.nodeName]
     const targetBone = targetName ? targetByName.get(targetName) : undefined
     const sourceRest = asset.sourcePose[path.nodeName]
-    if (!targetBone || !sourceRest) {
+    if (!sourceRest) {
       skipTrack(track, unmappedTracks)
       continue
     }
@@ -244,6 +269,30 @@ export function retargetAnimationClip(
     if (!times.length || stride <= 0 || sourceValues.length !== times.length * stride ||
         times.some(time => !Number.isFinite(time)) || sourceValues.some(value => !Number.isFinite(value))) {
       skipTrack(track, invalidTracks)
+      continue
+    }
+
+    if (!targetBone) {
+      const sourceLeafName = path.nodeName.split(/[./|:]/).filter(Boolean).pop() ?? path.nodeName
+      const legacyMotionContainer = !asset.sourceBoneNames?.includes(path.nodeName) &&
+        /^(scene|armature|skeleton|rig|root|rootnode|modelroot|characterroot)$/i.test(sourceLeafName)
+      const isSourceMotionContainer = asset.sourceMotionNodeNames?.includes(path.nodeName) || legacyMotionContainer
+      if (targetRoot && isSourceMotionContainer && path.property === 'position' && stride === 3) {
+        const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
+        const sourceParentWorld = parentRest && parentRest.length === 4
+          ? new THREE.Quaternion(...parentRest).normalize()
+          : null
+        rootMotionContributions.push({
+          track,
+          sourceName: path.nodeName,
+          sourceRestPosition: safeRestVector(sourceRest.position, new THREE.Vector3()),
+          sourceParentWorld,
+          order: trackIndex,
+        })
+        mappedSourceTracks += 1
+        continue
+      }
+      skipTrack(track, unmappedTracks)
       continue
     }
 
@@ -307,6 +356,21 @@ export function retargetAnimationClip(
         }
         const sourceRestVector = safeRestVector(sourceRest.position, new THREE.Vector3())
         const targetRestVector = targetBone.position.clone()
+        const sourceParentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
+        const sourceParentWorld = sourceParentRest && sourceParentRest.length === 4
+          ? new THREE.Quaternion(...sourceParentRest).normalize()
+          : null
+        const targetParentWorld = new THREE.Quaternion()
+        if (targetBone.parent) targetBone.parent.getWorldQuaternion(targetParentWorld)
+        const inverseTargetParentWorld = targetParentWorld.clone().invert()
+        const convertPositionDelta = (x: number, y: number, z: number) => {
+          const delta = new THREE.Vector3(x, y, z)
+          // Posição é relativa ao pai: convertemos os eixos da origem para mundo,
+          // depois para os eixos do pai de destino antes de aplicar a escala.
+          if (sourceParentWorld) delta.applyQuaternion(sourceParentWorld)
+          delta.applyQuaternion(inverseTargetParentWorld)
+          return delta.multiplyScalar(scaleRatio)
+        }
         // A pelve normalmente carrega o deslocamento do corpo em animações como
         // salto, aterrissagem, esquiva e passos laterais. O limite anterior de
         // 15% da altura descartava justamente esses movimentos. Mantemos um
@@ -316,11 +380,13 @@ export function retargetAnimationClip(
         let unsafePosition = false
         for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
-          const dx = (sourceValues[offset]! - sourceRestVector.x) * scaleRatio
-          const dy = (sourceValues[offset + 1]! - sourceRestVector.y) * scaleRatio
-          const dz = (sourceValues[offset + 2]! - sourceRestVector.z) * scaleRatio
-          if (!Number.isFinite(dx) || !Number.isFinite(dy) || !Number.isFinite(dz) ||
-              Math.hypot(dx, dy, dz) > maxOffset) {
+          const delta = convertPositionDelta(
+            sourceValues[offset]! - sourceRestVector.x,
+            sourceValues[offset + 1]! - sourceRestVector.y,
+            sourceValues[offset + 2]! - sourceRestVector.z,
+          )
+          if (!Number.isFinite(delta.x) || !Number.isFinite(delta.y) || !Number.isFinite(delta.z) ||
+              delta.length() > maxOffset) {
             unsafePosition = true
             break
           }
@@ -331,10 +397,15 @@ export function retargetAnimationClip(
         }
         for (let frame = 0; frame < times.length; frame += 1) {
           const offset = frame * 3
+          const delta = convertPositionDelta(
+            sourceValues[offset]! - sourceRestVector.x,
+            sourceValues[offset + 1]! - sourceRestVector.y,
+            sourceValues[offset + 2]! - sourceRestVector.z,
+          )
           values.push(
-            targetRestVector.x + (sourceValues[offset]! - sourceRestVector.x) * scaleRatio,
-            targetRestVector.y + (sourceValues[offset + 1]! - sourceRestVector.y) * scaleRatio,
-            targetRestVector.z + (sourceValues[offset + 2]! - sourceRestVector.z) * scaleRatio,
+            targetRestVector.x + delta.x,
+            targetRestVector.y + delta.y,
+            targetRestVector.z + delta.z,
           )
         }
       } else {
@@ -473,6 +544,67 @@ export function retargetAnimationClip(
     mergedTracks += Math.max(0, contributions.length - 1)
   }
 
+  if (targetRoot && rootMotionContributions.length) {
+    const outputTimes = rootMotionContributions.length === 1
+      ? Array.from(rootMotionContributions[0]!.track.times)
+      : [...new Set(rootMotionContributions.flatMap(item => Array.from(item.track.times)))].sort((a, b) => a - b)
+    if (outputTimes.length) {
+      const rootBasePosition = targetRoot.position.clone()
+      const targetParentWorld = new THREE.Quaternion()
+      if (targetRoot.parent) targetRoot.parent.getWorldQuaternion(targetParentWorld)
+      const inverseTargetParentWorld = targetParentWorld.clone().invert()
+      const interpolants = rootMotionContributions.map(contribution => ({
+        contribution,
+        interpolant: (contribution.track as THREE.KeyframeTrack & {
+          createInterpolant: () => { evaluate: (time: number) => ArrayLike<number> }
+        }).createInterpolant(),
+      }))
+      const values: number[] = []
+      let invalidRootMotion = false
+      for (const time of outputTimes) {
+        const combinedOffset = new THREE.Vector3()
+        for (const item of interpolants) {
+          const sourceValue = item.interpolant.evaluate(time) as ArrayLike<number>
+          if (sourceValue.length < 3 || !Number.isFinite(sourceValue[0]) ||
+              !Number.isFinite(sourceValue[1]) || !Number.isFinite(sourceValue[2])) {
+            invalidRootMotion = true
+            break
+          }
+          const delta = new THREE.Vector3(
+            sourceValue[0]! - item.contribution.sourceRestPosition.x,
+            sourceValue[1]! - item.contribution.sourceRestPosition.y,
+            sourceValue[2]! - item.contribution.sourceRestPosition.z,
+          )
+          if (item.contribution.sourceParentWorld) delta.applyQuaternion(item.contribution.sourceParentWorld)
+          delta.applyQuaternion(inverseTargetParentWorld).multiplyScalar(scaleRatio)
+          if (![delta.x, delta.y, delta.z].every(Number.isFinite)) {
+            invalidRootMotion = true
+            break
+          }
+          combinedOffset.add(delta)
+        }
+        if (invalidRootMotion) break
+        values.push(
+          rootBasePosition.x + combinedOffset.x,
+          rootBasePosition.y + combinedOffset.y,
+          rootBasePosition.z + combinedOffset.z,
+        )
+      }
+      if (!invalidRootMotion && values.length === outputTimes.length * 3) {
+        const rootNodeName = targetRoot.name || 'Scene'
+        const interpolation = rootMotionContributions.length === 1
+          ? rootMotionContributions[0]!.track.getInterpolation()
+          : THREE.InterpolateLinear
+        tracks.push(new THREE.VectorKeyframeTrack(rootNodeName + '.position', outputTimes, values, interpolation))
+        rootMotionTracks = 1
+      } else {
+        for (const item of rootMotionContributions) skipTrack(item.track, invalidTracks)
+      }
+    } else {
+      for (const item of rootMotionContributions) skipTrack(item.track, invalidTracks)
+    }
+  }
+
   if (!tracks.length) {
     throw new Error('Nenhuma trilha pôde ser transferida. Confira se o rig de destino possui ossos compatíveis e se eles estão mapeados.')
   }
@@ -490,6 +622,7 @@ export function retargetAnimationClip(
     collapsedTracks,
     unsafeScaleTracks,
     unsafePositionTracks,
+    rootMotionTracks,
   }
 }
 
