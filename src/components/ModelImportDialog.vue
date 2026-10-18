@@ -975,6 +975,279 @@ function refreshModelDiagnostics() {
 
 
 
+const importPackageControlBindingFields: Array<{ key: keyof ModelControlBindings; label: string }> = [
+  { key: 'forward', label: 'Mover para frente' },
+  { key: 'backward', label: 'Mover para trás' },
+  { key: 'left', label: 'Mover para esquerda' },
+  { key: 'right', label: 'Mover para direita' },
+  { key: 'run', label: 'Correr' },
+  { key: 'jump', label: 'Pular' },
+  { key: 'interact', label: 'Interagir / montar' },
+]
+
+function createImportBehaviorPackageDraft(definition: BehaviorPackageDefinition): ImportBehaviorPackageDraft {
+  const variables = Object.fromEntries(definition.variables.map(variable => [variable.name, variable.defaultValue])) as Record<string, PackageScalar>
+  const config = structuredClone(definition.defaultConfig)
+  if (definition.id === 'mount') {
+    const defaults = config.controlBindings && typeof config.controlBindings === 'object' && !Array.isArray(config.controlBindings)
+      ? config.controlBindings as Record<string, PackageJsonValue>
+      : {}
+    config.controlBindings = { ...defaults, ...controlBindings.value } as Record<string, PackageJsonValue>
+    config.interactionKey = controlBindings.value.interact
+  }
+  return { variables, config }
+}
+
+function ensureImportBehaviorPackageDraft(packageId: string): ImportBehaviorPackageDraft {
+  const definition = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === packageId)
+  if (!definition) return { variables: {}, config: {} }
+  const defaults = createImportBehaviorPackageDraft(definition)
+  const existing = selectedBehaviorPackageSettings.value[packageId]
+  const draft: ImportBehaviorPackageDraft = existing
+    ? {
+        variables: { ...defaults.variables, ...existing.variables },
+        config: { ...defaults.config, ...existing.config },
+      }
+    : defaults
+
+  const current = selectedBehaviorPackageSettings.value[packageId]
+  const currentControls = current?.config.controlBindings
+  if (definition.id === 'mount' && currentControls && typeof currentControls === 'object' && !Array.isArray(currentControls)) {
+    draft.config.controlBindings = {
+      ...((defaults.config.controlBindings && typeof defaults.config.controlBindings === 'object' && !Array.isArray(defaults.config.controlBindings))
+        ? defaults.config.controlBindings as Record<string, PackageJsonValue>
+        : {}),
+      ...(currentControls as Record<string, PackageJsonValue>),
+    }
+  }
+  selectedBehaviorPackageSettings.value = { ...selectedBehaviorPackageSettings.value, [packageId]: draft }
+  return draft
+}
+
+function toggleImportBehaviorPackage(packageId: string, checked: boolean) {
+  if (checked) {
+    if (!selectedBehaviorPackageIds.value.includes(packageId)) {
+      selectedBehaviorPackageIds.value = [...selectedBehaviorPackageIds.value, packageId]
+    }
+    ensureImportBehaviorPackageDraft(packageId)
+    return
+  }
+  selectedBehaviorPackageIds.value = selectedBehaviorPackageIds.value.filter(id => id !== packageId)
+}
+
+function importPackageVariableValue(packageId: string, name: string, fallback: PackageScalar): PackageScalar {
+  return selectedBehaviorPackageSettings.value[packageId]?.variables[name] ?? fallback
+}
+
+function updateImportPackageVariable(
+  packageId: string,
+  variable: BehaviorPackageDefinition['variables'][number],
+  event: Event,
+) {
+  if (props.initialAsset || variable.readOnly) return
+  const target = event.target as HTMLInputElement
+  let value: PackageScalar
+  if (variable.type === 'boolean') {
+    value = target.checked
+  } else if (variable.type === 'number') {
+    const raw = target.value.trim().replace(',', '.')
+    const parsed = Number(raw)
+    if (raw === '' || !Number.isFinite(parsed)) return
+    value = Math.max(variable.min ?? Number.NEGATIVE_INFINITY, Math.min(variable.max ?? Number.POSITIVE_INFINITY, parsed))
+  } else {
+    value = target.value
+  }
+  const draft = ensureImportBehaviorPackageDraft(packageId)
+  selectedBehaviorPackageSettings.value = {
+    ...selectedBehaviorPackageSettings.value,
+    [packageId]: { ...draft, variables: { ...draft.variables, [variable.name]: value } },
+  }
+}
+
+function importPackageConfigValue(packageId: string, key: string, fallback: PackageJsonValue): PackageJsonValue {
+  return selectedBehaviorPackageSettings.value[packageId]?.config[key] ?? fallback
+}
+
+function updateImportPackageConfigValue(packageId: string, key: string, value: PackageJsonValue) {
+  if (props.initialAsset) return
+  const draft = ensureImportBehaviorPackageDraft(packageId)
+  selectedBehaviorPackageSettings.value = {
+    ...selectedBehaviorPackageSettings.value,
+    [packageId]: { ...draft, config: { ...draft.config, [key]: value } },
+  }
+}
+
+function isSimplePackageConfigValue(key: string, value: PackageJsonValue): boolean {
+  return !['interactionKey', 'seatOffset', 'controlBindings', 'modelStates'].includes(key)
+    && (typeof value === 'string' || typeof value === 'number')
+}
+
+function formatPackageConfigLabel(key: string): string {
+  return key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, letter => letter.toUpperCase())
+}
+
+function updateImportPackageConfigScalar(packageId: string, key: string, fallback: PackageJsonValue, event: Event) {
+  if (props.initialAsset) return
+  const target = event.target as HTMLInputElement
+  const raw = target.value.trim()
+  if (typeof fallback === 'number') {
+    const parsed = Number(raw.replace(',', '.'))
+    if (raw === '' || !Number.isFinite(parsed)) return
+    updateImportPackageConfigValue(packageId, key, parsed)
+  } else {
+    updateImportPackageConfigValue(packageId, key, target.value)
+  }
+}
+
+function setImportPackageInteractionKey(packageId: string, keyCode: string) {
+  const draft = ensureImportBehaviorPackageDraft(packageId)
+  const current = draft.config.controlBindings && typeof draft.config.controlBindings === 'object' && !Array.isArray(draft.config.controlBindings)
+    ? draft.config.controlBindings as Record<string, PackageJsonValue>
+    : {}
+  updateImportPackageConfigValue(packageId, 'interactionKey', keyCode)
+  const nextDraft = ensureImportBehaviorPackageDraft(packageId)
+  selectedBehaviorPackageSettings.value = {
+    ...selectedBehaviorPackageSettings.value,
+    [packageId]: {
+      ...nextDraft,
+      config: {
+        ...nextDraft.config,
+        controlBindings: { ...current, interact: keyCode },
+      },
+    },
+  }
+}
+
+function importPackageVectorValue(packageId: string, key: string, axis: 0 | 1 | 2, fallback: number): number {
+  const value = importPackageConfigValue(packageId, key, [0, 0.55, 0])
+  if (!Array.isArray(value)) return fallback
+  const parsed = Number(value[axis])
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function setImportPackageVector(packageId: string, key: string, axis: 0 | 1 | 2, event: Event) {
+  if (props.initialAsset) return
+  const target = event.target as HTMLInputElement
+  const parsed = Number(target.value.trim().replace(',', '.'))
+  if (!Number.isFinite(parsed)) return
+  const value = importPackageConfigValue(packageId, key, [0, 0.55, 0])
+  const vector: [number, number, number] = Array.isArray(value) && value.length === 3
+    ? [Number(value[0]) || 0, Number(value[1]) || 0, Number(value[2]) || 0]
+    : [0, 0.55, 0]
+  vector[axis] = Math.max(-10, Math.min(10, parsed))
+  updateImportPackageConfigValue(packageId, key, vector)
+}
+
+function importPackageControlBindingValue(packageId: string, key: keyof ModelControlBindings): string {
+  const value = importPackageConfigValue(packageId, 'controlBindings', {})
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const item = (value as Record<string, PackageJsonValue>)[key]
+    if (typeof item === 'string' && item) return item
+  }
+  return DEFAULT_MODEL_CONTROL_BINDINGS[key]
+}
+
+function setImportPackageControlBinding(packageId: string, key: keyof ModelControlBindings, event: Event) {
+  if (props.initialAsset) return
+  const value = (event.target as HTMLInputElement).value.trim()
+  if (!value) return
+  const current = importPackageConfigValue(packageId, 'controlBindings', {})
+  const bindings = current && typeof current === 'object' && !Array.isArray(current)
+    ? current as Record<string, PackageJsonValue>
+    : {}
+  updateImportPackageConfigValue(packageId, 'controlBindings', { ...bindings, [key]: value })
+  if (key === 'interact') updateImportPackageConfigValue(packageId, 'interactionKey', value)
+}
+
+function getPreviewModelNodePath(node: THREE.Object3D): string {
+  const root = model.value
+  if (!root) return ''
+  const segments: string[] = []
+  let current: THREE.Object3D | null = node
+  while (current && current !== root) {
+    const label = current.name.trim() || current.type
+    const parent: THREE.Object3D | null = current.parent
+    const siblings = parent?.children.filter(sibling => (sibling.name.trim() || sibling.type) === label) ?? []
+    const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
+    segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
+    current = parent
+  }
+  return segments.join('/')
+}
+
+function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
+  const raw = importPackageConfigValue(packageId, 'modelStates', [])
+  if (!Array.isArray(raw)) return []
+  const states: ImportModelStateDraft[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const record = item as Record<string, PackageJsonValue>
+    const value = record.value
+    if (typeof record.id !== 'string' || typeof record.nodePath !== 'string' || !record.nodePath
+      || typeof record.variable !== 'string' || !record.variable
+      || (typeof value !== 'boolean' && typeof value !== 'number' && typeof value !== 'string')) continue
+    states.push({
+      id: record.id,
+      nodePath: record.nodePath,
+      variable: record.variable,
+      operator: record.operator === 'not_equals' ? 'not_equals' : 'equals',
+      value,
+      visibleWhenMatched: record.visibleWhenMatched !== false,
+    })
+  }
+  return states
+}
+
+function writeImportPackageModelStates(packageId: string, states: ImportModelStateDraft[]) {
+  updateImportPackageConfigValue(packageId, 'modelStates', states.map(state => ({
+    id: state.id,
+    nodePath: state.nodePath,
+    variable: state.variable,
+    operator: state.operator,
+    value: state.value,
+    visibleWhenMatched: state.visibleWhenMatched,
+  })) as unknown as PackageJsonValue)
+}
+
+function addImportPackageModelState(packageId: string) {
+  if (props.initialAsset || !previewPackageModelNodes.value.length) return
+  const definition = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === packageId)
+  if (!definition) return
+  const variable = definition.variables.find(item => item.name === 'mounted') ?? definition.variables[0]
+  if (!variable) return
+  const node = previewPackageModelNodes.value[0]!
+  const state: ImportModelStateDraft = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'mount-state-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
+    nodePath: node.path,
+    variable: variable.name,
+    operator: 'equals',
+    value: variable.name === 'mounted' ? true : variable.defaultValue,
+    visibleWhenMatched: true,
+  }
+  writeImportPackageModelStates(packageId, [...importPackageModelStates(packageId), state])
+}
+
+function updateImportPackageModelState(packageId: string, stateId: string, patch: Partial<ImportModelStateDraft>) {
+  writeImportPackageModelStates(packageId, importPackageModelStates(packageId).map(state =>
+    state.id === stateId ? { ...state, ...patch } : state,
+  ))
+}
+
+function onImportPackageModelStateValueChange(packageId: string, stateId: string, event: Event) {
+  const raw = (event.target as HTMLInputElement).value
+  const trimmed = raw.trim()
+  const value: PackageScalar = trimmed === 'true' ? true
+    : trimmed === 'false' ? false
+      : trimmed !== '' && Number.isFinite(Number(trimmed)) ? Number(trimmed) : raw
+  updateImportPackageModelState(packageId, stateId, { value })
+}
+
+function removeImportPackageModelState(packageId: string, stateId: string) {
+  writeImportPackageModelStates(packageId, importPackageModelStates(packageId).filter(state => state.id !== stateId))
+}
+
 function clearLoadedModel() {
   selectedBehaviorPackageIds.value = []
   selectedBehaviorPackageSettings.value = {}
