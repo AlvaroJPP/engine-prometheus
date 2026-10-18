@@ -27,7 +27,7 @@ export interface SceneObjectData {
   wireframeVisible?: boolean
   groupId?: string | null
   mass?: number
-  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none
+  colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize?: Vec3
   colliderOffset?: Vec3
   /** ID do componente de biblioteca que originou o modelo, quando aplicável. */
