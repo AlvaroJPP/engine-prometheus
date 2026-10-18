@@ -98,6 +98,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const grassMiddleDetailDistance = ref(0)
   const grassOcclusionEnabled = ref(true)
   const grassOcclusionIntervalMs = ref(400)
+  const wallOcclusionQuality = ref<'fast' | 'precise'>('precise')
   const grassWindPercent = ref(100)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
@@ -421,6 +422,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         grassMiddleDetailDistance: grassMiddleDetailDistance.value,
         grassOcclusionEnabled: grassOcclusionEnabled.value,
         grassOcclusionIntervalMs: grassOcclusionIntervalMs.value,
+        wallOcclusionQuality: wallOcclusionQuality.value,
         grassWindPercent: grassWindPercent.value,
       }))
     } catch (error) {
@@ -503,6 +505,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       middleDetailDistance: grassMiddleDetailDistance.value === 0 ? null : grassMiddleDetailDistance.value,
       occlusionEnabled: grassOcclusionEnabled.value,
       occlusionIntervalMs: grassOcclusionIntervalMs.value,
+      wallOcclusionQuality: wallOcclusionQuality.value,
       windPercent: grassWindPercent.value,
     })
   }
@@ -560,6 +563,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     persistRenderSettings()
   }
 
+  function setWallOcclusionQuality(value: 'fast' | 'precise') {
+    if (value !== 'fast' && value !== 'precise') return
+    wallOcclusionQuality.value = value
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
   function setGrassWindPercent(value: number) {
     if (![0, 25, 50, 75, 100].includes(value)) return
     grassWindPercent.value = value
@@ -592,6 +602,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         grassMiddleDetailDistance?: unknown
         grassOcclusionEnabled?: unknown
         grassOcclusionIntervalMs?: unknown
+        wallOcclusionQuality?: unknown
         grassWindPercent?: unknown
       }
       if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
@@ -628,6 +639,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       if (typeof settings.grassMiddleDetailDistance === 'number' && [0, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80].includes(settings.grassMiddleDetailDistance)) grassMiddleDetailDistance.value = settings.grassMiddleDetailDistance
       if (typeof settings.grassOcclusionEnabled === 'boolean') grassOcclusionEnabled.value = settings.grassOcclusionEnabled
       if (typeof settings.grassOcclusionIntervalMs === 'number' && [250, 400, 800, 1200].includes(settings.grassOcclusionIntervalMs)) grassOcclusionIntervalMs.value = settings.grassOcclusionIntervalMs
+      if (settings.wallOcclusionQuality === 'fast' || settings.wallOcclusionQuality === 'precise') wallOcclusionQuality.value = settings.wallOcclusionQuality
       if (typeof settings.grassWindPercent === 'number' && [0, 25, 50, 75, 100].includes(settings.grassWindPercent)) grassWindPercent.value = settings.grassWindPercent
       // Migra as preferências antigas, salvas como renderização somente da grama.
       if (
@@ -1636,6 +1648,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     grassMiddleDetailDistance,
     grassOcclusionEnabled,
     grassOcclusionIntervalMs,
+    wallOcclusionQuality,
     grassWindPercent,
     playerModelName,
     playerModelCustom,
@@ -1685,6 +1698,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setGrassDetailDistance,
     setGrassOcclusionEnabled,
     setGrassOcclusionInterval,
+    setWallOcclusionQuality,
     setGrassWindPercent,
     togglePolygonLines,
     removeSelected,
