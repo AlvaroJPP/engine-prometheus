@@ -17,6 +17,8 @@ export type ReusableAnimationAsset = {
   clipJson: Record<string, unknown>
   /** Pose de repouso do nó de origem, necessária para compensar rigs diferentes. */
   sourcePose: Record<string, AnimationPoseSnapshot>
+  /** Orientação mundial do pai em repouso; permite converter eixos entre rigs diferentes. */
+  sourceParentWorldQuaternion?: Record<string, [number, number, number, number]>
   sourceNodeNames: string[]
   sourceHeight: number
   createdAt: string
@@ -85,12 +87,18 @@ export function createReusableAnimationAsset(
   role: AnimationRole,
   existingId?: string,
 ): ReusableAnimationAsset {
+  root.updateWorldMatrix(true, true)
   const sourcePose: Record<string, AnimationPoseSnapshot> = {}
+  const sourceParentWorldQuaternion: Record<string, [number, number, number, number]> = {}
   for (const track of clip.tracks) {
     const path = getTransformTrackPath(track)
     if (!path || sourcePose[path.nodeName]) continue
     const node = findAnimationNode(root, path.nodeName)
-    if (node) sourcePose[path.nodeName] = snapshotNode(node)
+    if (!node) continue
+    sourcePose[path.nodeName] = snapshotNode(node)
+    const parentQuaternion = new THREE.Quaternion()
+    if (node.parent) node.parent.getWorldQuaternion(parentQuaternion)
+    sourceParentWorldQuaternion[path.nodeName] = parentQuaternion.toArray() as [number, number, number, number]
   }
 
   const sourceNodeNames = [...new Set(clip.tracks
@@ -107,6 +115,7 @@ export function createReusableAnimationAsset(
     role,
     clipJson: clip.toJSON() as unknown as Record<string, unknown>,
     sourcePose,
+    sourceParentWorldQuaternion,
     sourceNodeNames,
     sourceHeight: objectHeight(root),
     createdAt: new Date().toISOString(),
@@ -187,6 +196,14 @@ export function retargetAnimationClip(
       const sourceRestQ = new THREE.Quaternion(...sourceRest.quaternion)
       const targetRestQ = targetBone.quaternion.clone()
       const inverseSourceRest = sourceRestQ.clone().invert()
+      const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
+      const sourceParentWorld = parentRest && parentRest.length === 4
+        ? new THREE.Quaternion(...parentRest).normalize()
+        : null
+      const targetParentWorld = new THREE.Quaternion()
+      if (targetBone.parent) targetBone.parent.getWorldQuaternion(targetParentWorld)
+      const inverseTargetParentWorld = targetParentWorld.clone().invert()
+      const inverseSourceParentWorld = sourceParentWorld?.clone().invert() ?? null
       for (let frame = 0; frame < times.length; frame++) {
         const offset = frame * 4
         const sourceQ = new THREE.Quaternion(
@@ -194,9 +211,19 @@ export function retargetAnimationClip(
           sourceValues[offset + 1]!,
           sourceValues[offset + 2]!,
           sourceValues[offset + 3]!,
-        )
+        ).normalize()
         const delta = inverseSourceRest.clone().multiply(sourceQ).normalize()
-        targetRestQ.clone().multiply(delta).normalize().toArray(values, values.length)
+        // Converte a rotação relativa da base local de origem para a base local do
+        // destino usando as orientações dos pais em repouso. Assets antigos não
+        // possuem esse dado e continuam usando o caminho compatível anterior.
+        let targetDelta = delta
+        if (sourceParentWorld && inverseSourceParentWorld) {
+          const worldDelta = sourceParentWorld.clone().multiply(delta)
+            .multiply(inverseSourceParentWorld).normalize()
+          targetDelta = inverseTargetParentWorld.clone().multiply(worldDelta)
+            .multiply(targetParentWorld).normalize()
+        }
+        targetRestQ.clone().multiply(targetDelta).normalize().toArray(values, values.length)
       }
       tracks.push(new THREE.QuaternionKeyframeTrack(targetTrackName, times, values, track.getInterpolation()))
       continue
@@ -418,6 +445,8 @@ type BoneSpatialSignature = {
   z: number
   segmentLength: number
   depth: number
+  childCount: number
+  hasChildren: boolean
 }
 
 function bonesIn(root: THREE.Object3D | null | undefined): THREE.Bone[] {
@@ -501,6 +530,8 @@ function buildBoneSpatialProfiles(
       z: (position.z - center.z) / scale,
       segmentLength,
       depth: (depths.get(bone) ?? 0) / Math.max(1, maxDepth),
+      childCount: children.length,
+      hasChildren: children.length > 0,
     })
   }
   return profiles
@@ -516,7 +547,14 @@ function spatialSimilarityScore(source: BoneSpatialSignature, target: BoneSpatia
   const lengthScore = 2 - Math.min(1, lengthDifference) * 4
   const depthDifference = Math.abs(source.depth - target.depth)
   const depthScore = 1.5 - Math.min(1, depthDifference) * 3
-  return positionScore + lengthScore + depthScore
+  // Estruturas com nomes opacos ainda podem ser alinhadas pela forma do grafo:
+  // profundidade relativa, bifurcações e posição terminal/importância do nó.
+  const childDifference = Math.abs(source.childCount - target.childCount)
+  const branchScore = source.childCount === target.childCount
+    ? 5
+    : Math.max(-4, 3 - childDifference * 2)
+  const terminalScore = source.hasChildren === target.hasChildren ? 3 : -2.5
+  return positionScore + lengthScore + depthScore + branchScore + terminalScore
 }
 
 function scoreBonePair(
@@ -531,14 +569,19 @@ function scoreBonePair(
   if (source.zone && target.zone && source.zone !== target.zone) return Number.NEGATIVE_INFINITY
   if (source.digit && target.digit && source.digit !== target.digit) return Number.NEGATIVE_INFINITY
 
-  if (source.role && target.role && source.role !== target.role) {
-    // Papéis anatômicos diferentes nunca são combinados somente por proximidade.
+  const limbRoles = new Set(['shoulder', 'upper_arm', 'lower_arm', 'hand', 'thigh', 'lower_leg', 'leg', 'foot', 'toe'])
+  const crossAnatomyLimb = source.role && target.role && source.role !== target.role &&
+    limbRoles.has(source.role) && limbRoles.has(target.role)
+  if (source.role && target.role && source.role !== target.role && !crossAnatomyLimb) {
+    // Não confunde cabeça/coluna/cauda entre si, mas permite transferir movimento
+    // entre segmentos de membros em esqueletos de anatomias diferentes.
     return Number.NEGATIVE_INFINITY
   }
 
   let score = 0
   if (source.normalized === target.normalized || source.compact === target.compact) score += 120
   if (source.role && source.role === target.role) score += 72
+  else if (crossAnatomyLimb) score += 26
   else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
 
   if (source.side && target.side && source.side === target.side) score += 24
@@ -584,8 +627,14 @@ export function rankTargetBoneCandidates(
   const sourceAncestors = sourceNames.map(name =>
     ancestorSignatures(sourceRoot ? findAnimationNode(sourceRoot, name) : null),
   )
-  const sourceBoneNodes = bonesIn(sourceRoot)
-  const sourceSpatial = buildBoneSpatialProfiles(sourceRoot, sourceBoneNodes)
+  const sourceNodeNames = new Set(sourceNames
+    .map(name => sourceRoot ? findAnimationNode(sourceRoot, name) : null)
+    .filter((node): node is THREE.Object3D => node !== null))
+  const sourceStructureNodes: THREE.Object3D[] = []
+  sourceRoot?.traverse(node => {
+    if (node instanceof THREE.Bone || sourceNodeNames.has(node)) sourceStructureNodes.push(node)
+  })
+  const sourceSpatial = buildBoneSpatialProfiles(sourceRoot, sourceStructureNodes)
   const targetSpatial = buildBoneSpatialProfiles(targetRoot, targetBones)
   const bySource: Record<string, BoneSimilarityCandidate[]> = {}
 
@@ -632,13 +681,23 @@ export function suggestTargetBoneMappings(
   const sourceSignatures = sourceNames.map(name => signatureForBoneName(name))
   const ranked = rankTargetBoneCandidates(sourceNames, targetBones, sourceRoot, targetRoot)
   const viable = sourceSignatures.map((source, sourceIndex) => {
-    const candidates = (ranked[source.original] ?? []).filter(candidate => candidate.score >= 48)
+    const candidates = (ranked[source.original] ?? []).filter(candidate => {
+      const target = signatureForBoneName(candidate.targetName)
+      // Quando ambos os rigs usam nomes genéricos (Bone.001, joint_03 etc.),
+      // o score semântico naturalmente é menor; aceita o caminho estrutural apenas
+      // com score mínimo e margem suficiente contra alternativas equivalentes.
+      const threshold = source.role && target.role ? 48 : 19
+      return candidate.score >= threshold
+    })
     const best = candidates[0]
     if (!best) return { sourceName: source.original, sourceIndex, candidates: [] as Array<BoneSimilarityCandidate & { targetIndex: number }> }
 
     const second = candidates[1]
-    const closeAmbiguity = !!second && best.score - second.score < 11
-    // Nome exato único pode resolver empate; nomes genéricos não escolhem um lado ao acaso.
+    const bestTargetSignature = signatureForBoneName(best.targetName)
+    const hasSemanticPair = !!source.role && !!bestTargetSignature.role
+    const closeAmbiguity = !!second && best.score - second.score < (hasSemanticPair ? 11 : 5)
+    // Nomes e papéis reconhecíveis podem resolver empates; rigs com nomes
+    // genéricos precisam de uma vantagem estrutural clara contra o segundo candidato.
     if (closeAmbiguity && !best.exactName) {
       return { sourceName: source.original, sourceIndex, candidates: [] as Array<BoneSimilarityCandidate & { targetIndex: number }> }
     }
