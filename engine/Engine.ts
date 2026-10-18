@@ -139,6 +139,7 @@ export class Engine {
   private veilborneBlocking = false
   private veilborneParryStartedAt = Number.NEGATIVE_INFINITY
   private readonly veilborneParryWindowSeconds = 0.2
+  private veilbornePlayerStaggerRemainingSeconds = 0
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -419,7 +420,7 @@ export class Engine {
       ['magia_4', VEILBORNE_DEFAULT_SPELL_SLOTS[3]],
       ['sigilo_1', 'ward'], ['sigilo_2', 'blast'], ['sigilo_3', 'hunter_mark'], ['sigilo_4', 'slow_field'],
       ['sigilo_selecionado', 1], ['sigilo_ativo', 'ward'],
-      ['bloqueando', false], ['aparo_total', 0], ['aparo_sucesso', false], ['jogador_morreu', false],
+      ['bloqueando', false], ['aparo_total', 0], ['aparo_sucesso', false], ['jogador_morreu', false], ['jogador_atordoado', false],
       ['ward_remaining', 0], ['ward_absorption', 0],
     ]
     for (const [name, value] of defaults) {
@@ -702,6 +703,9 @@ export class Engine {
   private onVeilborneBlur = (): void => {
     this.veilborneBlocking = false
     this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
+    this.veilbornePlayerStaggerRemainingSeconds = 0
+    this.avatar.setCombatStagger(0)
+    if (this.logic.getVariable('jogador_atordoado') !== undefined) this.logic.setVariable('jogador_atordoado', false)
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
   }
@@ -779,11 +783,22 @@ export class Engine {
     }
     const before = player.resources.vitality
     player.resources.vitality = Math.max(0, before - remainingDamage)
+    const previousPosture = player.resources.posture
     player.resources.posture = Math.min(
       player.resources.maxPosture,
-      player.resources.posture + actualPostureDamage,
+      previousPosture + actualPostureDamage,
     )
     player.alive = player.resources.vitality > 0
+    const playerPostureBroken = player.alive &&
+      previousPosture < player.resources.maxPosture &&
+      player.resources.posture >= player.resources.maxPosture
+    if (playerPostureBroken) {
+      player.resources.posture = 0
+      this.veilbornePlayerStaggerRemainingSeconds = Math.max(this.veilbornePlayerStaggerRemainingSeconds, 0.85)
+      this.avatar.setCombatStagger(0.85)
+      this.logic.setVariable('jogador_atordoado', true)
+      this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffb26b, 0.9, 0.4)
+    }
     const appliedDamage = before - player.resources.vitality
     this.syncVeilbornePlayerCombatant(player)
     if (!player.alive) this.logic.setVariable('jogador_morreu', true)
@@ -794,6 +809,7 @@ export class Engine {
 
   private handleVeilborneControl(code: string): boolean {
     if (!this.cameraStateBeforeRun || !this.isVeilborneEnabled()) return false
+    if (this.avatar.isCombatStaggered()) return true
     const bindings = this.playerControlBindings
     if (code === bindings.block) {
       this.veilborneBlocking = true
@@ -1396,6 +1412,13 @@ export class Engine {
     if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return
     this.ensureVeilbornePlayerVariables()
     const step = Math.max(0, Math.min(dt, 0.1))
+    if (this.veilbornePlayerStaggerRemainingSeconds > 0) {
+      this.veilbornePlayerStaggerRemainingSeconds = Math.max(0, this.veilbornePlayerStaggerRemainingSeconds - Math.min(step, 0.05))
+      if (this.veilbornePlayerStaggerRemainingSeconds <= 0) {
+        this.avatar.setCombatStagger(0)
+        this.logic.setVariable('jogador_atordoado', false)
+      }
+    }
     this.updateActiveVeilborneSigils(step)
     this.updateVeilborneWard(step)
     if (this.veilbornePendingCast) {
