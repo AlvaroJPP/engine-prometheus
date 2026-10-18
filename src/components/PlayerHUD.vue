@@ -103,6 +103,7 @@ const skipHudTransparentCrops = ref(true)
 const hudColorKeyEnabled = ref(false)
 const hudColorKeyColor = ref('#ffffff')
 const hudColorKeyTolerance = ref(24)
+const hudAlphaThreshold = ref(8)
 const hudCropBusy = ref(false)
 const hudImageNotice = ref('')
 const visibleHudImages = computed(() => settings.images.filter(layer => layer.visible && hudImageUrls.value[layer.id]))
@@ -439,6 +440,119 @@ function generateHudGridCrops(): void {
   }
   hudImageError.value = ''
   hudImageNotice.value = ''
+}
+
+function detectHudTransparentParts(): void {
+  const source = hudSheetPreview.value
+  const sheetWidth = hudSheetSize.value.width
+  const sheetHeight = hudSheetSize.value.height
+  if (!source || !sheetWidth || !sheetHeight) {
+    hudImageError.value = 'Importe uma imagem antes de detectar as partes.'
+    return
+  }
+
+  // Detect on a bounded thumbnail so large source images do not require a full-resolution flood fill.
+  const sampleScale = Math.min(1, 256 / Math.max(sheetWidth, sheetHeight))
+  const sampleWidth = Math.max(1, Math.round(sheetWidth * sampleScale))
+  const sampleHeight = Math.max(1, Math.round(sheetHeight * sampleScale))
+  const canvas = document.createElement('canvas')
+  canvas.width = sampleWidth
+  canvas.height = sampleHeight
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) {
+    hudImageError.value = 'Não foi possível analisar a transparência da imagem.'
+    return
+  }
+  context.drawImage(source, 0, 0, sampleWidth, sampleHeight)
+  const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data
+  const keyHex = hudColorKeyColor.value.match(/^#([0-9a-f]{6})$/i)?.[1]
+  const key = keyHex
+    ? [parseInt(keyHex.slice(0, 2), 16), parseInt(keyHex.slice(2, 4), 16), parseInt(keyHex.slice(4, 6), 16)]
+    : null
+  const tolerance = Math.max(0, Math.min(255, Math.floor(Number(hudColorKeyTolerance.value) || 0)))
+  const alphaThreshold = Math.max(0, Math.min(255, Math.floor(Number(hudAlphaThreshold.value) || 0)))
+  const pixelCount = sampleWidth * sampleHeight
+  const visited = new Uint8Array(pixelCount)
+
+  const isVisiblePixel = (index: number): boolean => {
+    const offset = index * 4
+    if (pixels[offset + 3] <= alphaThreshold) return false
+    if (!hudColorKeyEnabled.value || !key) return true
+    return !(
+      Math.abs(pixels[offset] - key[0]) <= tolerance &&
+      Math.abs(pixels[offset + 1] - key[1]) <= tolerance &&
+      Math.abs(pixels[offset + 2] - key[2]) <= tolerance
+    )
+  }
+
+  const components: Array<{ x: number; y: number; width: number; height: number; area: number }> = []
+  const queue = new Int32Array(pixelCount)
+  for (let start = 0; start < pixelCount; start++) {
+    if (visited[start] || !isVisiblePixel(start)) continue
+    let head = 0
+    let tail = 0
+    queue[tail++] = start
+    visited[start] = 1
+    let minX = sampleWidth
+    let minY = sampleHeight
+    let maxX = -1
+    let maxY = -1
+    while (head < tail) {
+      const index = queue[head++]
+      const x = index % sampleWidth
+      const y = Math.floor(index / sampleWidth)
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy
+        if (ny < 0 || ny >= sampleHeight) continue
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue
+          const nx = x + dx
+          if (nx < 0 || nx >= sampleWidth) continue
+          const neighbor = ny * sampleWidth + nx
+          if (visited[neighbor] || !isVisiblePixel(neighbor)) continue
+          visited[neighbor] = 1
+          queue[tail++] = neighbor
+        }
+      }
+    }
+    const componentWidth = maxX - minX + 1
+    const componentHeight = maxY - minY + 1
+    // Ignore tiny alpha specks caused by compression or stray pixels.
+    if (tail < 3 || componentWidth < 2 || componentHeight < 2) continue
+    components.push({
+      x: minX / sampleWidth * sheetWidth,
+      y: minY / sampleHeight * sheetHeight,
+      width: componentWidth / sampleWidth * sheetWidth,
+      height: componentHeight / sampleHeight * sheetHeight,
+      area: tail,
+    })
+  }
+
+  const detected = components
+    .sort((a, b) => b.area - a.area)
+    .slice(0, 256)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map((component, index): HudCropRect => ({
+      id: 'hud-auto-' + index + '-' + Math.random().toString(36).slice(2, 7),
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+    }))
+
+  if (!detected.length) {
+    hudImageError.value = 'Nenhuma parte detectada. Se o fundo não for transparente, marque “Tornar uma cor específica transparente” e tente novamente.'
+    hudImageNotice.value = ''
+    return
+  }
+
+  hudCropRects.value = detected
+  hudImageError.value = ''
+  hudImageNotice.value = 'Detectadas ' + detected.length + ' parte(s). Revise os retângulos antes de criar as camadas.'
 }
 
 function clearHudCropRects(): void {
@@ -845,6 +959,7 @@ function resetSettings() {
               <input v-model.number="hudCropColumns" type="number" min="1" max="32">
             </label>
             <button type="button" @click="generateHudGridCrops">Dividir em grade</button>
+            <button type="button" @click="detectHudTransparentParts">Detectar partes pela transparência</button>
             <button type="button" :disabled="!hudCropRects.length" @click="clearHudCropRects">Limpar recortes</button>
           </div>
           <div v-if="hudCropRects.length" class="hud-crop-count">{{ hudCropRects.length }} recorte(s) selecionado(s)</div>
@@ -859,6 +974,9 @@ function resetSettings() {
             <label><input v-model="trimHudTransparentBorders" type="checkbox"> Aparar margens transparentes ao redor de cada parte</label>
             <small>Remove apenas as bordas externas vazias de cada recorte. As áreas transparentes internas continuam transparentes.</small>
             <label><input v-model="skipHudTransparentCrops" type="checkbox"> Ignorar partes completamente transparentes</label>
+            <label>Limiar alfa para detectar bordas · {{ hudAlphaThreshold }}
+              <input v-model.number="hudAlphaThreshold" type="range" min="0" max="255" step="1">
+            </label>
             <label><input v-model="hudColorKeyEnabled" type="checkbox"> Tornar uma cor específica transparente</label>
             <div class="hud-color-key-controls" :class="{ disabled: !hudColorKeyEnabled }">
               <label>Cor
