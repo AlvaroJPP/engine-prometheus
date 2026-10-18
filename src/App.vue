@@ -111,6 +111,7 @@ const {
   grassWindPercent,
   playerModelName,
   playerModelCustom,
+  playerModelHeight,
   setPlayerModelFile,
   setPlayerModelAsset,
   resetPlayerModel,
@@ -1817,14 +1818,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </dl>
             <div class="environment-editor">
               <h4>Modelo do jogador</h4>
-              <p class="muted">Substitua o visual do personagem controlado em Run por um modelo 3D próprio. O modelo é ajustado automaticamente para 1,8 unidade de altura; a cápsula física e os controles continuam iguais.</p>
+              <p class="muted">Substitua o visual do personagem controlado em Run. A importação direta usa 1,8 unidade; para escolher outro tamanho, abra Importar 3D, ajuste “Altura final” e clique em “Usar como jogador”. A colisão e as dimensões físicas acompanham a altura escolhida.</p>
               <input ref="playerModelFileInput" type="file" accept=".glb,model/gltf-binary" hidden @change="onPlayerModelSelected" />
               <button class="primary environment-button" title="Substitui o visual do personagem usado ao executar a cena. A física e os controles permanecem iguais." @click="playerModelFileInput?.click()">{{ playerModelCustom ? 'Trocar modelo do jogador' : 'Importar modelo do jogador' }}</button>
               <div class="environment-file">
                 <span>♟ {{ playerModelName }}</span>
                 <button v-if="playerModelCustom" class="ghost" title="Remove o modelo personalizado e volta ao personagem padrão." @click="resetPlayerModel">Restaurar padrão</button>
               </div>
-              <p class="component-note">Aceita arquivos GLB de até 30 MB. Modelos com animações embutidas podem usar clipes nomeados idle, walk, run e jump; modelos estáticos serão exibidos sem animação de movimento.</p>
+              <p class="component-note">Aceita arquivos GLB de até 30 MB. <span v-if="playerModelCustom">Altura atual: <strong>{{ playerModelHeight.toFixed(2) }} u</strong>. </span>Modelos com animações embutidas podem usar clipes nomeados idle, walk, run e jump; modelos estáticos serão exibidos sem animação de movimento.</p>
               <h4>Céu</h4>
               <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
               <input ref="skyFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onSkyTextureSelected" />
