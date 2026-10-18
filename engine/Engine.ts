@@ -224,26 +224,20 @@ export class Engine {
     this.viewport.start((dt) => {
       const frameStartedAt = performance.now()
       this.input.update(dt)
-      // Todos os modelos passam pelo mesmo controlador. Cada mixer é atualizado
-      // uma única vez, antes de colisões/oclusão, para que física e render usem a pose atual.
+      // Um controlador por objeto animado. O mixer pertence ao controlador e só é
+      // avançado aqui uma vez, antes da física, para manter colisões e render em sincronia.
       let hasRunningModelAnimation = false
       for (const object of this.world.list()) {
-        const controller = getAnimationControllerFromObject(object.mesh)
-        if (controller) {
-          controller.update(dt)
-          object.mesh.userData.importAnimationState = controller.currentState
-          hasRunningModelAnimation ||= controller.isPlaying
-        } else {
-          const mixer = object.mesh.userData.importAnimationMixer as THREE.AnimationMixer | undefined
-          if (!mixer) continue
-          // Compatibilidade com objetos de versões anteriores enquanto migram para o controlador.
-          mixer.update(dt)
-          const actions = object.mesh.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-          hasRunningModelAnimation ||= Object.values(actions ?? {}).some(action => action?.isRunning())
-        }
+        const root = object.mesh
+        if (!root.userData.importAnimationController && !root.userData.importAnimationMixer) continue
+        const controller = getAnimationControllerFromObject(root)
+        if (!controller) continue
+        controller.update(dt)
+        root.userData.importAnimationState = controller.currentState
+        hasRunningModelAnimation ||= controller.isPlaying
 
-        const previousPoseVersion = object.mesh.userData.colliderPoseVersion
-        object.mesh.userData.colliderPoseVersion =
+        const previousPoseVersion = root.userData.colliderPoseVersion
+        root.userData.colliderPoseVersion =
           (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
       }
       this.collisions.update(this.runtimeModeActive)
