@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
+import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
@@ -1633,10 +1634,16 @@ function clearLoadedModel(preserveRetargetSource = false) {
     scene?.remove(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
     recoveredTextures?.forEach(texture => texture.dispose())
-    const ownedUrls: string[] = []
+    const ownedUrls = new Set<string>()
     model.value.traverse(node => {
       const url = node.userData.importOwnedObjectUrl
-      if (typeof url === 'string') ownedUrls.push(url)
+      if (typeof url === 'string') ownedUrls.add(url)
+      const packageUrls = node.userData.importOwnedObjectUrls
+      if (Array.isArray(packageUrls)) {
+        for (const packageUrl of packageUrls) {
+          if (typeof packageUrl === 'string') ownedUrls.add(packageUrl)
+        }
+      }
     })
     ownedUrls.forEach(url => URL.revokeObjectURL(url))
     disposeModel(model.value)
@@ -1858,8 +1865,8 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   }
 }
 
-async function parseGlbBytes(bytes: ArrayBuffer): Promise<THREE.Object3D> {
-  const loader = new GLTFLoader()
+async function parseGlbBytes(bytes: ArrayBuffer, manager?: THREE.LoadingManager): Promise<THREE.Object3D> {
+  const loader = new GLTFLoader(manager ?? new THREE.LoadingManager())
   return await new Promise<THREE.Object3D>((resolve, reject) => {
     loader.parse(bytes, '', (gltf) => {
       gltf.scene.userData.importAnimations = gltf.animations ?? []
@@ -1903,6 +1910,105 @@ function decodeBase64ArrayBuffer(value: string): ArrayBuffer {
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
   return bytes.buffer
 }
+
+type ZipModelBundle = {
+  primary_path: string
+  files: Array<{ path: string; base64: string }>
+}
+
+type ZipImportContext = AssetImportPackageContext & {
+  objectUrls: string[]
+}
+
+function normalizeZipPath(value: string): string {
+  let decoded = value.replace(/\\/g, '/')
+  try { decoded = decodeURIComponent(decoded) } catch { /* Mantém o caminho original se houver escapes inválidos. */ }
+  const parts: string[] = []
+  for (const part of decoded.split('/')) {
+    if (!part || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  return parts.join('/').toLocaleLowerCase()
+}
+
+function zipDirectory(path: string): string {
+  const normalized = path.replace(/\\/g, '/')
+  const index = normalized.lastIndexOf('/')
+  return index >= 0 ? normalized.slice(0, index + 1) : ''
+}
+
+function zipMimeType(path: string): string {
+  const extension = path.split('.').pop()?.toLowerCase()
+  switch (extension) {
+    case 'gltf': case 'json': return 'model/gltf+json'
+    case 'glb': return 'model/gltf-binary'
+    case 'fbx': return 'application/octet-stream'
+    case 'obj': return 'text/plain'
+    case 'mtl': return 'text/plain'
+    case 'dae': return 'model/vnd.collada+xml'
+    case 'bin': return 'application/octet-stream'
+    case 'png': return 'image/png'
+    case 'jpg': case 'jpeg': return 'image/jpeg'
+    case 'webp': return 'image/webp'
+    case 'gif': return 'image/gif'
+    case 'bmp': return 'image/bmp'
+    default: return 'application/octet-stream'
+  }
+}
+
+/** Cria URLs virtuais para os arquivos do pacote, mantendo seus caminhos relativos. */
+function createZipImportContext(bundle: ZipModelBundle): { primaryFile: File; context: ZipImportContext } {
+  const files: AssetPackageFile[] = bundle.files.map(entry => {
+    const bytes = decodeBase64ArrayBuffer(entry.base64)
+    const fileName = entry.path.replace(/\\/g, '/').split('/').pop() || 'recurso.bin'
+    return {
+      path: entry.path.replace(/\\/g, '/'),
+      file: new File([bytes], fileName, { type: zipMimeType(entry.path) }),
+    }
+  })
+  const primaryKey = normalizeZipPath(bundle.primary_path)
+  const primaryEntry = files.find(entry => normalizeZipPath(entry.path) === primaryKey)
+  if (!primaryEntry) throw new Error('O pacote ZIP não contém os dados do modelo principal indicado pelo importador.')
+
+  const urls: string[] = []
+  const urlsByPath = new Map<string, string>()
+  const urlsByBasename = new Map<string, string[]>()
+  for (const entry of files) {
+    const url = URL.createObjectURL(entry.file)
+    urls.push(url)
+    urlsByPath.set(normalizeZipPath(entry.path), url)
+    const basename = normalizeZipPath(entry.path.split('/').pop() || entry.path)
+    const matching = urlsByBasename.get(basename) ?? []
+    matching.push(url)
+    urlsByBasename.set(basename, matching)
+  }
+
+  const baseDirectory = zipDirectory(bundle.primary_path)
+  const manager = new THREE.LoadingManager()
+  manager.setURLModifier((rawUrl: string) => {
+    if (/^(data:|blob:|https?:|file:)/i.test(rawUrl)) return rawUrl
+    const withoutQuery = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl
+    const candidates = [
+      normalizeZipPath(withoutQuery),
+      normalizeZipPath(baseDirectory + withoutQuery),
+    ]
+    for (const candidate of candidates) {
+      const match = urlsByPath.get(candidate)
+      if (match) return match
+    }
+    const basename = normalizeZipPath(withoutQuery.split(/[\\/]/).pop() || withoutQuery)
+    const byName = urlsByBasename.get(basename)
+    if (byName?.length === 1) return byName[0]!
+    return rawUrl
+  })
+
+  return {
+    primaryFile: primaryEntry.file,
+    context: { primaryPath: bundle.primary_path, files, manager, objectUrls: urls },
+  }
+}
+
 
 async function chooseSkinTokensExecutable() {
   if (!isTauri()) {
@@ -2085,54 +2191,78 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
 async function importBlendZip() {
   loading.value = true
   error.value = ''
+  let zipContext: ZipImportContext | null = null
+  let importedSuccessfully = false
   try {
-    // O seletor nativo e o comando Rust só existem dentro do aplicativo Tauri.
-    // Em `npm run dev` aberto no navegador, evite chamar invoke sem runtime nativo.
+    // A seleção nativa e a leitura segura do ZIP são fornecidas pelo app desktop Tauri.
     if (!isTauri()) {
-      error.value = 'A importação por ZIP requer o aplicativo desktop Tauri. Execute `npm run tauri dev` e abra o Engine Prometheus pela janela do aplicativo. Para testar pelo navegador, selecione diretamente um arquivo GLB.'
+      error.value = 'A importação por ZIP requer o aplicativo desktop Tauri. Execute `npm run tauri dev` e abra o Engine Prometheus pela janela do aplicativo.'
       return
     }
     const selected = await openNativeDialog({
       multiple: false,
       directory: false,
-      title: 'Selecionar ZIP com modelo glTF e texturas',
-      filters: [{ name: 'Arquivo ZIP', extensions: ['zip'] }],
+      title: 'Selecionar pacote ZIP com modelo 3D, materiais e texturas',
+      filters: [{ name: 'Pacote de modelo 3D', extensions: ['zip'] }],
     })
     if (!selected || Array.isArray(selected)) return
-    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo glTF.zip'
-    const jsonText = await invoke<string>('load_gltf_zip', { zipPath: selected })
-    const loader = new GLTFLoader()
-    const loaded = await new Promise<THREE.Object3D>((resolve, reject) => {
-      loader.parse(jsonText, '', (gltf) => {
-        gltf.scene.userData.importAnimations = gltf.animations ?? []
-        gltf.scene.userData.importGltfMetadata = {
-          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
-            index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
-          })),
-          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
-            index, name: texture.name ?? '', source: texture.source ?? null,
-          })),
-          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
-            index, name: material.name ?? '',
-            baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
-            normalTexture: material.normalTexture?.index ?? null,
-            occlusionTexture: material.occlusionTexture?.index ?? null,
-            emissiveTexture: material.emissiveTexture?.index ?? null,
-            baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
-          })),
-          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
-            index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
-          })),
-        }
-        resolve(gltf.scene)
-      }, reject)
-    })
-    await showLoadedModel(loaded, fileName.value.replace(/\\.zip$/i, '.gltf'), 2, Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value))
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e || 'Falha ao carregar glTF do ZIP.')
+    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo 3D.zip'
+
+    const bundle = await invoke<ZipModelBundle>('load_model_zip', { zipPath: selected })
+    const packageData = createZipImportContext(bundle)
+    zipContext = packageData.context
+    const primaryFile = packageData.primaryFile
+    const extension = primaryFile.name.split('.').pop()?.toLowerCase()
+    let loaded: THREE.Object3D
+
+    if (extension === 'glb') {
+      loaded = await parseGlbBytes(await primaryFile.arrayBuffer(), zipContext.manager)
+    } else if (extension === 'gltf') {
+      const loader = new GLTFLoader(zipContext.manager)
+      const jsonText = await primaryFile.text()
+      loaded = await new Promise<THREE.Object3D>((resolve, reject) => {
+        loader.parse(jsonText, '', (gltf) => {
+          gltf.scene.userData.importAnimations = gltf.animations ?? []
+          gltf.scene.userData.importGltfMetadata = {
+            images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
+              index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
+            })),
+            textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
+              index, name: texture.name ?? '', source: texture.source ?? null,
+            })),
+            materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
+              index, name: material.name ?? '',
+              baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
+              normalTexture: material.normalTexture?.index ?? null,
+              occlusionTexture: material.occlusionTexture?.index ?? null,
+              emissiveTexture: material.emissiveTexture?.index ?? null,
+              baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
+            })),
+            animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
+              index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
+            })),
+          }
+          resolve(gltf.scene)
+        }, reject)
+      })
+    } else {
+      loaded = await loadAssetFile(primaryFile, zipContext)
+    }
+
+    await showLoadedModel(
+      loaded,
+      bundle.primary_path.replace(/\\/g, '/').split('/').pop() || primaryFile.name,
+      2,
+      Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value),
+    )
+    loaded.userData.importOwnedObjectUrls = zipContext.objectUrls
+    importedSuccessfully = true
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : String(cause || 'Falha ao importar o modelo do ZIP.')
     fileName.value = ''
     clearLoadedModel()
   } finally {
+    if (!importedSuccessfully) zipContext?.objectUrls.forEach(url => URL.revokeObjectURL(url))
     loading.value = false
   }
 }
@@ -3474,7 +3604,7 @@ onBeforeUnmount(() => {
       <div class="model-import-toolbar">
         <div class="model-import-toolbar-group">
           <button class="model-toolbar-button model-toolbar-primary" :disabled="loading" title="Abre um arquivo para visualizar, inspecionar e importar um modelo ou textura." @click="fileInput?.click()"><span>＋</span> Abrir arquivo</button>
-          <button class="model-toolbar-button" :disabled="loading" title="Importa um pacote ZIP com os arquivos de um modelo e seus recursos associados." @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
+          <button class="model-toolbar-button" :disabled="loading" title="Importa um ZIP com GLB, glTF, FBX, OBJ/MTL, STL, PLY, DAE ou 3DS e resolve recursos auxiliares incluídos." @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3ds,.png,.jpg,.jpeg,.webp,.svg" @change="chooseFile" />
         </div>
         <div class="model-import-toolbar-file"><span class="toolbar-file-dot"></span><span>{{ fileName || 'Nenhum arquivo selecionado' }}</span></div>
