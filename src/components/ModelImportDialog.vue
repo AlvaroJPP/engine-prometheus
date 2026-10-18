@@ -1840,6 +1840,17 @@ async function runSkinTokensRigging() {
   skinTokensMessage.value = 'Preparando o GLB e executando SkinTokens localmente. A primeira execução pode demorar; o arquivo não é enviado para um serviço remoto.'
   try {
     const operation = skinTokensOperation.value
+    const sourceClips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const sourceRolesByName = new Map<string, AnimationRole>()
+    sourceClips.forEach((clip, index) => {
+      const role = animationRoles.value[String(index)]
+      if (role) sourceRolesByName.set(clip.name, role)
+    })
+    const preservedControls = { ...controlBindings.value }
+    const preservedColliderType = colliderType.value
+    const preservedColliderSize = [...colliderSize.value] as [number, number, number]
+    const preservedColliderOffset = [...colliderOffset.value] as [number, number, number]
+    const preservedComponentName = componentName.value
     let inputGlb: ArrayBuffer
     const originalGlb = root.userData.importSourceGlbBytes
     if (originalGlb instanceof ArrayBuffer && root.userData.importNeedsReexport !== true) {
@@ -1847,7 +1858,6 @@ async function runSkinTokensRigging() {
       // evita perder extensões, texturas compactadas ou metadados no exportador Three.js.
       inputGlb = originalGlb.slice(0)
     } else {
-      const sourceClips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
       const exportRoot = cloneSkinnedModel(root)
       exportRoot.userData = { ...exportRoot.userData }
       for (const key of [
@@ -1897,6 +1907,24 @@ async function runSkinTokensRigging() {
     if (!detectedBones.length) throw new Error('O resultado da IA não contém ossos reconhecíveis. Confira o relatório/diagnóstico do SkinTokens e tente novamente.')
 
     await showLoadedModel(loaded, displayName, targetHeight)
+    // Preserve configurações do importador que não fazem parte do arquivo GLB original.
+    componentName.value = preservedComponentName || loaded.name
+    controlBindings.value = preservedControls
+    colliderType.value = preservedColliderType
+    colliderSize.value = preservedColliderSize
+    colliderOffset.value = preservedColliderOffset
+    loaded.userData.importControlBindings = { ...preservedControls }
+    loaded.userData.importColliderType = colliderType.value
+    loaded.userData.importColliderSize = [...colliderSize.value]
+    loaded.userData.importColliderOffset = [...colliderOffset.value]
+    const outputClips = (loaded.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+    const outputRoles: Record<string, AnimationRole> = {}
+    outputClips.forEach((clip, index) => {
+      outputRoles[String(index)] = sourceRolesByName.get(clip.name) ?? guessedAnimationRole(clip.name)
+    })
+    animationRoles.value = outputRoles
+    loaded.userData.importAnimationRoles = { ...outputRoles }
+    animationClipRevision.value += 1
     // Também disponibiliza os ossos preservados na operação de pesos, sem marcá-los
     // como rig gerado nem liberar o reposicionamento de juntas de um esqueleto existente.
     rigBones.value = detectedBones
