@@ -1110,8 +1110,8 @@ export class HumanoidAvatar {
     const currentRole = root.userData.importAnimationState as AnimationRole | undefined
     const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
     const current = (currentRole ? actions[currentRole] : undefined)
+      ?? Object.values(actions).find(action => action?.isScheduled())
       ?? fallbackAction
-      ?? Object.values(actions).find(action => action?.isRunning())
     if (current === next && next.isRunning() && !oneShot) return
 
     if (oneShot) {
