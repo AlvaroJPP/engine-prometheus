@@ -1159,34 +1159,92 @@ export function suggestAutonomousBoneMappingsDetailed(
 
     return false
   }
+
+  // Detecta juntas auxiliares sem nomes anatômicos que estão no segmento
+  // entre a pelve e a coluna. Muitos GLBs usam Bone.003/Jnt_07 para essas
+  // juntas, então uma regra baseada apenas no nome perde o movimento lombar.
+  const nearestSemanticAncestorRole = (node: THREE.Object3D): string => {
+    let current = node.parent
+    while (current && current !== sourceRoot) {
+      const role = signatureForBoneName(current.name).role
+      if (role) return role
+      current = current.parent
+    }
+    return ''
+  }
+  const nearestSemanticDescendantRole = (node: THREE.Object3D): string => {
+    const queue = node.children.map(child => ({ node: child, depth: 1 }))
+    for (let index = 0; index < queue.length; index += 1) {
+      const item = queue[index]!
+      const role = signatureForBoneName(item.node.name).role
+      if (role) return role
+      for (const child of item.node.children) queue.push({ node: child, depth: item.depth + 1 })
+      // Não percorre malhas nem grandes subárvores que não contêm ossos.
+      if (item.depth > 64) break
+    }
+    return ''
+  }
+  const isLowerTorsoSource = (sourceName: string): boolean => {
+    const signature = sourceSignatureByName.get(sourceName) ?? signatureForBoneName(sourceName)
+    if (signature.role === 'spine') {
+      return signature.level === null || signature.level <= 1 ||
+        /lumbar|lower.?spine|spine.?low/i.test(sourceName)
+    }
+    if (signature.role === 'pelvis') return true
+    if (signature.role) return false
+    const node = sourceNodeByName.get(sourceName)
+    if (!node) return false
+    const ancestorRole = nearestSemanticAncestorRole(node)
+    const descendantRole = nearestSemanticDescendantRole(node)
+    return (ancestorRole === 'pelvis' && descendantRole === 'spine') ||
+      (ancestorRole === 'spine' && descendantRole === 'pelvis')
+  }
+
+  const canCollapseAlongTorsoChain = (sourceName: string, mappedSourceName: string): boolean => {
+    const sourceSignature = sourceSignatureByName.get(sourceName) ?? signatureForBoneName(sourceName)
+    const mappedSignature = sourceSignatureByName.get(mappedSourceName) ?? signatureForBoneName(mappedSourceName)
+    if (!isLowerTorsoSource(sourceName)) return false
+    if (!['pelvis', 'spine'].includes(mappedSignature.role)) return false
+    if (sourceSignature.side && mappedSignature.side && sourceSignature.side !== mappedSignature.side) return false
+    if (sourceSignature.zone && mappedSignature.zone && sourceSignature.zone !== mappedSignature.zone) return false
+    return true
+  }
+
   const collapsedPending = sourceNames
     .filter(name => !result[name] && sourceNodeByName.has(name))
     .sort((a, b) => boneDepth(sourceNodeByName.get(a)) - boneDepth(sourceNodeByName.get(b)))
   for (const sourceName of collapsedPending) {
     const sourceNode = sourceNodeByName.get(sourceName)!
     const candidates = (ranking[sourceName] ?? [])
-      .filter(candidate => {
-        const targetBone = targetByName.get(candidate.targetName)
-        if (!targetBone || !canCollapse(sourceName, targetBone)) return false
-        return Object.entries(result).some(([mappedSourceName, mappedTargetName]) => {
-          if (mappedTargetName !== candidate.targetName) return false
-          const mappedSourceNode = sourceNodeByName.get(mappedSourceName)
-          return !!mappedSourceNode && isAncestorOrDescendant(sourceNode, mappedSourceNode)
-        })
-      })
       .map(candidate => {
-        const targetBone = targetByName.get(candidate.targetName)!
+        const targetBone = targetByName.get(candidate.targetName)
+        if (!targetBone) return null
+        const linkedSources = Object.entries(result)
+          .filter(([, mappedTargetName]) => mappedTargetName === candidate.targetName)
+          .filter(([mappedSourceName]) => {
+            const mappedSourceNode = sourceNodeByName.get(mappedSourceName)
+            if (!mappedSourceNode || !isAncestorOrDescendant(sourceNode, mappedSourceNode)) return false
+            return canCollapse(sourceName, targetBone) ||
+              canCollapseAlongTorsoChain(sourceName, mappedSourceName)
+          })
+        if (!linkedSources.length) return null
         const sourceSignature = sourceSignatureByName.get(sourceName)!
         const targetSignature = signatureForBoneName(targetBone.name)
-        const semanticBonus = sourceSignature.role === targetSignature.role ? 14 : 0
-        const closestMappedDepth = Math.min(...Object.entries(result)
-          .filter(([, mappedTargetName]) => mappedTargetName === candidate.targetName)
-          .map(([mappedSourceName]) => {
-            const mappedNode = sourceNodeByName.get(mappedSourceName)
-            return mappedNode ? Math.abs(boneDepth(mappedNode) - boneDepth(sourceNode)) : Number.POSITIVE_INFINITY
-          }))
-        return { targetName: candidate.targetName, score: candidate.score + semanticBonus - closestMappedDepth * 2 }
+        const semanticBonus = sourceSignature.role && sourceSignature.role === targetSignature.role ? 14 : 0
+        const torsoBonus = linkedSources.some(([mappedSourceName]) =>
+          canCollapseAlongTorsoChain(sourceName, mappedSourceName),
+        ) ? 18 : 0
+        const closestMappedDepth = Math.min(...linkedSources.map(([mappedSourceName]) => {
+          const mappedNode = sourceNodeByName.get(mappedSourceName)
+          return mappedNode ? Math.abs(boneDepth(mappedNode) - boneDepth(sourceNode)) : Number.POSITIVE_INFINITY
+        }))
+        return {
+          targetName: candidate.targetName,
+          score: candidate.score + semanticBonus + torsoBonus - closestMappedDepth * 2,
+        }
       })
+      .filter((candidate): candidate is { targetName: string; score: number } => candidate !== null)
+      .sort((a, b) => b.score - a.score || a.targetName.localeCompare(b.targetName))
       .sort((a, b) => b.score - a.score || a.targetName.localeCompare(b.targetName))
     const best = candidates[0]
     if (!best) continue
