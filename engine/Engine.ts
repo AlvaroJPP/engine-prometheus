@@ -46,7 +46,7 @@ import {
   VEILBORNE_RUNTIME_SIGILS,
   VEILBORNE_RUNTIME_ITEMS,
 } from './script/VeilborneCombat'
-import type { VeilborneCombatant, VeilborneDamageType, VeilborneStatusId, VeilborneRuntimeItem } from './script/VeilborneCombat'
+import type { VeilborneCombatant, VeilborneDamageType, VeilborneStatusId } from './script/VeilborneCombat'
 import type { VeilborneRuntimeSigil } from './script/VeilborneCombat'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
