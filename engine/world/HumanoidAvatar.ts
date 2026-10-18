@@ -546,7 +546,7 @@ export class HumanoidAvatar {
       const moveAxis = (axis: 'x' | 'z', delta: number): void => {
         if (Math.abs(delta) < 1e-8) return
         const origin = this.mesh.position[axis]
-        const maxSubstep = Math.min(0.08, PLAYER_RADIUS * 0.25)
+        const maxSubstep = Math.min(0.05, PLAYER_RADIUS * 0.16)
         const steps = Math.max(1, Math.ceil(Math.abs(delta) / maxSubstep))
         let lastSafe = origin
 
@@ -568,9 +568,15 @@ export class HumanoidAvatar {
             : null
           if (stepUp !== null) {
             const previousY = this.mesh.position.y
-            this.mesh.position.y = stepUp
+            // Uma folga vertical mínima permite atravessar emendas coplanares e
+            // pequenas bordas de triangulação sem deixar o personagem preso.
+            // A descida é resolvida logo depois pelas sondas de chão.
+            const candidateY = stepUp >= previousY - 0.015 && stepUp <= previousY + 0.035
+              ? previousY + 0.035
+              : stepUp
+            this.mesh.position.y = candidateY
             if (!this.collidesWithObjects()) {
-              horizontalStepY = stepUp
+              horizontalStepY = candidateY
               this.verticalVelocity = 0
               lastSafe = coordinate
               continue
@@ -938,7 +944,7 @@ export class HumanoidAvatar {
       const normal = hit.face.normal.clone()
         .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
         .normalize()
-      if (normal.y < 0.45) continue
+      if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
       if (hit.point.y > referenceFeetY + 0.45 || hit.point.y < lowestAllowedY) continue
 
       if (supportY === null || hit.point.y > supportY) supportY = hit.point.y
@@ -947,7 +953,7 @@ export class HumanoidAvatar {
 
     for (const object of staticCandidates) {
       const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, Math.max(1, originY - lowestAllowedY), candidate =>
-        candidate.normal.y >= 0.45 &&
+        candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
         candidate.point.y <= referenceFeetY + 0.45 &&
         candidate.point.y >= lowestAllowedY,
       )
@@ -1409,7 +1415,7 @@ export class HumanoidAvatar {
             // faces are physical walls for a moving mount.
             // Superfícies caminháveis (pisos e rampas) não podem bloquear o
             // movimento horizontal; paredes e faces íngremes continuam sólidas.
-            if (normal.y >= 0.45 || normal.y <= -0.82) return false
+            if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) return false
             return mountBounds.intersectsTriangle(triangle)
           })
           if (blocked) return true
@@ -1510,7 +1516,7 @@ export class HumanoidAvatar {
           )
           const blocked = visitStaticMeshTriangles(obstacle, headBounds, triangle => {
             triangle.getNormal(normal).normalize()
-            return Math.abs(normal.y) >= 0.45 && headBounds.intersectsTriangle(triangle)
+            return Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y && headBounds.intersectsTriangle(triangle)
           })
           if (blocked) return true
           continue
@@ -1604,8 +1610,14 @@ export class HumanoidAvatar {
     const lateralCenter = axis === 'x'
       ? (bounds.min.z + bounds.max.z) * 0.5
       : (bounds.min.x + bounds.max.x) * 0.5
-    const lateralHalf = (axis === 'x' ? size.z : size.x) * 0.34
-    const lateralSamples = [lateralCenter - lateralHalf, lateralCenter, lateralCenter + lateralHalf]
+    const lateralHalf = (axis === 'x' ? size.z : size.x) * 0.42
+    const lateralSamples = [
+      lateralCenter - lateralHalf,
+      lateralCenter - lateralHalf * 0.5,
+      lateralCenter,
+      lateralCenter + lateralHalf * 0.5,
+      lateralCenter + lateralHalf,
+    ]
     const allCandidates = this.world.list().filter(object =>
       object.mesh !== root &&
       object.mesh.visible &&
@@ -1642,10 +1654,10 @@ export class HumanoidAvatar {
         const normal = hit.face.normal.clone()
           .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
           .normalize()
-        if (normal.y < 0.45) continue
+        if (normal.y < WALKABLE_SURFACE_NORMAL_Y) continue
 
         const rise = hit.point.y - feetY
-        if (rise < -0.12 || rise > 0.5) continue
+        if (rise < -0.12 || rise > 0.52) continue
         if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
         break
       }
@@ -1653,7 +1665,7 @@ export class HumanoidAvatar {
       for (const object of staticCandidates) {
         const hit = raycastStaticMesh(object.mesh, raycaster.ray, 0, height + 1.15, candidate => {
           const rise = candidate.point.y - feetY
-          return candidate.normal.y >= 0.45 && rise >= -0.12 && rise <= 0.5
+          return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y && rise >= -0.12 && rise <= 0.52
         })
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
       }
