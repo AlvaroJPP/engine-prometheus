@@ -278,10 +278,6 @@ function signatureForBoneName(name: string): BoneNameSignature {
   const has = (...values: string[]) => values.some(value =>
     tokens.includes(value) || compact.includes(value),
   )
-  const tokenIndex = (...values: string[]) => tokens.find(token =>
-    values.some(value => token === value || token.startsWith(value)),
-  )
-
   let side: BoneNameSignature['side'] = null
   if (
     has('left', 'lhs', 'lft', 'gauche', 'links', 'izquierdo', 'izquierda', 'esquerdo', 'esquerda') ||
@@ -295,8 +291,15 @@ function signatureForBoneName(name: string): BoneNameSignature {
   ) side = 'right'
 
   let zone: BoneNameSignature['zone'] = null
-  if (has('front', 'fore', 'foreleg', 'forelimb', 'frontleg', 'frontlimb')) zone = 'front'
-  else if (has('hind', 'hindleg', 'hindlimb', 'rear', 'backleg', 'backlimb')) zone = 'hind'
+  // Evita usar substring "fore": "forearm" é antebraço, não perna dianteira.
+  if (
+    tokens.some(token => ['front', 'fore', 'foreleg', 'forelimb', 'frontleg', 'frontlimb'].includes(token)) ||
+    /(?:^|_)(front|fore)(?:_|leg|limb|$)/.test(normalized)
+  ) zone = 'front'
+  else if (
+    tokens.some(token => ['hind', 'hindleg', 'hindlimb', 'rear', 'backleg', 'backlimb'].includes(token)) ||
+    /(?:^|_)(hind|rear|back)(?:_|leg|limb|$)/.test(normalized)
+  ) zone = 'hind'
 
   const numericSuffix = (value: string): number | null => {
     const match = value.match(/(?:^|[^a-z])(?:spine|neck|tail|finger|phalange|toe|thumb|index|middle|ring|pinky|little)[ _-]*0*(\d+)$/) ??
