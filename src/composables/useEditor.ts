@@ -89,6 +89,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const renderDynamicResolution = ref(false)
   const renderDynamicResolutionTargetFps = ref(45)
   const renderDynamicResolutionMinScale = ref(0.5)
+  const grassVisible = ref(true)
+  const grassDensityPercent = ref(100)
+  const grassRenderDistanceMode = ref<'global' | 'all' | 'custom'>('global')
+  const grassRenderDistance = ref(72)
+  const grassNearDetailDistance = ref(0)
+  const grassMiddleDetailDistance = ref(0)
+  const grassOcclusionEnabled = ref(true)
+  const grassOcclusionIntervalMs = ref(400)
+  const grassWindPercent = ref(100)
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
   const skyTextureDataUrl = ref('')
@@ -402,6 +411,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         dynamicResolution: renderDynamicResolution.value,
         dynamicResolutionTargetFps: renderDynamicResolutionTargetFps.value,
         dynamicResolutionMinScale: renderDynamicResolutionMinScale.value,
+        grassVisible: grassVisible.value,
+        grassDensityPercent: grassDensityPercent.value,
+        grassRenderDistanceMode: grassRenderDistanceMode.value,
+        grassRenderDistance: grassRenderDistance.value,
+        grassNearDetailDistance: grassNearDetailDistance.value,
+        grassMiddleDetailDistance: grassMiddleDetailDistance.value,
+        grassOcclusionEnabled: grassOcclusionEnabled.value,
+        grassOcclusionIntervalMs: grassOcclusionIntervalMs.value,
+        grassWindPercent: grassWindPercent.value,
       }))
     } catch (error) {
       console.warn('[EditorSettings] Não foi possível salvar as configurações de renderização.', error)
@@ -472,6 +490,74 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     persistRenderSettings()
   }
 
+  function applyGrassRenderSettings() {
+    engine?.setGrassRenderOptions({
+      visible: grassVisible.value,
+      densityPercent: grassDensityPercent.value,
+      renderDistanceMode: grassRenderDistanceMode.value,
+      renderDistance: grassRenderDistance.value,
+      nearDetailDistance: grassNearDetailDistance.value === 0 ? null : grassNearDetailDistance.value,
+      middleDetailDistance: grassMiddleDetailDistance.value === 0 ? null : grassMiddleDetailDistance.value,
+      occlusionEnabled: grassOcclusionEnabled.value,
+      occlusionIntervalMs: grassOcclusionIntervalMs.value,
+      windPercent: grassWindPercent.value,
+    })
+  }
+
+  function setGrassVisible(enabled: boolean) {
+    grassVisible.value = enabled
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassDensityPercent(value: number) {
+    if (![25, 40, 60, 80, 100].includes(value)) return
+    grassDensityPercent.value = value
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassRenderDistance(value: string) {
+    if (value === 'global' || value === 'all') {
+      grassRenderDistanceMode.value = value
+    } else {
+      const distance = Number(value)
+      if (!Number.isFinite(distance)) return
+      grassRenderDistance.value = Math.round(Math.max(10, Math.min(1000, distance)))
+      grassRenderDistanceMode.value = 'custom'
+    }
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassDetailDistance(band: 'near' | 'middle', value: number) {
+    if (!Number.isFinite(value)) return
+    if (band === 'near') grassNearDetailDistance.value = value === 0 ? 0 : Math.round(Math.max(5, Math.min(40, value)))
+    else grassMiddleDetailDistance.value = value === 0 ? 0 : Math.round(Math.max(10, Math.min(80, value)))
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassOcclusionEnabled(enabled: boolean) {
+    grassOcclusionEnabled.value = enabled
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassOcclusionInterval(value: number) {
+    if (![250, 400, 800, 1200].includes(value)) return
+    grassOcclusionIntervalMs.value = value
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
+  function setGrassWindPercent(value: number) {
+    if (![0, 25, 50, 75, 100].includes(value)) return
+    grassWindPercent.value = value
+    applyGrassRenderSettings()
+    persistRenderSettings()
+  }
+
   function loadRenderSettings() {
     try {
       const raw = window.localStorage.getItem(RENDER_SETTINGS_KEY) ?? window.localStorage.getItem(LEGACY_GRASS_RENDER_SETTINGS_KEY)
@@ -488,6 +574,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         dynamicResolution?: unknown
         dynamicResolutionTargetFps?: unknown
         dynamicResolutionMinScale?: unknown
+        grassVisible?: unknown
+        grassDensityPercent?: unknown
+        grassRenderDistanceMode?: unknown
+        grassRenderDistance?: unknown
+        grassNearDetailDistance?: unknown
+        grassMiddleDetailDistance?: unknown
+        grassOcclusionEnabled?: unknown
+        grassOcclusionIntervalMs?: unknown
+        grassWindPercent?: unknown
       }
       if (typeof settings.distance === 'number' && Number.isFinite(settings.distance)) {
         renderDistance.value = Math.round(Math.max(10, Math.min(5000, settings.distance)))
@@ -512,6 +607,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       if (typeof settings.dynamicResolutionMinScale === 'number' && Number.isFinite(settings.dynamicResolutionMinScale)) {
         renderDynamicResolutionMinScale.value = Math.round(Math.max(0.5, Math.min(0.9, settings.dynamicResolutionMinScale)) * 100) / 100
       }
+      if (typeof settings.grassVisible === 'boolean') grassVisible.value = settings.grassVisible
+      if (typeof settings.grassDensityPercent === 'number' && [25, 40, 60, 80, 100].includes(settings.grassDensityPercent)) grassDensityPercent.value = settings.grassDensityPercent
+      if (settings.grassRenderDistanceMode === 'global' || settings.grassRenderDistanceMode === 'all' || settings.grassRenderDistanceMode === 'custom') {
+        grassRenderDistanceMode.value = settings.grassRenderDistanceMode
+      }
+      if (typeof settings.grassRenderDistance === 'number' && Number.isFinite(settings.grassRenderDistance)) grassRenderDistance.value = Math.round(Math.max(10, Math.min(1000, settings.grassRenderDistance)))
+      if (typeof settings.grassNearDetailDistance === 'number' && [0, 5, 10, 15, 20, 25, 30, 35, 40].includes(settings.grassNearDetailDistance)) grassNearDetailDistance.value = settings.grassNearDetailDistance
+      if (typeof settings.grassMiddleDetailDistance === 'number' && [0, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80].includes(settings.grassMiddleDetailDistance)) grassMiddleDetailDistance.value = settings.grassMiddleDetailDistance
+      if (typeof settings.grassOcclusionEnabled === 'boolean') grassOcclusionEnabled.value = settings.grassOcclusionEnabled
+      if (typeof settings.grassOcclusionIntervalMs === 'number' && [250, 400, 800, 1200].includes(settings.grassOcclusionIntervalMs)) grassOcclusionIntervalMs.value = settings.grassOcclusionIntervalMs
+      if (typeof settings.grassWindPercent === 'number' && [0, 25, 50, 75, 100].includes(settings.grassWindPercent)) grassWindPercent.value = settings.grassWindPercent
       // Migra as preferências antigas, salvas como renderização somente da grama.
       if (
         window.localStorage.getItem(RENDER_SETTINGS_KEY) === null
@@ -616,6 +722,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     })
     e.setFogEnabled(renderFogEnabled.value)
     e.setFogDistanceScale(renderFogDistanceScale.value)
+    applyGrassRenderSettings()
     offs.push(
       e.events.on('objectAdded', markDirty),
       e.events.on('objectRemoved', markDirty),
@@ -1509,6 +1616,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     renderDynamicResolution,
     renderDynamicResolutionTargetFps,
     renderDynamicResolutionMinScale,
+    grassVisible,
+    grassDensityPercent,
+    grassRenderDistanceMode,
+    grassRenderDistance,
+    grassNearDetailDistance,
+    grassMiddleDetailDistance,
+    grassOcclusionEnabled,
+    grassOcclusionIntervalMs,
+    grassWindPercent,
     playerModelName,
     playerModelCustom,
     setPlayerModelFile,
@@ -1550,6 +1666,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setRenderDynamicResolution,
     setRenderDynamicResolutionTargetFps,
     setRenderDynamicResolutionMinScale,
+    setGrassVisible,
+    setGrassDensityPercent,
+    setGrassRenderDistance,
+    setGrassDetailDistance,
+    setGrassOcclusionEnabled,
+    setGrassOcclusionInterval,
+    setGrassWindPercent,
     togglePolygonLines,
     removeSelected,
     onRename,
