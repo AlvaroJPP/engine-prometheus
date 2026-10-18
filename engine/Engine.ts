@@ -25,13 +25,24 @@ import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings, ONE_SHOT_ANIMATION_ROLES } from './script/packages'
-import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
+
+function isPackageJsonValue(value: unknown, depth = 0): value is PackageJsonValue {
+  if (depth > 16) return false
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.every(item => isPackageJsonValue(item, depth + 1))
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>)
+    .every(item => isPackageJsonValue(item, depth + 1))
+  return false
+}
+
 const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
 
 function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
@@ -771,7 +782,40 @@ export class Engine {
         const packageIds = new Set(rawPackageIds.filter((id): id is string =>
           typeof id === 'string' && !!getBehaviorPackageDefinition(id),
         ))
-        for (const packageId of packageIds) this.installBehaviorPackage(created.id, packageId)
+        const rawPackageSettings = pending.model.userData.importBehaviorPackageSettings
+        const packageSettings = rawPackageSettings && typeof rawPackageSettings === 'object' && !Array.isArray(rawPackageSettings)
+          ? rawPackageSettings as Record<string, { variables?: Record<string, unknown>; config?: Record<string, unknown> }>
+          : {}
+        for (const packageId of packageIds) {
+          const installed = this.installBehaviorPackage(created.id, packageId)
+          const definition = getBehaviorPackageDefinition(packageId)
+          const savedSettings = packageSettings[packageId]
+          if (!definition || !savedSettings) continue
+
+          const variables: Record<string, PackageScalar> = {}
+          for (const variable of definition.variables) {
+            const value = savedSettings.variables?.[variable.name]
+            if (variable.type === 'boolean' && typeof value === 'boolean') {
+              variables[variable.name] = value
+            } else if (variable.type === 'string' && typeof value === 'string') {
+              variables[variable.name] = value.slice(0, 512)
+            } else if (variable.type === 'number' && typeof value === 'number' && Number.isFinite(value)) {
+              variables[variable.name] = Math.max(
+                variable.min ?? Number.NEGATIVE_INFINITY,
+                Math.min(variable.max ?? Number.POSITIVE_INFINITY, value),
+              )
+            }
+          }
+
+          const config: Record<string, PackageJsonValue> = {}
+          for (const key of Object.keys(definition.defaultConfig)) {
+            const value = savedSettings.config?.[key]
+            if (isPackageJsonValue(value)) config[key] = value
+          }
+          if (Object.keys(variables).length || Object.keys(config).length) {
+            this.updateBehaviorPackage(installed.id, { variables, config })
+          }
+        }
       }
       // Mantém a ferramenta Construir ativa para permitir colocar várias cópias
       // em sequência. O objeto recém-criado continua selecionado; o usuário pode
