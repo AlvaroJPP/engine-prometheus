@@ -5095,4 +5095,34 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   .chips { left:72px !important; }
 }
 
+/* Keep the viewport controls reachable when the scene is fullscreen.
+   The header becomes a zero-height overlay container; only its viewport toolbar remains. */
+.app.world-fullscreen > .topbar {
+  position:fixed !important;
+  inset:0 0 auto 0 !important;
+  z-index:10004 !important;
+  display:block !important;
+  width:100% !important;
+  height:0 !important;
+  min-height:0 !important;
+  padding:0 !important;
+  overflow:visible !important;
+  border:0 !important;
+  background:transparent !important;
+  pointer-events:none !important;
+}
+.app.world-fullscreen > .topbar > :not(.viewport-tools-overlay) {
+  display:none !important;
+}
+.app.world-fullscreen .viewport-tools-overlay {
+  top:12px !important;
+  right:12px !important;
+  z-index:10005 !important;
+  pointer-events:auto !important;
+}
+.app.world-fullscreen .world-fullscreen-exit {
+  top:64px !important;
+  right:12px !important;
+}
+
 </style>
