@@ -2491,9 +2491,11 @@ export class HumanoidAvatar {
         mesh.userData.colliderType !== 'mesh'
       ) continue
       const collisionData = getStaticMeshCollisionData(mesh)
-      if (!collisionData || collisionData.localBounds.isEmpty()) continue
       mesh.updateWorldMatrix(true, true)
-      const bounds = collisionData.localBounds.clone().applyMatrix4(mesh.matrixWorld)
+      const bounds = collisionData && !collisionData.localBounds.isEmpty()
+        ? collisionData.localBounds.clone().applyMatrix4(mesh.matrixWorld)
+        : new THREE.Box3().setFromObject(mesh)
+      if (bounds.isEmpty()) continue
       minX = Math.min(minX, bounds.min.x - 2)
       maxX = Math.max(maxX, bounds.max.x + 2)
       minZ = Math.min(minZ, bounds.min.z - 2)
@@ -2771,7 +2773,7 @@ export class HumanoidAvatar {
           const owner = candidates.find(object =>
             object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
           )
-          if (!owner || owner.mesh.userData.importedModel === true) continue
+          if (!owner || (owner.mesh.userData.importedModel === true && owner.mesh.userData.colliderType !== 'mesh')) continue
           const normal = hit.face.normal.clone()
             .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
             .normalize()
@@ -2819,8 +2821,7 @@ export class HumanoidAvatar {
     const candidates = this.world.list().filter(object =>
       object.mesh.visible &&
       object.mesh.userData.importedModel === true &&
-      object.mesh.userData.colliderType === 'mesh' &&
-      getStaticMeshCollisionData(object.mesh) !== null,
+      object.mesh.userData.colliderType === 'mesh',
     )
     if (candidates.length === 0) return null
 
@@ -2834,26 +2835,50 @@ export class HumanoidAvatar {
       new THREE.Vector3(),
       new THREE.Vector3(0, -1, 0),
     )
+    const raycaster = new THREE.Raycaster()
+    const normalMatrix = new THREE.Matrix3()
     const maximumDistance = MAX_WALK_OFF_DROP + 0.08
     let bestSurface: number | null = null
 
     for (const point of points) {
       ray.origin.set(point.x, feetY + 0.025, point.z)
       for (const object of candidates) {
-        const hit = raycastStaticMesh(
-          object.mesh,
-          ray,
-          0,
-          maximumDistance,
-          candidate => {
-            const drop = feetY - candidate.point.y
-            return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
-              drop >= 0.035 &&
-              drop <= MAX_WALK_OFF_DROP
-          },
+        if (getStaticMeshCollisionData(object.mesh)) {
+          const hit = raycastStaticMesh(
+            object.mesh,
+            ray,
+            0,
+            maximumDistance,
+            candidate => {
+              const drop = feetY - candidate.point.y
+              return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
+                drop >= 0.035 &&
+                drop <= MAX_WALK_OFF_DROP
+            },
+          )
+          if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
+          continue
+        }
+
+        // Fallback para cidades de altíssima densidade: usa o raycaster nas peças
+        // visíveis, sem cair na caixa proxy invisível da raiz do modelo.
+        raycaster.ray.copy(ray)
+        raycaster.near = 0
+        raycaster.far = maximumDistance
+        const hits = raycaster.intersectObjects(
+          object.mesh.children.filter(child => child.visible),
+          true,
         )
-        if (hit && (bestSurface === null || hit.point.y > bestSurface)) {
-          bestSurface = hit.point.y
+        for (const hit of hits) {
+          if (!hit.face || hit.point.y > feetY - 0.035) continue
+          const normal = hit.face.normal.clone()
+            .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+            .normalize()
+          if (normal.dot(ray.direction) > 0) normal.negate()
+          const drop = feetY - hit.point.y
+          if (normal.y < WALKABLE_SURFACE_NORMAL_Y || drop > MAX_WALK_OFF_DROP) continue
+          if (bestSurface === null || hit.point.y > bestSurface) bestSurface = hit.point.y
+          break
         }
       }
     }
