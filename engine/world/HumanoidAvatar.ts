@@ -7,7 +7,7 @@ import {
   raycastStaticMesh,
   visitStaticMeshTriangles,
 } from './StaticMeshCollider'
-import { DEFAULT_MODEL_CONTROL_BINDINGS, ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
 import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
 import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
 import type { ControlMapBindings } from '../input/ControlMaps'
@@ -253,7 +253,6 @@ export class HumanoidAvatar {
   /** Altura física normalizada do avatar, em unidades do mundo. */
   private standingPlayerHeight = PLAYER_HEIGHT
   private modelLoadRevision = 0
-  private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
   private animationController: AnimationController | null = null
   private activeAnimation = ''
@@ -2426,7 +2425,6 @@ export class HumanoidAvatar {
     // O novo modelo só substitui o antigo depois de ser carregado e validado.
     // Assim, um GLB inválido não deixa o jogador invisível nem remove o fallback.
     this.animationController?.dispose()
-    this.mixer = nextMixer
     this.animationActions = nextActions
     this.animationController = new AnimationController(nextMixer, nextActions)
     this.animatedBones = nextBones
