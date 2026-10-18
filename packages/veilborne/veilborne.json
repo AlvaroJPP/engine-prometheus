@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "engine": "Engine Prometheus",
   "description": "Base modular de RPG medieval sombrio: combate de magos guerreiros, armas, feitiços, sigilos, atributos, inimigos e progressão.",
-  "status": "framework_foundation",
+  "status": "combat_runtime_partially_connected",
   "mechanics": {
     "combat": {
       "enabled": true,
@@ -290,5 +290,61 @@
       "dayNightEvents": true,
       "regionThreat": true
     }
+  },
+  "runtimeIntegration": {
+    "controls": {
+      "primaryAction": "quick_attack",
+      "secondaryAction": "heavy_attack",
+      "ability1": "spell_slot_1",
+      "ability2": "spell_slot_2",
+      "ability3": "spell_slot_3",
+      "ability4": "spell_slot_4",
+      "usesActiveControlMap": true
+    },
+    "playerGlobalVariables": [
+      "vida",
+      "vida_max",
+      "eter",
+      "eter_max",
+      "vigor",
+      "vigor_max",
+      "postura",
+      "postura_max",
+      "forca",
+      "destreza",
+      "intelecto",
+      "vontade",
+      "resistencia",
+      "arma_equipada",
+      "magia_1",
+      "magia_2",
+      "magia_3",
+      "magia_4",
+      "ecos",
+      "morto"
+    ],
+    "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
+    "connectedSystems": [
+      "quick_and_heavy_melee_attacks",
+      "weapon_attribute_scaling",
+      "target_elemental_resistances",
+      "ether_and_stamina_costs",
+      "spell_cast_time_and_cooldowns",
+      "single_target_and_area_spells",
+      "posture_damage_and_break",
+      "periodic_burn_bleed_poison",
+      "death_flag_and_enemy_killed_package_event",
+      "temporary_combat_vfx"
+    ],
+    "notYetConnected": [
+      "weapon_animation_hitboxes",
+      "player_dodge_stamina_cost",
+      "timed_parry",
+      "world_sigils_runtime",
+      "enemy_ai",
+      "inventory_ui",
+      "persistent_progression",
+      "production_vfx_sfx"
+    ]
   }
 }
