@@ -1030,7 +1030,7 @@ function resetSettings() {
       <div v-if="settings.showQuickSlots" class="settings-field">
         <span>Rótulos dos atalhos (visuais)</span>
         <div class="slot-editor">
-          <input v-for="(slot, index) in settings.quickSlots" :key="index" v-model="settings.quickSlots[index]" :aria-label="'Rótulo do atalho ' + (index + 1)" maxlength="22">
+          <input v-for="(_slot, index) in settings.quickSlots" :key="index" v-model="settings.quickSlots[index]" :aria-label="'Rótulo do atalho ' + (index + 1)" maxlength="22">
         </div>
         <small>Os espaços são personalizáveis; ainda não estão conectados a inventário ou habilidades do jogo.</small>
       </div>
