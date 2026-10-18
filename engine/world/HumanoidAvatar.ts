@@ -1435,6 +1435,11 @@ export class HumanoidAvatar {
     this.mountedMovementState = state
 
     const animationController = getAnimationControllerFromObject(root)
+    // Se o clipe de salto ainda estava tocando quando a física detectou o pouso,
+    // interrompe-o imediatamente; se já acabou, o estado abaixo troca a pose final.
+    if (!this.mountedAirborne && animationController?.activeOneShotRole === 'jump') {
+      animationController.cancelOneShot('jump')
+    }
     const canBlendMountedDirection = length > 0 && !this.mountedAirborne &&
       !!animationController && animationController.actions.size > 0 && !animationController.isOneShotPlaying
     let usedMountedDirectionalBlend = false
