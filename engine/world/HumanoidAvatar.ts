@@ -1,11 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { World } from './World'
-import {
-  blendAnimationActions,
-  getAnimationBlendDuration,
-  isLocomotionAnimation,
-} from './AnimationTransitions'
+import { AnimationController, ANIMATION_ROLE_FALLBACKS, createAnimationActionMap, getAnimationControllerFromObject } from './AnimationController'
 import {
   getStaticMeshCollisionData,
   raycastStaticMesh,
@@ -52,32 +48,6 @@ const ROLL_COOLDOWN = 0.52
 // Imported models over this threshold use their already-configured physical bounds.
 const MAX_EXACT_MOUNT_COLLISION_TRIANGLES = 6000
 
-const ANIMATION_FALLBACKS: Partial<Record<AnimationRole, AnimationRole[]>> = {
-  // Locomoção nunca deve cair em idle: se o modelo não trouxer walk/run,
-  // o movimento procedural entra como fallback em vez de manter o corpo parado.
-  run: ['walk'],
-  walk_slow: ['walk'],
-  walk_backward: ['walk'],
-  walk_left: ['walk_diagonal_left', 'walk'],
-  walk_right: ['walk_diagonal_right', 'walk'],
-  walk_diagonal_left: ['walk_left', 'walk'],
-  walk_diagonal_right: ['walk_right', 'walk'],
-  walk_backward_diagonal_left: ['walk_backward', 'walk_left', 'walk'],
-  walk_backward_diagonal_right: ['walk_backward', 'walk_right', 'walk'],
-  run_backward: ['run', 'walk_backward', 'walk'],
-  run_left: ['run_diagonal_left', 'run', 'walk_left', 'walk'],
-  run_right: ['run_diagonal_right', 'run', 'walk_right', 'walk'],
-  run_diagonal_left: ['run_left', 'run', 'walk_diagonal_left', 'walk'],
-  run_diagonal_right: ['run_right', 'run', 'walk_diagonal_right', 'walk'],
-  run_backward_diagonal_left: ['run_backward', 'run_left', 'run', 'walk_backward', 'walk'],
-  run_backward_diagonal_right: ['run_backward', 'run_right', 'run', 'walk_backward', 'walk'],
-  crouch: ['idle'],
-  crouch_walk: ['crouch', 'walk'],
-  prone: ['idle'],
-  prone_crawl: ['prone', 'walk'],
-  jump: ['idle'],
-}
-
 const CIRCULAR_LOCOMOTION_SECTORS: ReadonlyArray<{
   walk: AnimationRole
   run: AnimationRole
@@ -96,24 +66,6 @@ const CIRCULAR_LOCOMOTION_ROLE_SET = new Set<AnimationRole>(
   CIRCULAR_LOCOMOTION_SECTORS.flatMap(sector => [sector.walk, sector.run]),
 )
 
-interface DirectionalAnimationBlendState {
-  active: boolean
-  blend: number
-  weights: Map<AnimationRole, number>
-}
-
-function resetDirectionalAnimationBlend(state: DirectionalAnimationBlendState): void {
-  state.active = false
-  state.blend = 0
-  state.weights.clear()
-}
-
-/**
- * Converte o vetor mundial de movimento para o referencial local do modelo e
- * calcula uma interpolação circular entre os dois setores direcionais vizinhos.
- * O ângulo é contínuo nos 0/360°, portanto direita/frente-esquerda não saltam
- * abruptamente de uma animação para outra.
- */
 function getCircularDirectionalWeights(
   actions: ReadonlyMap<string, THREE.AnimationAction>,
   forwardInput: number,
@@ -141,7 +93,7 @@ function getCircularDirectionalWeights(
   const resolveRole = (requested: AnimationRole, requestedIndex: number): AnimationRole | null => {
     const candidates = [
       requested,
-      ...(ANIMATION_FALLBACKS[requested] ?? []).filter(role => role !== 'idle'),
+      ...(ANIMATION_ROLE_FALLBACKS[requested] ?? []).filter(role => role !== 'idle'),
       familyRole,
       running ? 'walk' : 'run',
     ]
@@ -193,124 +145,6 @@ function getCircularDirectionalWeights(
  * dos passos alinhada e sincronizando a escala temporal. Os clipes ausentes usam
  * fallbacks próximos, sem exigir que todo modelo possua as oito direções.
  */
-function applyCircularDirectionalBlend(
-  actions: ReadonlyMap<string, THREE.AnimationAction>,
-  state: DirectionalAnimationBlendState,
-  targetWeights: ReadonlyMap<AnimationRole, number>,
-  dt: number,
-  speedFactor: number,
-  preferredSourceRole = '',
-): AnimationRole | null {
-  if (targetWeights.size === 0) return null
-
-  const entries = [...actions.entries()]
-  const entering = !state.active
-  // Never synchronize a run/walk cycle to the jump or idle clip's phase.
-  // Using the jump clip's normalized time as the run phase is visibly jarring
-  // when the player lands while still holding a movement direction.
-  const preferredRole = preferredSourceRole as AnimationRole
-  const preferredAction = CIRCULAR_LOCOMOTION_ROLE_SET.has(preferredRole)
-    ? actions.get(preferredRole)
-    : undefined
-  const source = preferredAction?.isScheduled() && preferredAction.getEffectiveWeight() > 0.01
-    ? preferredAction
-    : entries.find(([role, action]) =>
-      CIRCULAR_LOCOMOTION_ROLE_SET.has(role as AnimationRole) &&
-      action.isScheduled() &&
-      action.getEffectiveWeight() > 0.01,
-    )?.[1]
-  const sourceDuration = source?.getClip().duration ?? 0
-  const sourcePhase = source && sourceDuration > 1e-5
-    ? (((source.time % sourceDuration) + sourceDuration) % sourceDuration) / sourceDuration
-    : 0
-
-  if (entering) {
-    // O idle/estado anterior sai gradualmente enquanto os clipes direcionais
-    // entram. Não reinicia o ciclo toda vez que o jogador troca de direção.
-    for (const [role, action] of entries) {
-      if (CIRCULAR_LOCOMOTION_ROLE_SET.has(role as AnimationRole) || !action.isScheduled()) continue
-      action.stopFading()
-      action.fadeOut(0.18)
-    }
-    state.active = true
-    state.blend = 0
-    state.weights.clear()
-  }
-
-  const weightSmoothing = 1 - Math.exp(-Math.max(0, dt) * 15)
-  const blendSmoothing = 1 - Math.exp(-Math.max(0, dt) * 13)
-  state.blend = THREE.MathUtils.lerp(state.blend, 1, blendSmoothing)
-
-  let referenceDuration = 0
-  let referenceWeight = 0
-  for (const [role, weight] of targetWeights) {
-    const duration = actions.get(role)?.getClip().duration ?? 0
-    if (duration > 1e-5) {
-      referenceDuration += duration * weight
-      referenceWeight += weight
-    }
-  }
-  referenceDuration = referenceWeight > 1e-5 ? referenceDuration / referenceWeight : 1
-  referenceDuration = Math.max(0.12, referenceDuration)
-
-  const rolesToUpdate = new Set<AnimationRole>([
-    ...CIRCULAR_LOCOMOTION_ROLE_SET,
-    ...state.weights.keys(),
-    ...targetWeights.keys(),
-  ])
-  let dominantRole: AnimationRole | null = null
-  let dominantWeight = -1
-
-  for (const role of rolesToUpdate) {
-    const action = actions.get(role)
-    if (!action) continue
-
-    const target = targetWeights.get(role) ?? 0
-    const previous = state.weights.get(role) ?? 0
-    const nextWeight = THREE.MathUtils.lerp(previous, target, weightSmoothing)
-
-    if (target > 1e-4) {
-      action.stopFading()
-      action.stopWarping()
-      action.setLoop(THREE.LoopRepeat, Infinity)
-      action.clampWhenFinished = false
-
-      if (!action.isScheduled()) {
-        action.reset()
-        if (source && source !== action && sourcePhase > 0) {
-          action.time = sourcePhase * action.getClip().duration
-        }
-        action.enabled = true
-        action.paused = false
-        action.setEffectiveWeight(0)
-        action.play()
-      } else if (entering && source && source !== action && sourcePhase > 0) {
-        action.time = sourcePhase * action.getClip().duration
-      }
-    }
-
-    state.weights.set(role, nextWeight)
-    if (action.isScheduled()) {
-      action.stopFading()
-      const duration = Math.max(0.01, action.getClip().duration)
-      action.timeScale = (referenceDuration / duration) * THREE.MathUtils.clamp(speedFactor, 0.55, 1.55)
-      action.setEffectiveWeight(nextWeight * state.blend)
-
-      if (nextWeight > dominantWeight) {
-        dominantWeight = nextWeight
-        dominantRole = role
-      }
-    }
-
-    if (target <= 1e-4 && nextWeight < 0.002) {
-      action.stop()
-      state.weights.delete(role)
-    }
-  }
-
-  return dominantRole
-}
-
 function smoothTurnYaw(currentYaw: number, targetYaw: number, dt: number, response: number): number {
   const difference = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw))
   return currentYaw + difference * (1 - Math.exp(-Math.max(0, dt) * response))
@@ -421,15 +255,8 @@ export class HumanoidAvatar {
   private modelLoadRevision = 0
   private mixer: THREE.AnimationMixer | null = null
   private animationActions = new Map<string, THREE.AnimationAction>()
+  private animationController: AnimationController | null = null
   private activeAnimation = ''
-  private readonly playerDirectionalBlendState: DirectionalAnimationBlendState = {
-    active: false, blend: 0, weights: new Map(),
-  }
-  private readonly mountedDirectionalBlendState: DirectionalAnimationBlendState = {
-    active: false, blend: 0, weights: new Map(),
-  }
-  private mountedDirectionalRoot: THREE.Mesh | null = null
-  private activeOneShotAnimation: AnimationRole | null = null
   private playerMountTransition: 'mount' | null = null
   private animationTime = 0
   private proceduralLocomotionBlend = 0
@@ -1070,8 +897,6 @@ export class HumanoidAvatar {
     if (!this.enabled || this.mountedRoot || !root.visible) return false
 
     this.mountedRoot = root
-    resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
-    this.mountedDirectionalRoot = root
     // A física mantém a raiz/colisor nivelados. Somente o pivô visual do GLB
     // pode inclinar para acompanhar o plano da rampa sem girar a caixa física.
     this.mountedVisualPivot = root.getObjectByName('ImportedVisualPivot') ?? null
@@ -1120,12 +945,11 @@ export class HumanoidAvatar {
   }
 
   private updateMountedPlayerTransition(dt: number): void {
-    if (!this.mixer || !this.playerMountTransition) return
-    this.mixer.update(dt)
-    const action = this.animationActions.get(this.playerMountTransition)
-    if (action?.isRunning()) return
+    if (!this.animationController || !this.playerMountTransition) return
+    this.animationController.update(dt)
+    if (this.animationController.isOneShotPlaying &&
+        this.animationController.activeOneShotRole === this.playerMountTransition) return
     this.playerMountTransition = null
-    this.activeOneShotAnimation = null
     this.visualRoot.visible = false
   }
 
@@ -1176,8 +1000,6 @@ export class HumanoidAvatar {
 
     this.mountedRoot = null
     this.mountSettings = null
-    resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
-    this.mountedDirectionalRoot = null
     this.mountedMovementState = 'idle'
     this.mountedJumpRequested = false
     this.mountedAirborne = false
@@ -1343,94 +1165,11 @@ export class HumanoidAvatar {
   }
 
   private playMountAnimation(root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
-    const actions = root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-    if (!actions) return
-    const transition = root.userData.importAnimationTransition as AnimationRole | undefined
-    const transitionAction = transition ? actions[transition] : undefined
-    // A transição de parar a corrida pode ser interrompida caso o jogador volte a mover-se,
-    // mas idle não deve cancelar a própria animação de parada antes que ela termine.
-    if (!oneShot && transitionAction?.isRunning() && (transition !== 'run_stop' || role === 'idle')) return
-
-    const locomotionFallbacks: Partial<Record<AnimationRole, AnimationRole[]>> = {
-      walk: ['idle'],
-      run: ['walk', 'idle'],
-      walk_diagonal_left: ['walk', 'idle'],
-      walk_diagonal_right: ['walk', 'idle'],
-      run_diagonal_left: ['walk_diagonal_left', 'run', 'walk', 'idle'],
-      run_diagonal_right: ['walk_diagonal_right', 'run', 'walk', 'idle'],
-      idle: ['walk', 'run'],
-    }
-    const candidates: AnimationRole[] = ['mount', 'dismount', 'run_stop'].includes(role)
-      ? [role]
-      : [role, ...(locomotionFallbacks[role] ?? [])]
-    const nextRole = candidates.find(candidate => actions[candidate])
-    const next = nextRole ? actions[nextRole] : undefined
-    if (!next) {
-      if (oneShot && ONE_SHOT_ANIMATION_ROLES.has(role)) {
-        root.userData.importAnimationTransition = undefined
-        const idle = actions.idle ?? actions.walk ?? actions.run ?? actions.walk_diagonal_left ?? actions.walk_diagonal_right
-        if (idle) {
-          idle.setLoop(THREE.LoopRepeat, Infinity)
-          idle.clampWhenFinished = false
-          const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-          const idleRole: AnimationRole = idle === actions.idle ? 'idle'
-            : idle === actions.walk ? 'walk' : idle === actions.run ? 'run'
-              : idle === actions.walk_diagonal_left ? 'walk_diagonal_left' : 'walk_diagonal_right'
-          const currentRole = root.userData.importAnimationState as AnimationRole | undefined
-          const currentAction = (currentRole ? actions[currentRole] : undefined)
-            ?? Object.values(actions).find(action => action?.isScheduled())
-            ?? fallbackAction
-          blendAnimationActions(
-            [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
-            currentAction,
-            idle,
-            {
-              duration: getAnimationBlendDuration(currentRole, idleRole),
-              synchronizePhase: isLocomotionAnimation(currentRole) && isLocomotionAnimation(idleRole),
-              restart: true,
-            },
-          )
-          root.userData.importAnimationState = idleRole
-        } else {
-          const currentRole = root.userData.importAnimationState as AnimationRole | undefined
-          const current = currentRole ? actions[currentRole] : undefined
-          current?.stop()
-          const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-          fallbackAction?.stop()
-          root.userData.importAnimationState = ''
-        }
-      }
-      return
-    }
-
-    const currentRole = root.userData.importAnimationState as AnimationRole | undefined
-    const fallbackAction = root.userData.importAnimationFallbackAction as THREE.AnimationAction | undefined
-    const current = (currentRole ? actions[currentRole] : undefined)
-      ?? Object.values(actions).find(action => action?.isScheduled())
-      ?? fallbackAction
-    if (current === next && next.isRunning() && !oneShot) return
-
-    if (oneShot) {
-      next.setLoop(THREE.LoopOnce, 1)
-      next.clampWhenFinished = true
-      root.userData.importAnimationTransition = role
-    } else {
-      next.setLoop(THREE.LoopRepeat, Infinity)
-      next.clampWhenFinished = false
-      root.userData.importAnimationTransition = undefined
-    }
-    const transitionDuration = getAnimationBlendDuration(currentRole, nextRole ?? role, oneShot)
-    blendAnimationActions(
-      [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
-      current,
-      next,
-      {
-        duration: transitionDuration,
-        synchronizePhase: !oneShot && isLocomotionAnimation(currentRole) && isLocomotionAnimation(nextRole ?? role),
-        restart: true,
-      },
-    )
-    root.userData.importAnimationState = nextRole ?? role
+    const controller = getAnimationControllerFromObject(root)
+    if (!controller) return
+    if (oneShot) controller.playOneShot(role, false)
+    else controller.setState(role)
+    root.userData.importAnimationState = controller.currentState || role
   }
 
   /**
@@ -1696,41 +1435,24 @@ export class HumanoidAvatar {
     const previousState = this.mountedMovementState
     this.mountedMovementState = state
 
-    const importedActions = root.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-    const mountActions = new Map<string, THREE.AnimationAction>(
-      Object.entries(importedActions ?? {}).filter((entry): entry is [string, THREE.AnimationAction] => Boolean(entry[1])),
-    )
-    const canBlendMountedDirection = length > 0 && !this.mountedAirborne && mountActions.size > 0
+    const animationController = getAnimationControllerFromObject(root)
+    const canBlendMountedDirection = length > 0 && !this.mountedAirborne &&
+      !!animationController && animationController.actions.size > 0 && !animationController.isOneShotPlaying
     let usedMountedDirectionalBlend = false
-    if (canBlendMountedDirection) {
-      if (this.mountedDirectionalRoot !== root) {
-        resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
-        this.mountedDirectionalRoot = root
-      }
+    if (canBlendMountedDirection && animationController) {
       const targetWeights = getCircularDirectionalWeights(
-        mountActions,
-        forwardInput,
-        sideInput,
-        this.getCameraYaw(),
-        root.rotation.y,
-        running,
+        animationController.actions, forwardInput, sideInput,
+        this.getCameraYaw(), root.rotation.y, running,
       )
       if (targetWeights.size > 0) {
-        const actualMountSpeed = Math.hypot(
-          root.position.x - movementStartX,
-          root.position.z - movementStartZ,
-        ) / Math.max(dt, 1e-4)
+        const actualMountSpeed = Math.hypot(root.position.x - movementStartX, root.position.z - movementStartZ) / Math.max(dt, 1e-4)
         const nominalMountSpeed = settings.speed * (running ? settings.runMultiplier : walkingSlow ? 0.48 : 1)
-        const dominantRole = applyCircularDirectionalBlend(
-          mountActions,
-          this.mountedDirectionalBlendState,
+        const dominantRole = animationController.setBlendWeights(
           targetWeights,
-          dt,
           actualMountSpeed / Math.max(0.1, nominalMountSpeed),
           String(root.userData.importAnimationState ?? state),
         )
         if (dominantRole) {
-          root.userData.importAnimationTransition = undefined
           root.userData.importAnimationState = dominantRole
           usedMountedDirectionalBlend = true
         }
@@ -1738,10 +1460,8 @@ export class HumanoidAvatar {
     }
 
     if (shouldJump) {
-      resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
       this.playMountAnimation(root, 'jump', true)
     } else if (!usedMountedDirectionalBlend) {
-      resetDirectionalAnimationBlend(this.mountedDirectionalBlendState)
       if (state === 'idle' && (previousState === 'run' || previousState === 'run_diagonal_left' || previousState === 'run_diagonal_right')) {
         this.playMountAnimation(root, 'run_stop', true)
       } else {
@@ -2513,7 +2233,7 @@ export class HumanoidAvatar {
     this.jumpRequested = false
     this.mountedJumpRequested = false
     if (!enabled) {
-      this.mixer?.stopAllAction()
+      this.animationController?.stop()
       this.activeAnimation = ''
     }
   }
@@ -2577,7 +2297,8 @@ export class HumanoidAvatar {
 
   dispose(): void {
     this.disposed = true
-    this.mixer?.stopAllAction()
+    this.animationController?.dispose()
+    this.animationController = null
     this.animationActions.clear()
     this.animatedBones = []
     window.removeEventListener('keydown', this.onKeyDown)
@@ -2680,19 +2401,7 @@ export class HumanoidAvatar {
     gltf.scene.position.z -= center.z
 
     const nextMixer = new THREE.AnimationMixer(gltf.scene)
-    const nextActions = new Map<string, THREE.AnimationAction>()
-    gltf.animations.forEach((clip, index) => {
-      const configuredRole = animationRoles?.[String(index)]
-      let key: string
-      if (configuredRole !== undefined) {
-        if (configuredRole === 'ignore') return
-        // Conserva os papéis escolhidos no Model Workspace, inclusive postura e ações.
-        key = configuredRole
-      } else {
-        key = this.classifyAnimation(clip.name)
-      }
-      if (key !== 'other' && !nextActions.has(key)) nextActions.set(key, nextMixer.clipAction(clip))
-    })
+    const nextActions = createAnimationActionMap(nextMixer, gltf.animations, animationRoles)
 
     const nextBones: typeof this.animatedBones = []
     gltf.scene.updateMatrixWorld(true)
@@ -2716,12 +2425,10 @@ export class HumanoidAvatar {
 
     // O novo modelo só substitui o antigo depois de ser carregado e validado.
     // Assim, um GLB inválido não deixa o jogador invisível nem remove o fallback.
-    this.mixer?.stopAllAction()
-    this.animationActions.clear()
-    resetDirectionalAnimationBlend(this.playerDirectionalBlendState)
+    this.animationController?.dispose()
     this.mixer = nextMixer
     this.animationActions = nextActions
-    this.activeOneShotAnimation = null
+    this.animationController = new AnimationController(nextMixer, nextActions)
     this.animatedBones = nextBones
     this.firstPersonHiddenBones.clear()
     for (const child of [...this.visualRoot.children]) this.disposeObject(child)
@@ -2736,77 +2443,17 @@ export class HumanoidAvatar {
     return true
   }
 
-  private classifyAnimation(name: string): string {
-    const normalized = name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[\s._|:-]+/g, '')
-
-    // Identifica o freio antes da palavra "run", para não usar o clipe de
-    // desaceleração como um ciclo contínuo de corrida.
-    if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
-    if (/jump|leap|hop|fall|saut|salto/.test(normalized)) return 'jump'
-    if (/run|running|sprint|jog|dash|gallop|canter/.test(normalized)) return 'run'
-    if (/walk|locomotion|move|stride|trot|step/.test(normalized)) return 'walk'
-    if (/idle|stand|rest|breath|neutral|stationary|wait/.test(normalized)) return 'idle'
-    return 'other'
-  }
-
   private triggerPlayerAnimation(role: AnimationRole): void {
-    if (!this.animationActions.has(role)) return
-    this.playAnimation(role, true)
+    if (!this.animationController?.hasRole(role)) return
+    this.animationController.playOneShot(role, false)
   }
 
   private playAnimation(state: string, oneShot = false): void {
-    if (!this.mixer) return
-
-    if (!oneShot && this.activeOneShotAnimation) {
-      const activeOneShot = this.animationActions.get(this.activeOneShotAnimation)
-      if (activeOneShot?.isRunning()) return
-      this.activeOneShotAnimation = null
-    }
-    if (!oneShot && this.activeAnimation === state) return
-
-    const role = state as AnimationRole
-    const nextRole = [role, ...(ANIMATION_FALLBACKS[role] ?? [])]
-      .find(candidate => this.animationActions.has(candidate))
-    const next = nextRole ? this.animationActions.get(nextRole) : undefined
-    const current = this.animationActions.get(this.activeAnimation)
-      ?? [...this.animationActions.values()].find(action => action.isScheduled())
-
-    // Se dois estados reutilizam o mesmo clipe de fallback, mantém o ciclo atual
-    // em vez de reiniciar a passada toda vez que muda a direção solicitada.
-    if (!oneShot && current && current === next) {
-      this.activeAnimation = state
-      return
-    }
-
-    if (next) {
-      if (oneShot || ONE_SHOT_ANIMATION_ROLES.has(role)) {
-        next.setLoop(THREE.LoopOnce, 1)
-        next.clampWhenFinished = true
-      } else {
-        next.setLoop(THREE.LoopRepeat, Infinity)
-        next.clampWhenFinished = false
-      }
-      const blendDuration = getAnimationBlendDuration(this.activeAnimation, state, oneShot)
-      blendAnimationActions(this.animationActions.values(), current, next, {
-        duration: blendDuration,
-        synchronizePhase: !oneShot &&
-          isLocomotionAnimation(this.activeAnimation) &&
-          isLocomotionAnimation(nextRole ?? state),
-        restart: true,
-      })
-      if (oneShot) this.activeOneShotAnimation = role
-    } else if (oneShot) {
-      return
-    } else {
-      for (const action of this.animationActions.values()) {
-        if (action.isRunning()) action.fadeOut(getAnimationBlendDuration(this.activeAnimation, state))
-      }
-    }
-    this.activeAnimation = state
+    const controller = this.animationController
+    if (!controller) return
+    if (oneShot) controller.playOneShot(state, false)
+    else controller.setState(state)
+    this.activeAnimation = controller.currentState || state
   }
 
   private getLocomotionAnimationRole(forwardInput: number, sideInput: number, running: boolean): AnimationRole {
@@ -2838,40 +2485,18 @@ export class HumanoidAvatar {
     // Quando o modelo não possui clipe de salto, não deixe pequenas falhas
     // momentâneas de grounded trocar a corrida pela pose idle. Nessa situação,
     // o ciclo de locomoção continua acompanhando o movimento horizontal.
-    const hasJumpClip = this.animationActions.has('jump')
-    // A animação de salto também pode ser acionada diretamente pelo mapa de
-    // controles como ação de um disparo. Se o jogador aterrissa antes do clipe
-    // terminar, não deixe o bloqueio de one-shot impedir a retomada da locomoção.
-    if (
-      this.grounded &&
-      (this.activeOneShotAnimation === 'jump' || this.activeAnimation === 'jump')
-    ) {
-      const jumpAction = this.animationActions.get('jump')
-      if (jumpAction?.isScheduled()) {
-        jumpAction.stopFading()
-        jumpAction.fadeOut(0.1)
-      }
-      if (this.activeOneShotAnimation === 'jump') this.activeOneShotAnimation = null
-    }
+    const controller = this.animationController
+    const hasJumpClip = controller?.hasRole('jump') ?? false
+    if (this.grounded && controller?.activeOneShotRole === 'jump') controller.cancelOneShot('jump')
+
     const movingNow = moving && (this.grounded || !hasJumpClip)
     const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
-    this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
-      this.proceduralLocomotionBlend,
-      movingNow ? 1 : 0,
-      blendRate,
-    )
-    this.proceduralRunBlend = THREE.MathUtils.lerp(
-      this.proceduralRunBlend,
-      movingNow && running ? 1 : 0,
-      blendRate,
-    )
+    this.proceduralLocomotionBlend = THREE.MathUtils.lerp(this.proceduralLocomotionBlend, movingNow ? 1 : 0, blendRate)
+    this.proceduralRunBlend = THREE.MathUtils.lerp(this.proceduralRunBlend, movingNow && running ? 1 : 0, blendRate)
     const targetCycleSpeed = movingNow ? (running ? 12 : 8) : 4.5
-    this.proceduralCycleSpeed = THREE.MathUtils.lerp(
-      this.proceduralCycleSpeed,
-      targetCycleSpeed,
-      1 - Math.exp(-Math.max(0, dt) * 5),
-    )
+    this.proceduralCycleSpeed = THREE.MathUtils.lerp(this.proceduralCycleSpeed, targetCycleSpeed, 1 - Math.exp(-Math.max(0, dt) * 5))
     this.animationTime += dt * this.proceduralCycleSpeed
+
     const state: AnimationRole = !this.grounded && hasJumpClip ? 'jump'
       : this.posture === 'prone' ? (moving ? 'prone_crawl' : 'prone')
         : this.posture === 'crouching' ? (moving ? 'crouch_walk' : 'crouch')
@@ -2883,28 +2508,19 @@ export class HumanoidAvatar {
       this.posture === 'standing' &&
       !(this.walkToggled && !running) &&
       this.maneuver === null &&
-      this.activeOneShotAnimation === null &&
+      !controller?.isOneShotPlaying &&
       this.animationActions.size > 0
     let usedDirectionalBlend = false
-
-    if (canBlendDirection) {
+    if (controller && canBlendDirection) {
       const targetWeights = getCircularDirectionalWeights(
-        this.animationActions,
-        forwardInput,
-        sideInput,
-        this.getCameraYaw(),
-        this.mesh.rotation.y,
-        running,
+        this.animationActions, forwardInput, sideInput,
+        this.getCameraYaw(), this.mesh.rotation.y, running,
       )
       if (targetWeights.size > 0) {
         const nominalSpeed = running ? WALK_SPEED * RUN_MULTIPLIER : WALK_SPEED
-        const speedFactor = actualHorizontalSpeed / Math.max(0.1, nominalSpeed)
-        const dominantRole = applyCircularDirectionalBlend(
-          this.animationActions,
-          this.playerDirectionalBlendState,
+        const dominantRole = controller.setBlendWeights(
           targetWeights,
-          dt,
-          speedFactor,
+          actualHorizontalSpeed / Math.max(0.1, nominalSpeed),
           this.activeAnimation,
         )
         if (dominantRole) {
@@ -2913,14 +2529,11 @@ export class HumanoidAvatar {
         }
       }
     }
-
-    if (!usedDirectionalBlend) {
-      // Estados como salto, agachado, ações e idle retornam ao fluxo de transição
-      // padrão, que encerra os pesos direcionais e aplica seus fades normalmente.
-      resetDirectionalAnimationBlend(this.playerDirectionalBlendState)
-      this.playAnimation(state)
+    if (controller && !usedDirectionalBlend) {
+      controller.setState(state)
+      this.activeAnimation = controller.currentState || state
     }
-    this.mixer?.update(dt)
+    controller?.update(dt)
 
     // Alguns clipes de corrida animam novamente os ossos da cabeça depois
     // que o modo primeira pessoa os esconde. Reaplica a máscara após o mixer
@@ -2933,10 +2546,9 @@ export class HumanoidAvatar {
 
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
-    const hasStateClip = usedDirectionalBlend || [state, ...(ANIMATION_FALLBACKS[state] ?? [])]
-      .some(role => this.animationActions.has(role))
-    if (hasStateClip || this.activeOneShotAnimation) {
-      if (!this.activeOneShotAnimation) this.applyFallbackCrouchPose()
+    const hasStateClip = usedDirectionalBlend || Boolean(controller?.hasState(state))
+    if (hasStateClip || controller?.isOneShotPlaying) {
+      if (!controller?.isOneShotPlaying) this.applyFallbackCrouchPose()
       return
     }
     // A oscilação das pernas é uma marcha, não uma animação de repouso.
