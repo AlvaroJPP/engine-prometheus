@@ -2740,8 +2740,8 @@ export class HumanoidAvatar {
     const normalized = name
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\\u0300-\\u036f]/g, '')
-      .replace(/[\\s._|:-]+/g, '')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\s._|:-]+/g, '')
 
     // Identifica o freio antes da palavra "run", para não usar o clipe de
     // desaceleração como um ciclo contínuo de corrida.
