@@ -4990,6 +4990,7 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 .chip,.axis { border-color:#2e2b25 !important; background:rgba(20,18,15,.9) !important; color:#b5afa2 !important; }
 .chip.live { color:#f3efe6 !important; }
 .grid-state { color:#ff997d !important; }
+.chips,.axes { left:72px !important; }
 .ax-x { color:#f07870 !important; }
 .ax-y { color:#8cae78 !important; }
 .ax-z { color:#80a9df !important; }
@@ -5093,6 +5094,24 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   .model-import-launch { top:58px !important; right:12px !important; }
   .viewport-fps { top:104px !important; right:12px !important; }
   .chips { left:72px !important; }
+}
+
+.app.world-fullscreen { background:#14120f !important; }
+.app.world-fullscreen .world-fullscreen-exit {
+  border-color:#2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(29,27,23,.96) !important;
+  color:#f3efe6 !important;
+  box-shadow:0 8px 22px #0004 !important;
+}
+.app.world-fullscreen .world-fullscreen-exit:hover {
+  border-color:#75412e !important;
+  background:#34241c !important;
+  color:#f3efe6 !important;
+}
+.app.world-fullscreen .world-fullscreen-exit kbd {
+  border-color:#3b3730 !important;
+  color:#b5afa2 !important;
 }
 
 /* Keep the viewport controls reachable when the scene is fullscreen.
