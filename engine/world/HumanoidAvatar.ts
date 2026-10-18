@@ -538,6 +538,12 @@ export class HumanoidAvatar {
       return
     }
 
+    // A animação deve refletir deslocamento real, não apenas uma tecla pressionada.
+    // Em colisões com paredes/partes da cidade o personagem pode ficar parado mesmo
+    // com entrada de movimento; nesses casos o estado correto é idle.
+    const animationStartX = this.mesh.position.x
+    const animationStartZ = this.mesh.position.z
+
     if (this.pressed.has(bindings.jump) && this.grounded) {
       this.verticalVelocity = JUMP_SPEED * Math.sqrt(this.getBodyScale())
       this.grounded = false
@@ -732,7 +738,13 @@ export class HumanoidAvatar {
       this.grounded = false
     }
 
-    this.updateAvatarAnimation(step, length > 0 || this.maneuver !== null, running, forwardInput, sideInput)
+    const actualHorizontalDistance = Math.hypot(
+      this.mesh.position.x - animationStartX,
+      this.mesh.position.z - animationStartZ,
+    )
+    const movementEpsilon = Math.max(0.001, this.getBodyScale() * 0.0015)
+    const actuallyMoving = actualHorizontalDistance > movementEpsilon
+    this.updateAvatarAnimation(step, actuallyMoving || this.maneuver !== null, running, forwardInput, sideInput)
     this.updateCollisionEvents()
     // A câmera acompanha o personagem, mantendo o ângulo e a distância atuais.
     if (this.firstPersonMode) {
@@ -2510,8 +2522,12 @@ export class HumanoidAvatar {
       if (!this.activeOneShotAnimation) this.applyFallbackCrouchPose()
       return
     }
-    const amplitude = 0.035
-      + this.proceduralLocomotionBlend * (0.385 + this.proceduralRunBlend * 0.33)
+    // A oscilação das pernas é uma marcha, não uma animação de repouso.
+    // Quando o corpo não percorre distância horizontal, deixe as pernas na pose
+    // neutra; o pequeno balanço respiratório continua no tronco/raiz.
+    const amplitude = movingNow
+      ? 0.035 + this.proceduralLocomotionBlend * (0.385 + this.proceduralRunBlend * 0.33)
+      : 0
     const swing = Math.sin(this.animationTime) * amplitude
     if (this.proceduralLimbs) {
       const limbs = this.proceduralLimbs
