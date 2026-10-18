@@ -449,55 +449,256 @@ function scoreBonePair(
   return score
 }
 
+export type BoneSimilarityCandidate = {
+  targetName: string
+  score: number
+  exactName: boolean
+}
+
+type BoneSpatialSignature = {
+  x: number
+  y: number
+  z: number
+  segmentLength: number
+  depth: number
+}
+
+function bonesIn(root: THREE.Object3D | null | undefined): THREE.Bone[] {
+  const bones: THREE.Bone[] = []
+  root?.traverse(node => { if (node instanceof THREE.Bone) bones.push(node) })
+  return bones
+}
+
+function nearestBoneChildren(node: THREE.Object3D, boneSet: Set<THREE.Object3D>): THREE.Object3D[] {
+  const result: THREE.Object3D[] = []
+  const queue = [...node.children]
+  for (let index = 0; index < queue.length; index += 1) {
+    const candidate = queue[index]!
+    if (boneSet.has(candidate)) result.push(candidate)
+    else queue.push(...candidate.children)
+  }
+  return result
+}
+
 /**
- * Gera mapeamentos automáticos globais e um-para-um. Combina semântica anatômica,
- * lado, região, nível do osso e contexto da hierarquia em vez de depender só do nome.
- * Associações ambíguas ficam sem preencher para evitar transferir movimento ao osso errado.
+ * Cria features espaciais independentes da escala e da posição externa do GLB.
+ * Elas servem como desempate; nomes, lateralidade e anatomia continuam tendo
+ * prioridade para não forçar uma transferência apenas porque dois ossos ocupam
+ * posições visualmente próximas.
  */
-export function suggestTargetBoneMappings(
+function buildBoneSpatialProfiles(
+  root: THREE.Object3D | null | undefined,
+  bones: THREE.Object3D[],
+): Map<THREE.Object3D, BoneSpatialSignature> {
+  const profiles = new Map<THREE.Object3D, BoneSpatialSignature>()
+  if (!root || bones.length === 0) return profiles
+
+  root.updateWorldMatrix(true, true)
+  const inverseRoot = root.matrixWorld.clone().invert()
+  const positions = new Map<THREE.Object3D, THREE.Vector3>()
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity)
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
+
+  for (const bone of bones) {
+    const position = bone.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverseRoot)
+    positions.set(bone, position)
+    min.min(position)
+    max.max(position)
+  }
+
+  const center = min.clone().add(max).multiplyScalar(0.5)
+  const size = max.clone().sub(min)
+  const scale = Math.max(size.x, size.y, size.z, 1e-6)
+  const boneSet = new Set(bones)
+  const depths = new Map<THREE.Object3D, number>()
+  let maxDepth = 0
+
+  for (const bone of bones) {
+    let depth = 0
+    let ancestor = bone.parent
+    while (ancestor && ancestor !== root) {
+      if (boneSet.has(ancestor)) depth += 1
+      ancestor = ancestor.parent
+    }
+    depths.set(bone, depth)
+    maxDepth = Math.max(maxDepth, depth)
+  }
+
+  for (const bone of bones) {
+    const position = positions.get(bone)!
+    let segmentLength = 0
+    const children = nearestBoneChildren(bone, boneSet)
+    if (children.length > 0) {
+      segmentLength = children.reduce((sum, child) =>
+        sum + position.distanceTo(positions.get(child)!), 0) / children.length / scale
+    } else {
+      let ancestor = bone.parent
+      while (ancestor && ancestor !== root && !boneSet.has(ancestor)) ancestor = ancestor.parent
+      const parentPosition = ancestor ? positions.get(ancestor) : undefined
+      if (parentPosition) segmentLength = position.distanceTo(parentPosition) / scale
+    }
+
+    profiles.set(bone, {
+      x: (position.x - center.x) / scale,
+      y: (position.y - center.y) / scale,
+      z: (position.z - center.z) / scale,
+      segmentLength,
+      depth: (depths.get(bone) ?? 0) / Math.max(1, maxDepth),
+    })
+  }
+  return profiles
+}
+
+function spatialSimilarityScore(source: BoneSpatialSignature, target: BoneSpatialSignature): number {
+  const positionDistance =
+    Math.abs(source.x - target.x) * 0.6 +
+    Math.abs(source.y - target.y) +
+    Math.abs(source.z - target.z) * 0.6
+  const positionScore = 6 - Math.min(1.2, positionDistance) * 10
+  const lengthDifference = Math.abs(source.segmentLength - target.segmentLength)
+  const lengthScore = 2 - Math.min(1, lengthDifference) * 4
+  const depthDifference = Math.abs(source.depth - target.depth)
+  const depthScore = 1.5 - Math.min(1, depthDifference) * 3
+  return positionScore + lengthScore + depthScore
+}
+
+function scoreBonePair(
+  source: BoneNameSignature,
+  target: BoneNameSignature,
+  sourceAncestors: BoneNameSignature[],
+  targetAncestors: BoneNameSignature[],
+  sourceSpatial?: BoneSpatialSignature,
+  targetSpatial?: BoneSpatialSignature,
+): number {
+  if (source.side && target.side && source.side !== target.side) return Number.NEGATIVE_INFINITY
+  if (source.zone && target.zone && source.zone !== target.zone) return Number.NEGATIVE_INFINITY
+  if (source.digit && target.digit && source.digit !== target.digit) return Number.NEGATIVE_INFINITY
+
+  if (source.role && target.role && source.role !== target.role) {
+    // Papéis anatômicos diferentes nunca são combinados somente por proximidade.
+    return Number.NEGATIVE_INFINITY
+  }
+
+  let score = 0
+  if (source.normalized === target.normalized || source.compact === target.compact) score += 120
+  if (source.role && source.role === target.role) score += 72
+  else if (!source.role || !target.role) score += 12 + tokenSimilarity(source.tokens, target.tokens) * 35
+
+  if (source.side && target.side && source.side === target.side) score += 24
+  else if (!source.side && target.side) score -= 7
+
+  if (source.zone && target.zone && source.zone === target.zone) score += 20
+  else if (!source.zone && target.zone) score -= 4
+
+  if (source.level !== null && target.level !== null) {
+    score += source.level === target.level ? 18 : -22
+  } else if (source.level !== null || target.level !== null) {
+    score -= 2
+  }
+  if (source.digit && target.digit && source.digit === target.digit) score += 18
+
+  const similarity = tokenSimilarity(source.tokens, target.tokens)
+  score += similarity * 24
+  if (source.compact.length >= 4 && target.compact.length >= 4) {
+    if (source.compact.endsWith(target.compact) || target.compact.endsWith(source.compact)) score += 8
+  }
+  score += ancestorContextScore(sourceAncestors, targetAncestors)
+  if (sourceSpatial && targetSpatial) {
+    score += spatialSimilarityScore(sourceSpatial, targetSpatial)
+  }
+  return score
+}
+
+/**
+ * Retorna as melhores opções para cada canal com a pontuação composta usada
+ * pelo auto-mapeamento. O score é um indicador comparativo, não uma probabilidade.
+ */
+export function rankTargetBoneCandidates(
   sourceNames: string[],
   targetBones: THREE.Bone[],
   sourceRoot?: THREE.Object3D | null,
-): Record<string, string> {
+  targetRoot?: THREE.Object3D | null,
+): Record<string, BoneSimilarityCandidate[]> {
   if (!sourceNames.length || !targetBones.length) return {}
 
   const targetSignatures = targetBones.map(bone => signatureForBoneName(bone.name))
   const targetAncestors = targetBones.map(bone => ancestorSignatures(bone))
   const sourceSignatures = sourceNames.map(name => signatureForBoneName(name))
-  const sourceAncestors = sourceNames.map(name => ancestorSignatures(sourceRoot ? findAnimationNode(sourceRoot, name) : null))
+  const sourceAncestors = sourceNames.map(name =>
+    ancestorSignatures(sourceRoot ? findAnimationNode(sourceRoot, name) : null),
+  )
+  const sourceBoneNodes = bonesIn(sourceRoot)
+  const sourceSpatial = buildBoneSpatialProfiles(sourceRoot, sourceBoneNodes)
+  const targetSpatial = buildBoneSpatialProfiles(targetRoot, targetBones)
+  const bySource: Record<string, BoneSimilarityCandidate[]> = {}
 
-  const ranked = sourceSignatures.map((source, sourceIndex) => {
-    const candidates = targetBones.map((bone, targetIndex) => ({
-      targetName: bone.name,
-      targetIndex,
-      score: scoreBonePair(source, targetSignatures[targetIndex]!, sourceAncestors[sourceIndex]!, targetAncestors[targetIndex]!),
-      exactName: source.normalized === targetSignatures[targetIndex]!.normalized ||
-        source.compact === targetSignatures[targetIndex]!.compact,
-    }))
-      .filter(candidate => Number.isFinite(candidate.score) && candidate.score >= 48)
-      .sort((a, b) => b.score - a.score || a.targetIndex - b.targetIndex)
+  sourceSignatures.forEach((source, sourceIndex) => {
+    const sourceNode = sourceRoot ? findAnimationNode(sourceRoot, source.original) : null
+    const sourceFeatures = sourceNode ? sourceSpatial.get(sourceNode) : undefined
+    bySource[source.original] = targetBones.map((bone, targetIndex) => {
+      const targetSignature = targetSignatures[targetIndex]!
+      const score = scoreBonePair(
+        source,
+        targetSignature,
+        sourceAncestors[sourceIndex]!,
+        targetAncestors[targetIndex]!,
+        sourceFeatures,
+        targetSpatial.get(bone),
+      )
+      return {
+        targetName: bone.name,
+        score,
+        exactName: source.normalized === targetSignature.normalized ||
+          source.compact === targetSignature.compact,
+      }
+    })
+      .filter(candidate => Number.isFinite(candidate.score))
+      .sort((a, b) => b.score - a.score || a.targetName.localeCompare(b.targetName))
+  })
 
+  return bySource
+}
+
+/**
+ * Gera mapeamentos globais um-para-um. Usa semântica anatômica, hierarquia e,
+ * como refinamento, posição relativa, profundidade e tamanho dos segmentos.
+ * Associações ambíguas ficam vazias para não transferir movimento ao osso errado.
+ */
+export function suggestTargetBoneMappings(
+  sourceNames: string[],
+  targetBones: THREE.Bone[],
+  sourceRoot?: THREE.Object3D | null,
+  targetRoot?: THREE.Object3D | null,
+): Record<string, string> {
+  if (!sourceNames.length || !targetBones.length) return {}
+
+  const sourceSignatures = sourceNames.map(name => signatureForBoneName(name))
+  const ranked = rankTargetBoneCandidates(sourceNames, targetBones, sourceRoot, targetRoot)
+  const viable = sourceSignatures.map((source, sourceIndex) => {
+    const candidates = (ranked[source.original] ?? []).filter(candidate => candidate.score >= 48)
     const best = candidates[0]
-    if (!best) return { sourceName: source.original, sourceIndex, candidates: [] as typeof candidates }
+    if (!best) return { sourceName: source.original, sourceIndex, candidates: [] as Array<BoneSimilarityCandidate & { targetIndex: number }> }
 
     const second = candidates[1]
     const closeAmbiguity = !!second && best.score - second.score < 11
-    // Uma correspondência de nome exata supera a ambiguidade apenas quando há
-    // um alvo exato único; nomes genéricos como "Arm" não escolhem lado ao acaso.
+    // Nome exato único pode resolver empate; nomes genéricos não escolhem um lado ao acaso.
     if (closeAmbiguity && !best.exactName) {
-      return { sourceName: source.original, sourceIndex, candidates: [] as typeof candidates }
+      return { sourceName: source.original, sourceIndex, candidates: [] as Array<BoneSimilarityCandidate & { targetIndex: number }> }
     }
 
     return {
       sourceName: source.original,
       sourceIndex,
-      candidates: candidates.filter(candidate => candidate.score >= best.score - 16),
+      candidates: candidates
+        .filter(candidate => candidate.score >= best.score - 16)
+        .map(candidate => ({
+          ...candidate,
+          targetIndex: targetBones.findIndex(bone => bone.name === candidate.targetName),
+        })),
     }
   })
 
-  // Prioriza candidatos mais confiáveis, sem permitir que dois canais conduzam
-  // o mesmo osso de destino. As associações conflitantes ficam para ajuste manual.
-  const proposals = ranked.flatMap(entry => entry.candidates.map(candidate => ({
+  const proposals = viable.flatMap(entry => entry.candidates.map(candidate => ({
     sourceName: entry.sourceName,
     sourceIndex: entry.sourceIndex,
     ...candidate,
