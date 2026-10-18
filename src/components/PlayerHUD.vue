@@ -523,11 +523,17 @@ function detectHudTransparentParts(): void {
     const componentHeight = maxY - minY + 1
     // Ignore tiny alpha specks caused by compression or stray pixels.
     if (tail < 3 || componentWidth < 2 || componentHeight < 2) continue
+    // Include one thumbnail pixel around the detected shape so soft alpha edges
+    // are not clipped; optional trimming can remove that padding after cropping.
+    const paddedMinX = Math.max(0, minX - 1)
+    const paddedMinY = Math.max(0, minY - 1)
+    const paddedMaxX = Math.min(sampleWidth - 1, maxX + 1)
+    const paddedMaxY = Math.min(sampleHeight - 1, maxY + 1)
     components.push({
-      x: minX / sampleWidth * sheetWidth,
-      y: minY / sampleHeight * sheetHeight,
-      width: componentWidth / sampleWidth * sheetWidth,
-      height: componentHeight / sampleHeight * sheetHeight,
+      x: paddedMinX / sampleWidth * sheetWidth,
+      y: paddedMinY / sampleHeight * sheetHeight,
+      width: (paddedMaxX - paddedMinX + 1) / sampleWidth * sheetWidth,
+      height: (paddedMaxY - paddedMinY + 1) / sampleHeight * sheetHeight,
       area: tail,
     })
   }
@@ -974,7 +980,7 @@ function resetSettings() {
             <label><input v-model="trimHudTransparentBorders" type="checkbox"> Aparar margens transparentes ao redor de cada parte</label>
             <small>Remove apenas as bordas externas vazias de cada recorte. As áreas transparentes internas continuam transparentes.</small>
             <label><input v-model="skipHudTransparentCrops" type="checkbox"> Ignorar partes completamente transparentes</label>
-            <label>Limiar alfa para detectar bordas · {{ hudAlphaThreshold }}
+            <label>Limiar alfa para detectar partes · {{ hudAlphaThreshold }}
               <input v-model.number="hudAlphaThreshold" type="range" min="0" max="255" step="1">
             </label>
             <label><input v-model="hudColorKeyEnabled" type="checkbox"> Tornar uma cor específica transparente</label>
