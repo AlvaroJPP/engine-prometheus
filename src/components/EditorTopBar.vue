@@ -16,6 +16,7 @@ const props = defineProps<{
   renderDynamicResolutionTargetFps: number
   renderDynamicResolutionMinScale: number
   grassVisible: boolean
+  grassUseDetailedModel: boolean
   grassDensityPercent: number
   grassRenderDistanceMode: 'global' | 'all' | 'custom'
   grassRenderDistance: number
@@ -49,6 +50,7 @@ const emit = defineEmits<{
   'render-dynamic-resolution-target-fps-change': [value: number]
   'render-dynamic-resolution-min-scale-change': [value: number]
   'grass-visible-change': [value: boolean]
+  'grass-use-detailed-model-change': [value: boolean]
   'grass-density-change': [value: number]
   'grass-render-distance-change': [value: string]
   'grass-near-detail-change': [value: number]
@@ -208,6 +210,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <label class="render-settings-everything">
             <input type="checkbox" :checked="grassVisible" @change="emit('grass-visible-change', ($event.target as HTMLInputElement).checked)" />
             <span><strong>Renderizar grama</strong><small>Desliga a camada visual sem apagar a grama pintada no mundo.</small></span>
+          </label>
+          <label class="render-settings-everything render-settings-grass-check">
+            <input type="checkbox" :checked="grassUseDetailedModel" :disabled="!grassVisible" @change="emit('grass-use-detailed-model-change', ($event.target as HTMLInputElement).checked)" />
+            <span><strong>Usar modelo 3D detalhado</strong><small>Desative para usar geometria procedural simples na grama próxima e intermediária, reduzindo materiais e draw calls.</small></span>
           </label>
           <label class="render-settings-field render-settings-fog-field"><span>Densidade visual</span>
             <select class="render-settings-select" :value="grassDensityPercent" :disabled="!grassVisible" @change="emit('grass-density-change', Number(($event.target as HTMLSelectElement).value))">
