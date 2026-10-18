@@ -79,7 +79,7 @@ type ModelImportPayload = {
   batchModels?: ModelImportBatchItem[]
 }
 
-const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: 'object' | 'entity'; libraryType?: 'object' | 'animated-model' | 'animation-source'; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null; animationSourceAsset?: { id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType?: 'animation-source' } | null }>()
+const props = defineProps<{ open: boolean; saveModel: (payload: ModelImportPayload) => Promise<boolean>; controlMap?: Partial<ControlMapBindings>; initialAsset?: { id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: 'box' | 'sphere' | 'capsule' | 'none'; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: 'object' | 'entity'; libraryType?: 'object' | 'animated-model' | 'animation-source'; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, ImportBehaviorPackageDraft>; thumbnail?: string } | null; animationSourceAsset?: { id: string; name: string; bytes: ArrayBuffer; height?: number; libraryType?: 'animation-source' } | null; animationSourceOptions?: Array<{ id: string; name: string; height?: number; thumbnail?: string }> }>()
 const isEditingSavedComponent = computed(() => Boolean(props.initialAsset?.id))
 const isReadOnlyPreview = computed(() => Boolean(props.initialAsset) && !isEditingSavedComponent.value)
 
@@ -87,6 +87,7 @@ const emit = defineEmits<{
   close: []
   'use-player': [payload: { name: string; bytes: ArrayBuffer; animationRoles: Record<string, AnimationRole> }]
   'save-animation-source': [payload: { name: string; bytes: ArrayBuffer; height: number }]
+  'load-animation-source': [id: string]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -313,6 +314,7 @@ const RETARGET_ANIMATION_LIBRARY_KEY = 'engine-prometheus.reusable-animations.v1
 const retargetFileInput = ref<HTMLInputElement | null>(null)
 const retargetSourceRoot = shallowRef<THREE.Object3D | null>(null)
 const retargetSourceBytes = shallowRef<ArrayBuffer | null>(null)
+const selectedSavedAnimationSourceId = ref('')
 const retargetSourceFileName = ref('')
 const retargetSourceClipIndex = ref(0)
 const retargetLibrary = ref<ReusableAnimationAsset[]>([])
@@ -2119,7 +2121,7 @@ async function importBlendZip() {
         resolve(gltf.scene)
       }, reject)
     })
-    await showLoadedModel(loaded, fileName.value.replace(/\\.zip$/i, '.gltf'))
+    await showLoadedModel(loaded, fileName.value.replace(/\\.zip$/i, '.gltf'), 2, Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e || 'Falha ao carregar glTF do ZIP.')
     fileName.value = ''
@@ -2136,7 +2138,7 @@ async function chooseFile(event: Event) {
   fileName.value = file.name
   try {
     const loaded = await parseFile(file)
-    await showLoadedModel(loaded, file.name)
+    await showLoadedModel(loaded, file.name, 2, Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Falha ao ler o modelo.'
     fileName.value = ''
@@ -2250,6 +2252,7 @@ function clearRetargetSource() {
   const previous = retargetSourceRoot.value
   retargetSourceRoot.value = null
   retargetSourceBytes.value = null
+  selectedSavedAnimationSourceId.value = ''
   if (previous) disposeModel(previous)
   retargetSourceFileName.value = ''
   retargetSourceClipIndex.value = 0
@@ -2306,6 +2309,11 @@ async function chooseRetargetAnimationSource(event: Event) {
   }
 }
 
+function selectSavedAnimationSource(event: Event) {
+  const id = (event.target as HTMLSelectElement).value
+  if (id) emit('load-animation-source', id)
+}
+
 function saveRetargetSourceToLibrary() {
   const root = retargetSourceRoot.value
   const bytes = retargetSourceBytes.value
@@ -2349,6 +2357,7 @@ async function loadSavedAnimationSource(asset: NonNullable<typeof props.animatio
     clearRetargetSource()
     retargetSourceRoot.value = loaded
     retargetSourceBytes.value = bytes
+    selectedSavedAnimationSourceId.value = asset.id
     retargetSourceFileName.value = asset.name + '.glb'
     retargetSourceClipIndex.value = 0
     retargetClipName.value = clips[0]?.name?.trim() || asset.name
@@ -2387,6 +2396,7 @@ function selectRetargetLibraryAsset(id: string) {
         const previous = retargetSourceRoot.value
         retargetSourceRoot.value = null
         retargetSourceBytes.value = null
+        selectedSavedAnimationSourceId.value = ''
         disposeModel(previous)
       }
       retargetSourceFileName.value = ''
@@ -3611,6 +3621,12 @@ onBeforeUnmount(() => {
               <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="chooseRetargetAnimationSource" />
               <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading || retargetAutonomousLoading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
               <button v-if="retargetSourceRoot && retargetSourceBytes" type="button" class="model-rigging-secondary model-retarget-save-source" :disabled="retargetLoading || retargetAutonomousLoading" @click="saveRetargetSourceToLibrary">▣ Salvar modelo B na biblioteca de importados</button>
+              <label class="model-rigging-field">Fontes de animação importadas
+                <select :value="selectedSavedAnimationSourceId" :disabled="retargetLoading || retargetAutonomousLoading || !(animationSourceOptions?.length)" @change="selectSavedAnimationSource">
+                  <option value="">{{ animationSourceOptions?.length ? 'Escolher fonte salva…' : 'Nenhuma fonte salva' }}</option>
+                  <option v-for="source in animationSourceOptions ?? []" :key="source.id" :value="source.id">{{ source.name }}</option>
+                </select>
+              </label>
               <p v-if="retargetSourceFileName" class="model-retarget-source">Origem: <strong>{{ retargetSourceFileName }}</strong></p>
               <label v-if="retargetSourceRoot" class="model-rigging-field">Animação extraída
                 <select v-model.number="retargetSourceClipIndex" :disabled="retargetAutonomousLoading" @change="onRetargetSourceClipChanged">
