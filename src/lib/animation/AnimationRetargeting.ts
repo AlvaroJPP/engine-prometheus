@@ -255,7 +255,13 @@ export function retargetAnimationClip(
       skipTrack(track, unsupportedTracks)
       continue
     }
-    const targetName = boneMap[path.nodeName]
+    const sourceLeafName = path.nodeName.split(/[./|:]/).filter(Boolean).pop() ?? path.nodeName
+    const legacyMotionContainer = !asset.sourceBoneNames?.includes(path.nodeName) &&
+      /^(scene|armature|skeleton|rig|root|rootnode|modelroot|characterroot)$/i.test(sourceLeafName)
+    const isSourceMotionContainer = asset.sourceMotionNodeNames?.includes(path.nodeName) || legacyMotionContainer
+    // Um container animado não deve ser associado acidentalmente a um osso pelo
+    // mapeamento automático; sua translação move o personagem inteiro.
+    const targetName = isSourceMotionContainer ? undefined : boneMap[path.nodeName]
     const targetBone = targetName ? targetByName.get(targetName) : undefined
     const sourceRest = asset.sourcePose[path.nodeName]
     if (!sourceRest) {
@@ -272,26 +278,23 @@ export function retargetAnimationClip(
       continue
     }
 
+    if (targetRoot && isSourceMotionContainer && path.property === 'position' && stride === 3) {
+      const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
+      const sourceParentWorld = parentRest && parentRest.length === 4
+        ? new THREE.Quaternion(...parentRest).normalize()
+        : null
+      rootMotionContributions.push({
+        track,
+        sourceName: path.nodeName,
+        sourceRestPosition: safeRestVector(sourceRest.position, new THREE.Vector3()),
+        sourceParentWorld,
+        order: trackIndex,
+      })
+      mappedSourceTracks += 1
+      continue
+    }
+
     if (!targetBone) {
-      const sourceLeafName = path.nodeName.split(/[./|:]/).filter(Boolean).pop() ?? path.nodeName
-      const legacyMotionContainer = !asset.sourceBoneNames?.includes(path.nodeName) &&
-        /^(scene|armature|skeleton|rig|root|rootnode|modelroot|characterroot)$/i.test(sourceLeafName)
-      const isSourceMotionContainer = asset.sourceMotionNodeNames?.includes(path.nodeName) || legacyMotionContainer
-      if (targetRoot && isSourceMotionContainer && path.property === 'position' && stride === 3) {
-        const parentRest = asset.sourceParentWorldQuaternion?.[path.nodeName]
-        const sourceParentWorld = parentRest && parentRest.length === 4
-          ? new THREE.Quaternion(...parentRest).normalize()
-          : null
-        rootMotionContributions.push({
-          track,
-          sourceName: path.nodeName,
-          sourceRestPosition: safeRestVector(sourceRest.position, new THREE.Vector3()),
-          sourceParentWorld,
-          order: trackIndex,
-        })
-        mappedSourceTracks += 1
-        continue
-      }
       skipTrack(track, unmappedTracks)
       continue
     }
