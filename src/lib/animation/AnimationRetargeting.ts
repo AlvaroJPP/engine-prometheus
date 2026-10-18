@@ -293,8 +293,9 @@ function signatureForBoneName(name: string): BoneNameSignature {
   let zone: BoneNameSignature['zone'] = null
   // Evita usar substring "fore": "forearm" é antebraço, não perna dianteira.
   if (
-    tokens.some(token => ['front', 'fore', 'foreleg', 'forelimb', 'frontleg', 'frontlimb'].includes(token)) ||
-    /(?:^|_)(front|fore)(?:_|leg|limb|$)/.test(normalized)
+    tokens.some(token => ['front', 'foreleg', 'forelimb', 'frontleg', 'frontlimb'].includes(token)) ||
+    (tokens.includes('fore') && tokens.some(token => ['leg', 'limb'].includes(token))) ||
+    /(?:^|_)front(?:_|leg|limb|$)/.test(normalized)
   ) zone = 'front'
   else if (
     tokens.some(token => ['hind', 'hindleg', 'hindlimb', 'rear', 'backleg', 'backlimb'].includes(token)) ||
