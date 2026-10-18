@@ -301,7 +301,9 @@
       "ability4": "spell_slot_4",
       "usesActiveControlMap": true,
       "sigilCycle": "reload (T in the default WASD profile)",
-      "sigilActivate": "useItem (H in the default WASD profile)"
+      "sigilActivate": "useItem (H in the default WASD profile)",
+      "block": "block (R in the default WASD profile; hold)",
+      "parry": "parry (Y in the default WASD profile; press)"
     },
     "playerGlobalVariables": [
       "vida",
@@ -323,7 +325,21 @@
       "magia_3",
       "magia_4",
       "ecos",
-      "morto"
+      "morto",
+      "bloqueando",
+      "aparo_total",
+      "aparo_sucesso",
+      "jogador_morreu",
+      "ward_remaining",
+      "ward_absorption",
+      "res_fisica",
+      "res_chama",
+      "res_geada",
+      "res_tempestade",
+      "res_sangue",
+      "res_sombra",
+      "res_espirito",
+      "res_arcano"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -342,18 +358,22 @@
       "hunter_mark_increases_incoming_damage",
       "burn_bleed_poison_damage_over_time",
       "temporary_ward_visual_and_absorption_state",
-      "dodge_roll_slide_stamina_costs"
+      "dodge_roll_slide_stamina_costs",
+      "block_stamina_cost_and_damage_reduction",
+      "timed_parry_window_and_counter_result",
+      "incoming_damage_pipeline",
+      "ward_absorption_consumption",
+      "player_elemental_resistances"
     ],
     "notYetConnected": [
       "weapon_animation_hitboxes",
-      "timed_parry",
+      "enemy_ai_and_incoming_player_damage_integration",
       "enemy_ai",
       "inventory_ui",
       "persistent_progression",
       "production_vfx_sfx",
-      "enemy_ai_and_incoming_player_damage_integration",
-      "ward_absorption_consumption",
-      "timed_parry_and_block_damage_reduction"
+      "boss_phase_runtime",
+      "checkpoints_and_death_recovery"
     ]
   }
 }
