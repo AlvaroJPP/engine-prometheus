@@ -4331,7 +4331,7 @@ onBeforeUnmount(() => {
             <template v-if="colliderType !== 'mesh'">
               <div class="model-collider-subtitle">{{ colliderType === 'sphere' ? 'DIÂMETRO DA ESFERA (raio = metade)' : 'DIMENSÕES DO COLISOR' }}</div>
             <div class="model-collider-grid">
-              <label>{{ colliderType === 'sphere' ? 'Diâmetro X' : 'Largura X' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[0]" :disabled="!model || colliderType === 'none' || colliderType === 'mesh'" @input="setColliderVector('colliderSize', 0, Number(($event.target as HTMLInputElement).value))" /></label>
+              <label>{{ colliderType === 'sphere' ? 'Diâmetro X' : 'Largura X' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[0]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 0, Number(($event.target as HTMLInputElement).value))" /></label>
               <label>{{ colliderType === 'sphere' ? 'Diâmetro Y' : 'Altura Y' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[1]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 1, Number(($event.target as HTMLInputElement).value))" /></label>
               <label>{{ colliderType === 'sphere' ? 'Diâmetro Z' : 'Prof. Z' }}<input type="number" min="0.05" step="0.1" :value="colliderSize[2]" :disabled="!model || colliderType === 'none'" @input="setColliderVector('colliderSize', 2, Number(($event.target as HTMLInputElement).value))" /></label>
             </div>
