@@ -117,9 +117,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <button class="brand-mark" type="button" aria-label="Prometheus Engine" title="Prometheus Engine">
+      <div class="brand-mark" role="img" aria-label="Prometheus Engine" title="Prometheus Engine">
         <span class="logo" aria-hidden="true">P</span>
-      </button>
+      </div>
       <span class="topbar-divider" aria-hidden="true"></span>
 
       <div class="project-shell">
@@ -710,7 +710,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   background:transparent;
   cursor:pointer;
 }
-.brand-mark:hover { background:#26231e; }
+.brand-mark:hover { background:transparent; }
 .brand-mark .logo {
   display:grid;
   place-items:center;
