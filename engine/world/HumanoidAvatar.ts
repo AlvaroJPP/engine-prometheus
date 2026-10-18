@@ -625,7 +625,7 @@ export class HumanoidAvatar {
     // Acompanha também descidas pequenas em malhas importadas, sem esperar
     // que a gravidade alcance a superfície. Isso evita alternar entre andar e cair
     // quando o piso é estreito ou a rampa desce menos por quadro que a gravidade.
-    const objectDropLimit = Math.max(0.32, speed * step * 1.5)
+    const objectDropLimit = Math.max(0.38, speed * step * 1.5)
     const canFollowObjectSlopeDown = wasGrounded &&
       length > 0 &&
       landing !== null &&
@@ -638,7 +638,7 @@ export class HumanoidAvatar {
       landing >= newGroundY &&
       (
         nextY <= landing + 0.05 ||
-        (wasGrounded && length > 0 && landing >= oldY - 0.3 && landing <= oldY + 0.52) ||
+        (wasGrounded && length > 0 && landing >= oldY - 0.38 && landing <= oldY + 0.52) ||
         canFollowObjectSlopeDown
       )
 
@@ -1484,7 +1484,7 @@ export class HumanoidAvatar {
 
           // Rampas reconhecidas já foram removidas do teste de obstáculo acima.
           // Nas outras primitivas, mantém a regra de ignorar apenas a face superior.
-          if (obstacle.userData.importedModel !== true && normal.y >= 0.45) continue
+          if (obstacle.userData.importedModel !== true && Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) continue
           if (mountBounds.intersectsTriangle(triangle)) return true
         }
       }
@@ -2785,7 +2785,7 @@ export class HumanoidAvatar {
       const rise = surfaceY - oldY
       // Degraus pequenos são subidos sem exigir um impacto vertical. Na descida,
       // também reconhece uma superfície estreita que cruzou entre dois frames.
-      const canStepOntoSurface = this.grounded && rise >= -0.36 && rise <= 0.52
+      const canStepOntoSurface = this.grounded && rise >= -0.40 && rise <= 0.52
       const crossedSurface = nextY <= surfaceY + 0.04 && oldY >= surfaceY - 0.82
       return canStepOntoSurface || crossedSurface
     }
