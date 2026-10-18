@@ -89,6 +89,9 @@ const {
   renderFpsLimit,
   renderFogEnabled,
   renderFogDistanceScale,
+  renderDynamicResolution,
+  renderDynamicResolutionTargetFps,
+  renderDynamicResolutionMinScale,
   playerModelName,
   playerModelCustom,
   setPlayerModelFile,
@@ -127,6 +130,9 @@ const {
   setRenderFpsLimit,
   setRenderFogEnabled,
   setRenderFogDistanceScale,
+  setRenderDynamicResolution,
+  setRenderDynamicResolutionTargetFps,
+  setRenderDynamicResolutionMinScale,
   removeSelected,
   onRename,
   onNumber,
@@ -1452,6 +1458,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :render-fps-limit="renderFpsLimit"
       :render-fog-enabled="renderFogEnabled"
       :render-fog-distance-scale="renderFogDistanceScale"
+      :render-dynamic-resolution="renderDynamicResolution"
+      :render-dynamic-resolution-target-fps="renderDynamicResolutionTargetFps"
+      :render-dynamic-resolution-min-scale="renderDynamicResolutionMinScale"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
       :objects="objects"
@@ -1469,6 +1478,9 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @render-fps-limit-change="setRenderFpsLimit"
       @render-fog-enabled-change="setRenderFogEnabled"
       @render-fog-distance-scale-change="setRenderFogDistanceScale"
+      @render-dynamic-resolution-change="setRenderDynamicResolution"
+      @render-dynamic-resolution-target-fps-change="setRenderDynamicResolutionTargetFps"
+      @render-dynamic-resolution-min-scale-change="setRenderDynamicResolutionMinScale"
       @toggle-first-person="toggleFirstPerson"
       @open-control-maps="controlMapsOpen = true"
       @mark-dirty="markDirty"
