@@ -2773,7 +2773,7 @@ export class HumanoidAvatar {
           const owner = candidates.find(object =>
             object.mesh === hit.object || object.mesh.getObjectById(hit.object.id),
           )
-          if (!owner || (owner.mesh.userData.importedModel === true && owner.mesh.userData.colliderType !== 'mesh')) continue
+          if (!owner || (owner.mesh.userData.importedModel === true && (owner.mesh.userData.colliderType !== 'mesh' || hit.object === owner.mesh))) continue
           const normal = hit.face.normal.clone()
             .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
             .normalize()
