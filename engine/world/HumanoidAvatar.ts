@@ -183,6 +183,7 @@ export class HumanoidAvatar {
   private animationTime = 0
   private proceduralLocomotionBlend = 0
   private proceduralRunBlend = 0
+  private proceduralCycleSpeed = 8
   private animatedBones: Array<{ node: THREE.Object3D; name: string; baseX: number; baseY: number; baseZ: number; basePosition: THREE.Vector3 }> = []
   private proceduralLimbs: { leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftShoe: THREE.Mesh; rightShoe: THREE.Mesh; torso: THREE.Mesh } | null = null
   private readonly world: World
@@ -1082,8 +1083,8 @@ export class HumanoidAvatar {
               : idle === actions.walk_diagonal_left ? 'walk_diagonal_left' : 'walk_diagonal_right'
           const currentRole = root.userData.importAnimationState as AnimationRole | undefined
           const currentAction = (currentRole ? actions[currentRole] : undefined)
+            ?? Object.values(actions).find(action => action?.isScheduled())
             ?? fallbackAction
-            ?? Object.values(actions).find(action => action?.isRunning())
           blendAnimationActions(
             [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
             currentAction,
@@ -2464,7 +2465,25 @@ export class HumanoidAvatar {
     // Retira a pose procedural do quadro anterior antes de o mixer avançar.
     // Assim, alternar entre agachado e em pé não acumula rotações nos ossos.
     this.clearPosturePoseOffsets()
-    this.animationTime += dt * (running ? 12 : 8)
+    const movingNow = moving && this.grounded
+    const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
+    this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
+      this.proceduralLocomotionBlend,
+      movingNow ? 1 : 0,
+      blendRate,
+    )
+    this.proceduralRunBlend = THREE.MathUtils.lerp(
+      this.proceduralRunBlend,
+      movingNow && running ? 1 : 0,
+      blendRate,
+    )
+    const targetCycleSpeed = movingNow ? (running ? 12 : 8) : 4.5
+    this.proceduralCycleSpeed = THREE.MathUtils.lerp(
+      this.proceduralCycleSpeed,
+      targetCycleSpeed,
+      1 - Math.exp(-Math.max(0, dt) * 5),
+    )
+    this.animationTime += dt * this.proceduralCycleSpeed
     const state: AnimationRole = !this.grounded ? 'jump'
       : this.posture === 'prone' ? (moving ? 'prone_crawl' : 'prone')
         : this.posture === 'crouching' ? (moving ? 'crouch_walk' : 'crouch')
@@ -2491,18 +2510,6 @@ export class HumanoidAvatar {
       if (!this.activeOneShotAnimation) this.applyFallbackCrouchPose()
       return
     }
-    const movingNow = moving && this.grounded
-    const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
-    this.proceduralLocomotionBlend = THREE.MathUtils.lerp(
-      this.proceduralLocomotionBlend,
-      movingNow ? 1 : 0,
-      blendRate,
-    )
-    this.proceduralRunBlend = THREE.MathUtils.lerp(
-      this.proceduralRunBlend,
-      movingNow && running ? 1 : 0,
-      blendRate,
-    )
     const amplitude = 0.035
       + this.proceduralLocomotionBlend * (0.385 + this.proceduralRunBlend * 0.33)
     const swing = Math.sin(this.animationTime) * amplitude
