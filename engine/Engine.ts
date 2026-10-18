@@ -1041,8 +1041,8 @@ export class Engine {
     }
     this.veilborneWardRemainingSeconds = 0
     this.veilborneWardAbsorption = 0
-    this.logic.setVariable('ward_remaining', 0)
-    this.logic.setVariable('ward_absorption', 0)
+    if (this.logic.getVariable('ward_remaining') !== undefined) this.logic.setVariable('ward_remaining', 0)
+    if (this.logic.getVariable('ward_absorption') !== undefined) this.logic.setVariable('ward_absorption', 0)
   }
 
   private updateVeilborneRuntime(dt: number): void {
@@ -1348,6 +1348,9 @@ export class Engine {
 
     this.runtimeModeActive = false
     this.veilbornePendingCast = null
+    this.veilborneCooldowns.clear()
+    this.veilborneTargetStates.clear()
+    this.veilborneStatusTickTimers.clear()
     this.clearVeilborneEffects()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
