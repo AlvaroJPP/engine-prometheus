@@ -260,7 +260,7 @@ export class Engine {
               const previousRole = mountedTransition
               const previousAction = transitionAction
                 ?? (previousRole ? actions[previousRole] : undefined)
-                ?? Object.values(actions).find(action => action?.isRunning())
+                ?? Object.values(actions).find(action => action?.isScheduled())
                 ?? fallbackAction
               blendAnimationActions(
                 [...Object.values(actions), fallbackAction].filter((action): action is THREE.AnimationAction => Boolean(action)),
