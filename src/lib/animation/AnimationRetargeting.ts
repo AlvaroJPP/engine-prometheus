@@ -449,12 +449,6 @@ type BoneSpatialSignature = {
   hasChildren: boolean
 }
 
-function bonesIn(root: THREE.Object3D | null | undefined): THREE.Bone[] {
-  const bones: THREE.Bone[] = []
-  root?.traverse(node => { if (node instanceof THREE.Bone) bones.push(node) })
-  return bones
-}
-
 function nearestBoneChildren(node: THREE.Object3D, boneSet: Set<THREE.Object3D>): THREE.Object3D[] {
   const result: THREE.Object3D[] = []
   const queue = [...node.children]
