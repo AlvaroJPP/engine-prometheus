@@ -43,23 +43,22 @@ function isPackageJsonValue(value: unknown, depth = 0): value is PackageJsonValu
   return false
 }
 
-// Regras antigas incluíam o nome editável da raiz do GLB depois de
-// ImportedVisualPivot. O GLB original pode conservar um nome interno diferente
-// do nome mostrado no importador; compare os caminhos tanto no formato novo
-// (raiz omitida) como no formato antigo (raiz incluída).
+// Caminhos v2 omitem o rótulo variável da raiz do GLB. Caminhos antigos
+// incluíam esse rótulo; continuamos aceitando-os para componentes já salvos.
 function mountModelStatePathMatches(rulePath: string, runtimePath: string): boolean {
   if (rulePath === runtimePath) return true
-  const ruleParts = rulePath.split('/').filter(Boolean)
   const runtimeParts = runtimePath.split('/').filter(Boolean)
-  if (ruleParts[0] !== 'ImportedVisualPivot' || runtimeParts[0] !== 'ImportedVisualPivot') {
-    return false
+  if (runtimeParts[0] !== 'ImportedVisualPivot') return false
+
+  if (rulePath.startsWith('@v2/')) {
+    const ruleParts = rulePath.slice(4).split('/').filter(Boolean)
+    if (ruleParts[0] !== 'ImportedVisualPivot') return false
+    return ruleParts.slice(1).join('/') === runtimeParts.slice(2).join('/')
   }
 
-  const runtimeDescendants = runtimeParts.slice(2).join('/')
-  const newRuleDescendants = ruleParts.slice(1).join('/')
-  const legacyRuleDescendants = ruleParts.slice(2).join('/')
-  return runtimeDescendants === newRuleDescendants
-    || runtimeDescendants === legacyRuleDescendants
+  const legacyParts = rulePath.split('/').filter(Boolean)
+  if (legacyParts[0] !== 'ImportedVisualPivot') return false
+  return legacyParts.slice(2).join('/') === runtimeParts.slice(2).join('/')
 }
 
 const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
