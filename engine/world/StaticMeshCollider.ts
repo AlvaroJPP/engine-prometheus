@@ -49,7 +49,7 @@ function trackRoot(root: THREE.Object3D): void {
   const id = root.userData.id
   if (typeof id === 'string' && id.length > 0) rootsByObjectId.set(id, root)
 }
-const MAX_STATIC_COLLIDER_TRIANGLES = 1_500_000
+const MAX_STATIC_COLLIDER_TRIANGLES = 5_000_000
 const QUERY_EPSILON = 0.003
 
 function matrixSignature(matrix: THREE.Matrix4): string {
