@@ -2273,12 +2273,24 @@ async function chooseRetargetAnimationSource(event: Event) {
       disposeModel(loaded)
       throw new Error('Esse GLB não contém clipes de animação. Escolha um modelo animado.')
     }
+    // Importar o modelo B como origem de animação não pode remover nem deixar
+    // invisível o modelo A, que continua sendo o destino do retargeting.
+    const targetBeforeSourceLoad = model.value
+    if (targetBeforeSourceLoad) {
+      restorePreviewVisibility()
+      restoreModelRenderableMeshes(targetBeforeSourceLoad)
+      if (scene && targetBeforeSourceLoad.parent !== scene) scene.add(targetBeforeSourceLoad)
+      targetBeforeSourceLoad.updateMatrixWorld(true)
+      if (targetBeforeSourceLoad.parent === scene) fitCamera(targetBeforeSourceLoad)
+      updateColliderPreview()
+    }
+
     clearRetargetSource()
     retargetSourceRoot.value = loaded
     retargetSourceFileName.value = file.name
     retargetSourceClipIndex.value = 0
     retargetClipName.value = clips[0]?.name?.trim() || file.name.replace(/\.glb$/i, '')
-    retargetMessage.value = `Origem carregada: ${clips.length} animação(ões). Faça o mapeamento para o rig de destino e aplique.`
+    retargetMessage.value = `Origem carregada: ${clips.length} animação(ões). O modelo A foi mantido como destino. Faça o mapeamento para o rig de destino e aplique.`
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível abrir o modelo de animação.'
   } finally {
