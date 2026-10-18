@@ -2608,12 +2608,12 @@ async function runAutonomousRetargeting() {
       if (!skinTokensExecutablePath.value.trim()) {
         throw new Error('O modelo A não tem um rig pronto. Instale o SkinTokens com scripts/install-skintokens.ps1 e informe o caminho de skintokens.exe no painel de IA local.')
       }
+      skinTokensOperation.value = 'rig'
       if (!skinTokensRigCompatible.value) {
         throw new Error('A IA não pode gerar um rig para a estrutura atual. Verifique se o modelo A contém malhas estáticas válidas e não mistura malhas estáticas e esqueléticas incompatíveis.')
       }
 
       retargetAutonomousStage.value = 'Etapa 1/3 · A IA local está gerando o esqueleto e os pesos do modelo A'
-      skinTokensOperation.value = 'rig'
       const targetBeforeAi = targetRoot
       await performSkinTokensRigging(true)
       if (model.value === targetBeforeAi) {
