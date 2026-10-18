@@ -3375,6 +3375,17 @@ input[type='range'] { accent-color: #e98524; }
 .app.is-running canvas.canvas,
 .app.is-running .topbar,
 .app.is-running .topbar * { pointer-events:auto !important; }
+/* Run blocks editor interaction globally; explicitly restore pointer input for
+   the interactive HUD controls without making the full-screen HUD intercept
+   clicks intended for the 3D canvas. */
+.app.is-running .player-hud { pointer-events:none !important; }
+.app.is-running .player-hud .hud-settings-panel,
+.app.is-running .player-hud .hud-controls,
+.app.is-running .player-hud .hud-actions,
+.app.is-running .player-hud button,
+.app.is-running .player-hud input {
+  pointer-events:auto !important;
+}
 .app.is-running .model-import-launch { display:none !important; }
 .model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
 .model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
