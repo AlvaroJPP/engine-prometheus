@@ -36,7 +36,7 @@ const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
 const quickAddOpen = ref(false)
-const previewComponentAsset = ref<{ name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }> } | null>(null)
+const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 let componentThumbnailBackfillRunning = false
@@ -926,12 +926,14 @@ async function previewSavedComponent(id: string) {
     const component = await getSavedComponent(id)
     if (!component) throw new Error('Este componente não está mais na biblioteca.')
     previewComponentAsset.value = {
+      id: component.id,
       name: component.name,
       bytes: component.bytes.slice(0),
       animationRoles: component.animationRoles,
       controlBindings: component.controlBindings,
       behaviorPackageIds: component.behaviorPackageIds,
       behaviorPackageSettings: component.behaviorPackageSettings,
+      thumbnail: component.thumbnail,
     }
     modelImportOpen.value = true
   } catch (error) {
@@ -972,8 +974,45 @@ function disposeComponentSource(root: THREE.Object3D) {
   textures.forEach(texture => texture.dispose())
 }
 
-async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string }) {
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string }) {
   if (componentBusy.value) return
+
+  if (payload.componentId) {
+    componentBusy.value = true
+    status.value = 'Salvando alterações no componente existente…'
+    try {
+      const existing = await getSavedComponent(payload.componentId)
+      if (!existing) throw new Error('Este componente não está mais na biblioteca.')
+      const modelData = payload.model.userData
+      const rawPackageIds = modelData.importBehaviorPackageIds
+      const rawPackageSettings = modelData.importBehaviorPackageSettings
+      const updated: SavedComponent = {
+        ...existing,
+        name: payload.name.trim() || existing.name,
+        behaviorPackageIds: Array.isArray(rawPackageIds)
+          ? [...new Set(rawPackageIds.filter((id): id is string => typeof id === 'string'))]
+          : [],
+        behaviorPackageSettings: rawPackageSettings && typeof rawPackageSettings === 'object'
+          ? rawPackageSettings as SavedComponent['behaviorPackageSettings']
+          : {},
+        animationRoles: modelData.importAnimationRoles as Record<string, import('@engine').AnimationRole> | undefined,
+        controlBindings: modelData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
+        thumbnail: payload.thumbnail || existing.thumbnail,
+      }
+      // Mantém o GLB original, o identificador, o grupo, a semântica de entidade e a lógica
+      // do componente. Esta tela edita metadados/configurações sem reconstruir a malha.
+      await saveComponentAsset(updated)
+      await refreshSavedComponents()
+      status.value = 'Alterações de "' + updated.name + '" salvas no componente existente.'
+    } catch (error) {
+      status.value = 'Não foi possível salvar as alterações: ' + (error instanceof Error ? error.message : String(error))
+    } finally {
+      componentBusy.value = false
+      disposeComponentSource(payload.model)
+    }
+    return
+  }
+
   componentBusy.value = true
   status.value = 'Salvando modelo na biblioteca de componentes…'
   // Object3D.clone(true) não reconecta corretamente os bones de SkinnedMesh.
