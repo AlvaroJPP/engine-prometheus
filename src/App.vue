@@ -1686,17 +1686,19 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </svg>
           <span>Sair da tela cheia <kbd>Esc</kbd></span>
         </button>
-        <div class="quick-add-wrap">
-          <button class="quick-add-trigger" :aria-expanded="quickAddOpen" title="Adiciona rapidamente formas e objetos comuns à cena." data-tooltip="Escolha um objeto simples, um ponto inicial do jogador ou um exemplo interativo." @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
-          <div v-if="quickAddOpen" class="quick-add-popover" @click.stop>
-            <div class="quick-add-heading">CRIAR NA CENA</div>
-            <button title="Adiciona um cubo à cena. Atalho indicado: 1." @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
-            <button title="Adiciona uma plataforma retangular. Atalho indicado: 2." @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
-            <button title="Cria um marcador para o ponto inicial do jogador." @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
-            <button title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
+        <div class="viewport-actions" aria-label="Ações rápidas da cena">
+          <div class="quick-add-wrap">
+            <button class="quick-add-trigger" :aria-expanded="quickAddOpen" title="Adicionar objetos à cena." data-tooltip="Crie primitivas, plataformas, ponto inicial do jogador e exemplos interativos." @click.stop="quickAddOpen = !quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
+            <div v-if="quickAddOpen" class="quick-add-popover" @click.stop>
+              <div class="quick-add-heading">CRIAR NA CENA</div>
+              <button title="Adiciona um cubo à cena. Atalho indicado: 1." @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
+              <button title="Adiciona uma plataforma retangular. Atalho indicado: 2." @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
+              <button title="Cria um marcador para o ponto inicial do jogador." @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
+              <button title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
+            </div>
           </div>
+          <button class="model-import-launch" title="Importa arquivos 3D, configura o modelo e as animações antes de salvar na biblioteca." aria-label="Importar modelo 3D" @click="previewComponentAsset = null; modelImportOpen = true"><span aria-hidden="true">＋</span> Importar 3D</button>
         </div>
-        <button class="model-import-launch" title="Importa arquivos 3D, inspeciona animações e configura o modelo antes de adicioná-lo." @click="previewComponentAsset = null; modelImportOpen = true"><span>＋</span> Importar modelo 3D</button>
         <div v-if="!modelImportOpen" class="viewport-fps" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
             <span class="fps-indicator" />
@@ -5142,6 +5144,148 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 .app.world-fullscreen .world-fullscreen-exit {
   top:64px !important;
   right:12px !important;
+}
+
+
+/* Clean viewport layout: creation actions left, view controls right, diagnostics at the bottom. */
+.viewport-actions {
+  position:absolute;
+  z-index:16;
+  top:12px;
+  left:72px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:calc(100% - 96px);
+}
+.viewport-actions .quick-add-wrap {
+  position:relative !important;
+  top:auto !important;
+  right:auto !important;
+  left:auto !important;
+  flex:none;
+}
+.viewport-actions .quick-add-trigger {
+  height:36px;
+  min-height:36px;
+  padding:0 12px;
+  border-color:#2e2b25 !important;
+  border-radius:8px;
+  background:rgba(29,27,23,.96) !important;
+  color:#f3efe6 !important;
+  box-shadow:0 4px 14px #0003 !important;
+  font-size:12px;
+  font-weight:500;
+  white-space:nowrap;
+}
+.viewport-actions .quick-add-trigger:hover,
+.viewport-actions .quick-add-trigger[aria-expanded="true"] {
+  border-color:#75412e !important;
+  background:#282019 !important;
+}
+.viewport-actions .quick-add-trigger > span:first-child {
+  color:#e8572b !important;
+  font-size:16px;
+}
+.viewport-actions .quick-add-popover {
+  top:calc(100% + 7px);
+  left:0;
+  right:auto;
+  max-height:min(65vh,560px);
+  overflow:auto;
+  border-color:#3b3730 !important;
+  background:#1d1b17 !important;
+  box-shadow:0 16px 36px #0008;
+}
+.viewport-actions .model-import-launch {
+  position:static !important;
+  top:auto !important;
+  right:auto !important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  flex:none;
+  height:36px;
+  min-height:36px;
+  padding:0 12px !important;
+  border:1px solid #2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(29,27,23,.96) !important;
+  color:#f3efe6 !important;
+  box-shadow:0 4px 14px #0003 !important;
+  font-size:12px;
+  font-weight:500;
+  white-space:nowrap;
+}
+.viewport-actions .model-import-launch:hover {
+  border-color:#75412e !important;
+  background:#282019 !important;
+  color:#f3efe6 !important;
+  filter:none;
+}
+.viewport-actions .model-import-launch > span { color:#e8572b !important; font-size:15px; }
+.viewport-fps {
+  top:auto !important;
+  right:14px !important;
+  bottom:38px !important;
+  left:auto !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  gap:10px !important;
+  width:max-content;
+  max-width:calc(100% - 92px);
+  min-height:30px !important;
+  padding:4px 8px !important;
+  border-color:#2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(20,18,15,.92) !important;
+  box-shadow:0 4px 14px #0003 !important;
+}
+.viewport-fps-head { gap:6px !important; min-height:20px !important; }
+.viewport-fps .fps-indicator { flex:none; }
+.viewport-fps strong { font-size:12px !important; }
+.viewport-render-stats {
+  display:flex;
+  align-items:center;
+  gap:9px !important;
+  padding:0 0 0 9px !important;
+  border-top:0 !important;
+  border-left:1px solid #2e2b25;
+  font-size:9px !important;
+}
+.viewport-render-stats span { white-space:nowrap; }
+.chips {
+  top:auto !important;
+  bottom:76px !important;
+  left:72px !important;
+  right:auto !important;
+}
+.axes {
+  bottom:38px !important;
+  left:72px !important;
+  right:auto !important;
+}
+@media(max-width:1180px) {
+  .viewport-actions { left:56px; max-width:calc(100% - 72px); }
+}
+@media(max-width:900px) {
+  .viewport-actions { gap:4px; }
+  .viewport-actions .quick-add-trigger,
+  .viewport-actions .model-import-launch { padding-inline:9px !important; font-size:11px; }
+  .viewport-render-stats span:nth-child(n+3) { display:none; }
+  .chips { bottom:72px !important; }
+}
+@media(max-width:760px) {
+  .viewport-actions { left:48px; top:10px; }
+  .viewport-actions .quick-add-trigger { padding-inline:8px; }
+  .viewport-actions .model-import-launch { padding-inline:8px !important; }
+  .viewport-actions .quick-add-trigger { gap:4px; }
+  .viewport-fps { max-width:calc(100% - 90px); right:8px !important; bottom:36px !important; gap:6px !important; }
+  .viewport-render-stats { gap:6px !important; padding-left:6px !important; }
+  .viewport-render-stats span:nth-child(n+2) { display:none; }
+  .chips { left:48px !important; bottom:70px !important; }
+  .axes { left:48px !important; bottom:36px !important; }
 }
 
 </style>
