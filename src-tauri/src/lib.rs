@@ -306,6 +306,8 @@ fn skintokens_executable(path: &str) -> Result<PathBuf, String> {
 
 fn skintokens_command(executable: &Path) -> Command {
     let mut command = Command::new(executable);
+    command.env("SKINTOKENS_DEVICE", "cpu");
+    // This installer builds the CPU-only runtime: no CUDA device or paid inference API is needed.
     // Keep the cache/lock in the backend installation directory instead of
     // depending on HOME being defined for a Windows desktop application.
     if let Some(root) = executable.parent().and_then(Path::parent).and_then(Path::parent) {
