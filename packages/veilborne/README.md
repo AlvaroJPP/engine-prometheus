@@ -20,6 +20,7 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 | 1–4 | Feitiços configurados em `magia_1` até `magia_4` |
 | T | Ciclar sigilo preparado |
 | H | Ativar sigilo selecionado |
+| TAB | Abrir/fechar Arsenal do Véu |
 | O | Travar / destravar alvo hostil |
 | R (segurar) | Bloquear / defender |
 | Y | Aparo com janela de 0,2 s |
@@ -40,6 +41,7 @@ As teclas são remapeáveis em **Configurações → Mapas de controles**. O run
 - **Bloqueio e aparo:** segurar bloqueio reduz o dano restante e consome vigor. O aparo tem uma janela de 0,2 s, custa vigor, nega um ataque e gera um contra-ataque calculado pela arma equipada. O Selo Guardião absorve uma quantidade limitada de dano.
 - **Quebra de postura:** ataques podem encher a postura. Ao quebrar a postura de inimigos, eles ficam atordoados por 1,15 s e a postura é reiniciada; quando a postura do jogador quebra, o movimento e as ações são bloqueados por 0,85 s.
 - **Manobras:** esquiva (22 vigor), rolamento (30) e deslize (24) consultam recursos enquanto o VEILBORNE está ativo.
+- **Arsenal do Véu:** HUD de sessão aberto por Tab ou pelo botão VEILBORNE. Permite trocar a arma equipada, configurar os quatro espaços de feitiço e preparar quatro sigilos. As alterações são aplicadas às variáveis globais do runtime, então o combate usa imediatamente o novo armamento/mapeamento.
 - **Recursos e HUD:** variáveis globais incluem `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos, resistências, `alvo_travado`, `carregando_ataque` e `carga_ataque`, além dos estados de combate. Podem alimentar o HUD e o Visual Script.
 - **Dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` resolve resistência elemental, escudo, bloqueio, aparo e morte; a IA inicial já usa essa entrada.
 
@@ -47,7 +49,7 @@ As teclas são remapeáveis em **Configurações → Mapas de controles**. O run
 
 Esta é uma **primeira fatia jogável**, não um RPG completo. A IA ainda usa perseguição direta e percepção por distância: não tem pathfinding, navegação inteligente ao redor de obstáculos ou line-of-sight. Os ataques do jogador usam alcance e direção aproximados; hitboxes ainda não estão sincronizadas com janelas específicas das animações. Feitiços e sigilos usam efeitos geométricos provisórios.
 
-Ainda faltam inventário/equipamento com interface, progressão e salvamento persistentes, checkpoints, respawn e recuperação de recursos, árvore de habilidades, diálogos/missões e chefes com padrões de ataque exclusivos. Essas partes devem ser adicionadas por subsistemas reutilizáveis, não por soluções específicas para cada modelo.
+Ainda faltam inventário de itens coletáveis/consumíveis, equipamentos obtidos por loot, progressão e salvamento persistentes, checkpoints, respawn e recuperação de recursos, árvore de habilidades, diálogos/missões e chefes com padrões de ataque exclusivos. O Arsenal do Véu atual configura o loadout, mas não é ainda um inventário de itens. Essas partes devem ser adicionadas por subsistemas reutilizáveis, não por soluções específicas para cada modelo.
 
 ## Próximas etapas
 
