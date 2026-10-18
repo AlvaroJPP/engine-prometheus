@@ -12,6 +12,7 @@ import EditorToolbar from '@/components/EditorToolbar.vue'
 import SceneHierarchy from '@/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
+import PlayerHUD from '@/components/PlayerHUD.vue'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -1726,6 +1727,17 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="['tool-' + tool, viewportCursorClass]" />
+        <PlayerHUD
+          v-if="executionMode === 'running'"
+          :player-name="playerModelName"
+          :camera-mode="firstPersonMode ? 'Primeira pessoa' : CAMERA_LABELS[cameraPreset]"
+          :fps="fps"
+          :control-map-name="activeControlMap.name"
+          :first-person="firstPersonMode"
+          :bindings="activeControlMap.bindings"
+          @toggle-camera="cycleCameraView"
+          @exit-runtime="returnToEdit"
+        />
         <button
           v-if="worldFullscreen"
           class="world-fullscreen-exit"
@@ -4944,7 +4956,7 @@ button:disabled { cursor: not-allowed; }
   border:0 !important;
   overflow:hidden !important;
 }
-.app.world-fullscreen .viewport > :not(.canvas):not(.world-fullscreen-exit) {
+.app.world-fullscreen .viewport > :not(.canvas):not(.world-fullscreen-exit):not(.player-hud) {
   display:none !important;
 }
 .app.world-fullscreen .world-fullscreen-exit {
