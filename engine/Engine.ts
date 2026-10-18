@@ -17,6 +17,7 @@ import { Viewport } from './view/Viewport'
 import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
 import { World } from './world/World'
+import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
@@ -349,6 +350,12 @@ export class Engine {
     dynamicResolutionMinScale?: number
   }): void {
     this.viewport.setRenderOptions(options)
+  }
+
+  /** Ajusta LOD, densidade, alcance, oclusão e vento da vegetação. */
+  setGrassRenderOptions(options: GrassRenderOptions): void {
+    this.world.terrain.grass.setRenderOptions(options)
+    this.viewport.invalidate()
   }
 
   /** Liga/desliga a neblina atmosférica. */
