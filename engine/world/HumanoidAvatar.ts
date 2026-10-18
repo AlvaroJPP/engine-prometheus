@@ -96,11 +96,11 @@ function getCircularDirectionalWeights(
   const familyRole = running ? 'run' : 'walk'
 
   const resolveRole = (requested: AnimationRole, requestedIndex: number): AnimationRole | null => {
-    const candidates = [
+    const candidates: AnimationRole[] = [
       requested,
-      ...(ANIMATION_ROLE_FALLBACKS[requested] ?? []).filter(role => role !== 'idle'),
-      familyRole,
-      running ? 'walk' : 'run',
+      ...((ANIMATION_ROLE_FALLBACKS[requested] ?? []).filter(role => role !== 'idle') as AnimationRole[]),
+      familyRole as AnimationRole,
+      (running ? 'walk' : 'run') as AnimationRole,
     ]
     const preferred = candidates.find(role =>
       CIRCULAR_LOCOMOTION_ROLE_SET.has(role) && actions.has(role),
@@ -110,7 +110,7 @@ function getCircularDirectionalWeights(
     // Se nem o fallback específico existir, procura o clipe mais próximo no
     // círculo. Primeiro mantém a família walk/run e só depois usa a outra família.
     const findNearest = (useRunFamily: boolean): AnimationRole | null => {
-      const ordered = CIRCULAR_LOCOMOTION_SECTORS.map((sector, index) => {
+      const ordered = CIRCULAR_LOCOMOTION_SECTORS.map((_, index) => {
         const clockwise = (index - requestedIndex + CIRCULAR_LOCOMOTION_SECTORS.length) % CIRCULAR_LOCOMOTION_SECTORS.length
         const counterClockwise = (requestedIndex - index + CIRCULAR_LOCOMOTION_SECTORS.length) % CIRCULAR_LOCOMOTION_SECTORS.length
         return { index, distance: Math.min(clockwise, counterClockwise) }
@@ -1660,6 +1660,7 @@ export class HumanoidAvatar {
    */
   private mountedCollidesWithCeiling(root: THREE.Mesh, previousRootY: number): boolean {
     const currentBounds = this.getMountedBounds(root)
+    const normal = new THREE.Vector3()
     const previousBounds = currentBounds.clone().translate(
       new THREE.Vector3(0, previousRootY - root.position.y, 0),
     )
