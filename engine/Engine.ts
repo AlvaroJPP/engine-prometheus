@@ -341,7 +341,13 @@ export class Engine {
   }
 
   /** Ajusta de forma independente a escala de resolução e o limite de FPS. */
-  setRenderOptions(options: { resolutionScale?: number | null; fpsLimit?: number | null }): void {
+  setRenderOptions(options: {
+    resolutionScale?: number | null
+    fpsLimit?: number | null
+    dynamicResolution?: boolean
+    dynamicResolutionTargetFps?: number
+    dynamicResolutionMinScale?: number
+  }): void {
     this.viewport.setRenderOptions(options)
   }
 
