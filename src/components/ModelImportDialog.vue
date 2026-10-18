@@ -3239,7 +3239,7 @@ onBeforeUnmount(() => {
               <div class="model-rigging-subtitle">RIGGING POR IA LOCAL · GRATUITO</div>
               <p class="model-panel-hint">SkinTokens/TokenRig gera esqueleto e pesos de deformação com um modelo aberto executado no seu computador. Não usa chave de API, créditos ou plano pago.</p>
               <label class="model-rigging-field">Executável SkinTokens
-                <input v-model.trim="skinTokensExecutablePath" type="text" spellcheck="false" placeholder="C:\...\skintokens\target\release\skintokens.exe" />
+                <input v-model.trim="skinTokensExecutablePath" type="text" spellcheck="false" :disabled="skinTokensLoading || loading" placeholder="C:\...\skintokens\target\release\skintokens.exe" />
               </label>
               <div class="model-retarget-actions">
                 <button type="button" class="model-rigging-secondary" :disabled="!isTauri() || skinTokensLoading || loading" @click="chooseSkinTokensExecutable">Selecionar executável</button>
@@ -3258,10 +3258,26 @@ onBeforeUnmount(() => {
               </label>
               <p v-if="skinTokensOperation === 'rig' && skinTokensClassChoice === 'auto' && rigInputAnalysis" class="model-control-note">Classe detectada: <strong>{{ skinTokensResolvedClass }}</strong>. {{ rigInputAnalysis.reason }}</p>
               <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || !isTauri() || loading || skinTokensLoading || !skinTokensExecutablePath.trim() || !skinTokensRigCompatible" @click="runSkinTokensRigging">
-                {{ skinTokensLoading ? 'Executando IA local…' : skinTokensOperation === 'rig' ? 'Gerar rig com SkinTokens' : 'Recalcular pesos com SkinTokens' }}
+                <span v-if="skinTokensLoading" class="model-skintokens-button-spinner" aria-hidden="true"></span>
+                {{ skinTokensLoading ? (skinTokensMessage.startsWith('Verificando') ? 'Verificando backend…' : 'Processando modelo…') : skinTokensOperation === 'rig' ? 'Gerar rig com SkinTokens' : 'Recalcular pesos com SkinTokens' }}
               </button>
-              <p v-if="!skinTokensRigCompatible && model && !props.initialAsset" class="model-control-note">{{ skinTokensOperation === 'rig' ? 'Para gerar rig, o modelo deve conter malhas estáticas sem esqueleto. Modelos já rigados usam a opção de melhorar pesos.' : 'A operação de pesos exige que o modelo já tenha uma malha esquelética.' }}</p>
-              <p v-if="skinTokensMessage" class="model-rigging-status">{{ skinTokensMessage }}</p>
+              <div v-if="skinTokensLoading" class="model-skintokens-loading" role="status" aria-live="polite" aria-busy="true">
+                <div class="model-skintokens-loading-heading">
+                  <span class="model-skintokens-spinner" aria-hidden="true"></span>
+                  <div class="model-skintokens-loading-copy">
+                    <strong>{{ skinTokensMessage.startsWith('Verificando') ? 'Verificando o backend local' : skinTokensOperation === 'rig' ? 'Gerando esqueleto e pesos' : 'Recalculando pesos de deformação' }}</strong>
+                    <small>SkinTokens está trabalhando no computador</small>
+                  </div>
+                  <span class="model-skintokens-live-pill"><i></i> ATIVO</span>
+                </div>
+                <div class="model-skintokens-progress-track" role="progressbar" aria-label="Processamento local em andamento" aria-valuetext="Progresso indeterminado">
+                  <span></span>
+                </div>
+                <p>{{ skinTokensMessage }}</p>
+                <small class="model-skintokens-loading-note">A barra é indeterminada: o backend não fornece porcentagem real. Não feche o importador até a operação terminar.</small>
+              </div>
+              <p v-if="!skinTokensLoading && !skinTokensRigCompatible && model && !props.initialAsset" class="model-control-note">{{ skinTokensOperation === 'rig' ? 'Para gerar rig, o modelo deve conter malhas estáticas sem esqueleto. Modelos já rigados usam a opção de melhorar pesos.' : 'A operação de pesos exige que o modelo já tenha uma malha esquelética.' }}</p>
+              <p v-if="skinTokensMessage && !skinTokensLoading" class="model-rigging-status">{{ skinTokensMessage }}</p>
               <p class="model-control-note">Instalação única no Windows: execute <code>powershell -ExecutionPolicy Bypass -File .\scripts\install-skintokens.ps1</code> na pasta do repositório. O instalador compila o backend em CPU e baixa os pesos abertos (aprox. 1,1 GB); depois é possível trabalhar offline. Sua RTX 3060 de 6 GB não é requisito, pois esta versão usa CPU.</p>
               <a class="model-control-note" href="https://github.com/chris-straka/skintokens" target="_blank" rel="noreferrer">Código-fonte e detalhes de licença do backend</a>
             </section>
@@ -3767,4 +3783,25 @@ onBeforeUnmount(() => {
 .model-retarget-preview-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:12px;background:#171a20d9;color:#aeb6c4;font-size:9px;line-height:1.5;text-align:center;pointer-events:none}
 .model-retarget-preview-status{margin:7px 0 0;color:#aeb6c4;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
 .model-retarget-preview-play{margin-top:6px}
+
+/* SkinTokens local processing: visible indeterminate progress without fake percentages. */
+.model-skintokens-loading{display:flex;flex-direction:column;gap:10px;margin-top:10px;padding:12px;border:1px solid #715439;border-radius:5px;background:linear-gradient(135deg,#29231e 0%,#1c2026 70%);box-shadow:inset 3px 0 0 #d19a64;animation:model-skintokens-appear .2s ease-out}
+.model-skintokens-loading-heading{display:flex;align-items:center;gap:10px;min-width:0}
+.model-skintokens-spinner,.model-skintokens-button-spinner{display:inline-block;flex:none;width:25px;height:25px;border:2px solid #48434a;border-top-color:#edb67f;border-right-color:#d19a64;border-radius:50%;animation:model-skintokens-spin .85s linear infinite}
+.model-skintokens-loading-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.model-skintokens-loading-copy strong{color:#f0d5b9;font-size:10px;font-weight:750}
+.model-skintokens-loading-copy small{color:#a7adb8;font-size:8px;line-height:1.4}
+.model-skintokens-live-pill{display:flex;align-items:center;gap:5px;flex:none;padding:4px 5px;border:1px solid #5c654f;border-radius:3px;background:#252c24;color:#bcd5aa;font:700 7px ui-monospace,monospace;letter-spacing:.08em}
+.model-skintokens-live-pill i{width:5px;height:5px;border-radius:50%;background:#9ec87d;box-shadow:0 0 0 3px #9ec87d18;animation:model-skintokens-pulse 1.4s ease-in-out infinite}
+.model-skintokens-progress-track{position:relative;overflow:hidden;width:100%;height:5px;border-radius:999px;background:#3b332d;box-shadow:inset 0 0 0 1px #574333}
+.model-skintokens-progress-track span{position:absolute;inset:0 auto 0 0;width:38%;border-radius:999px;background:linear-gradient(90deg,#98663f,#f0bb83,#d19a64);box-shadow:0 0 10px #d19a6440;animation:model-skintokens-progress 1.65s ease-in-out infinite}
+.model-skintokens-loading>p{margin:0;color:#d2c3b4;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
+.model-skintokens-loading-note{color:#8e98a5;font-size:8px;line-height:1.5}
+.model-skintokens-button-spinner{width:12px;height:12px;margin-right:5px;vertical-align:-2px;border-width:1.5px}
+@keyframes model-skintokens-spin{to{transform:rotate(360deg)}}
+@keyframes model-skintokens-progress{0%{left:-40%}50%{left:42%}100%{left:105%}}
+@keyframes model-skintokens-pulse{0%,100%{opacity:.65}50%{opacity:1;box-shadow:0 0 0 4px #9ec87d25}}
+@keyframes model-skintokens-appear{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.model-skintokens-loading,.model-skintokens-spinner,.model-skintokens-button-spinner,.model-skintokens-live-pill i,.model-skintokens-progress-track span{animation:none}.model-skintokens-progress-track span{left:31%;width:38%}}
+
 </style>
