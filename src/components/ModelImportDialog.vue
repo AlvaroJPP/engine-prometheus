@@ -6,14 +6,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
-import { DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
+import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 
-const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings> } | null }>()
+const props = defineProps<{ open: boolean; controlMap?: Partial<ControlMapBindings>; initialAsset?: { name: string; bytes: ArrayBuffer; animationRoles?: Record<string, AnimationRole>; controlBindings?: Partial<ModelControlBindings>; behaviorPackageIds?: string[] } | null }>()
 const emit = defineEmits<{
   close: []
   import: [payload: { name: string; model: THREE.Object3D; height: number; thumbnail?: string }]
@@ -38,6 +38,7 @@ const selectedPartId = ref('')
 const soloPartId = ref('')
 const partSearch = ref('')
 const componentName = ref('')
+const selectedBehaviorPackageIds = ref<string[]>([])
 
 type ModelDiagnostic = {
   id: string
@@ -962,6 +963,7 @@ function clearLoadedModel() {
   soloPartId.value = ''
   partSearch.value = ''
   componentName.value = ''
+  selectedBehaviorPackageIds.value = []
   previewMixer?.stopAllAction()
   previewMixer = null
   previewAnimationIndex.value = 0
@@ -1312,6 +1314,9 @@ watch(() => props.open, async (open) => {
         loaded.userData.importControlBindings = props.initialAsset.controlBindings
         fileName.value = props.initialAsset.name
         await showLoadedModel(loaded, props.initialAsset.name)
+        selectedBehaviorPackageIds.value = [...new Set((props.initialAsset.behaviorPackageIds ?? []).filter(id =>
+          BEHAVIOR_PACKAGE_DEFINITIONS.some(definition => definition.id === id),
+        ))]
       } catch (e) {
         error.value = e instanceof Error ? e.message : 'Não foi possível abrir o componente para pré-visualização.'
       } finally { loading.value = false }
@@ -1538,6 +1543,7 @@ function confirmImport() {
   imported.userData.importColliderOffset = [...colliderOffset.value]
   imported.userData.importAnimationRoles = { ...animationRoles.value }
   imported.userData.importControlBindings = { ...controlBindings.value }
+  imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
 
   // Capture a miniatura antes de remover o modelo da cena de pré-visualização.
   const thumbnail = customThumbnail.value ?? capturePreviewThumbnail()
@@ -1785,6 +1791,37 @@ onBeforeUnmount(() => {
             <p class="model-panel-hint">Esse nome será usado na biblioteca e nas novas cópias colocadas no mundo.</p>
           </section>
           <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
+          <section v-if="activeSetupTab === 'model'" class="model-panel-section model-behavior-packages-section">
+            <div class="model-panel-heading"><span>04</span> PACOTES DE COMPORTAMENTO <b>{{ selectedBehaviorPackageIds.length }}</b></div>
+            <p class="model-panel-hint">Selecione os sistemas que este componente deve receber automaticamente quando for colocado no mundo. Os pacotes usam as variáveis e configurações padrão e podem ser ajustados depois no painel Pacotes.</p>
+            <div v-if="BEHAVIOR_PACKAGE_DEFINITIONS.length" class="model-behavior-package-list">
+              <label
+                v-for="definition in BEHAVIOR_PACKAGE_DEFINITIONS"
+                :key="definition.id"
+                class="model-behavior-package-card"
+                :class="{ selected: selectedBehaviorPackageIds.includes(definition.id) }"
+                :title="definition.description"
+              >
+                <input
+                  v-model="selectedBehaviorPackageIds"
+                  type="checkbox"
+                  :value="definition.id"
+                  :disabled="!!props.initialAsset"
+                />
+                <span class="model-behavior-package-check" aria-hidden="true">{{ selectedBehaviorPackageIds.includes(definition.id) ? '✓' : '' }}</span>
+                <span class="model-behavior-package-copy">
+                  <strong>{{ definition.name }}</strong>
+                  <small>{{ definition.description }}</small>
+                  <span class="model-behavior-package-meta">{{ definition.variables.length }} variáveis · {{ definition.triggers.length }} gatilhos · {{ definition.conditions.length }} condições · {{ definition.actions.length }} ações</span>
+                </span>
+              </label>
+            </div>
+            <div v-else class="model-setup-empty">
+              <strong>Nenhum pacote disponível</strong>
+              <small>Os pacotes instalados no motor aparecerão aqui quando estiverem disponíveis.</small>
+            </div>
+          </section>
+          <div v-if="activeSetupTab === 'model'" class="model-panel-separator"></div>
           <section v-if="activeSetupTab === 'model'" class="model-panel-section">
             <div class="model-panel-heading"><span>04A</span> IMAGEM DE PREVIEW</div>
             <input
@@ -1970,6 +2007,17 @@ onBeforeUnmount(() => {
 @media(prefers-reduced-motion:reduce){.model-loading-spinner{animation:none}}
 .model-part-search{display:flex;flex-direction:column;gap:5px;margin:10px 0;color:#9ca5b3;font-size:8px;font-weight:750;letter-spacing:.08em}.model-part-search input,.model-component-name-field input{box-sizing:border-box;width:100%;min-width:0;padding:8px 9px;border:1px solid #3a414d;border-radius:4px;background:#20242c;color:#e3e7ee;font:11px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0}.model-part-search input:focus,.model-component-name-field input:focus{outline:1px solid #b98255;border-color:#b98255}.model-preview-parts{max-height:360px!important;overflow:auto!important;padding-right:2px}.model-preview-show-all{margin-top:6px}
 .model-component-name-field{display:flex;flex-direction:column;gap:6px;color:#aeb6c4;font-size:10px}
+.model-behavior-package-list{display:flex;flex-direction:column;gap:7px}
+.model-behavior-package-card{position:relative;display:flex;align-items:flex-start;gap:9px;min-width:0;padding:10px;border:1px solid #373e49;border-radius:5px;background:#20242b;cursor:pointer}
+.model-behavior-package-card.selected{border-color:#936744;background:#30271f}
+.model-behavior-package-card input{position:absolute;opacity:0;width:1px;height:1px}
+.model-behavior-package-check{display:grid;place-items:center;flex:none;width:16px;height:16px;margin-top:1px;border:1px solid #596271;border-radius:3px;background:#171b22;color:#211911;font-size:11px;font-weight:800}
+.model-behavior-package-card.selected .model-behavior-package-check{border-color:#d19a64;background:#d19a64}
+.model-behavior-package-card:focus-within{outline:1px solid #d19a64;outline-offset:2px}
+.model-behavior-package-copy{display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
+.model-behavior-package-copy strong{color:#e3e7ee;font-size:10px}
+.model-behavior-package-copy small{color:#9ca5b3;font-size:9px;line-height:1.5}
+.model-behavior-package-meta{color:#d0a47d;font-size:8px;line-height:1.4}
 .model-preview-image-config{display:flex;align-items:center;gap:10px;min-width:0}
 .model-preview-image-frame{display:grid;place-items:center;flex:none;width:68px;height:68px;overflow:hidden;border:1px solid #3a414d;border-radius:5px;background:#20242c;color:#8893a4;font-size:23px}
 .model-preview-image-frame img{display:block;width:100%;height:100%;object-fit:contain}
