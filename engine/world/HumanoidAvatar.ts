@@ -2413,7 +2413,7 @@ export class HumanoidAvatar {
       .find(candidate => this.animationActions.has(candidate))
     const next = nextRole ? this.animationActions.get(nextRole) : undefined
     const current = this.animationActions.get(this.activeAnimation)
-      ?? [...this.animationActions.values()].find(action => action.isRunning() && action !== next)
+      ?? [...this.animationActions.values()].find(action => action.isScheduled())
 
     // Se dois estados reutilizam o mesmo clipe de fallback, mantém o ciclo atual
     // em vez de reiniciar a passada toda vez que muda a direção solicitada.
