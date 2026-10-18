@@ -21,6 +21,9 @@ const PLAYER_HEIGHT = 1.8
 // Considera rampas e degraus com inclinação acentuada caminháveis, mas continua
 // tratando faces quase verticais como paredes.
 const WALKABLE_SURFACE_NORMAL_Y = 0.32
+const MAX_WALK_OFF_DROP = 0.72
+const LEDGE_EDGE_TOP_TOLERANCE = 0.045
+const LEDGE_EDGE_FLOOR_TOLERANCE = 0.18
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
   [0, 0],
   [0.48, 0], [-0.48, 0], [0, 0.48], [0, -0.48],
@@ -561,6 +564,29 @@ export class HumanoidAvatar {
           if (!this.collidesWithObjects()) {
             lastSafe = coordinate
             continue
+          }
+
+          const stepDownSurface = wasGrounded
+            ? this.findWalkOffSurface(
+                this.mesh.position.x,
+                this.mesh.position.z,
+                this.mesh.position.y,
+                axis,
+                Math.sign(delta),
+              )
+            : null
+          if (stepDownSurface !== null) {
+            const edgeWindow = {
+              topY: this.mesh.position.y,
+              floorY: stepDownSurface,
+            }
+            // O meio-fio termina na altura da sola; não deve prender a caixa
+            // do jogador apenas por tocar a sua aresta inferior. Paredes acima
+            // dos pés e faces que descem muito abaixo do piso continuam bloqueando.
+            if (!this.collidesWithObjects(false, edgeWindow)) {
+              lastSafe = coordinate
+              continue
+            }
           }
 
           const stepUp = wasGrounded
@@ -2511,7 +2537,10 @@ export class HumanoidAvatar {
    * Verifica contato com polígonos reais, limitando o custo por frame:
    * usa bounds para broad phase e testa somente triângulos próximos ao jogador.
    */
-  private collidesWithObjects(blockCeilings = false): boolean {
+  private collidesWithObjects(
+    blockCeilings = false,
+    walkOffEdge: { topY: number; floorY: number } | null = null,
+  ): boolean {
     const playerBox = this.playerBox()
     const playerHeight = this.getPlayerHeight()
     const sampleY = blockCeilings ? Math.max(0.1, playerHeight - PLAYER_RADIUS) : playerHeight * 0.5
@@ -2568,6 +2597,13 @@ export class HumanoidAvatar {
           // Piso e rampas são tratados pelas sondas verticais; somente faces
           // relativamente verticais bloqueiam o deslocamento horizontal.
           if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) return false
+          if (walkOffEdge) {
+            const topY = Math.max(triangle.a.y, triangle.b.y, triangle.c.y)
+            const bottomY = Math.min(triangle.a.y, triangle.b.y, triangle.c.y)
+            const isLowLedgeFace = topY <= walkOffEdge.topY + LEDGE_EDGE_TOP_TOLERANCE &&
+              bottomY >= walkOffEdge.floorY - LEDGE_EDGE_FLOOR_TOLERANCE
+            if (isLowLedgeFace) return false
+          }
           return queryBox.intersectsTriangle(triangle)
         })
         if (blocked) return true
@@ -2655,6 +2691,13 @@ export class HumanoidAvatar {
             // Não trate um piso/rampa como parede quando o volume dos pés o toca.
             // Faces laterais continuam bloqueando, inclusive em modelos low-poly.
             if (Math.abs(normal.y) >= WALKABLE_SURFACE_NORMAL_Y) continue
+            if (walkOffEdge) {
+              const topY = Math.max(a.y, b.y, c.y)
+              const bottomY = Math.min(a.y, b.y, c.y)
+              const isLowLedgeFace = topY <= walkOffEdge.topY + LEDGE_EDGE_TOP_TOLERANCE &&
+                bottomY >= walkOffEdge.floorY - LEDGE_EDGE_FLOOR_TOLERANCE
+              if (isLowLedgeFace) continue
+            }
             if (playerBox.intersectsTriangle(triangle)) return true
 
             // Complementa o teste da caixa com pontos ao longo do corpo. Isso
@@ -2756,6 +2799,63 @@ export class HumanoidAvatar {
           },
         )
         if (hit && (bestSurface === null || hit.point.y > bestSurface)) bestSurface = hit.point.y
+      }
+    }
+    return bestSurface
+  }
+
+  /**
+   * Encontra o piso logo além de uma borda baixa de uma cidade importada.
+   * A sonda fica à frente do pé, porque o raio central ainda pode estar sobre
+   * a calçada elevada quando a caixa do jogador toca a face vertical do meio-fio.
+   * Só aceita descidas pequenas e superfícies caminháveis, nunca uma parede.
+   */
+  private findWalkOffSurface(
+    x: number,
+    z: number,
+    feetY: number,
+    leadingAxis: 'x' | 'z',
+    direction: number,
+  ): number | null {
+    const candidates = this.world.list().filter(object =>
+      object.mesh.visible &&
+      object.mesh.userData.importedModel === true &&
+      object.mesh.userData.colliderType === 'mesh' &&
+      getStaticMeshCollisionData(object.mesh) !== null,
+    )
+    if (candidates.length === 0) return null
+
+    const forwardOffset = PLAYER_RADIUS + 0.11
+    const lateralOffset = PLAYER_RADIUS * 0.72
+    const points = [-lateralOffset, 0, lateralOffset].map(lateral => ({
+      x: x + (leadingAxis === 'x' ? direction * forwardOffset : lateral),
+      z: z + (leadingAxis === 'z' ? direction * forwardOffset : lateral),
+    }))
+    const ray = new THREE.Ray(
+      new THREE.Vector3(),
+      new THREE.Vector3(0, -1, 0),
+    )
+    const maximumDistance = MAX_WALK_OFF_DROP + 0.08
+    let bestSurface: number | null = null
+
+    for (const point of points) {
+      ray.origin.set(point.x, feetY + 0.025, point.z)
+      for (const object of candidates) {
+        const hit = raycastStaticMesh(
+          object.mesh,
+          ray,
+          0,
+          maximumDistance,
+          candidate => {
+            const drop = feetY - candidate.point.y
+            return candidate.normal.y >= WALKABLE_SURFACE_NORMAL_Y &&
+              drop >= 0.035 &&
+              drop <= MAX_WALK_OFF_DROP
+          },
+        )
+        if (hit && (bestSurface === null || hit.point.y > bestSurface)) {
+          bestSurface = hit.point.y
+        }
       }
     }
     return bestSurface
