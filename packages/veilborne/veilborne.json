@@ -356,7 +356,8 @@
       "nivel",
       "experiencia",
       "experiencia_proximo_nivel",
-      "pontos_atributo"
+      "pontos_atributo",
+      "arquetipo"
     ],
     "validHostileTarget": "Object with enabled veilborne_rpg behavior package and faction=hostile",
     "connectedSystems": [
@@ -404,7 +405,8 @@
       "enemy_kill_echo_reward",
       "experience_curve_and_level_up",
       "attribute_points_earned_on_level_up",
-      "loadout_panel_attribute_point_spending"
+      "loadout_panel_attribute_point_spending",
+      "four_character_archetype_presets_in_arsenal"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
@@ -460,6 +462,12 @@
         "automaticValue": -1,
         "zeroDisablesReward": true
       }
-    }
+    },
+    "archetypePresets": [
+      "veil_duelist",
+      "rune_scholar",
+      "blood_adept",
+      "oathbreaker"
+    ]
   }
 }
