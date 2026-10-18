@@ -24,7 +24,7 @@ import { HumanoidAvatar } from './world/HumanoidAvatar'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import type { LogicRule } from './script/types'
-import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings, ONE_SHOT_ANIMATION_ROLES } from './script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings, ONE_SHOT_ANIMATION_ROLES } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
@@ -763,6 +763,16 @@ export class Engine {
       created.mesh.updateMatrixWorld(true)
       this.world.notifyChanged(created.id) 
       this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
+      // Instala no objeto recém-criado os pacotes escolhidos durante a importação.
+      // Filtra IDs contra o catálogo do motor para não interromper a construção
+      // se um componente salvo tiver metadados antigos ou inválidos.
+      const rawPackageIds = pending.model.userData.importBehaviorPackageIds
+      if (Array.isArray(rawPackageIds)) {
+        const packageIds = new Set(rawPackageIds.filter((id): id is string =>
+          typeof id === 'string' && !!getBehaviorPackageDefinition(id),
+        ))
+        for (const packageId of packageIds) this.installBehaviorPackage(created.id, packageId)
+      }
       // Mantém a ferramenta Construir ativa para permitir colocar várias cópias
       // em sequência. O objeto recém-criado continua selecionado; o usuário pode
       // mudar para Selecionar quando quiser mover, girar ou redimensionar.
