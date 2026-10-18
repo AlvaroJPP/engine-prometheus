@@ -15,6 +15,11 @@ export interface SavedComponent {
   colliderOffset: [number, number, number]
   /** Pacotes de comportamento que serão instalados automaticamente quando o componente for colocado no mundo. */
   behaviorPackageIds?: string[]
+  /** Valores iniciais de variáveis e configuração de cada pacote escolhido na importação. */
+  behaviorPackageSettings?: Record<string, {
+    variables: Record<string, import('@engine').PackageScalar>
+    config: Record<string, import('@engine').PackageJsonValue>
+  }>
   /** Papéis atribuídos aos clipes no preview, indexados pelo índice da animação. */
   animationRoles?: Record<string, import('@engine').AnimationRole>
   /** Miniatura visual gerada pela prévia 3D do modelo importado. */
