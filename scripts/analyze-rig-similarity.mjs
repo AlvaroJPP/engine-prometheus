@@ -312,7 +312,32 @@ function runSelfTest() {
   }
   const ranking = rankTargetBoneCandidates(names, target.bones, source.root, target.root)
   if (!ranking['mixamorig:LeftArm']?.length) throw new Error('Self-test falhou: nenhuma pontuação gerada para o braço esquerdo.')
-  console.log('OK: self-test de mapeamento e pontuação espacial passou.')
+
+  // Rigs exportados com nomes opacos precisam ser mapeados pela hierarquia e geometria,
+  // não apenas por aliases humanos (Bone.001 -> Joint_A, por exemplo).
+  const genericSource = makeTestRig('generic-source', [
+    { name: 'Bone_00', position: [0, 0, 0] },
+    { name: 'Bone_01', position: [0, 0.9, 0], parent: 'Bone_00' },
+    { name: 'Bone_02', position: [0, 1.0, 0], parent: 'Bone_01' },
+  ])
+  const genericTarget = makeTestRig('generic-target', [
+    { name: 'joint_A', position: [0, 0, 0] },
+    { name: 'segment_B', position: [0, 0.85, 0], parent: 'joint_A' },
+    { name: 'node_C', position: [0, 1.1, 0], parent: 'segment_B' },
+  ])
+  const genericMap = suggestTargetBoneMappings(
+    ['Bone_00', 'Bone_01', 'Bone_02'],
+    genericTarget.bones,
+    genericSource.root,
+    genericTarget.root,
+  )
+  const genericExpected = { Bone_00: 'joint_A', Bone_01: 'segment_B', Bone_02: 'node_C' }
+  for (const [sourceName, targetName] of Object.entries(genericExpected)) {
+    if (genericMap[sourceName] !== targetName) {
+      throw new Error(`Self-test estrutural falhou: ${sourceName} esperava ${targetName}, recebeu ${genericMap[sourceName] ?? 'sem mapeamento'}.`)
+    }
+  }
+  console.log('OK: mapeamento semântico, espacial e estrutural de rigs passou.')
 }
 
 async function main() {
