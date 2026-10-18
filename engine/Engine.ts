@@ -538,6 +538,11 @@ export class Engine {
     return this.playerModelData?.name ?? 'Modelo padrão (Dummy)'
   }
 
+  /** Altura final do corpo em unidades do mundo; projetos antigos usam 1,8 u. */
+  getPlayerModelHeight(): number {
+    return this.playerModelData?.height ?? 1.8
+  }
+
   hasCustomPlayerModel(): boolean {
     return this.playerModelData !== null
   }
@@ -547,6 +552,7 @@ export class Engine {
     data: ArrayBuffer,
     name: string,
     animationRoles?: Record<string, AnimationRole>,
+    height = 1.8,
   ): Promise<void> {
     const cleanName = name.trim() || 'Jogador.glb'
     if (!cleanName.toLowerCase().endsWith('.glb')) {
@@ -560,11 +566,14 @@ export class Engine {
       throw new Error('O arquivo selecionado não tem o cabeçalho GLB esperado. Exporte o modelo como .glb.')
     }
 
+    // A altura é validada em unidades do mundo. 1,8 u continua sendo o padrão para chamadas antigas.
+    const targetHeight = clamp(Number.isFinite(height) ? height : 1.8, 0.1, 10000)
     // A troca visual só é confirmada após o GLB ser validado e carregado.
-    await this.avatar.setCustomModel(data, animationRoles)
+    await this.avatar.setCustomModel(data, animationRoles, targetHeight)
     this.playerModelData = {
       name: cleanName,
       glbData: encodeArrayBufferBase64(data),
+      height: targetHeight,
       ...(animationRoles ? { animationRoles: { ...animationRoles } } : {}),
     }
     this.viewport.invalidate()
@@ -1687,10 +1696,12 @@ export class Engine {
       report('Restaurando modelo personalizado do jogador…', 91)
       try {
         const playerBytes = decodeBase64ArrayBuffer(scene.playerModel.glbData)
-        await this.avatar.setCustomModel(playerBytes, scene.playerModel.animationRoles)
+        const playerHeight = clamp(scene.playerModel.height ?? 1.8, 0.1, 10000)
+        await this.avatar.setCustomModel(playerBytes, scene.playerModel.animationRoles, playerHeight)
         this.playerModelData = {
           name: scene.playerModel.name,
           glbData: scene.playerModel.glbData,
+          height: playerHeight,
           ...(scene.playerModel.animationRoles ? { animationRoles: { ...scene.playerModel.animationRoles } } : {}),
         }
       } catch (error) {
