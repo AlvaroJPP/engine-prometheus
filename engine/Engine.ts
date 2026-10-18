@@ -135,6 +135,9 @@ export class Engine {
   private veilborneWardMesh: THREE.Mesh | null = null
   private veilborneWardRemainingSeconds = 0
   private veilborneWardAbsorption = 0
+  private veilborneBlocking = false
+  private veilborneParryStartedAt = Number.NEGATIVE_INFINITY
+  private readonly veilborneParryWindowSeconds = 0.2
   private veilbornePlayerState: VeilborneCombatant | null = null
   private veilbornePendingCast: {
     spellId: string
@@ -180,6 +183,8 @@ export class Engine {
       this.events.on('cameraChanged', () => this.viewport.invalidate()),
     )
     window.addEventListener('keydown', this.onRuleKeyDown)
+    window.addEventListener('keyup', this.onVeilborneKeyUp)
+    window.addEventListener('blur', this.onVeilborneBlur)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -411,6 +416,7 @@ export class Engine {
       ['magia_4', VEILBORNE_DEFAULT_SPELL_SLOTS[3]],
       ['sigilo_1', 'ward'], ['sigilo_2', 'blast'], ['sigilo_3', 'hunter_mark'], ['sigilo_4', 'slow_field'],
       ['sigilo_selecionado', 1], ['sigilo_ativo', 'ward'],
+      ['bloqueando', false], ['aparo_total', 0], ['aparo_sucesso', false], ['jogador_morreu', false],
       ['ward_remaining', 0], ['ward_absorption', 0],
     ]
     for (const [name, value] of defaults) {
@@ -457,6 +463,16 @@ export class Engine {
       intellect: this.readVeilborneNumber('intelecto', 10),
       will: this.readVeilborneNumber('vontade', 10),
       resistance: this.readVeilborneNumber('resistencia', 10),
+    }
+    player.resistances = {
+      physical: this.readVeilborneNumber('res_fisica', 0),
+      fire: this.readVeilborneNumber('res_chama', 0),
+      frost: this.readVeilborneNumber('res_geada', 0),
+      storm: this.readVeilborneNumber('res_tempestade', 0),
+      blood: this.readVeilborneNumber('res_sangue', 0),
+      shadow: this.readVeilborneNumber('res_sombra', 0),
+      spirit: this.readVeilborneNumber('res_espirito', 0),
+      arcane: this.readVeilborneNumber('res_arcano', 0),
     }
     player.alive = player.resources.vitality > 0 && this.logic.getVariable('morto') !== true
     this.veilbornePlayerState = player
@@ -660,9 +676,116 @@ export class Engine {
     return true
   }
 
+
+  private onVeilborneKeyUp = (event: KeyboardEvent): void => {
+    if (event.code !== this.playerControlBindings.block) return
+    this.veilborneBlocking = false
+    if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
+  }
+
+  private onVeilborneBlur = (): void => {
+    this.veilborneBlocking = false
+    this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
+    if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
+    if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
+  }
+
+  private beginVeilborneParry(): void {
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return
+    if (!spendVeilborneResource(player, 'stamina', 14)) return
+    this.syncVeilbornePlayerCombatant(player)
+    this.veilborneParryStartedAt = performance.now() / 1000
+    this.logic.setVariable('aparo_sucesso', false)
+    this.spawnVeilborneEffect(
+      this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
+      0xb0d9ff,
+      0.35,
+      this.veilborneParryWindowSeconds,
+    )
+    this.viewport.invalidate()
+  }
+
+  /**
+   * Entrada de dano para IA e scripts de inimigo. Resolve aparo, escudo, bloqueio e resistência
+   * antes de mudar a vida do jogador. Retorna o resultado para que o atacante possa reagir.
+   */
+  applyVeilborneIncomingDamage(
+    amount: number,
+    type: VeilborneDamageType = 'physical',
+    postureDamage = 0,
+    attackerObjectId?: string,
+  ): { damage: number; absorbedByWard: number; blocked: boolean; parried: boolean; killed: boolean } {
+    if (!this.runtimeModeActive || !this.isVeilborneEnabled()) {
+      return { damage: Math.max(0, Number.isFinite(amount) ? amount : 0), absorbedByWard: 0, blocked: false, parried: false, killed: false }
+    }
+    const player = this.getVeilbornePlayerCombatant()
+    if (!player.alive) return { damage: 0, absorbedByWard: 0, blocked: false, parried: false, killed: true }
+
+    const now = performance.now() / 1000
+    const parried = isVeilborneParrySuccessful(now, this.veilborneParryStartedAt, this.veilborneParryWindowSeconds)
+    if (parried) {
+      player.resources.posture = Math.max(0, player.resources.posture - Math.max(18, postureDamage * 2))
+      restoreVeilborneResource(player, 'stamina', 12)
+      this.syncVeilbornePlayerCombatant(player)
+      this.logic.setVariable('aparo_sucesso', true)
+      this.logic.setVariable('aparo_total', this.readVeilborneNumber('aparo_total', 0) + 1)
+      if (attackerObjectId && this.logic.listPackages(attackerObjectId).some(item => item.packageId === 'veilborne_rpg')) {
+        this.triggerBehaviorPackageEvent(attackerObjectId, 'veilborne_rpg', 'parry_success')
+      }
+      const effectPoint = this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0))
+      this.spawnVeilborneEffect(effectPoint, 0xe3f5ff, 1.05, 0.42)
+      this.viewport.invalidate()
+      return { damage: 0, absorbedByWard: 0, blocked: false, parried: true, killed: false }
+    }
+
+    let remainingDamage = Math.max(0, Number.isFinite(amount) ? amount : 0)
+    const resistance = Math.max(-100, Math.min(95, player.resistances[type] ?? 0))
+    remainingDamage *= 1 - resistance / 100
+
+    const absorbedByWard = Math.min(this.veilborneWardAbsorption, remainingDamage)
+    if (absorbedByWard > 0) {
+      this.veilborneWardAbsorption = Math.max(0, this.veilborneWardAbsorption - absorbedByWard)
+      remainingDamage -= absorbedByWard
+      this.logic.setVariable('ward_absorption', this.veilborneWardAbsorption)
+      this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x9b80ff, 0.42, 0.24)
+      if (this.veilborneWardAbsorption <= 0) this.clearVeilborneWard()
+    }
+
+    let blocked = false
+    let actualPostureDamage = Math.max(0, postureDamage)
+    if (this.veilborneBlocking && remainingDamage > 0 && spendVeilborneResource(player, 'stamina', 12)) {
+      blocked = true
+      remainingDamage *= 0.35
+      actualPostureDamage *= 0.4
+    }
+    const before = player.resources.vitality
+    player.resources.vitality = Math.max(0, before - remainingDamage)
+    player.resources.posture = Math.min(
+      player.resources.maxPosture,
+      player.resources.posture + actualPostureDamage,
+    )
+    player.alive = player.resources.vitality > 0
+    const appliedDamage = before - player.resources.vitality
+    this.syncVeilbornePlayerCombatant(player)
+    if (!player.alive) this.logic.setVariable('jogador_morreu', true)
+    if (blocked) this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xb0d9ff, 0.55, 0.25)
+    this.viewport.invalidate()
+    return { damage: appliedDamage, absorbedByWard, blocked, parried: false, killed: !player.alive }
+  }
+
   private handleVeilborneControl(code: string): boolean {
     if (!this.cameraStateBeforeRun || !this.isVeilborneEnabled()) return false
     const bindings = this.playerControlBindings
+    if (code === bindings.block) {
+      this.veilborneBlocking = true
+      this.logic.setVariable('bloqueando', true)
+      return true
+    }
+    if (code === bindings.parry) {
+      this.beginVeilborneParry()
+      return true
+    }
     if (code === bindings.primaryAction) {
       this.performVeilborneWeaponAttack(false)
       return true
@@ -1351,6 +1474,10 @@ export class Engine {
     this.veilborneCooldowns.clear()
     this.veilborneTargetStates.clear()
     this.veilborneStatusTickTimers.clear()
+    this.veilborneBlocking = false
+    this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
+    if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
+    if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
     this.clearVeilborneEffects()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
@@ -1458,6 +1585,8 @@ export class Engine {
     const actionKeys = [
       this.playerControlBindings.primaryAction,
       this.playerControlBindings.secondaryAction,
+      this.playerControlBindings.block,
+      this.playerControlBindings.parry,
       this.playerControlBindings.inventory,
       this.playerControlBindings.useItem,
       this.playerControlBindings.reload,
@@ -2443,6 +2572,8 @@ export class Engine {
 
   dispose(): void {
     window.removeEventListener('keydown', this.onRuleKeyDown)
+    window.removeEventListener('keyup', this.onVeilborneKeyUp)
+    window.removeEventListener('blur', this.onVeilborneBlur)
     this.clearVeilborneEffects()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
