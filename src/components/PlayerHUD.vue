@@ -239,7 +239,7 @@ function onVeilborneInventoryKeydown(event: KeyboardEvent): void {
   const target = event.target
   if (target instanceof HTMLElement && (
     target.isContentEditable ||
-    target.matches('input, textarea, select, button, [role="dialog"]')
+    target.matches('input, textarea, select')
   )) return
   event.preventDefault()
   veilborneLoadoutOpen.value = !veilborneLoadoutOpen.value
