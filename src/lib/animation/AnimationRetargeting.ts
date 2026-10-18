@@ -592,24 +592,9 @@ export function retargetAnimationClip(
       // enquanto Hips carrega a elevação do salto. Escolhemos por eixo a trilha
       // com maior movimento para não somar duas vezes o mesmo deslocamento quando
       // o rig anima simultaneamente Armature, Root e Hips.
-      const axisPeaks = [0, 1, 2]
       const invalidItems = new Set<number>()
-      for (let index = 0; index < interpolants.length; index += 1) {
-        const item = interpolants[index]!
-        for (const time of item.contribution.track.times) {
-          const delta = deltaAt(item, time)
-          if (!delta) {
-            invalidItems.add(index)
-            continue
-          }
-          axisPeaks[0] = Math.max(axisPeaks[0]!, Math.abs(delta.x))
-          axisPeaks[1] = Math.max(axisPeaks[1]!, Math.abs(delta.y))
-          axisPeaks[2] = Math.max(axisPeaks[2]!, Math.abs(delta.z))
-        }
-      }
       const perCandidatePeaks = interpolants.map((item, index) => {
         const peaks = [0, 0, 0]
-        if (invalidItems.has(index)) return peaks
         for (const time of item.contribution.track.times) {
           const delta = deltaAt(item, time)
           if (!delta) continue
@@ -664,7 +649,7 @@ export function retargetAnimationClip(
           ? interpolants[0]!.contribution.track.getInterpolation()
           : THREE.InterpolateLinear
         tracks.push(new THREE.VectorKeyframeTrack(rootNodeName + '.position', outputTimes, values, interpolation))
-        rootMotionTracks = selectedByAxis.filter(index => index >= 0).length
+        rootMotionTracks = 1
       } else {
         for (const item of rootMotionContributions) skipTrack(item.track, invalidTracks)
       }
