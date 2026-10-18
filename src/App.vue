@@ -1661,6 +1661,40 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <span>Abrir painel</span>
     </button>
 
+    <div v-if="sidebarCollapsed" class="collapsed-sidebar-actions" aria-label="Criação e importação">
+      <div class="quick-add-wrap collapsed-sidebar-add-wrap">
+        <button
+          class="collapsed-sidebar-action collapsed-sidebar-add-trigger"
+          type="button"
+          :aria-expanded="quickAddOpen"
+          aria-haspopup="menu"
+          title="Adicionar objetos à cena"
+          @click.stop="quickAddOpen = !quickAddOpen"
+        >
+          <span class="collapsed-sidebar-action-icon" aria-hidden="true">＋</span>
+          <span>Adicionar</span>
+          <span class="quick-add-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div v-if="quickAddOpen" class="quick-add-popover collapsed-sidebar-add-popover" role="menu" @click.stop>
+          <div class="quick-add-heading">CRIAR NA CENA</div>
+          <button role="menuitem" title="Adiciona um cubo à cena. Atalho indicado: 1." @click="addPrimitive('cube'); quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
+          <button role="menuitem" title="Adiciona uma plataforma retangular. Atalho indicado: 2." @click="addPrimitive('platform'); quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
+          <button role="menuitem" title="Cria um marcador para o ponto inicial do jogador." @click="addSpawnPlatform(); quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
+          <button role="menuitem" title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="addClickableCubeExample(); quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
+        </div>
+      </div>
+      <button
+        class="collapsed-sidebar-action"
+        type="button"
+        title="Importa arquivos 3D e configura modelo e animações"
+        aria-label="Importar modelo 3D"
+        @click="quickAddOpen = false; previewComponentAsset = null; modelImportOpen = true"
+      >
+        <span class="collapsed-sidebar-action-icon" aria-hidden="true">▧</span>
+        <span>Importar 3D</span>
+      </button>
+    </div>
+
     <div class="main">
       <SceneHierarchy
         v-model:root-open="rootOpen"
@@ -5486,6 +5520,91 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   outline:2px solid #e8572b;
   outline-offset:1px;
 }
+/* Quick actions docked into the upper part of the collapsed sidebar. */
+.app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
+  display:none !important;
+}
+.app.sidebar-collapsed .toolbar {
+  padding-top:132px !important;
+}
+.collapsed-sidebar-actions { display:none; }
+.app.sidebar-collapsed .collapsed-sidebar-actions {
+  position:fixed;
+  z-index:30;
+  top:98px;
+  left:0;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:5px;
+  width:172px;
+  box-sizing:border-box;
+  padding:6px 7px 9px;
+  border-right:1px solid #363129;
+  border-bottom:1px solid #2e2b25;
+  background:#191713;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-wrap {
+  position:relative !important;
+  z-index:32;
+  top:auto !important;
+  right:auto !important;
+  left:auto !important;
+  width:100%;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  width:100%;
+  min-width:0;
+  height:34px;
+  min-height:34px;
+  padding:0 8px;
+  border:1px solid #3b3730;
+  border-radius:6px;
+  background:#211e19;
+  color:#e4ded3;
+  font:500 11px/1 'IBM Plex Sans',sans-serif;
+  text-align:left;
+  white-space:nowrap;
+  cursor:pointer;
+  box-sizing:border-box;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action:hover,
+.app.sidebar-collapsed .collapsed-sidebar-add-trigger[aria-expanded="true"] {
+  border-color:#75412e;
+  background:#34241c;
+  color:#f3efe6;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action-icon {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:20px;
+  color:#e8572b;
+  font-size:17px;
+  line-height:1;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-trigger .quick-add-chevron {
+  margin-left:auto;
+  color:#b5afa2;
+  font-size:10px;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-popover {
+  z-index:50;
+  top:calc(100% + 5px) !important;
+  right:auto !important;
+  left:0 !important;
+  width:240px;
+  max-width:calc(100vw - 184px);
+  box-sizing:border-box;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-popover > button {
+  min-width:0;
+}
+
 /* The reopen control is the menu's own header, flush against the top bar. */
 .app.sidebar-collapsed .sidebar-hamburger {
   position:fixed;
@@ -5522,7 +5641,21 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
     width:160px !important;
     min-width:160px !important;
     max-width:calc(100vw - 12px) !important;
-    padding:48px 5px 8px !important;
+    padding:132px 5px 8px !important;
+  }
+  .app.sidebar-collapsed .collapsed-sidebar-actions {
+    top:98px;
+    width:160px;
+    max-width:calc(100vw - 12px);
+    padding:6px 5px 8px;
+  }
+  .app.sidebar-collapsed .collapsed-sidebar-action {
+    height:32px;
+    min-height:32px;
+    padding-inline:7px;
+  }
+  .app.sidebar-collapsed .collapsed-sidebar-add-popover {
+    max-width:calc(100vw - 172px);
   }
   .app.sidebar-collapsed .toolbar .tool {
     min-height:32px !important;
