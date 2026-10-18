@@ -225,12 +225,32 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         return
       }
       clipboardImportedModel = visualModel.clone(true)
+      const sourceData = sourceObject.mesh.userData
+      // O nó visual é filho de um proxy invisível. Os dados usados para recriar
+      // o GLB ao reabrir o projeto vivem no proxy, não no filho visual; copie-os
+      // para a raiz do clipboard para que a cópia também seja serializada como 3D.
       clipboardImportedModel.userData = {
         ...visualModel.userData,
         importPart: true,
-        importAnimations: sourceObject.mesh.userData.importAnimationMixer
-          ? (visualModel.userData.importAnimations ?? [])
-          : (visualModel.userData.importAnimations ?? []),
+        importedModelData: typeof sourceData.importedModelData === 'string'
+          ? sourceData.importedModelData
+          : visualModel.userData.importedModelData,
+        importedModelHeight: typeof sourceData.importedModelHeight === 'number'
+          ? sourceData.importedModelHeight
+          : visualModel.userData.importedModelHeight,
+        componentId: typeof sourceData.componentId === 'string'
+          ? sourceData.componentId
+          : visualModel.userData.componentId,
+        componentLogic: Array.isArray(sourceData.componentLogic)
+          ? sourceData.componentLogic
+          : visualModel.userData.componentLogic,
+        sceneKind: sourceData.sceneKind === 'entity' ? 'entity' : 'object',
+        importAnimationRoles: sourceData.importAnimationRoles ?? visualModel.userData.importAnimationRoles,
+        importControlBindings: sourceData.importControlBindings ?? visualModel.userData.importControlBindings,
+        importColliderType: sourceData.colliderType ?? visualModel.userData.importColliderType,
+        importColliderSize: sourceData.colliderSize ?? visualModel.userData.importColliderSize,
+        importColliderOffset: sourceData.colliderOffset ?? visualModel.userData.importColliderOffset,
+        importAnimations: visualModel.userData.importAnimations ?? [],
       }
     } else {
       clipboardImportedModel = null
