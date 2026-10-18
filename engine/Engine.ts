@@ -832,6 +832,9 @@ export class Engine {
       player.resources.posture >= player.resources.maxPosture
     if (playerPostureBroken) {
       player.resources.posture = 0
+      this.veilborneHeavyChargeStartedAt = null
+      this.logic.setVariable('carregando_ataque', false)
+      this.logic.setVariable('carga_ataque', 0)
       this.veilbornePlayerStaggerRemainingSeconds = Math.max(this.veilbornePlayerStaggerRemainingSeconds, 0.85)
       this.avatar.setCombatStagger(this.veilbornePlayerStaggerRemainingSeconds)
       this.logic.setVariable('jogador_atordoado', true)
@@ -839,7 +842,12 @@ export class Engine {
     }
     const appliedDamage = before - player.resources.vitality
     this.syncVeilbornePlayerCombatant(player)
-    if (!player.alive) this.logic.setVariable('jogador_morreu', true)
+    if (!player.alive) {
+      this.logic.setVariable('jogador_morreu', true)
+      this.veilborneHeavyChargeStartedAt = null
+      this.logic.setVariable('carregando_ataque', false)
+      this.logic.setVariable('carga_ataque', 0)
+    }
     if (blocked) this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xb0d9ff, 0.55, 0.25)
     this.viewport.invalidate()
     return { damage: appliedDamage, absorbedByWard, blocked, parried: false, killed: !player.alive }
