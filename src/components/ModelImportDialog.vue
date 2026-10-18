@@ -10,7 +10,7 @@ import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTR
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
+import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import {
   createReusableAnimationAsset,
@@ -275,7 +275,7 @@ const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option 
 }))
 type RigPose = ReturnType<typeof captureRigPose>
 type RigKeyframe = { time: number; pose: RigPose }
-const rigPreset = ref<AutoRigPreset>('humanoid')
+const rigPreset = ref<AutoRigPreset>('auto')
 const rigBones = shallowRef<THREE.Bone[]>([])
 const rigRestPose = shallowRef<RigPose>({})
 const selectedRigBoneName = ref('')
@@ -342,10 +342,13 @@ const retargetMappedBoneCount = computed(() =>
 const boneRotationDraft = ref({ x: 0, y: 0, z: 0 })
 const bonePositionDraft = ref({ x: 0, y: 0, z: 0 })
 const selectedRigBone = computed(() => rigBones.value.find(bone => bone.name === selectedRigBoneName.value) ?? null)
+const rigInputAnalysis = computed(() => model.value ? analyzeRiggingInput(model.value) : null)
 const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
+  { value: 'auto', label: 'Detectar automaticamente (recomendado)' },
   { value: 'humanoid', label: 'Humanoide / personagem' },
-  { value: 'quadruped', label: 'Quadrúpede / cavalo' },
-  { value: 'chain', label: 'Corrente genérica / objeto' },
+  { value: 'quadruped', label: 'Quadrúpede / cavalo / animal' },
+  { value: 'chain', label: 'Corrente genérica / objeto orgânico' },
+  { value: 'modular', label: 'Por peças / robôs / veículos / objetos articulados' },
 ]
 watch(selectedRigBone, bone => {
   if (!bone) return
@@ -3013,7 +3016,8 @@ onBeforeUnmount(() => {
             <button type="button" class="model-rigging-primary" :disabled="!model || !!props.initialAsset || loading" title="Gera um rig inicial para permitir selecionar ossos, ajustar poses e criar clipes." @click="createRig">
               {{ rigBones.length ? 'Recarregar rig existente' : 'Criar rig automático' }}
             </button>
-            <p class="model-control-note">Quadrúpede pressupõe a cabeça voltada para +Z. O rig automático e os pesos de vértices são um ponto de partida: modelos complexos podem exigir ajustes ou um rig preparado externamente.</p>
+            <p v-if="rigPreset === 'auto' && rigInputAnalysis" class="model-control-note">Detecção sugerida: <strong>{{ rigInputAnalysis.recommendedPreset }}</strong>. {{ rigInputAnalysis.reason }} Medidas aproximadas: {{ rigInputAnalysis.dimensions.width.toFixed(2) }} × {{ rigInputAnalysis.dimensions.height.toFixed(2) }} × {{ rigInputAnalysis.dimensions.depth.toFixed(2) }}; {{ rigInputAnalysis.meshCount }} malha(s).</p>
+            <p class="model-control-note">O modo “Por peças” é indicado quando cada parte articulada é uma malha separada: cada uma recebe seu próprio pivô e pesos rígidos. Para malhas orgânicas únicas, os pesos por proximidade são apenas uma base inicial; confira a deformação e ajuste as juntas. Modelos arbitrários não podem ser rigados perfeitamente apenas por heurísticas.</p>
 
             <template v-if="rigBones.length">
               <div class="model-rigging-summary">
