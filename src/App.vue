@@ -16,7 +16,7 @@ import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
-import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset } from '@/lib/assets/ComponentLibrary'
+import { deleteSavedComponent, getSavedComponent, listSavedComponents, saveComponentAsset, saveComponentAssets } from '@/lib/assets/ComponentLibrary'
 import type { SavedComponent } from '@/lib/assets/ComponentLibrary'
 import { generateComponentThumbnail } from '@/lib/assets/ComponentThumbnail'
 
@@ -997,9 +997,91 @@ function disposeComponentSource(root: THREE.Object3D) {
   textures.forEach(texture => texture.dispose())
 }
 
-async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string; sourceGlbBytes?: ArrayBuffer }): Promise<boolean> {
+async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string; sourceGlbBytes?: ArrayBuffer; batchModels?: Array<{ partId: string; name: string; model: import('three').Object3D; height: number }> }): Promise<boolean> {
   if (componentBusy.value) {
     throw new Error('A biblioteca de componentes está ocupada com outra operação. Tente salvar novamente em alguns segundos.')
+  }
+
+  if (payload.batchModels?.length) {
+    componentBusy.value = true
+    const entries = payload.batchModels
+    const savedComponents: SavedComponent[] = []
+    status.value = `Preparando ${entries.length} componentes a partir do mesmo modelo…`
+    try {
+      for (let index = 0; index < entries.length; index += 1) {
+        const entry = entries[index]!
+        status.value = `Exportando componente ${index + 1} de ${entries.length}: ${entry.name}…`
+        const exportRoot = cloneSkinnedModel(entry.model)
+        exportRoot.userData = { ...exportRoot.userData }
+        for (const key of [
+          'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
+          'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
+          'importAnimationRoles', 'importControlBindings', 'importRigPreset',
+          'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds',
+          'importBehaviorPackageSettings', 'importSourceGlbBytes', 'importNeedsReexport',
+        ]) {
+          delete exportRoot.userData[key]
+        }
+
+        const exporter = new GLTFExporter()
+        const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: [] })
+        if (!(exported instanceof ArrayBuffer) || exported.byteLength <= 20) {
+          throw new Error(`O exportador não gerou um GLB válido para "${entry.name}".`)
+        }
+
+        const modelData = entry.model.userData
+        let thumbnail: string | undefined
+        try {
+          thumbnail = await generateComponentThumbnail(exported)
+        } catch {
+          thumbnail = undefined
+        }
+
+        const rawSize = modelData.importColliderSize
+        const rawOffset = modelData.importColliderOffset
+        const colliderType = modelData.importColliderType
+        const id = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + '-' + index.toString(36) + Math.random().toString(36).slice(2)
+        savedComponents.push({
+          id,
+          name: entry.name.trim() || 'Modelo 3D',
+          height: entry.height,
+          colliderType: colliderType === 'sphere' || colliderType === 'capsule' || colliderType === 'none' ? colliderType : 'box',
+          colliderSize: Array.isArray(rawSize) && rawSize.length === 3
+            ? [...rawSize] as [number, number, number]
+            : [1, 1, 1],
+          colliderOffset: Array.isArray(rawOffset) && rawOffset.length === 3
+            ? [...rawOffset] as [number, number, number]
+            : [0, 0, 0],
+          kind: 'object',
+          logic: undefined,
+          behaviorPackageIds: Array.isArray(modelData.importBehaviorPackageIds)
+            ? [...new Set((modelData.importBehaviorPackageIds as unknown[]).filter((value): value is string => typeof value === 'string'))]
+            : [],
+          behaviorPackageSettings: modelData.importBehaviorPackageSettings && typeof modelData.importBehaviorPackageSettings === 'object'
+            ? modelData.importBehaviorPackageSettings as SavedComponent['behaviorPackageSettings']
+            : {},
+          animationRoles: {},
+          controlBindings: modelData.importControlBindings as Partial<import('@engine').ModelControlBindings> | undefined,
+          thumbnail,
+          bytes: exported,
+          createdAt: Date.now(),
+        })
+      }
+
+      status.value = `Gravando ${savedComponents.length} componentes na biblioteca…`
+      await saveComponentAssets(savedComponents)
+      await refreshSavedComponents()
+      status.value = `Pronto: ${savedComponents.length} componentes salvos da mesma importação. Você pode selecionar mais partes no importador sem abrir o arquivo novamente.`
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      status.value = `Não foi possível salvar o lote de componentes: ${message}`
+      throw new Error(message)
+    } finally {
+      componentBusy.value = false
+    }
   }
 
   if (payload.componentId) {
