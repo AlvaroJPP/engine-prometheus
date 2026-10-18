@@ -17,6 +17,33 @@ type ImportBehaviorPackageDraft = {
   variables: Record<string, PackageScalar>
   config: Record<string, PackageJsonValue>
 }
+
+// Clona valores JSON recursivamente sem structuredClone: dados lidos de refs do Vue
+// podem ser Proxy reativos, que structuredClone rejeita.
+function clonePackageJsonValue(value: PackageJsonValue): PackageJsonValue {
+  if (Array.isArray(value)) return value.map(clonePackageJsonValue)
+  if (value !== null && typeof value === 'object') {
+    const copy: Record<string, PackageJsonValue> = {}
+    for (const [key, nested] of Object.entries(value)) {
+      copy[key] = clonePackageJsonValue(nested)
+    }
+    return copy
+  }
+  return value
+}
+
+function clonePackageJsonRecord(record: Record<string, PackageJsonValue>): Record<string, PackageJsonValue> {
+  return clonePackageJsonValue(record) as Record<string, PackageJsonValue>
+}
+
+function cloneImportBehaviorPackageSettings(
+  settings: Record<string, ImportBehaviorPackageDraft>,
+): Record<string, ImportBehaviorPackageDraft> {
+  return Object.fromEntries(Object.entries(settings).map(([id, draft]) => [id, {
+    variables: { ...draft.variables },
+    config: clonePackageJsonRecord(draft.config),
+  }]))
+}
 type ImportModelStateDraft = {
   id: string
   nodePath: string
@@ -1022,7 +1049,7 @@ const importPackageControlBindingFields: Array<{ key: keyof ModelControlBindings
 
 function createImportBehaviorPackageDraft(definition: BehaviorPackageDefinition): ImportBehaviorPackageDraft {
   const variables = Object.fromEntries(definition.variables.map(variable => [variable.name, variable.defaultValue])) as Record<string, PackageScalar>
-  const config = structuredClone(definition.defaultConfig)
+  const config = clonePackageJsonRecord(definition.defaultConfig)
   if (definition.id === 'mount') {
     const defaults = config.controlBindings && typeof config.controlBindings === 'object' && !Array.isArray(config.controlBindings)
       ? config.controlBindings as Record<string, PackageJsonValue>
@@ -1656,7 +1683,7 @@ watch(() => props.open, async (open) => {
         selectedBehaviorPackageIds.value = [...new Set((props.initialAsset.behaviorPackageIds ?? []).filter(id =>
           BEHAVIOR_PACKAGE_DEFINITIONS.some(definition => definition.id === id),
         ))]
-        selectedBehaviorPackageSettings.value = structuredClone(props.initialAsset.behaviorPackageSettings ?? {})
+        selectedBehaviorPackageSettings.value = cloneImportBehaviorPackageSettings(props.initialAsset.behaviorPackageSettings ?? {})
         componentName.value = props.initialAsset.name
         customThumbnail.value = props.initialAsset.thumbnail ?? null
         customThumbnailFileName.value = props.initialAsset.thumbnail ? 'Miniatura salva' : ''
@@ -1903,7 +1930,7 @@ async function confirmImport() {
       const draft = ensureImportBehaviorPackageDraft(packageId)
       behaviorPackageSettings[packageId] = {
         variables: { ...draft.variables },
-        config: structuredClone(draft.config),
+        config: clonePackageJsonRecord(draft.config),
       }
     }
     imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
