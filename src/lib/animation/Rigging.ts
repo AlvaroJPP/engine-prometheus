@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 
-export type AutoRigPreset = 'auto' | 'humanoid' | 'quadruped' | 'chain' | 'modular'
+export type AutoRigPreset = 'auto' | 'humanoid' | 'quadruped' | 'chain' | 'modular' | 'ai'
 export type ConcreteAutoRigPreset = Exclude<AutoRigPreset, 'auto'>
+type DetectedAutoRigPreset = Exclude<ConcreteAutoRigPreset, 'ai'>
 
 export interface AutoRigAnalysis {
-  recommendedPreset: ConcreteAutoRigPreset
+  recommendedPreset: DetectedAutoRigPreset
   dimensions: { width: number; height: number; depth: number }
   meshCount: number
   namedPartCount: number
@@ -215,7 +216,7 @@ function createModularRigSpecs(root: THREE.Object3D, meshes: THREE.Mesh[]): Modu
   return { specs, meshToJointName }
 }
 
-function createJointSpecs(bounds: THREE.Box3, preset: AutoRigPreset): JointSpec[] {
+function createJointSpecs(bounds: THREE.Box3, preset: DetectedAutoRigPreset): JointSpec[] {
   const min = bounds.min
   const size = bounds.getSize(new THREE.Vector3())
   const center = bounds.getCenter(new THREE.Vector3())
@@ -305,7 +306,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
     const isGeneratedRig = existingBones.every(bone => bone.userData.generatedRigBone === true)
     const savedPreset = existingBones
       .map(bone => bone.userData.generatedRigPreset)
-      .find(value => value === 'humanoid' || value === 'quadruped' || value === 'chain' || value === 'modular') as AutoRigPreset | undefined
+      .find(value => value === 'humanoid' || value === 'quadruped' || value === 'chain' || value === 'modular' || value === 'ai') as AutoRigPreset | undefined
     return {
       bones: existingBones,
       preset: savedPreset ?? preset,
@@ -315,6 +316,10 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
         ? 'Rig automático salvo detectado. Os ossos e pesos existentes foram preservados.'
         : 'Rig existente detectado. Os ossos e pesos originais foram preservados.',
     }
+  }
+
+  if (preset === 'ai') {
+    throw new Error('Este modelo usa um rig gerado por IA. Para criar outro esqueleto manualmente, escolha Detecção automática, Humanoide, Quadrúpede, Corrente genérica ou Por peças.')
   }
 
   const staticMeshes: THREE.Mesh[] = []
@@ -347,7 +352,7 @@ export function autoRigModel(root: THREE.Object3D, preset: AutoRigPreset): AutoR
   const detected = preset === 'auto' ? analyzeRiggingInput(root) : null
   const effectivePreset: ConcreteAutoRigPreset = detected?.recommendedPreset ?? preset as ConcreteAutoRigPreset
   const modularPlan = effectivePreset === 'modular' ? createModularRigSpecs(root, staticMeshes) : null
-  const specs = modularPlan?.specs ?? createJointSpecs(bounds, effectivePreset as Exclude<ConcreteAutoRigPreset, 'modular'>)
+  const specs = modularPlan?.specs ?? createJointSpecs(bounds, effectivePreset as Exclude<DetectedAutoRigPreset, 'modular'>)
   if (!specs.length) throw new Error('Não foi possível determinar juntas para este modelo.')
   const boneByName = new Map<string, THREE.Bone>()
   const positionByBone = new Map<THREE.Bone, THREE.Vector3>()
