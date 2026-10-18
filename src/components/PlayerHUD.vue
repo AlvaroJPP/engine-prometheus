@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 const props = defineProps<{
   playerName: string
@@ -18,6 +18,24 @@ const emit = defineEmits<{
   (event: 'settings-open-change', value: boolean): void
 }>()
 
+type HudImageLayer = {
+  id: string
+  name: string
+  x: number
+  y: number
+  width: number
+  opacity: number
+  visible: boolean
+}
+type HudImageDrag = {
+  id: string
+  startX: number
+  startY: number
+  originX: number
+  originY: number
+  viewportWidth: number
+  viewportHeight: number
+}
 type HudSettings = {
   showPlayer: boolean
   showSession: boolean
@@ -28,6 +46,7 @@ type HudSettings = {
   scale: number
   dock: 'left' | 'right'
   quickSlots: string[]
+  images: HudImageLayer[]
 }
 
 const STORAGE_KEY = 'engine-prometheus.player-hud.v1'
@@ -41,9 +60,16 @@ const defaults: HudSettings = {
   scale: 1,
   dock: 'left',
   quickSlots: ['Habilidade 1', 'Habilidade 2', 'Item 1', 'Item 2'],
+  images: [],
 }
-const settings = reactive<HudSettings>({ ...defaults, quickSlots: [...defaults.quickSlots] })
+const settings = reactive<HudSettings>({ ...defaults, quickSlots: [...defaults.quickSlots], images: [] })
 const showControls = ref(true)
+const hudImageUrls = ref<Record<string, string>>({})
+const hudImageInput = ref<HTMLInputElement | null>(null)
+const hudImageError = ref('')
+const activeHudImageId = ref<string | null>(null)
+const hudImageDrag = ref<HudImageDrag | null>(null)
+const visibleHudImages = computed(() => settings.images.filter(layer => layer.visible && hudImageUrls.value[layer.id]))
 const showSettings = computed({
   get: () => props.settingsOpen,
   set: (value: boolean) => emit('settings-open-change', value),
@@ -52,24 +78,226 @@ const fpsLabel = computed(() => props.fps > 0 ? Math.round(props.fps) : '--')
 const hudStyle = computed(() => ({ '--hud-scale': String(settings.scale) }))
 const bottomClasses = computed(() => ({ 'dock-right': settings.dock === 'right' }))
 
-onMounted(() => {
+function openHudImageDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('O armazenamento de imagens não está disponível neste ambiente.'))
+      return
+    }
+    const request = indexedDB.open('engine-prometheus-hud-images', 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains('images')) db.createObjectStore('images')
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('Não foi possível abrir o armazenamento de imagens.'))
+  })
+}
+
+async function storeHudImage(id: string, blob: Blob): Promise<void> {
+  const db = await openHudImageDatabase()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('images', 'readwrite')
+      transaction.objectStore('images').put(blob, id)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error ?? new Error('Não foi possível salvar a imagem.'))
+      transaction.onabort = () => reject(transaction.error ?? new Error('O salvamento da imagem foi cancelado.'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
+async function readHudImage(id: string): Promise<Blob | null> {
+  const db = await openHudImageDatabase()
+  try {
+    return await new Promise<Blob | null>((resolve, reject) => {
+      const request = db.transaction('images', 'readonly').objectStore('images').get(id)
+      request.onsuccess = () => resolve(request.result instanceof Blob ? request.result : null)
+      request.onerror = () => reject(request.error ?? new Error('Não foi possível carregar a imagem.'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
+async function deleteHudImage(id: string): Promise<void> {
+  const db = await openHudImageDatabase()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('images', 'readwrite')
+      transaction.objectStore('images').delete(id)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error ?? new Error('Não foi possível remover a imagem.'))
+      transaction.onabort = () => reject(transaction.error ?? new Error('A remoção da imagem foi cancelada.'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
+function boundedHudNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? Math.min(max, Math.max(min, numeric)) : fallback
+}
+
+onMounted(async () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const saved = JSON.parse(raw) as Partial<HudSettings>
-    Object.assign(settings, {
-      ...defaults,
-      ...saved,
-      quickSlots: Array.isArray(saved.quickSlots)
-        ? defaults.quickSlots.map((fallback, index) => String(saved.quickSlots?.[index] ?? fallback).slice(0, 22))
-        : [...defaults.quickSlots],
-    })
-    settings.scale = Math.min(1.25, Math.max(0.75, Number(settings.scale) || 1))
-    if (settings.dock !== 'left' && settings.dock !== 'right') settings.dock = 'left'
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<HudSettings>
+      const images = Array.isArray(saved.images)
+        ? saved.images
+            .filter((layer): layer is HudImageLayer => Boolean(layer && typeof layer.id === 'string' && typeof layer.name === 'string'))
+            .map((layer) => {
+              const width = boundedHudNumber(layer.width, 24, 5, 80)
+              return {
+                id: layer.id,
+                name: layer.name.slice(0, 120),
+                x: boundedHudNumber(layer.x, 5, 0, 100 - width),
+                y: boundedHudNumber(layer.y, 45, 0, 100),
+                width,
+                opacity: boundedHudNumber(layer.opacity, 100, 10, 100),
+                visible: layer.visible !== false,
+              }
+            })
+        : []
+      Object.assign(settings, {
+        ...defaults,
+        ...saved,
+        scale: boundedHudNumber(saved.scale, defaults.scale, 0.75, 1.25),
+        dock: saved.dock === 'right' ? 'right' : 'left',
+        quickSlots: Array.isArray(saved.quickSlots)
+          ? defaults.quickSlots.map((fallback, index) => String(saved.quickSlots?.[index] ?? fallback).slice(0, 22))
+          : [...defaults.quickSlots],
+        images,
+      })
+    }
   } catch {
-    Object.assign(settings, defaults, { quickSlots: [...defaults.quickSlots] })
+    Object.assign(settings, defaults, { quickSlots: [...defaults.quickSlots], images: [] })
+  }
+
+  for (const layer of settings.images) {
+    try {
+      const blob = await readHudImage(layer.id)
+      if (blob) hudImageUrls.value[layer.id] = URL.createObjectURL(blob)
+    } catch {
+      // An inaccessible image stays in the list so the user can remove/reimport it.
+    }
   }
 })
+
+onBeforeUnmount(() => {
+  finishHudImageDrag()
+  Object.values(hudImageUrls.value).forEach(url => URL.revokeObjectURL(url))
+})
+
+function chooseHudImage(): void {
+  hudImageError.value = ''
+  hudImageInput.value?.click()
+}
+
+async function importHudImage(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  hudImageError.value = ''
+  if (!file) return
+
+  const supportedTypes = ['image/png', 'image/jpeg', 'image/webp']
+  if (!supportedTypes.includes(file.type)) {
+    hudImageError.value = 'Use uma imagem PNG, JPG ou WebP.'
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    hudImageError.value = 'A imagem deve ter até 10 MB.'
+    return
+  }
+
+  const id = 'hud-image-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+  try {
+    await storeHudImage(id, file)
+    hudImageUrls.value = { ...hudImageUrls.value, [id]: URL.createObjectURL(file) }
+    settings.images.push({
+      id,
+      name: file.name.slice(0, 120),
+      x: 5,
+      y: 45,
+      width: 24,
+      opacity: 100,
+      visible: true,
+    })
+    activeHudImageId.value = id
+  } catch (error) {
+    hudImageError.value = error instanceof Error ? error.message : 'Não foi possível importar a imagem.'
+  }
+}
+
+function toggleHudImagePosition(layer: HudImageLayer): void {
+  activeHudImageId.value = activeHudImageId.value === layer.id ? null : layer.id
+}
+
+function clampHudImagePosition(layer: HudImageLayer): void {
+  layer.width = boundedHudNumber(layer.width, 24, 5, 80)
+  layer.opacity = boundedHudNumber(layer.opacity, 100, 10, 100)
+  layer.x = boundedHudNumber(layer.x, 5, 0, 100 - layer.width)
+  layer.y = boundedHudNumber(layer.y, 45, 0, 100)
+}
+
+async function removeHudImage(id: string): Promise<void> {
+  settings.images = settings.images.filter(layer => layer.id !== id)
+  if (activeHudImageId.value === id) activeHudImageId.value = null
+  const existingUrl = hudImageUrls.value[id]
+  if (existingUrl) URL.revokeObjectURL(existingUrl)
+  const nextUrls = { ...hudImageUrls.value }
+  delete nextUrls[id]
+  hudImageUrls.value = nextUrls
+  try {
+    await deleteHudImage(id)
+  } catch {
+    // The metadata removal is still applied even if the browser store is unavailable.
+  }
+}
+
+function beginHudImageDrag(event: PointerEvent, layer: HudImageLayer): void {
+  if (activeHudImageId.value !== layer.id || event.button !== 0) return
+  const root = (event.currentTarget as HTMLElement).closest('.player-hud')
+  if (!(root instanceof HTMLElement)) return
+  const rect = root.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  hudImageDrag.value = {
+    id: layer.id,
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: layer.x,
+    originY: layer.y,
+    viewportWidth: rect.width,
+    viewportHeight: rect.height,
+  }
+  window.addEventListener('pointermove', moveHudImage)
+  window.addEventListener('pointerup', finishHudImageDrag)
+  window.addEventListener('pointercancel', finishHudImageDrag)
+}
+
+function moveHudImage(event: PointerEvent): void {
+  const drag = hudImageDrag.value
+  if (!drag) return
+  const layer = settings.images.find(item => item.id === drag.id)
+  if (!layer) return
+  layer.x = boundedHudNumber(drag.originX + ((event.clientX - drag.startX) / drag.viewportWidth) * 100, drag.originX, 0, 100 - layer.width)
+  layer.y = boundedHudNumber(drag.originY + ((event.clientY - drag.startY) / drag.viewportHeight) * 100, drag.originY, 0, 100)
+}
+
+function finishHudImageDrag(): void {
+  hudImageDrag.value = null
+  window.removeEventListener('pointermove', moveHudImage)
+  window.removeEventListener('pointerup', finishHudImageDrag)
+  window.removeEventListener('pointercancel', finishHudImageDrag)
+}
 
 watch(settings, (value) => {
   try {
@@ -122,6 +350,19 @@ function resetSettings() {
       </div>
     </div>
 
+    <img
+      v-for="layer in visibleHudImages"
+      :key="layer.id"
+      class="hud-custom-image"
+      :class="{ 'is-positioning': activeHudImageId === layer.id }"
+      :src="hudImageUrls[layer.id]"
+      :alt="activeHudImageId === layer.id ? 'Arraste para posicionar: ' + layer.name : ''"
+      :aria-hidden="activeHudImageId !== layer.id"
+      :style="{ left: layer.x + '%', top: layer.y + '%', width: layer.width + '%', opacity: layer.opacity / 100 }"
+      draggable="false"
+      @pointerdown="beginHudImageDrag($event, layer)"
+    >
+
     <div v-if="showSettings" class="hud-settings-panel" role="dialog" aria-label="Personalizar interface do jogador">
       <div class="settings-heading">
         <div><span class="hud-eyebrow">ENGINE PROMETHEUS</span><strong>Personalizar HUD</strong></div>
@@ -153,6 +394,53 @@ function resetSettings() {
           <input v-for="(slot, index) in settings.quickSlots" :key="index" v-model="settings.quickSlots[index]" :aria-label="'Rótulo do atalho ' + (index + 1)" maxlength="22">
         </div>
         <small>Os espaços são personalizáveis; ainda não estão conectados a inventário ou habilidades do jogo.</small>
+      </div>
+
+      <div class="settings-field hud-images-field">
+        <span>Imagens personalizadas do HUD</span>
+        <input
+          ref="hudImageInput"
+          class="hud-image-file-input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          aria-label="Selecionar imagem para o HUD"
+          @change="importHudImage"
+        >
+        <button type="button" class="hud-image-import" @click="chooseHudImage">＋ Importar imagem PNG, JPG ou WebP</button>
+        <small>Adicione molduras, ícones, barras decorativas ou uma imagem HUD transparente. As imagens são salvas neste dispositivo. Limite: 10 MB por imagem.</small>
+        <p v-if="hudImageError" class="hud-image-error" role="alert">{{ hudImageError }}</p>
+        <div v-if="settings.images.length" class="hud-image-list">
+          <div v-for="layer in settings.images" :key="layer.id" class="hud-image-item">
+            <img v-if="hudImageUrls[layer.id]" class="hud-image-preview" :src="hudImageUrls[layer.id]" alt="">
+            <div v-else class="hud-image-preview hud-image-preview-missing">?</div>
+            <div class="hud-image-item-meta">
+              <strong :title="layer.name">{{ layer.name }}</strong>
+              <label><input v-model="layer.visible" type="checkbox"> Mostrar</label>
+            </div>
+            <button type="button" class="hud-image-remove" :aria-label="'Remover imagem ' + layer.name" title="Remover imagem" @click="removeHudImage(layer.id)">×</button>
+            <div class="hud-image-actions">
+              <button type="button" :class="{ active: activeHudImageId === layer.id }" @click="toggleHudImagePosition(layer)">
+                {{ activeHudImageId === layer.id ? 'Concluir posição' : 'Posicionar na tela' }}
+              </button>
+            </div>
+            <div class="hud-image-adjustments">
+              <label>Largura · {{ Math.round(layer.width) }}%
+                <input v-model.number="layer.width" type="range" min="5" max="80" step="1" @input="clampHudImagePosition(layer)">
+              </label>
+              <label>Opacidade · {{ Math.round(layer.opacity) }}%
+                <input v-model.number="layer.opacity" type="range" min="10" max="100" step="5" @input="clampHudImagePosition(layer)">
+              </label>
+              <label>Horizontal · {{ Math.round(layer.x) }}%
+                <input v-model.number="layer.x" type="range" min="0" :max="Math.max(0, 100 - layer.width)" step="1" @input="clampHudImagePosition(layer)">
+              </label>
+              <label>Vertical · {{ Math.round(layer.y) }}%
+                <input v-model.number="layer.y" type="range" min="0" max="100" step="1" @input="clampHudImagePosition(layer)">
+              </label>
+            </div>
+          </div>
+        </div>
+        <small v-else>Nenhuma imagem adicionada ainda.</small>
+        <small v-if="activeHudImageId && settings.images.some(layer => layer.id === activeHudImageId)" class="hud-image-position-note">Modo de posicionamento ativo: arraste a imagem diretamente na tela ou ajuste X/Y aqui. Clique em “Concluir posição” ao terminar.</small>
       </div>
       <div class="settings-footer">
         <button type="button" @click="resetSettings">Restaurar padrão</button>
@@ -333,5 +621,52 @@ function resetSettings() {
     max-height: calc(100dvh - 132px);
   }
 }
+
+
+.hud-custom-image {
+  position:absolute;
+  z-index:22;
+  display:block;
+  height:auto;
+  max-width:none;
+  transform:none;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-drag:none;
+  touch-action:none;
+}
+.hud-custom-image.is-positioning {
+  outline:1px dashed #e8572b;
+  outline-offset:2px;
+  cursor:move;
+}
+.hud-image-file-input { display:none; }
+.hud-image-import,.hud-image-remove,.hud-image-actions button {
+  border:1px solid #ffffff20;
+  border-radius:5px;
+  padding:7px 9px;
+  background:#ffffff08;
+  color:#e7ebf0;
+  font-size:10px;
+  cursor:pointer;
+}
+.hud-image-import { width:100%; border-color:#f5b64c55; color:#ffd17b; text-align:left; }
+.hud-image-import:hover,.hud-image-actions button:hover { border-color:#f5b64c88; background:#f5b64c14; }
+.hud-image-list { display:grid; gap:8px; margin-top:9px; }
+.hud-image-item { display:grid; grid-template-columns:54px minmax(0,1fr) 28px; gap:8px; align-items:start; padding:9px; border:1px solid #ffffff14; border-radius:6px; background:#00000016; }
+.hud-image-preview { display:block; width:54px; height:44px; object-fit:contain; border:1px solid #ffffff16; border-radius:4px; background:#0b1016; }
+.hud-image-preview-missing { display:grid; place-items:center; color:#e7a08a; font-size:18px; }
+.hud-image-item-meta { display:grid; min-width:0; gap:6px; }
+.hud-image-item-meta>strong { overflow:hidden; color:#e5e9ef; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.hud-image-item-meta label { display:flex; align-items:center; gap:5px; color:#b8c2cf; font-size:10px; }
+.hud-image-item-meta input { accent-color:#f5b64c; }
+.hud-image-remove { width:28px; height:28px; padding:0; color:#e7a08a; font-size:18px; }
+.hud-image-actions { grid-column:1 / -1; display:flex; gap:6px; }
+.hud-image-actions button.active { border-color:#f5b64c88; background:#f5b64c18; color:#ffd17b; }
+.hud-image-adjustments { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:10px 8px; }
+.hud-image-adjustments label { display:grid; gap:5px; min-width:0; color:#aeb9c6; font-size:9px; }
+.hud-image-adjustments input[type=range] { width:100%; min-width:0; accent-color:#e8572b; }
+.hud-image-error { margin:0; color:#ffaaa2; font-size:10px; line-height:1.4; }
+.hud-image-position-note { padding:7px; border:1px solid #e8572b44; border-radius:5px; background:#e8572b12; color:#ffd17b !important; }
 
 </style>
