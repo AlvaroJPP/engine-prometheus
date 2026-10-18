@@ -3,8 +3,9 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
 import type { GameObject } from '../model/object/GameObject'
 import type { World } from './World'
 import {
+  clearStaticMeshColliderCache,
   getStaticMeshCollisionData,
-  releaseStaticMeshCollider,
+  releaseStaticMeshColliderById,
   visitStaticMeshTriangles,
 } from './StaticMeshCollider'
 
@@ -92,8 +93,7 @@ export class CollisionSystem {
     const triangles = this.importedTriangleGeometries.get(id)
     triangles?.geometry.dispose()
     this.importedTriangleGeometries.delete(id)
-    const object = this.world.get(id)
-    if (object) releaseStaticMeshCollider(object.mesh)
+    releaseStaticMeshColliderById(id)
     // World.dispose já liberou a geometria/material do helper ligado à raiz.
     this.debugHelpers.delete(id)
   }
@@ -312,7 +312,11 @@ export class CollisionSystem {
   private getImportedTriangleGeometry(object: GameObject): THREE.BufferGeometry | null {
     if (!this.isAutomaticImportedMesh(object)) return this.getColliderGeometry(object)
     if (this.colliderType(object) === 'mesh') {
-      return getStaticMeshCollisionData(object.mesh)?.geometry ?? null
+      const staticData = getStaticMeshCollisionData(object.mesh)
+      if (staticData) return staticData.geometry
+      // Em modelos esqueléticos/morph e malhas além do limite seguro, mantém
+      // o caminho de triângulos dinâmicos/convexos já existente como fallback.
+      if (!object.mesh.userData.importedModel) return this.getColliderGeometry(object)
     }
 
     const root = object.mesh
@@ -799,7 +803,7 @@ export class CollisionSystem {
   }
 
   private isStaticMeshCollider(object: GameObject): boolean {
-    return object.mesh.userData.importedModel === true && this.colliderType(object) === 'mesh'
+    return this.colliderType(object) === 'mesh'
   }
 
   /**
@@ -1009,6 +1013,9 @@ export class CollisionSystem {
   /** O terreno impede que os objetos atravessem a superfície. */
   private keepObjectsAboveTerrain(objects: GameObject[]): void {
     for (const object of objects) {
+      // Um cenário importado pode estender abaixo do terreno procedimental.
+      // Nunca mova a cidade inteira para cima com o ajuste do terreno base.
+      if (this.isStaticMeshCollider(object)) continue
       const bounds = getRootBounds(object.mesh)
       const groundY = this.world.terrain.heightAt(object.mesh.position.x, object.mesh.position.z)
       if (bounds.min.y < groundY) {
@@ -1034,6 +1041,7 @@ export class CollisionSystem {
     for (const entry of this.importedTriangleGeometries.values()) entry.geometry.dispose()
     this.importedTriangleGeometries.clear()
     this.colliderGeometries.clear()
+    clearStaticMeshColliderCache()
   }
 
   private pairKey(a: string, b: string): string {
