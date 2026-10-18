@@ -4,7 +4,9 @@ Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetiv
 
 ## Conteúdo
 
-- `veilborne.json`: manifesto de mecânicas, valores iniciais, categorias de armas, escolas de magia, sigilos, efeitos de estado, inimigos, progressão e sistemas de mundo.
+- `veilborne.json`: manifesto geral de mecânicas e sistemas.
+- `content.json`: conteúdo inicial de 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 inimigos/chefes, efeitos de estado e regras de progressão.
+- `engine/script/VeilborneCombat.ts`: funções puras reutilizáveis para atributos, dano de armas, dano mágico, gastos/restauração de recursos, resistências, postura, efeitos de estado, esquiva e janela de aparo.
 - Registro em `engine/script/packages.ts`: disponibiliza **VEILBORNE — RPG Sombrio** no catálogo de pacotes de comportamento do editor.
 - Variáveis iniciais por instância: vida, éter, vigor, postura, atributos e nível.
 
@@ -19,7 +21,7 @@ Pacote de mecânicas de RPG medieval sombrio para o Engine Prometheus. O objetiv
 
 ## Estado da implementação
 
-Esta primeira base registra o pacote e sua configuração de design. O catálogo de comportamento já pode listar o pacote e instanciar suas variáveis, mas isso **não significa que todos os sistemas de combate, magia, IA, inventário ou salvamento já estejam conectados ao runtime**. Cada subsistema precisa ser ligado ao ciclo de jogo do Engine Prometheus e validado em execução.
+Esta primeira base registra o pacote no catálogo, cria suas variáveis, fornece um catálogo inicial de conteúdo e implementa regras puras de combate/recursos. O pacote já fica disponível no editor como componente de comportamento. Porém, os controles de combate, projéteis e VFX, detecção/ativação de sigilos, IA, inventário, chefes por fases e salvamento **ainda precisam ser ligados ao ciclo de jogo e à interface do Engine Prometheus**; a presença dos dados não os torna automaticamente jogáveis.
 
 ## Próximas etapas de implementação
 
