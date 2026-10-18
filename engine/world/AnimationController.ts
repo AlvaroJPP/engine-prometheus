@@ -153,6 +153,7 @@ export class AnimationController {
   private requestedRole = ''
   private activeRole = ''
   private oneShotRole: string | null = null
+  private holdOneShotAtEndRole: string | null = null
   private targetCycleScale = 1
   private disposed = false
 
@@ -271,7 +272,7 @@ export class AnimationController {
     return role ? this.activeRole || null : null
   }
 
-  playOneShot(role: string, restart = true): boolean {
+  playOneShot(role: string, restart = true, holdAtEnd = role === 'jump'): boolean {
     if (this.disposed) return false
     const nextRole = this.actions.has(role) ? role : null
     // Ações pontuais não devem cair silenciosamente para idle/walk quando o
@@ -302,6 +303,7 @@ export class AnimationController {
     action.play()
     this.oneShotRole = nextRole
     this.requestedRole = role
+    this.holdOneShotAtEndRole = holdAtEnd ? nextRole : null
     this.targetCycleScale = 1
     this.setTargetWeights(new Map([[nextRole, 1]]), role)
     return true
@@ -326,6 +328,7 @@ export class AnimationController {
 
   stop(): void {
     this.oneShotRole = null
+    this.holdOneShotAtEndRole = null
     this.queuedTargets = null
     this.requestedRole = ''
     this.activeRole = ''
@@ -420,6 +423,16 @@ export class AnimationController {
     // Mantém o último quadro enquanto o peso desce gradualmente para zero.
     // A próxima chamada de update já aplica os pesos do estado de retorno guardado.
     this.oneShotRole = null
+    if (this.holdOneShotAtEndRole === role) {
+      // O salto pode terminar antes de o personagem pousar. Mantém a pose final
+      // sem reiniciar o salto a cada quadro; o próximo estado de gameplay libera a pose.
+      this.holdOneShotAtEndRole = null
+      this.queuedTargets = null
+      action.setLoop(THREE.LoopOnce, 1)
+      action.clampWhenFinished = true
+      this.setTargetWeights(new Map([[role, 1]]), role)
+      return
+    }
     const returnTargets = this.queuedTargets ?? new Map<string, number>()
     this.queuedTargets = null
     action.setLoop(THREE.LoopRepeat, Infinity)
