@@ -1821,7 +1821,11 @@ async function testSkinTokensBackend() {
   }
 }
 
-async function runSkinTokensRigging(preserveRetargetSource = false) {
+async function runSkinTokensRigging() {
+  await performSkinTokensRigging(false)
+}
+
+async function performSkinTokensRigging(preserveRetargetSource: boolean) {
   const root = model.value
   if (!root || skinTokensLoading.value) return
   if (!isTauri()) {
@@ -2611,7 +2615,7 @@ async function runAutonomousRetargeting() {
       retargetAutonomousStage.value = 'Etapa 1/3 · A IA local está gerando o esqueleto e os pesos do modelo A'
       skinTokensOperation.value = 'rig'
       const targetBeforeAi = targetRoot
-      await runSkinTokensRigging(true)
+      await performSkinTokensRigging(true)
       if (model.value === targetBeforeAi) {
         throw new Error(skinTokensMessage.value || 'A IA local não conseguiu preparar o rig do modelo A.')
       }
