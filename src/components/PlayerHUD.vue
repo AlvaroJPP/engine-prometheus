@@ -70,6 +70,7 @@ type HudSettings = {
 }
 
 const STORAGE_KEY = 'engine-prometheus.player-hud.v1'
+const alquimiaLibraryUrl = `${import.meta.env.BASE_URL}alquimia-escarlate-ui.html`
 const defaults: HudSettings = {
   showPlayer: true,
   showSession: true,
@@ -899,6 +900,11 @@ function resetSettings() {
 
       <div class="settings-field hud-images-field">
         <span>Imagens personalizadas do HUD</span>
+        <a class="hud-alquimia-library" :href="alquimiaLibraryUrl" target="_blank" rel="noreferrer">
+          <span aria-hidden="true">✦</span>
+          <span><strong>Biblioteca ALQUIMIA ESCARLATE</strong><small>Ver molduras, sigilos, botões e HUD de fantasia</small></span>
+          <span aria-hidden="true">↗</span>
+        </a>
         <input
           ref="hudImageInput"
           class="hud-image-file-input"
@@ -1297,6 +1303,13 @@ function resetSettings() {
 .hud-color-key-controls input[type=color] { width:100%; height:30px; padding:2px; border:1px solid #ffffff20; border-radius:4px; background:#0b1016; }
 .hud-color-key-controls input[type=range] { width:100%; accent-color:#e8572b; }
 .hud-color-key-controls.disabled { opacity:.5; }
+.hud-alquimia-library { display:flex; align-items:center; gap:9px; min-width:0; padding:10px; border:1px solid #bd765a66; border-radius:6px; background:linear-gradient(135deg,#251b2d,#101c2a); color:#edc6a4; text-decoration:none; }
+.hud-alquimia-library:hover { border-color:#d69a71; background:linear-gradient(135deg,#342033,#17283a); }
+.hud-alquimia-library>span:first-child { color:#e49a67; font-size:20px; }
+.hud-alquimia-library>span:nth-child(2) { display:grid; flex:1; gap:3px; min-width:0; }
+.hud-alquimia-library strong { font-size:10px; letter-spacing:.035em; }
+.hud-alquimia-library small { color:#b9a9bb; font-size:9px; line-height:1.4; }
+.hud-alquimia-library>span:last-child { color:#d99b71; font-size:14px; }
 .hud-image-create-slices { width:100%; min-height:36px; border-color:#f5b64c66; background:#f5b64c18; color:#ffd17b; font-weight:700; }
 .hud-image-create-slices:not(:disabled):hover { border-color:#f5b64c; background:#f5b64c26; }
 
