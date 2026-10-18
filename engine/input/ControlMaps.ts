@@ -13,6 +13,8 @@ export interface ControlMapBindings extends ModelControlBindings {
   dodge: string
   slide: string
   roll: string
+  block: string
+  parry: string
   primaryAction: string
   secondaryAction: string
   inventory: string
@@ -79,6 +81,8 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: COMMON_ACTIONS.dodge,
       slide: COMMON_ACTIONS.slide,
       roll: COMMON_ACTIONS.roll,
+      block: 'KeyR',
+      parry: 'KeyY',
       interact: 'KeyE',
       primaryAction: COMMON_ACTIONS.primaryAction,
       secondaryAction: COMMON_ACTIONS.secondaryAction,
@@ -113,6 +117,8 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
+      block: 'KeyR',
+      parry: 'KeyY',
       interact: 'KeyE',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
@@ -147,6 +153,8 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
+      block: 'KeyP',
+      parry: 'KeyO',
       interact: 'KeyA',
       primaryAction: 'KeyR',
       secondaryAction: 'KeyT',
@@ -181,6 +189,8 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
+      block: 'KeyR',
+      parry: 'KeyY',
       interact: 'KeyU',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
