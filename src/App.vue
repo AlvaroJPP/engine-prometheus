@@ -1766,6 +1766,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           @toggle-camera="cycleCameraView"
           @exit-runtime="returnToEdit"
           @settings-open-change="playerHudSettingsOpen = $event"
+          @set-global-variable="(name, value) => setLogicVariableValue(name, String(value), 'global')"
         />
         <div class="viewport-actions" aria-label="Ações rápidas da cena">
           <div class="quick-add-wrap">
