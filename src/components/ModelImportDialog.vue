@@ -2284,6 +2284,10 @@ let retargetTargetPreviewStage: RetargetPreviewStage | null = null
 function cloneRetargetPreviewObject(source: THREE.Object3D): THREE.Object3D {
   const clone = cloneSkinnedModel(source)
   clone.traverse(node => {
+    // A prévia de peças permite ocultar/isolá-las durante a inspeção do modelo.
+    // Essa visibilidade é apenas uma ferramenta temporária: um preview de
+    // animação precisa mostrar o personagem inteiro, incluindo a malha abaixo da pelve.
+    node.visible = true
     if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
       node.geometry = node.geometry.clone()
       node.material = Array.isArray(node.material)
@@ -2626,6 +2630,10 @@ async function runAutonomousRetargeting() {
     retargetMessage.value = 'Aguarde a operação de IA em andamento antes de iniciar o retargeting autônomo.'
     return
   }
+
+  // Não retargetear nem salvar um personagem com partes temporariamente
+  // escondidas pelo modo "Isolar parte" do painel de inspeção.
+  restorePreviewVisibility()
 
   retargetAutonomousLoading.value = true
   let generatedRig = false
