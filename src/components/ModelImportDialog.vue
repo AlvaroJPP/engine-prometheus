@@ -817,11 +817,13 @@ const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
 const gltfMetadata = computed(() => model.value?.userData.importGltfMetadata as GltfMetadata | undefined)
 const colliderType = ref<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>('box')
+const colliderPreviewNotice = ref('')
 const colliderSize = ref<[number, number, number]>([1, 1, 1])
 const colliderOffset = ref<[number, number, number]>([0, 0, 0])
 let colliderPreview: THREE.LineSegments | null = null
 
 function updateColliderPreview() {
+  colliderPreviewNotice.value = ''
   if (!scene || !model.value) return
   if (colliderPreview) {
     scene.remove(colliderPreview)
@@ -832,7 +834,10 @@ function updateColliderPreview() {
   if (!model.value || colliderType.value === 'none') return
   if (colliderType.value === 'mesh') {
     const collisionData = getStaticMeshCollisionData(model.value)
-    if (!collisionData) return
+    if (!collisionData) {
+      colliderPreviewNotice.value = 'Não foi possível preparar a malha estática. Confira se o modelo contém peças estáticas e se não ultrapassa 1,5 milhão de triângulos. Partes animadas não entram neste colisor.'
+      return
+    }
     model.value.updateWorldMatrix(true, true)
     colliderPreview = new THREE.LineSegments(
       new THREE.WireframeGeometry(collisionData.geometry),
@@ -4221,6 +4226,7 @@ onBeforeUnmount(() => {
                 <option value="none">Sem colisão</option>
               </select>
             </label>
+            <p v-if="colliderPreviewNotice" class="model-collider-example" role="status" aria-live="polite">{{ colliderPreviewNotice }}</p>
             <template v-if="colliderType !== 'mesh'">
               <div class="model-collider-subtitle">{{ colliderType === 'sphere' ? 'DIÂMETRO DA ESFERA (raio = metade)' : 'DIMENSÕES DO COLISOR' }}</div>
             <div class="model-collider-grid">
