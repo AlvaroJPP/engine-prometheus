@@ -59,7 +59,7 @@ const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
 const modelImportOpen = ref(false)
 const quickAddOpen = ref(false)
-const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
+const previewComponentAsset = ref<{ id?: string; name: string; bytes: ArrayBuffer; height?: number; colliderType?: SavedComponent['colliderType']; colliderSize?: [number, number, number]; colliderOffset?: [number, number, number]; kind?: SavedComponent['kind']; logic?: SavedComponent['logic']; animationRoles?: Record<string, import('@engine').AnimationRole>; controlBindings?: Partial<import('@engine').ModelControlBindings>; behaviorPackageIds?: string[]; behaviorPackageSettings?: Record<string, { variables: Record<string, PackageScalar>; config: Record<string, PackageJsonValue> }>; thumbnail?: string } | null>(null)
 const savedComponents = ref<Array<Omit<SavedComponent, 'bytes'>>>([])
 const componentBusy = ref(false)
 let componentThumbnailBackfillRunning = false
@@ -952,6 +952,12 @@ async function previewSavedComponent(id: string) {
       id: component.id,
       name: component.name,
       bytes: component.bytes.slice(0),
+      height: component.height,
+      colliderType: component.colliderType,
+      colliderSize: [...component.colliderSize],
+      colliderOffset: [...component.colliderOffset],
+      kind: component.kind,
+      logic: component.logic,
       animationRoles: component.animationRoles,
       controlBindings: component.controlBindings,
       behaviorPackageIds: component.behaviorPackageIds,
@@ -1086,7 +1092,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
 
   if (payload.componentId) {
     componentBusy.value = true
-    status.value = 'Salvando alterações no componente existente…'
+    status.value = 'Exportando edições e salvando o componente existente…'
     let saved = false
     try {
       const existing = await getSavedComponent(payload.componentId)
@@ -1094,9 +1100,65 @@ async function handleModelImport(payload: { name: string; model: import('three')
       const modelData = payload.model.userData
       const rawPackageIds = modelData.importBehaviorPackageIds
       const rawPackageSettings = modelData.importBehaviorPackageSettings
+      const animations = (modelData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
+
+      // Editar um componente precisa persistir o modelo 3D, não apenas os metadados.
+      // Exporte um clone para incluir mudanças de malha, transformações, texturas,
+      // remoções de partes e rigging sem modificar/destruir a prévia antes do commit.
+      const exportRoot = cloneSkinnedModel(payload.model)
+      const editorOnlyKeys = [
+        'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
+        'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
+        'importAnimationRoles', 'importControlBindings', 'importRigPreset',
+        'importRigGenerated', 'importRigBoneNames', 'importBehaviorPackageIds',
+        'importBehaviorPackageSettings', 'importSourceGlbBytes', 'importNeedsReexport',
+        'importColliderType', 'importColliderSize', 'importColliderOffset',
+        'sceneKind', 'componentLogic',
+      ]
+      exportRoot.traverse(node => {
+        node.userData = { ...node.userData }
+        for (const key of editorOnlyKeys) delete node.userData[key]
+      })
+      const exporter = new GLTFExporter()
+      const exported = await exporter.parseAsync(exportRoot, {
+        binary: true,
+        animations,
+        // A hierarquia tem controles temporários de visibilidade para inspeção;
+        // não deixe um nó apenas oculto na prévia desaparecer do componente salvo.
+        onlyVisible: false,
+      })
+      if (!(exported instanceof ArrayBuffer) || exported.byteLength <= 20) {
+        throw new Error('O exportador não gerou um GLB válido para o componente editado.')
+      }
+
+      const rawColliderType = modelData.importColliderType
+      const rawColliderSize = modelData.importColliderSize
+      const rawColliderOffset = modelData.importColliderOffset
+      const validColliderSize = Array.isArray(rawColliderSize)
+        && rawColliderSize.length === 3
+        && rawColliderSize.every(value => typeof value === 'number' && Number.isFinite(value))
+        ? rawColliderSize as [number, number, number]
+        : existing.colliderSize
+      const validColliderOffset = Array.isArray(rawColliderOffset)
+        && rawColliderOffset.length === 3
+        && rawColliderOffset.every(value => typeof value === 'number' && Number.isFinite(value))
+        ? rawColliderOffset as [number, number, number]
+        : existing.colliderOffset
+
       const updated: SavedComponent = {
         ...existing,
         name: payload.name.trim() || existing.name,
+        height: Number.isFinite(payload.height) && payload.height > 0 ? payload.height : existing.height,
+        bytes: exported,
+        colliderType: rawColliderType === 'sphere' || rawColliderType === 'capsule' || rawColliderType === 'none'
+          ? rawColliderType
+          : 'box',
+        colliderSize: validColliderSize,
+        colliderOffset: validColliderOffset,
+        // Tipo semântico e lógica são armazenados fora do GLB; mantê-los evita
+        // apagar a configuração de entidade/eventos ao editar a aparência.
+        kind: existing.kind,
+        logic: existing.logic,
         behaviorPackageIds: Array.isArray(rawPackageIds)
           ? [...new Set(rawPackageIds.filter((id): id is string => typeof id === 'string'))]
           : [],
@@ -1110,7 +1172,7 @@ async function handleModelImport(payload: { name: string; model: import('three')
       await saveComponentAsset(updated)
       saved = true
       await refreshSavedComponents()
-      status.value = 'Alterações de "' + updated.name + '" salvas no componente existente.'
+      status.value = 'Modelo 3D, colisão e configurações de "' + updated.name + '" salvos no componente existente.'
       return true
     } catch (error) {
       status.value = 'Não foi possível salvar as alterações: ' + (error instanceof Error ? error.message : String(error))
