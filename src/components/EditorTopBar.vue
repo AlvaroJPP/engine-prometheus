@@ -1062,8 +1062,6 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .viewport-tool { gap:4px; padding-inline:7px; font-size:11px; }
 }
 
-</style>
-
 /* Keep the camera/render controls inside the viewport's usable width.
    The inspector occupies the last 340px of the editor, so the toolbar must
    stop before that panel instead of sitting underneath it. */
@@ -1099,3 +1097,4 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
     max-height: calc(100dvh - 86px);
   }
 }
+</style>
