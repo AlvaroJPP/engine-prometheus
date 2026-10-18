@@ -2599,9 +2599,11 @@ function refreshRetargetTargetPreview() {
       clipName,
       targetHeight,
       retargetCollapsedSourceNames.value,
+      previewModel,
     )
     setRetargetPreviewObject(stage, previewModel, result.clip)
     retargetPreviewStatus.value = 'Prévia no destino: ' + result.mappedTracks + ' trilha(s) transferida(s)' +
+      (result.rootMotionTracks ? '; deslocamento global do corpo preservado' : '') +
       (result.skippedTracks.length ? '; ' + result.skippedTracks.length + ' ignorada(s).' : '.')
   } catch (cause) {
     setRetargetPreviewObject(stage, previewModel)
@@ -2688,6 +2690,7 @@ function applyRetargetedAnimation() {
       name,
       targetHeight,
       retargetCollapsedSourceNames.value,
+      root,
     )
     const currentClips = [...((root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? previewAnimations.value)]
     const normalizedClipName = result.clip.name.trim().toLocaleLowerCase()
@@ -2720,7 +2723,10 @@ function applyRetargetedAnimation() {
     const mergedSummary = result.mergedTracks
       ? `; ${result.mergedTracks} rotação(ões) de juntas ausentes combinada(s)`
       : ''
-    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) de origem aproveitada(s) em ${result.outputTracks} trilha(s) de destino${mergedSummary}${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferida(s) (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
+    const rootMotionSummary = result.rootMotionTracks
+      ? '; movimento global do corpo preservado no objeto raiz'
+      : ''
+    retargetMessage.value = `"${result.clip.name}" aplicada: ${result.mappedTracks} trilha(s) de origem aproveitada(s) em ${result.outputTracks} trilha(s) de destino${mergedSummary}${rootMotionSummary}${result.skippedTracks.length ? `; ${result.skippedTracks.length} não transferida(s) (${skippedDetails || 'motivo não classificado'})` : ''}. O clipe será salvo junto do modelo quando confirmar a importação.`
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
   }
