@@ -11,7 +11,7 @@ O Model Workspace tem um botão **Modelos iniciais**. Ele abre um catálogo embu
 
 Arquivos GLB usados para carregar os modelos:
 
-- RobotExpressive: https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive.glb
+- RobotExpressive: https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb
 - Fox: https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb
 
 O carregamento remoto requer internet. Se uma URL estiver temporariamente indisponível, use a página da fonte para baixar o modelo e importe o GLB pela opção **Abrir arquivo**. Os modelos são mantidos na biblioteca do projeto apenas depois que você os salva como componente ou aplica o modelo ao jogador e salva o projeto.
