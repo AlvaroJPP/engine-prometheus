@@ -194,6 +194,7 @@ export class Engine {
       this.events.on('toolChanged', () => this.viewport.invalidate()),
       this.events.on('cameraChanged', () => this.viewport.invalidate()),
     )
+    canvas.addEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.addEventListener('keydown', this.onRuleKeyDown)
     window.addEventListener('keyup', this.onVeilborneKeyUp)
     window.addEventListener('blur', this.onVeilborneBlur)
@@ -2541,6 +2542,23 @@ export class Engine {
     }
   }
 
+  private onRuntimePointerDown = (event: PointerEvent): void => {
+    // No runtime VEILBORNE, o clique esquerdo é o ataque rápido.
+    // Capturamos antes do controlador do editor para não selecionar ou arrastar
+    // objetos da cena enquanto o jogador está combatendo.
+    if (
+      event.button !== 0 ||
+      !this.cameraStateBeforeRun ||
+      !this.runtimeModeActive ||
+      !this.isVeilborneEnabled() ||
+      this.avatar.isMounted() ||
+      this.avatar.isCombatStaggered()
+    ) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    this.performVeilborneWeaponAttack(false)
+  }
+
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey) return
 
@@ -3135,6 +3153,7 @@ export class Engine {
     }
     root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
     root.userData.importedModelHeight = height
+    root.userData.sourceUrl = typeof model.userData.sourceUrl === 'string' ? model.userData.sourceUrl : restoreData?.sourceUrl
     if (restoreData) {
       root.userData.locked = restoreData.locked ?? false
       root.userData.groupId = restoreData.groupId ?? null
