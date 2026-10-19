@@ -51,7 +51,7 @@
     "carga_ataque": 0,
     "ward_remaining": 0,
     "ward_absorption": 0,
-    "inventario_json": "[]",
+    "inventario_json": "[{\"id\":\"lesser_vitality_vial\",\"quantity\":3},{\"id\":\"ether_vial\",\"quantity\":2},{\"id\":\"vigor_vial\",\"quantity\":2},{\"id\":\"ember_bomb\",\"quantity\":2},{\"id\":\"echo_fragment\",\"quantity\":1}]",
     "item_use_request": "",
     "loot_notice": "",
     "checkpoint_id": "",
