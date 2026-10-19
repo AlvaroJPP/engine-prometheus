@@ -1,6 +1,6 @@
 # VEILBORNE — A Cidadela do Último Véu
 
-Projeto inicial pronto para abrir no Engine Prometheus. A pasta inclui uma cena, modelos GLB locais com clipes de animação, inimigos, itens coletáveis, checkpoint e instâncias de comportamento VEILBORNE já configuradas.
+Projeto inicial pronto para abrir no Engine Prometheus. Inclui a cena, inimigos, itens coletáveis, checkpoint e instâncias de comportamento VEILBORNE. O personagem principal usa um cavaleiro 3D rigado e animado; no primeiro carregamento com internet, o GLB é baixado e armazenado na pasta do projeto.
 
 ## Como abrir
 1. Atualize o repositório com `git pull origin main`.
@@ -11,7 +11,8 @@ Projeto inicial pronto para abrir no Engine Prometheus. A pasta inclui uma cena,
 O mundo é um projeto independente. Ao salvar nele, os modelos serão guardados em `resources/models` dentro desta mesma pasta.
 
 ## Incluído
-- Cavaleiro do Véu com Idle, Walk, Run, PrimaryAction, Jump e Death.
+- Cavaleiro do Véu: modelo 3D rigado/animado do pacote KayKit Character Pack — Adventures (Knight.glb, licença CC0 1.0). Fonte pública usada para baixar/cachear o modelo: https://github.com/euuuuuuan/hollowmere-public/blob/main/public/models/char/Knight.glb. O GLB é armazenado em `resources/models/player-knight.glb`; depois do primeiro download bem-sucedido, o modelo fica disponível localmente.
+- Inventário inicial do jogador: 3 Frascos de Vitalidade, 2 Frascos de Éter, 2 Tônicos de Vigor, 2 Bombas de Brasa e 1 Fragmento de Ecos. Pressione Tab para abrir o Arsenal do Véu.
 - Sentinela das Cinzas, Espectro Errante, Oráculo do Véu e chefe Vigia Sem-Rosto, com animações, colisão, facção, IA, vida, dano, recompensas e drops.
 - Perfis melee, flanker, ranged_caster e boss_phases.
 - Frascos de Vitalidade/Éter/Vigor, Fragmento de Ecos e Bomba de Brasa, todos coletáveis.
@@ -33,4 +34,4 @@ O mundo é um projeto independente. Ao salvar nele, os modelos serão guardados 
 | Q / C | Primeira pessoa / alternar câmera |
 
 ## Nota técnica
-Os modelos deste pacote são assets low-poly gerados para o exemplo, sem chamadas a servidores externos. As animações usam trilhas glTF de nós; são protótipos visuais sem rig skinned. A IA ainda usa perseguição direta e o combate não sincroniza todas as hitboxes com os quadros das animações.
+O Knight.glb do jogador é um personagem rigado de terceiros sob CC0 1.0 e requer internet somente no primeiro download. Se a conexão falhar, a cena mantém o GLB local de reserva para continuar abrindo. Os modelos de cenário, inimigos e itens deste exemplo continuam sendo assets low-poly locais; a IA usa perseguição direta e o combate ainda não sincroniza todas as hitboxes com os quadros das animações.
