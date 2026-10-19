@@ -297,6 +297,7 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       name: name.trim(),
       glbData,
       ...(playerHeight !== undefined ? { height: playerHeight } : {}),
+      ...(typeof obj.playerModel.sourceUrl === 'string' && /^https:\/\//i.test(obj.playerModel.sourceUrl) ? { sourceUrl: obj.playerModel.sourceUrl } : {}),
       ...(animationRoles ? { animationRoles } : {}),
     }
   }
