@@ -35,7 +35,14 @@ const TEXTURE_COLORS: Record<Exclude<TexturePreset, 'none'>, [string, string, st
   metal: ['#59636c', '#9aa4ad', '#343b42'],
 }
 
-function createProceduralTexture(preset: Exclude<TexturePreset, 'none'>): THREE.CanvasTexture {
+const PROCEDURAL_TEXTURE_CACHE = new Map<string, THREE.CanvasTexture>()
+
+function createProceduralTexture(preset: Exclude<TexturePreset, 'none'>, repeat = 2): THREE.CanvasTexture {
+  const normalizedRepeat = THREE.MathUtils.clamp(repeat, 1, 8)
+  const cacheKey = `${preset}:${normalizedRepeat}`
+  const cached = PROCEDURAL_TEXTURE_CACHE.get(cacheKey)
+  if (cached) return cached
+
   const canvas = document.createElement('canvas')
   canvas.width = 128
   canvas.height = 128
@@ -103,8 +110,12 @@ function createProceduralTexture(preset: Exclude<TexturePreset, 'none'>): THREE.
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.RepeatWrapping
-  texture.repeat.set(2, 2)
+  texture.repeat.set(normalizedRepeat, normalizedRepeat)
   texture.anisotropy = 4
+  // The same generated surface is reused by all objects with the same preset
+  // and repeat. Per-object disposal must not release this shared GPU texture.
+  texture.userData.sharedProceduralTexture = true
+  PROCEDURAL_TEXTURE_CACHE.set(cacheKey, texture)
   return texture
 }
 
@@ -114,14 +125,13 @@ export function applyTexturePreset(mesh: THREE.Mesh, preset: TexturePreset, repe
     .filter((material): material is THREE.MeshStandardMaterial => material instanceof THREE.MeshStandardMaterial)
   if (!materials.length) return
   const previous = mesh.userData.generatedTexture as THREE.Texture | undefined
-  previous?.dispose()
+  if (previous && previous.userData.sharedProceduralTexture !== true) previous.dispose()
   const faceTextures = mesh.userData.generatedFaceTextures as THREE.Texture[] | undefined
   faceTextures?.forEach(texture => texture.dispose())
   mesh.userData.generatedFaceTextures = []
   let texture: THREE.Texture | null = null
   if (preset !== 'none') {
-    texture = createProceduralTexture(preset)
-    texture.repeat.set(THREE.MathUtils.clamp(repeat, 1, 8), THREE.MathUtils.clamp(repeat, 1, 8))
+    texture = createProceduralTexture(preset, repeat)
     mesh.userData.generatedTexture = texture
   } else {
     mesh.userData.generatedTexture = undefined
@@ -138,12 +148,25 @@ export function applyTexturePreset(mesh: THREE.Mesh, preset: TexturePreset, repe
 
 /** Aplica imagens independentes por face. A resolução define o tamanho em pixels da imagem amostrada. */
 export function applyFaceTextures(mesh: THREE.Mesh, faceMap: FaceTextureMap): void {
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
   const faceOrder: TextureFace[] = ['right', 'left', 'top', 'bottom', 'front', 'back']
+  const hasPerFaceTexture = faceOrder.some(face => !!faceMap[face]?.imageDataUrl)
   const previous = mesh.userData.generatedFaceTextures as THREE.Texture[] | undefined
   previous?.forEach(texture => texture.dispose())
   mesh.userData.generatedFaceTextures = []
   mesh.userData.faceTextures = JSON.parse(JSON.stringify(faceMap)) as FaceTextureMap
+
+  // Most world props use the same material on all six box faces. Keeping a
+  // single material lets WebGL draw the whole box in one call rather than six.
+  // Promote to six materials only when the user actually assigns face textures.
+  if (hasPerFaceTexture && !Array.isArray(mesh.material)) {
+    const base = mesh.material as THREE.MeshStandardMaterial
+    mesh.material = Array.from({ length: 6 }, () => base.clone())
+  } else if (!hasPerFaceTexture && Array.isArray(mesh.material)) {
+    const [base, ...redundant] = mesh.material
+    redundant.forEach(material => material.dispose())
+    mesh.material = base ?? new THREE.MeshStandardMaterial()
+  }
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
   const version = (Number(mesh.userData.faceTextureVersion) || 0) + 1
   mesh.userData.faceTextureVersion = version
   const presetTexture = mesh.userData.generatedTexture as THREE.Texture | undefined
@@ -194,7 +217,7 @@ export function createPrimitive(type: ObjectType, init: PrimitiveInit = {}): Gam
   const geometry = new THREE.BoxGeometry(w, h, d)
   const mesh = new THREE.Mesh(
     geometry,
-    Array.from({ length: 6 }, () => new THREE.MeshStandardMaterial({ color: init.color ?? def.color, roughness: 0.6 })),
+    new THREE.MeshStandardMaterial({ color: init.color ?? def.color, roughness: 0.6 }),
   )
 
   // Mostra a topologia poligonal sobre a superfície sólida, como uma malha de modelagem 3D.
