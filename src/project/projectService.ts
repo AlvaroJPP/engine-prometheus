@@ -191,6 +191,34 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
     playerModel.glbData = await readAsset(dir, rel)
   }
   for (const object of scene.objects ?? []) {
+    if (object.sourceUrl && /^https:\/\//i.test(object.sourceUrl)) {
+      try {
+        onProgress?.(`Baixando modelo 3D ${object.name}…`, percent)
+        const response = await fetch(object.sourceUrl, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'force-cache',
+        })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const modelData = await response.arrayBuffer()
+        if (
+          modelData.byteLength < 20 ||
+          modelData.byteLength > 30 * 1024 * 1024 ||
+          new DataView(modelData).getUint32(0, true) !== 0x46546c67
+        ) {
+          throw new Error('O arquivo remoto não é um GLB válido ou ultrapassa 30 MB.')
+        }
+        const base64 = encodeArrayBufferBase64(modelData)
+        const rel = `resources/models/${safeAssetId(object.id)}.glb`
+        // Cada entidade recebe seu próprio GLB em cache; nunca sobrescrevemos o modelo de reserva compartilhado.
+        await writeAsset(dir, rel, base64)
+        object.importedModelData = base64
+        delete object.sourceUrl
+        onProgress?.(`Modelo 3D ${object.name} armazenado localmente.`, percent)
+      } catch (error) {
+        console.warn(`[Engine Prometheus] Não foi possível baixar o modelo remoto de ${object.name}; usando o modelo local de reserva.`, error)
+      }
+    }
     const faces = object.faceTextures as FaceTextureMap | undefined
     if (faces) {
       for (const texture of Object.values(faces)) {
