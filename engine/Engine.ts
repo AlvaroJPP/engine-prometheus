@@ -2552,12 +2552,11 @@ export class Engine {
       event.button !== 0 ||
       !this.cameraStateBeforeRun ||
       !this.runtimeModeActive ||
-      !this.isVeilborneEnabled() ||
-      this.avatar.isMounted() ||
-      this.avatar.isCombatStaggered()
+      !this.isVeilborneEnabled()
     ) return
     event.preventDefault()
     event.stopImmediatePropagation()
+    if (this.avatar.isMounted() || this.avatar.isCombatStaggered()) return
     this.performVeilborneWeaponAttack(false)
   }
 
