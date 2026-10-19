@@ -33,7 +33,7 @@ const actions: Array<{ key: ActionKey; label: string; group: ActionGroup }> = [
   { key: 'parry', label: 'Aparo no tempo certo', group: 'Combate' },
   { key: 'targetLock', label: 'Travar / destravar alvo', group: 'Combate' },
   { key: 'interact', label: 'Interagir / montar / desmontar', group: 'Ações' },
-  { key: 'primaryAction', label: 'Ação principal (gatilho de evento)', group: 'Ações' },
+  { key: 'primaryAction', label: 'Ataque principal (clique esquerdo ou F)', group: 'Combate' },
   { key: 'secondaryAction', label: 'Ação secundária (gatilho de evento)', group: 'Ações' },
   { key: 'inventory', label: 'Inventário (gatilho de evento)', group: 'Ações' },
   { key: 'useItem', label: 'Usar item (gatilho de evento)', group: 'Ações' },
