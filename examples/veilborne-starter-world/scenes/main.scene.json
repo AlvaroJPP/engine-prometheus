@@ -26,17 +26,10 @@
     "cycleSpeed": 0.025
   },
   "playerModel": {
-    "name": "Cavaleiro do Véu",
+    "name": "Cavaleiro do Véu — Knight rigado",
     "glbData": "asset://resources/models/player-knight.glb",
-    "height": 1.8,
-    "animationRoles": {
-      "0": "idle",
-      "1": "walk",
-      "2": "run",
-      "3": "primary_action",
-      "4": "jump",
-      "5": "ignore"
-    }
+    "sourceUrl": "https://raw.githubusercontent.com/euuuuuuan/hollowmere-public/main/public/models/char/Knight.glb",
+    "height": 1.8
   },
   "objects": [
     {
