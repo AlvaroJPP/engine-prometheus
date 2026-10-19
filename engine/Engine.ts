@@ -109,6 +109,7 @@ export class Engine {
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
   private viewport: Viewport
+  private readonly runtimeInputCanvas: HTMLCanvasElement
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
@@ -160,6 +161,7 @@ export class Engine {
   private readonly viewportInvalidationOffs: Array<() => void> = []
 
   constructor(canvas: HTMLCanvasElement) {
+    this.runtimeInputCanvas = canvas
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
@@ -3561,6 +3563,7 @@ export class Engine {
   }
 
   dispose(): void {
+    this.runtimeInputCanvas.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.removeEventListener('keydown', this.onRuleKeyDown)
     window.removeEventListener('keyup', this.onVeilborneKeyUp)
     window.removeEventListener('blur', this.onVeilborneBlur)
