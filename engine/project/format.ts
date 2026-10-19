@@ -77,6 +77,8 @@ export interface PlayerModelData {
   height?: number
   /** Mapeamento de clipes configurado no Model Workspace, indexado pelo índice da animação. */
   animationRoles?: Record<string, import('../script/packages').AnimationRole>
+  /** URL opcional de download inicial; após baixar, o GLB é armazenado localmente no projeto. */
+  sourceUrl?: string
 }
 
 export interface SceneFile {
