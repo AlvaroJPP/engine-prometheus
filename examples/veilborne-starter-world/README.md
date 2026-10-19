@@ -26,7 +26,8 @@ O mundo é um projeto independente. Ao salvar nele, os modelos serão guardados 
 | Tecla | Ação |
 |---|---|
 | WASD / Shift / Espaço | Mover / correr / pular |
-| Clique esquerdo ou F / G (segurar) | Ataque rápido / ataque pesado carregado |
+| Clique esquerdo ou F | Ataque rápido |
+| Segurar e soltar G | Ataque pesado carregado |
 | 1–4 | Feitiços |
 | T / H | Selecionar / ativar sigilo |
 | O / R / Y | Travar alvo / bloquear / aparo |
