@@ -3515,6 +3515,7 @@ export class Engine {
           name: scene.playerModel.name,
           glbData: scene.playerModel.glbData,
           height: playerHeight,
+          ...(scene.playerModel.sourceUrl ? { sourceUrl: scene.playerModel.sourceUrl } : {}),
           ...(scene.playerModel.animationRoles ? { animationRoles: { ...scene.playerModel.animationRoles } } : {}),
         }
       } catch (error) {
