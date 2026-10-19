@@ -26,9 +26,9 @@
     "cycleSpeed": 0.025
   },
   "playerModel": {
-    "name": "Cavaleiro do Véu — Knight rigado",
+    "name": "Cavaleiro do Véu — Knight KayKit rigado",
     "glbData": "asset://resources/models/player-knight.glb",
-    "sourceUrl": "https://raw.githubusercontent.com/euuuuuuan/hollowmere-public/main/public/models/char/Knight.glb",
+    "sourceUrl": "https://cdn.jsdelivr.net/gh/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0@672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb",
     "height": 1.8
   },
   "objects": [
@@ -2775,11 +2775,11 @@
     },
     {
       "id": "enemy-ash-hollow",
-      "name": "Sentinela das Cinzas",
+      "name": "Sentinela das Cinzas — Guerreiro Esquelético",
       "type": "cube",
       "position": [
         -5,
-        0.85,
+        0.9,
         0
       ],
       "rotation": [
@@ -2814,23 +2814,16 @@
       ],
       "sceneKind": "entity",
       "importedModelData": "asset://resources/models/enemy-wraith.glb",
-      "importedModelHeight": 1.7,
-      "importAnimationRoles": {
-        "0": "idle",
-        "1": "walk",
-        "2": "run",
-        "3": "primary_action",
-        "4": "ability_1",
-        "5": "ignore"
-      }
+      "importedModelHeight": 1.8,
+      "sourceUrl": "https://cdn.jsdelivr.net/gh/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0@15b62b9bad122f72926c10fb14d622c73819fa54/addons/kaykit_character_pack_skeletons/Characters/gltf/Skeleton_Warrior.glb"
     },
     {
       "id": "enemy-flanker",
-      "name": "Espectro Errante",
+      "name": "Espectro Errante — Rogue Esquelético",
       "type": "cube",
       "position": [
         5,
-        0.85,
+        0.825,
         3.5
       ],
       "rotation": [
@@ -2865,23 +2858,16 @@
       ],
       "sceneKind": "entity",
       "importedModelData": "asset://resources/models/enemy-wraith.glb",
-      "importedModelHeight": 1.7,
-      "importAnimationRoles": {
-        "0": "idle",
-        "1": "walk",
-        "2": "run",
-        "3": "primary_action",
-        "4": "ability_1",
-        "5": "ignore"
-      }
+      "importedModelHeight": 1.65,
+      "sourceUrl": "https://cdn.jsdelivr.net/gh/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0@15b62b9bad122f72926c10fb14d622c73819fa54/addons/kaykit_character_pack_skeletons/Characters/gltf/Skeleton_Rogue.glb"
     },
     {
       "id": "enemy-caster",
-      "name": "Oráculo do Véu",
+      "name": "Oráculo do Véu — Mago Esquelético",
       "type": "cube",
       "position": [
         14,
-        0.85,
+        0.9,
         -3
       ],
       "rotation": [
@@ -2916,23 +2902,16 @@
       ],
       "sceneKind": "entity",
       "importedModelData": "asset://resources/models/enemy-wraith.glb",
-      "importedModelHeight": 1.7,
-      "importAnimationRoles": {
-        "0": "idle",
-        "1": "walk",
-        "2": "run",
-        "3": "primary_action",
-        "4": "ability_1",
-        "5": "ignore"
-      }
+      "importedModelHeight": 1.8,
+      "sourceUrl": "https://cdn.jsdelivr.net/gh/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0@15b62b9bad122f72926c10fb14d622c73819fa54/addons/kaykit_character_pack_skeletons/Characters/gltf/Skeleton_Mage.glb"
     },
     {
       "id": "enemy-boss",
-      "name": "O Vigia Sem-Rosto",
+      "name": "O Vigia Sem-Rosto — Campeão Caído",
       "type": "cube",
       "position": [
         13,
-        0.85,
+        1.15,
         3.8
       ],
       "rotation": [
@@ -2967,15 +2946,8 @@
       ],
       "sceneKind": "entity",
       "importedModelData": "asset://resources/models/enemy-wraith.glb",
-      "importedModelHeight": 1.7,
-      "importAnimationRoles": {
-        "0": "idle",
-        "1": "walk",
-        "2": "run",
-        "3": "primary_action",
-        "4": "ability_1",
-        "5": "ignore"
-      }
+      "importedModelHeight": 2.3,
+      "sourceUrl": "https://cdn.jsdelivr.net/gh/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0@672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Characters/gltf/Barbarian.glb"
     },
     {
       "id": "loot-vitality",
@@ -3545,6 +3517,1056 @@
       "color": 5722719,
       "texturePreset": "stone",
       "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-post-west",
+      "name": "Pilar oeste do Portão dos Ecos",
+      "type": "cube",
+      "position": [
+        -16.75,
+        1.55,
+        19
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.72,
+        3.1,
+        0.85
+      ],
+      "visible": true,
+      "color": 6579820,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-post-east",
+      "name": "Pilar leste do Portão dos Ecos",
+      "type": "cube",
+      "position": [
+        -12.4,
+        1.55,
+        19
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.72,
+        3.1,
+        0.85
+      ],
+      "visible": true,
+      "color": 6579820,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-lintel",
+      "name": "Arco do Portão dos Ecos",
+      "type": "cube",
+      "position": [
+        -14.55,
+        3.12,
+        19
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        4.95,
+        0.62,
+        1.05
+      ],
+      "visible": true,
+      "color": 6438461,
+      "texturePreset": "brick",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-keystone",
+      "name": "Pedra central do Portão",
+      "type": "cube",
+      "position": [
+        -14.55,
+        3.58,
+        18.92
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.05,
+        0.45,
+        1.2
+      ],
+      "visible": true,
+      "color": 10123102,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-banner-west",
+      "name": "Estandarte da Vigília oeste",
+      "type": "cube",
+      "position": [
+        -15.55,
+        2.2,
+        18.35
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.42,
+        1.45,
+        0.08
+      ],
+      "visible": true,
+      "color": 6564680,
+      "texturePreset": "brick",
+      "textureRepeat": 1,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-banner-east",
+      "name": "Estandarte da Vigília leste",
+      "type": "cube",
+      "position": [
+        -13.55,
+        2.2,
+        18.35
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.42,
+        1.45,
+        0.08
+      ],
+      "visible": true,
+      "color": 3157347,
+      "texturePreset": "brick",
+      "textureRepeat": 1,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-banner-rod-west",
+      "name": "Haste do estandarte oeste",
+      "type": "cube",
+      "position": [
+        -15.55,
+        2.99,
+        18.35
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.52,
+        0.08,
+        0.1
+      ],
+      "visible": true,
+      "color": 10123102,
+      "texturePreset": "metal",
+      "textureRepeat": 1,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "gate-banner-rod-east",
+      "name": "Haste do estandarte leste",
+      "type": "cube",
+      "position": [
+        -13.55,
+        2.99,
+        18.35
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.52,
+        0.08,
+        0.1
+      ],
+      "visible": true,
+      "color": 10123102,
+      "texturePreset": "metal",
+      "textureRepeat": 1,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-1",
+      "name": "Contraforte da Muralha Norte 1",
+      "type": "cube",
+      "position": [
+        -12,
+        1.72,
+        -18.85
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.05,
+        3.45,
+        1.15
+      ],
+      "visible": true,
+      "color": 7829886,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-cap-1",
+      "name": "Coroamento do Contraforte 1",
+      "type": "cube",
+      "position": [
+        -12,
+        3.55,
+        -18.78
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.38,
+        0.34,
+        1.42
+      ],
+      "visible": true,
+      "color": 7830658,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-2",
+      "name": "Contraforte da Muralha Norte 2",
+      "type": "cube",
+      "position": [
+        -4,
+        1.72,
+        -18.85
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.05,
+        3.45,
+        1.15
+      ],
+      "visible": true,
+      "color": 5922147,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-cap-2",
+      "name": "Coroamento do Contraforte 2",
+      "type": "cube",
+      "position": [
+        -4,
+        3.55,
+        -18.78
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.38,
+        0.34,
+        1.42
+      ],
+      "visible": true,
+      "color": 7830658,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-3",
+      "name": "Contraforte da Muralha Norte 3",
+      "type": "cube",
+      "position": [
+        4,
+        1.72,
+        -18.85
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.05,
+        3.45,
+        1.15
+      ],
+      "visible": true,
+      "color": 7829886,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-cap-3",
+      "name": "Coroamento do Contraforte 3",
+      "type": "cube",
+      "position": [
+        4,
+        3.55,
+        -18.78
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.38,
+        0.34,
+        1.42
+      ],
+      "visible": true,
+      "color": 7830658,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-4",
+      "name": "Contraforte da Muralha Norte 4",
+      "type": "cube",
+      "position": [
+        12,
+        1.72,
+        -18.85
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.05,
+        3.45,
+        1.15
+      ],
+      "visible": true,
+      "color": 5922147,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "north-buttress-cap-4",
+      "name": "Coroamento do Contraforte 4",
+      "type": "cube",
+      "position": [
+        12,
+        3.55,
+        -18.78
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.38,
+        0.34,
+        1.42
+      ],
+      "visible": true,
+      "color": 7830658,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-north-1",
+      "name": "Escadaria Ritual Norte — Degrau inferior",
+      "type": "platform",
+      "position": [
+        10,
+        -0.11,
+        -7.8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.78,
+        0.6,
+        0.17
+      ],
+      "visible": true,
+      "color": 6645869,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-north-2",
+      "name": "Escadaria Ritual Norte — Degrau central",
+      "type": "platform",
+      "position": [
+        10,
+        -0.04,
+        -8.52
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.7,
+        0.65,
+        0.15
+      ],
+      "visible": true,
+      "color": 7829886,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-north-3",
+      "name": "Escadaria Ritual Norte — Degrau superior",
+      "type": "platform",
+      "position": [
+        10,
+        0.025,
+        -9.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.63,
+        0.68,
+        0.13
+      ],
+      "visible": true,
+      "color": 9211536,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-south-1",
+      "name": "Escadaria Ritual Sul — Degrau inferior",
+      "type": "platform",
+      "position": [
+        10,
+        -0.11,
+        7.8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.78,
+        0.6,
+        0.17
+      ],
+      "visible": true,
+      "color": 6645869,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-south-2",
+      "name": "Escadaria Ritual Sul — Degrau central",
+      "type": "platform",
+      "position": [
+        10,
+        -0.04,
+        8.52
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.7,
+        0.65,
+        0.15
+      ],
+      "visible": true,
+      "color": 7829886,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "ritual-step-south-3",
+      "name": "Escadaria Ritual Sul — Degrau superior",
+      "type": "platform",
+      "position": [
+        10,
+        0.025,
+        9.15
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.63,
+        0.68,
+        0.13
+      ],
+      "visible": true,
+      "color": 9211536,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "tomb-west-base",
+      "name": "Túmulo dos Juramentos — base",
+      "type": "cube",
+      "position": [
+        -6.5,
+        0.18,
+        14.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        2.05,
+        0.36,
+        1.25
+      ],
+      "visible": true,
+      "color": 5593696,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "tomb-west-lid",
+      "name": "Túmulo dos Juramentos — tampa",
+      "type": "cube",
+      "position": [
+        -6.5,
+        0.42,
+        14.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.82,
+        0.22,
+        1.05
+      ],
+      "visible": true,
+      "color": 7830142,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "tomb-east-base",
+      "name": "Túmulo dos Vigias — base",
+      "type": "cube",
+      "position": [
+        7.15,
+        0.18,
+        14.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        2.05,
+        0.36,
+        1.25
+      ],
+      "visible": true,
+      "color": 5593696,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "tomb-east-lid",
+      "name": "Túmulo dos Vigias — tampa",
+      "type": "cube",
+      "position": [
+        7.15,
+        0.42,
+        14.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.82,
+        0.22,
+        1.05
+      ],
+      "visible": true,
+      "color": 7830142,
+      "texturePreset": "stone",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "obelisk-base",
+      "name": "Pedestal do Obelisco do Véu",
+      "type": "cube",
+      "position": [
+        0,
+        0.18,
+        -14.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.9,
+        0.36,
+        1.9
+      ],
+      "visible": true,
+      "color": 5330528,
+      "texturePreset": "stone",
+      "textureRepeat": 3,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "obelisk-shaft",
+      "name": "Obelisco do Véu",
+      "type": "cube",
+      "position": [
+        0,
+        1.55,
+        -14.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.72,
+        2.65,
+        0.72
+      ],
+      "visible": true,
+      "color": 3748687,
+      "texturePreset": "metal",
+      "textureRepeat": 2,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "box",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "obelisk-crown",
+      "name": "Cristal do Obelisco do Véu",
+      "type": "cube",
+      "position": [
+        0,
+        3.1,
+        -14.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.8,
+        0.42,
+        0.8
+      ],
+      "visible": true,
+      "color": 8742877,
+      "texturePreset": "metal",
+      "textureRepeat": 1,
+      "faceTextures": {},
+      "locked": false,
+      "wireframeVisible": false,
+      "groupId": null,
+      "mass": 0,
+      "colliderType": "none",
+      "colliderOffset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "obelisk-crosspiece",
+      "name": "Aro do Obelisco",
+      "type": "cube",
+      "position": [
+        0,
+        2.3,
+        -14.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.18,
+        0.12,
+        1.18
+      ],
+      "visible": true,
+      "color": 10653668,
+      "texturePreset": "metal",
+      "textureRepeat": 1,
       "faceTextures": {},
       "locked": false,
       "wireframeVisible": false,
