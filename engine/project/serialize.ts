@@ -39,6 +39,7 @@ export function buildBundle(
       sceneKind: m.userData.sceneKind === 'entity' ? 'entity' : 'object',
       importedModelData: typeof m.userData.importedModelData === 'string' ? m.userData.importedModelData : undefined,
       importedModelHeight: typeof m.userData.importedModelHeight === 'number' ? m.userData.importedModelHeight : undefined,
+      sourceUrl: typeof m.userData.sourceUrl === 'string' ? m.userData.sourceUrl : undefined,
       importAnimationRoles: m.userData.importAnimationRoles && typeof m.userData.importAnimationRoles === 'object'
         ? { ...m.userData.importAnimationRoles } as Record<string, import('../script/packages').AnimationRole>
         : undefined,
@@ -111,6 +112,7 @@ export function objectFromData(d: SceneObjectData): GameObject {
   object.mesh.userData.sceneKind = d.sceneKind === 'entity' ? 'entity' : 'object'
   object.mesh.userData.componentId = d.componentId
   object.mesh.userData.importedModelHeight = d.importedModelHeight
+  object.mesh.userData.sourceUrl = d.sourceUrl
   object.mesh.userData.importAnimationRoles = d.importAnimationRoles ? { ...d.importAnimationRoles } : undefined
   object.mesh.userData.importControlBindings = d.importControlBindings ? { ...d.importControlBindings } : undefined
   return object
