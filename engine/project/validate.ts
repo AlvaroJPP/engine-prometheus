@@ -273,6 +273,7 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       componentId: typeof item.componentId === 'string' && item.componentId.trim() !== '' ? item.componentId : undefined,
       importedModelData: typeof item.importedModelData === 'string' && item.importedModelData.length > 0 ? item.importedModelData : undefined,
       importedModelHeight: isNum(item.importedModelHeight) && item.importedModelHeight > 0 ? item.importedModelHeight : undefined,
+      sourceUrl: typeof item.sourceUrl === 'string' && /^https:\/\//i.test(item.sourceUrl) ? item.sourceUrl : undefined,
       importAnimationRoles: parseAnimationRoleMap(item.importAnimationRoles),
       importControlBindings: parseControlBindings(item.importControlBindings),
     })
