@@ -808,7 +808,9 @@ export class World {
     const disposedTextures = new Set<THREE.Texture>()
 
     const disposeTexture = (texture: THREE.Texture): void => {
-      if (disposedTextures.has(texture)) return
+      // Textures procedurais são compartilhadas entre objetos por preset/repetição.
+      // Remover um objeto não pode invalidar a textura de todos os demais.
+      if (texture.userData.sharedProceduralTexture === true || disposedTextures.has(texture)) return
       disposedTextures.add(texture)
       texture.dispose()
     }
