@@ -35,6 +35,16 @@ async function readAsset(dir: string, rel: string): Promise<string> {
   return invoke<string>('read_project_asset', { dir, rel })
 }
 
+function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
+  }
+  return btoa(binary)
+}
+
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
   const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
   const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length + Number(!!scene.playerModel?.glbData), 0)
@@ -123,7 +133,7 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
 async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: ProjectProgress, percent = 10): Promise<string | SceneFile> {
   // Sem arquivos referenciados externamente, evitamos parse + stringify + parse
   // da cena completa — caro em projetos com centenas de milhares de tufos de grama.
-  if (!rawText.includes('asset://')) return rawText
+  if (!rawText.includes('asset://') && !rawText.includes('"sourceUrl"')) return rawText
 
   let scene: SceneFile
   try {
@@ -141,7 +151,41 @@ async function hydrateSceneAssets(dir: string, rawText: string, onProgress?: Pro
     scene.environment.skyTextureDataUrl = `data:${mime};base64,${base64}`
   }
   const playerModel = scene.playerModel
-  if (playerModel?.glbData?.startsWith('asset://')) {
+  let downloadedPlayerModel = false
+  if (playerModel?.sourceUrl && /^https:\/\//i.test(playerModel.sourceUrl)) {
+    try {
+      onProgress?.(`Baixando modelo 3D ${playerModel.name}…`, percent)
+      const response = await fetch(playerModel.sourceUrl, {
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'force-cache',
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const modelData = await response.arrayBuffer()
+      if (
+        modelData.byteLength < 20 ||
+        modelData.byteLength > 30 * 1024 * 1024 ||
+        new DataView(modelData).getUint32(0, true) !== 0x46546c67
+      ) {
+        throw new Error('O arquivo remoto não é um GLB válido ou ultrapassa 30 MB.')
+      }
+
+      const base64 = encodeArrayBufferBase64(modelData)
+      const rel = playerModel.glbData.startsWith('asset://')
+        ? playerModel.glbData.slice('asset://'.length)
+        : 'resources/models/player-knight.glb'
+      // Guarda o modelo real no próprio projeto para que ele continue funcionando offline.
+      await writeAsset(dir, rel, base64)
+      playerModel.glbData = base64
+      delete playerModel.sourceUrl
+      downloadedPlayerModel = true
+      onProgress?.('Modelo do jogador baixado e armazenado localmente.', percent)
+    } catch (error) {
+      console.warn('[Engine Prometheus] Falha ao baixar o modelo 3D do jogador; usando o GLB local de reserva.', error)
+      onProgress?.('Download indisponível; carregando o modelo local de reserva…', percent)
+    }
+  }
+  if (!downloadedPlayerModel && playerModel?.glbData?.startsWith('asset://')) {
     const rel = playerModel.glbData.slice('asset://'.length)
     onProgress?.(`Carregando modelo do jogador ${rel.split('/').pop()}…`, percent)
     playerModel.glbData = await readAsset(dir, rel)
