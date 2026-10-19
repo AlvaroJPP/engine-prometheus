@@ -59,7 +59,7 @@ export class Viewport {
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
     this.canvas = canvas
     this.onResize = onResize
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
     // Alinhe a saída do viewport com o espaço de cor sRGB esperado por glTF.
     // Sem isso, materiais/texturas podem parecer diferentes da prévia de importação.
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
