@@ -67,6 +67,7 @@ export function inferAnimationRole(name: string): AnimationRole | 'ignore' {
     .replace(/[\s._|:-]+/g, '')
 
   if (!normalized) return 'ignore'
+  if (/death|dead|dying|die|killed|knockout|knockdown|morte|morrer|morto|morrendo|derrotado|derrota/.test(normalized)) return 'death'
   if (/dismount|unmount|getoff|dismounting|desmontar|desmontando/.test(normalized)) return 'dismount'
   if (/mounting|mount|saddling|geton|riding|montar|montando|cavalgar|cavalgando/.test(normalized)) return 'mount'
   if (/stoprun|runstop|stoprunning|runningstop|braking|brake|deceleration/.test(normalized)) return 'run_stop'
