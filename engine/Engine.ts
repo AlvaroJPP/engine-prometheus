@@ -125,6 +125,7 @@ export class Engine {
   private readonly mountModelStateSignatures = new Map<string, string>()
   private readonly veilborneCooldowns = new Map<string, number>()
   private readonly veilborneEffects = new Map<THREE.Mesh, { remaining: number; duration: number }>()
+  private readonly veilborneDamageNumbers = new Map<THREE.Sprite, { remaining: number; duration: number; rise: number }>()
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -1198,10 +1199,35 @@ export class Engine {
       })
     }
     this.syncVeilborneTarget(instance, target)
+    const hitObject = this.world.get(instance.ownerObjectId)
+    if (result.vitalityDamage > 0 && hitObject) {
+      const hitPoint = this.getVeilborneWorldPoint(instance.ownerObjectId) ?? hitObject.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0))
+      this.spawnVeilborneDamageNumber(hitPoint, result.vitalityDamage, result.killed)
+      this.spawnVeilborneEffect(hitPoint, result.killed ? 0xffd7a0 : 0xff4358, result.killed ? 0.72 : 0.46, 0.34)
+    }
     if (result.postureBroken && !result.killed) {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'posture_broken')
     }
     if (result.killed) {
+      const corpse = this.world.get(instance.ownerObjectId)
+      const controller = corpse ? getAnimationControllerFromObject(corpse.mesh) : undefined
+      if (controller?.playOneShot('death', true, true)) {
+        corpse!.mesh.userData.veilborneDeathAnimation = true
+      } else if (controller?.actions.has('prone')) {
+        controller.setState('prone', true)
+      } else if (corpse) {
+        // Modelos sem clipe de morte continuam visivelmente derrotados e não voltam à IA.
+        corpse.mesh.userData.veilborneDeathFallback = true
+        corpse.mesh.traverse(node => {
+          const renderable = node as THREE.Mesh
+          if (!renderable.isMesh || !renderable.material) return
+          const materials = Array.isArray(renderable.material) ? renderable.material : [renderable.material]
+          for (const material of materials) {
+            if ('color' in material && material.color instanceof THREE.Color) material.color.lerp(new THREE.Color(0x5b343b), 0.48)
+            if ('emissive' in material && material.emissive instanceof THREE.Color) material.emissive.set(0x24080d)
+          }
+        })
+      }
       this.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
       this.notifyBehaviorPackageChanged(instance.ownerObjectId)
       this.awardVeilborneKillReward(instance)
@@ -1238,7 +1264,38 @@ export class Engine {
     this.veilborneEffects.set(effect, { remaining: duration, duration })
   }
 
+  private spawnVeilborneDamageNumber(position: THREE.Vector3, amount: number, killed = false): void {
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 128
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.font = `bold ${killed ? 58 : 52}px Arial`
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.lineWidth = 10
+    context.strokeStyle = 'rgba(25, 5, 10, 0.9)'
+    context.strokeText(String(Math.round(amount)), 128, 64)
+    context.fillStyle = killed ? '#ffd58b' : '#ff596b'
+    context.fillText(String(Math.round(amount)), 128, 64)
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+    const sprite = new THREE.Sprite(material)
+    sprite.position.copy(position).add(new THREE.Vector3(0, 0.5, 0))
+    sprite.scale.set(killed ? 1.25 : 0.95, killed ? 0.62 : 0.48, 1)
+    sprite.renderOrder = 30
+    this.world.scene.add(sprite)
+    this.veilborneDamageNumbers.set(sprite, { remaining: 1.05, duration: 1.05, rise: 0.9 })
+  }
+
   private clearVeilborneEffects(): void {
+    for (const [sprite] of this.veilborneDamageNumbers) {
+      this.world.scene.remove(sprite)
+      sprite.material.map?.dispose()
+      sprite.material.dispose()
+    }
+    this.veilborneDamageNumbers.clear()
     for (const [effect] of this.veilborneEffects) {
       this.world.scene.remove(effect)
       effect.geometry.dispose()
@@ -1250,6 +1307,18 @@ export class Engine {
   }
 
   private tickVeilborneEffects(dt: number): void {
+    for (const [sprite, state] of this.veilborneDamageNumbers) {
+      state.remaining -= Math.max(0, dt)
+      const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
+      sprite.position.y += Math.max(0, dt) * state.rise
+      sprite.material.opacity = Math.max(0, 1 - progress * progress)
+      if (state.remaining <= 0) {
+        this.world.scene.remove(sprite)
+        sprite.material.map?.dispose()
+        sprite.material.dispose()
+        this.veilborneDamageNumbers.delete(sprite)
+      }
+    }
     for (const [effect, state] of this.veilborneEffects) {
       state.remaining -= Math.max(0, dt)
       const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
