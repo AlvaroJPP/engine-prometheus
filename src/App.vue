@@ -56,12 +56,13 @@ type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
 type ViewportLayoutItem = { x: number; y: number; scale: number }
 type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
 
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v5'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v6'
+const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v5'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
   render: { x: 0.29, y: 0.015, scale: 1 },
   fps: { x: 0.66, y: 0.11, scale: 1 },
   axes: { x: 0.015, y: 0.78, scale: 1 },
-  tools: { x: 0.015, y: 0.02, scale: 1 },
+  tools: { x: 0.015, y: 0.02, scale: 0.25 },
 }
 function boundedLayoutNumber(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -70,16 +71,27 @@ function boundedLayoutNumber(value: unknown, fallback: number, min: number, max:
 }
 function loadViewportLayout(): ViewportLayoutSettings {
   try {
-    const saved = JSON.parse(localStorage.getItem(VIEWPORT_LAYOUT_STORAGE_KEY) || '{}') as Partial<ViewportLayoutSettings>
+    const current = localStorage.getItem(VIEWPORT_LAYOUT_STORAGE_KEY)
+    const migratingLegacyLayout = current === null
+    const saved = JSON.parse(
+      current ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY) ?? '{}',
+    ) as Partial<ViewportLayoutSettings>
     const result = {} as ViewportLayoutSettings
     for (const id of ['render', 'fps', 'axes', 'tools'] as const) {
       const candidate = saved[id]
       const fallback = DEFAULT_VIEWPORT_LAYOUT[id]
+      const minScale = id === 'tools' ? 0.25 : 0.55
       result[id] = {
         x: boundedLayoutNumber(candidate?.x, fallback.x, 0, 1),
         y: boundedLayoutNumber(candidate?.y, fallback.y, 0, 1),
-        scale: boundedLayoutNumber(candidate?.scale, fallback.scale, 0.55, 1.6),
+        // Aplica a redução de 75% uma vez, preservando as demais preferências antigas.
+        scale: id === 'tools' && migratingLegacyLayout
+          ? 0.25
+          : boundedLayoutNumber(candidate?.scale, fallback.scale, minScale, 1.6),
       }
+    }
+    if (migratingLegacyLayout) {
+      localStorage.setItem(VIEWPORT_LAYOUT_STORAGE_KEY, JSON.stringify(result))
     }
     return result
   } catch {
@@ -164,8 +176,9 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
     return Math.max(0.55, Math.min(1.6, availableWidth / width))
   }
 
-  // Nos outros elementos, garante que o conjunto inteiro permaneça visível.
-  return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
+  // A barra normal pode ser reduzida até 25%; os demais elementos mantêm o mínimo de 55%.
+  const minScale = id === 'tools' ? 0.25 : 0.55
+  return Math.max(minScale, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
 function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
   const target = element ?? getViewportLayoutTarget(id)
@@ -266,7 +279,8 @@ function updateViewportLayoutPercent(axis: 'x' | 'y', value: number): void {
 function updateViewportLayoutScale(value: number): void {
   const id = activeViewportLayoutItem.value
   if (id === 'tools' && sidebarCollapsed.value) return
-  viewportLayout.value[id].scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(id), value / 100))
+  const minScale = id === 'tools' ? 0.25 : 0.55
+  viewportLayout.value[id].scale = Math.max(minScale, Math.min(getViewportLayoutMaximumScale(id), value / 100))
   viewportLayoutRefresh.value += 1
   void nextTick(() => clampViewportLayoutItem(id))
 }
@@ -2224,7 +2238,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </label>
             <label class="viewport-layout-range">
               <span>Tamanho <strong>{{ Math.round(viewportLayout[activeViewportLayoutItem].scale * 100) }}%</strong></span>
-              <input type="range" min="55" max="160" step="5" :value="Math.round(viewportLayout[activeViewportLayoutItem].scale * 100)" @input="updateViewportLayoutScale(Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
+              <input type="range" :min="activeViewportLayoutItem === 'tools' ? 25 : 55" max="160" step="5" :value="Math.round(viewportLayout[activeViewportLayoutItem].scale * 100)" @input="updateViewportLayoutScale(Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
             </label>
             <div class="viewport-layout-actions">
               <button type="button" class="viewport-layout-secondary" @click="resetViewportLayoutItem(activeViewportLayoutItem)">Restaurar este menu</button>
