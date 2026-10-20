@@ -340,13 +340,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </div>
     </details>
       <button
-        v-if="executionMode === 'running'"
+        v-if="executionMode === 'edit'"
         class="viewport-tool hud-settings-toolbar-button"
         :class="{ active: hudSettingsOpen }"
         type="button"
         :aria-pressed="hudSettingsOpen"
-        title="Personalizar a interface do jogador"
-        aria-label="Personalizar HUD"
+        title="Configurar e pré-visualizar a HUD no modo de edição"
+        aria-label="Configurar HUD"
         @click="emit('toggle-hud-settings')"
       >
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
