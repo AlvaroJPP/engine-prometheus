@@ -51,6 +51,274 @@ const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packag
 const executionMode = ref<'edit' | 'running'>('edit')
 const worldFullscreen = ref(false)
 const playerHudSettingsOpen = ref(false)
+
+type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
+type ViewportLayoutItem = { x: number; y: number; scale: number }
+type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
+
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v1'
+const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
+  render: { x: 0.29, y: 0.015, scale: 1 },
+  fps: { x: 0.66, y: 0.04, scale: 1 },
+  axes: { x: 0.015, y: 0.78, scale: 1 },
+  tools: { x: 0.015, y: 0.02, scale: 1 },
+}
+function boundedLayoutNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, value))
+    : fallback
+}
+function loadViewportLayout(): ViewportLayoutSettings {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEWPORT_LAYOUT_STORAGE_KEY) || '{}') as Partial<ViewportLayoutSettings>
+    const result = {} as ViewportLayoutSettings
+    for (const id of ['render', 'fps', 'axes', 'tools'] as const) {
+      const candidate = saved[id]
+      const fallback = DEFAULT_VIEWPORT_LAYOUT[id]
+      result[id] = {
+        x: boundedLayoutNumber(candidate?.x, fallback.x, 0, 1),
+        y: boundedLayoutNumber(candidate?.y, fallback.y, 0, 1),
+        scale: boundedLayoutNumber(candidate?.scale, fallback.scale, 0.55, 1.6),
+      }
+    }
+    return result
+  } catch {
+    return { render: { ...DEFAULT_VIEWPORT_LAYOUT.render }, fps: { ...DEFAULT_VIEWPORT_LAYOUT.fps }, axes: { ...DEFAULT_VIEWPORT_LAYOUT.axes }, tools: { ...DEFAULT_VIEWPORT_LAYOUT.tools } }
+  }
+}
+const viewportLayout = ref<ViewportLayoutSettings>(loadViewportLayout())
+const viewportRoot = ref<HTMLElement | null>(null)
+const viewportLayoutConfigOpen = ref(false)
+const viewportLayoutEditMode = ref(false)
+const activeViewportLayoutItem = ref<ViewportLayoutId>('render')
+const viewportLayoutBounds = ref({ left: 0, top: 0, width: 0, height: 0 })
+const viewportLayoutRefresh = ref(0)
+const viewportLayoutItems: Array<{ id: ViewportLayoutId; label: string; description: string; icon: string }> = [
+  { id: 'render', label: 'Render e câmera', description: 'Menu superior e controles de visualização', icon: '◈' },
+  { id: 'fps', label: 'FPS e renderização', description: 'FPS, triângulos, draws e tempos do motor', icon: 'ϟ' },
+  { id: 'axes', label: 'Eixos X · Y · Z', description: 'Indicadores de largura, altura e profundidade', icon: 'XYZ' },
+  { id: 'tools', label: 'Ferramentas 3D', description: 'Selecionar, mover, rotacionar, escalar e criar', icon: '⌖' },
+]
+type ViewportLayoutDrag = {
+  id: ViewportLayoutId
+  mode: 'move' | 'resize'
+  pointerX: number
+  pointerY: number
+  originX: number
+  originY: number
+  scale: number
+  width: number
+  height: number
+}
+let viewportLayoutDrag: ViewportLayoutDrag | null = null
+let viewportLayoutResizeObserver: ResizeObserver | null = null
+
+const viewportLayoutUsableHeight = computed(() => Math.max(
+  1,
+  viewportLayoutBounds.value.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0),
+))
+function getViewportLayoutTarget(id: ViewportLayoutId): HTMLElement | null {
+  const selectors: Record<ViewportLayoutId, string> = {
+    render: '.viewport-tools-overlay',
+    fps: '.viewport-fps',
+    axes: '.axes',
+    tools: '.toolbar',
+  }
+  return typeof document === 'undefined' ? null : document.querySelector<HTMLElement>(selectors[id])
+}
+function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
+  const target = element ?? getViewportLayoutTarget(id)
+  const rect = viewportLayoutBounds.value
+  if (!target || rect.width <= 0 || viewportLayoutUsableHeight.value <= 0) return 1.6
+  const width = Math.max(1, target.offsetWidth)
+  const height = Math.max(1, target.offsetHeight)
+  return Math.max(0.55, Math.min(1.6, (rect.width - 8) / width, (viewportLayoutUsableHeight.value - 8) / height))
+}
+function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
+  void viewportLayoutRefresh.value
+  const bounds = viewportLayoutBounds.value
+  const item = viewportLayout.value[id]
+  const target = getViewportLayoutTarget(id)
+  const width = Math.max(1, bounds.width)
+  const height = Math.max(1, viewportLayoutUsableHeight.value)
+  const scaledWidth = (target?.offsetWidth || 180) * item.scale
+  const scaledHeight = (target?.offsetHeight || 80) * item.scale
+  const localX = Math.max(0, Math.min(item.x * width, width - scaledWidth - 4))
+  const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
+  return {
+    '--viewport-layout-left': Math.round(bounds.left + localX) + 'px',
+    '--viewport-layout-top': Math.round(bounds.top + localY) + 'px',
+    '--viewport-layout-scale': String(item.scale),
+    '--viewport-layout-max-width': Math.max(120, width - localX - 8) + 'px',
+    '--viewport-layout-max-height': Math.max(80, height - localY - 8) + 'px',
+  }
+}
+function viewportLayoutOutlineStyle(id: ViewportLayoutId): Record<string, string> {
+  void viewportLayoutRefresh.value
+  const root = viewportRoot.value
+  const target = getViewportLayoutTarget(id)
+  if (!root || !target) return { left: '0px', top: '0px', width: '1px', height: '1px' }
+  const rootRect = root.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  return {
+    left: Math.round(targetRect.left - rootRect.left) + 'px',
+    top: Math.round(targetRect.top - rootRect.top) + 'px',
+    width: Math.max(1, Math.round(targetRect.width)) + 'px',
+    height: Math.max(1, Math.round(targetRect.height)) + 'px',
+  }
+}
+function persistViewportLayout(): void {
+  try {
+    localStorage.setItem(VIEWPORT_LAYOUT_STORAGE_KEY, JSON.stringify(viewportLayout.value))
+  } catch {
+    // O layout continua funcionando nesta sessão mesmo se o armazenamento estiver indisponível.
+  }
+}
+function clampViewportLayoutItem(id: ViewportLayoutId): void {
+  const root = viewportRoot.value
+  if (!root) return
+  const rootRect = root.getBoundingClientRect()
+  const width = Math.max(1, rootRect.width)
+  const height = Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0))
+  viewportLayoutBounds.value = { left: rootRect.left, top: rootRect.top, width: rootRect.width, height: rootRect.height }
+  const target = getViewportLayoutTarget(id)
+  const item = viewportLayout.value[id]
+  if (!target) return
+  item.scale = Math.min(item.scale, getViewportLayoutMaximumScale(id, target))
+  const targetWidth = Math.max(1, target.offsetWidth) * item.scale
+  const targetHeight = Math.max(1, target.offsetHeight) * item.scale
+  const maxX = Math.max(0, width - targetWidth - 4)
+  const maxY = Math.max(0, height - targetHeight - 4)
+  item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
+  item.y = Math.max(0, Math.min(maxY, item.y * height)) / height
+}
+function clampAllViewportLayoutItems(): void {
+  for (const item of viewportLayoutItems) clampViewportLayoutItem(item.id)
+  viewportLayoutRefresh.value += 1
+}
+function refreshViewportLayoutBounds(): void {
+  const root = viewportRoot.value
+  if (!root) return
+  const rect = root.getBoundingClientRect()
+  viewportLayoutBounds.value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  void nextTick(() => {
+    clampAllViewportLayoutItems()
+  })
+}
+function toggleViewportLayoutConfig(): void {
+  if (viewportLayoutConfigOpen.value) {
+    viewportLayoutConfigOpen.value = false
+    viewportLayoutEditMode.value = false
+    return
+  }
+  viewportLayoutConfigOpen.value = true
+}
+function updateViewportLayoutPercent(axis: 'x' | 'y', value: number): void {
+  const item = viewportLayout.value[activeViewportLayoutItem.value]
+  item[axis] = Math.max(0, Math.min(1, value / 100))
+  viewportLayoutRefresh.value += 1
+  void nextTick(() => clampViewportLayoutItem(activeViewportLayoutItem.value))
+}
+function updateViewportLayoutScale(value: number): void {
+  const id = activeViewportLayoutItem.value
+  viewportLayout.value[id].scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(id), value / 100))
+  viewportLayoutRefresh.value += 1
+  void nextTick(() => clampViewportLayoutItem(id))
+}
+function resetViewportLayoutItem(id: ViewportLayoutId): void {
+  viewportLayout.value[id] = { ...DEFAULT_VIEWPORT_LAYOUT[id] }
+  void nextTick(() => {
+    clampViewportLayoutItem(id)
+    viewportLayoutRefresh.value += 1
+    persistViewportLayout()
+  })
+}
+function resetAllViewportLayout(): void {
+  viewportLayout.value = {
+    render: { ...DEFAULT_VIEWPORT_LAYOUT.render },
+    fps: { ...DEFAULT_VIEWPORT_LAYOUT.fps },
+    axes: { ...DEFAULT_VIEWPORT_LAYOUT.axes },
+    tools: { ...DEFAULT_VIEWPORT_LAYOUT.tools },
+  }
+  void nextTick(() => {
+    clampAllViewportLayoutItems()
+    persistViewportLayout()
+  })
+}
+function openHudSettingsFromViewportLayout(): void {
+  playerHudSettingsOpen.value = true
+  viewportLayoutConfigOpen.value = false
+  viewportLayoutEditMode.value = false
+}
+function beginViewportLayoutDrag(event: PointerEvent, id: ViewportLayoutId, mode: 'move' | 'resize'): void {
+  event.preventDefault()
+  event.stopPropagation()
+  const root = viewportRoot.value
+  const target = getViewportLayoutTarget(id)
+  if (!root || !target) return
+  const item = viewportLayout.value[id]
+  const rootRect = root.getBoundingClientRect()
+  const targetRect = target.getBoundingClientRect()
+  viewportLayout.value[id].x = Math.max(0, targetRect.left - rootRect.left) / Math.max(1, rootRect.width)
+  viewportLayout.value[id].y = Math.max(0, targetRect.top - rootRect.top) / Math.max(1, rootRect.height)
+  activeViewportLayoutItem.value = id
+  viewportLayoutDrag = {
+    id,
+    mode,
+    pointerX: event.clientX,
+    pointerY: event.clientY,
+    originX: item.x * rootRect.width,
+    originY: item.y * Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0)),
+    scale: item.scale,
+    width: Math.max(1, target.offsetWidth) * item.scale,
+    height: Math.max(1, target.offsetHeight) * item.scale,
+  }
+  window.addEventListener('pointermove', moveViewportLayoutDrag)
+  window.addEventListener('pointerup', finishViewportLayoutDrag)
+  window.addEventListener('pointercancel', finishViewportLayoutDrag)
+}
+function moveViewportLayoutDrag(event: PointerEvent): void {
+  const drag = viewportLayoutDrag
+  const root = viewportRoot.value
+  const target = drag ? getViewportLayoutTarget(drag.id) : null
+  if (!drag || !root || !target) return
+  event.preventDefault()
+  const rootRect = root.getBoundingClientRect()
+  const width = Math.max(1, rootRect.width)
+  const usableHeight = Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0))
+  const dx = event.clientX - drag.pointerX
+  const dy = event.clientY - drag.pointerY
+  const item = viewportLayout.value[drag.id]
+  if (drag.mode === 'move') {
+    const maxX = Math.max(0, width - target.offsetWidth * item.scale - 4)
+    const maxY = Math.max(0, usableHeight - target.offsetHeight * item.scale - 4)
+    item.x = Math.max(0, Math.min(maxX, drag.originX + dx)) / width
+    item.y = Math.max(0, Math.min(maxY, drag.originY + dy)) / usableHeight
+  } else {
+    const unit = Math.max(120, drag.width, drag.height)
+    const requestedScale = drag.scale + (dx + dy) / (2 * unit)
+    item.scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(drag.id, target), requestedScale))
+    const maxX = Math.max(0, width - target.offsetWidth * item.scale - 4)
+    const maxY = Math.max(0, usableHeight - target.offsetHeight * item.scale - 4)
+    item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
+    item.y = Math.max(0, Math.min(maxY, item.y * usableHeight)) / usableHeight
+  }
+  viewportLayoutBounds.value = { left: rootRect.left, top: rootRect.top, width: rootRect.width, height: rootRect.height }
+  viewportLayoutRefresh.value += 1
+}
+function finishViewportLayoutDrag(): void {
+  if (!viewportLayoutDrag) return
+  viewportLayoutDrag = null
+  window.removeEventListener('pointermove', moveViewportLayoutDrag)
+  window.removeEventListener('pointerup', finishViewportLayoutDrag)
+  window.removeEventListener('pointercancel', finishViewportLayoutDrag)
+  clampAllViewportLayoutItems()
+  persistViewportLayout()
+}
+function handleViewportLayoutWindowResize(): void {
+  refreshViewportLayoutBounds()
+}
+
 watch(executionMode, (mode) => {
   // A configuração da HUD pertence ao modo de edição; ao iniciar o jogo, feche-a.
   if (mode !== 'edit') playerHudSettingsOpen.value = false
@@ -1592,6 +1860,28 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
 })
 
+onMounted(() => {
+  void nextTick(() => {
+    refreshViewportLayoutBounds()
+    if (viewportRoot.value && typeof ResizeObserver !== 'undefined') {
+      viewportLayoutResizeObserver = new ResizeObserver(handleViewportLayoutWindowResize)
+      viewportLayoutResizeObserver.observe(viewportRoot.value)
+    }
+    window.addEventListener('resize', handleViewportLayoutWindowResize)
+    requestAnimationFrame(() => {
+      refreshViewportLayoutBounds()
+    })
+  })
+})
+onBeforeUnmount(() => {
+  viewportLayoutResizeObserver?.disconnect()
+  viewportLayoutResizeObserver = null
+  window.removeEventListener('resize', handleViewportLayoutWindowResize)
+  window.removeEventListener('pointermove', moveViewportLayoutDrag)
+  window.removeEventListener('pointerup', finishViewportLayoutDrag)
+  window.removeEventListener('pointercancel', finishViewportLayoutDrag)
+})
+
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 </script>
 
@@ -1599,6 +1889,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
   <div class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="projectName"
+      :viewport-layout-style="viewportLayoutStyle('render')"
       :dirty="dirty"
       :camera-label="cameraLabel"
       :first-person-mode="firstPersonMode"
@@ -1625,7 +1916,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
-      :hud-settings-open="playerHudSettingsOpen"
       :objects="objects"
       :components="placeableSavedComponents"
       @select-object="selectItem"
@@ -1634,7 +1924,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @run-world="runWorld"
       @edit-world="returnToEdit"
       @toggle-world-fullscreen="toggleWorldFullscreen"
-      @toggle-hud-settings="playerHudSettingsOpen = !playerHudSettingsOpen"
       @render-distance-change="setRenderDistance"
       @render-all-change="setRenderAll"
       @performance-mode-change="setPerformanceMode"
@@ -1673,6 +1962,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     />
 
     <EditorToolbar
+      class="viewport-layout-positioned"
+      :style="viewportLayoutStyle('tools')"
       :tools="TOOLS"
       :transforms="TRANSFORMS"
       :tool="tool"
@@ -1772,7 +2063,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       />
 
       <!-- Viewport -->
-      <main class="viewport">
+      <main ref="viewportRoot" class="viewport">
         <canvas ref="canvas" class="canvas" :class="['tool-' + tool, viewportCursorClass]" />
         <PlayerHUD
           v-if="executionMode === 'running' || playerHudSettingsOpen"
@@ -1804,7 +2095,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <button class="model-import-launch" title="Importa arquivos 3D, configura o modelo e as animações antes de salvar na biblioteca." aria-label="Importar modelo 3D" @click="previewComponentAsset = null; modelImportOpen = true"><span aria-hidden="true">＋</span> Importar 3D</button>
         </div>
-        <div v-if="!modelImportOpen && executionMode !== 'running'" class="viewport-fps" aria-label="Diagnóstico de renderização">
+        <div v-if="!modelImportOpen && executionMode !== 'running'" class="viewport-fps viewport-layout-positioned" :style="viewportLayoutStyle('fps')" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
             <span class="fps-indicator" />
             <span>FPS</span>
@@ -1821,7 +2112,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
           <span class="chip">ÓRBITA LIVRE</span>
         </div>
-        <div class="axes">
+        <div class="axes viewport-layout-positioned" :style="viewportLayoutStyle('axes')">
           <span class="axis"><b class="ax-x">X</b> largura</span>
           <span class="axis"><b class="ax-y">Y</b> altura</span>
           <span class="axis"><b class="ax-z">Z</b> profundidade</span>
@@ -1832,6 +2123,93 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="seg">Terreno procedural</span>
           <span class="seg grow-text">{{ status || hint }}</span>
           <span class="seg status-version">v{{ ENGINE_VERSION }}</span>
+        </div>
+
+        <button
+          v-if="executionMode === 'edit' && !worldFullscreen"
+          class="viewport-layout-config-trigger"
+          type="button"
+          :aria-expanded="viewportLayoutConfigOpen"
+          aria-controls="viewport-layout-config-panel"
+          aria-label="Configurar posições e tamanhos da viewport"
+          title="Configurar a posição e o tamanho dos menus da viewport"
+          @click.stop="toggleViewportLayoutConfig"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+            <path d="m19.2 13.7 1.2.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.4.8l-.2 1.5h-3l-.3-1.5a7.4 7.4 0 0 1-1.4-.8l-1.4.6-1.5-2.6 1.2-.9a7.1 7.1 0 0 1 0-1.6l-1.2-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.4-.8l.3-1.5h3l.2 1.5a7.8 7.8 0 0 1 1.4.8l1.4-.6 1.5 2.6-1.2.9a7.1 7.1 0 0 1 0 1.6Z" />
+          </svg>
+        </button>
+
+        <div
+          v-if="viewportLayoutConfigOpen && executionMode === 'edit' && !worldFullscreen"
+          id="viewport-layout-config-panel"
+          class="viewport-layout-config-panel"
+          role="dialog"
+          aria-label="Configuração da viewport"
+          @pointerdown.stop
+          @wheel.stop
+        >
+          <header class="viewport-layout-config-heading">
+            <span class="viewport-layout-config-icon" aria-hidden="true">⚙</span>
+            <div><strong>Layout da viewport</strong><small>Posicione e dimensione os menus do editor</small></div>
+            <button type="button" class="viewport-layout-close" aria-label="Fechar configurações" @click="toggleViewportLayoutConfig">×</button>
+          </header>
+
+          <div class="viewport-layout-items" role="group" aria-label="Selecionar menu para ajustar">
+            <button
+              v-for="item in viewportLayoutItems"
+              :key="item.id"
+              type="button"
+              class="viewport-layout-item"
+              :class="{ active: activeViewportLayoutItem === item.id }"
+              @click="activeViewportLayoutItem = item.id"
+            >
+              <span class="viewport-layout-item-icon" aria-hidden="true">{{ item.icon }}</span>
+              <span class="viewport-layout-item-copy"><strong>{{ item.label }}</strong><small>{{ item.description }}</small></span>
+              <span class="viewport-layout-item-check" aria-hidden="true">{{ activeViewportLayoutItem === item.id ? '●' : '○' }}</span>
+            </button>
+          </div>
+
+          <div class="viewport-layout-adjustments">
+            <div class="viewport-layout-section-title">POSIÇÃO E TAMANHO</div>
+            <label class="viewport-layout-range">
+              <span>Horizontal <strong>{{ Math.round(viewportLayout[activeViewportLayoutItem].x * 100) }}%</strong></span>
+              <input type="range" min="0" max="100" step="1" :value="Math.round(viewportLayout[activeViewportLayoutItem].x * 100)" @input="updateViewportLayoutPercent('x', Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
+            </label>
+            <label class="viewport-layout-range">
+              <span>Vertical <strong>{{ Math.round(viewportLayout[activeViewportLayoutItem].y * 100) }}%</strong></span>
+              <input type="range" min="0" max="100" step="1" :value="Math.round(viewportLayout[activeViewportLayoutItem].y * 100)" @input="updateViewportLayoutPercent('y', Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
+            </label>
+            <label class="viewport-layout-range">
+              <span>Tamanho <strong>{{ Math.round(viewportLayout[activeViewportLayoutItem].scale * 100) }}%</strong></span>
+              <input type="range" min="55" max="160" step="5" :value="Math.round(viewportLayout[activeViewportLayoutItem].scale * 100)" @input="updateViewportLayoutScale(Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
+            </label>
+            <div class="viewport-layout-actions">
+              <button type="button" class="viewport-layout-secondary" @click="resetViewportLayoutItem(activeViewportLayoutItem)">Restaurar este menu</button>
+              <button type="button" class="viewport-layout-secondary" @click="resetAllViewportLayout">Restaurar tudo</button>
+            </div>
+          </div>
+
+          <div class="viewport-layout-panel-footer">
+            <button type="button" class="viewport-layout-drag-toggle" :class="{ active: viewportLayoutEditMode }" @click="viewportLayoutEditMode = !viewportLayoutEditMode">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1v14M1 8h14M5 3l3-2 3 2M5 13l3 2 3-2M3 5 1 8l2 3M13 5l2 3-2 3" /></svg>
+              {{ viewportLayoutEditMode ? 'Concluir posicionamento' : 'Mover e redimensionar na viewport' }}
+            </button>
+            <button type="button" class="viewport-layout-hud-button" @click="openHudSettingsFromViewportLayout">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8 3.4 3.4" /></svg>
+              Configurar HUD
+            </button>
+            <p>Arraste pelo ícone de movimento ou use a alça no canto inferior direito de cada contorno. Tudo fica limitado à área útil da viewport.</p>
+          </div>
+        </div>
+
+        <div v-if="viewportLayoutEditMode && executionMode === 'edit' && !worldFullscreen" class="viewport-layout-handles" aria-label="Controles para mover e redimensionar menus">
+          <div v-for="item in viewportLayoutItems" :key="'outline-' + item.id" class="viewport-layout-outline" :style="viewportLayoutOutlineStyle(item.id)">
+            <button type="button" class="viewport-layout-move-handle" :title="'Arrastar para mover: ' + item.label" :aria-label="'Mover ' + item.label" @pointerdown="beginViewportLayoutDrag($event, item.id, 'move')"><span aria-hidden="true">⠿</span></button>
+            <span class="viewport-layout-outline-name" aria-hidden="true">{{ item.label }}</span>
+            <button type="button" class="viewport-layout-resize-handle" :title="'Arrastar para redimensionar: ' + item.label" :aria-label="'Redimensionar ' + item.label" @pointerdown="beginViewportLayoutDrag($event, item.id, 'resize')"><span aria-hidden="true">↘</span></button>
+          </div>
         </div>
       </main>
 
@@ -5707,5 +6085,107 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   .app.sidebar-collapsed:not(.world-fullscreen) .axes {
     left:172px !important;
   }
+}
+</style>
+
+<style>
+/* Configuração do layout: os quatro elementos usam coordenadas medidas a partir da viewport. */
+.app .toolbar.viewport-layout-positioned,
+.app .viewport-fps.viewport-layout-positioned,
+.app .axes.viewport-layout-positioned {
+  position: fixed !important;
+  left: var(--viewport-layout-left, 0px) !important;
+  top: var(--viewport-layout-top, 0px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top left !important;
+  max-width: var(--viewport-layout-max-width, 100%) !important;
+}
+.app .toolbar.viewport-layout-positioned { max-height: var(--viewport-layout-max-height, 80vh) !important; }
+.app .axes.viewport-layout-positioned { display: flex; }
+.viewport-layout-config-trigger {
+  position: absolute;
+  z-index: 140;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #51412e;
+  border-radius: 8px;
+  background: rgba(25, 22, 18, .96);
+  color: #f0c28c;
+  box-shadow: 0 5px 18px #0006;
+  cursor: pointer;
+}
+.viewport-layout-config-trigger svg { width: 19px; height: 19px; }
+.viewport-layout-config-trigger:hover,
+.viewport-layout-config-trigger[aria-expanded="true"] { border-color: #e5a567; background: #34281d; color: #ffe0b8; }
+.viewport-layout-config-panel {
+  position: absolute;
+  z-index: 150;
+  top: 58px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 70px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 13px;
+  border: 1px solid #45392b;
+  border-radius: 9px;
+  background: rgba(24, 22, 19, .98);
+  color: #eee8de;
+  box-shadow: 0 18px 45px #000a;
+  font: 11px/1.4 'IBM Plex Sans', sans-serif;
+  text-shadow: none;
+}
+.viewport-layout-config-heading { display: flex; align-items: center; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid #373027; }
+.viewport-layout-config-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 1px solid #59442f; border-radius: 7px; background: #30251b; color: #f0ba7c; font-size: 17px; }
+.viewport-layout-config-heading > div { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.viewport-layout-config-heading strong { color: #fff4e6; font-size: 13px; font-weight: 650; }
+.viewport-layout-config-heading small { color: #a79b8b; font-size: 10px; }
+.viewport-layout-close { display: grid; place-items: center; flex: none; width: 27px; height: 27px; border: 1px solid #39342d; border-radius: 5px; background: #211e19; color: #bdb2a3; font-size: 18px; cursor: pointer; }
+.viewport-layout-items { display: flex; flex-direction: column; gap: 4px; }
+.viewport-layout-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 6px 8px; border: 1px solid #302c26; border-radius: 6px; background: #201e1a; color: #e3ddd4; text-align: left; cursor: pointer; }
+.viewport-layout-item:hover { border-color: #65503b; background: #29251f; }
+.viewport-layout-item.active { border-color: #9a6439; background: #34271b; }
+.viewport-layout-item-icon { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 5px; background: #302a22; color: #edb579; font: 600 12px 'IBM Plex Mono', monospace; }
+.viewport-layout-item-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.viewport-layout-item-copy strong { color: #f4eee4; font-size: 11px; font-weight: 650; }
+.viewport-layout-item-copy small { color: #9e9486; font-size: 9px; line-height: 1.3; }
+.viewport-layout-item-check { color: #e5a567; font-size: 11px; }
+.viewport-layout-adjustments { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #373027; }
+.viewport-layout-section-title { color: #aa9f91; font: 700 9px 'IBM Plex Mono', monospace; letter-spacing: .08em; }
+.viewport-layout-range { display: flex; flex-direction: column; gap: 5px; color: #bfb5a7; font-size: 10px; }
+.viewport-layout-range > span { display: flex; justify-content: space-between; gap: 12px; }
+.viewport-layout-range strong { color: #f0bf87; font: 600 10px 'IBM Plex Mono', monospace; }
+.viewport-layout-range input { width: 100%; margin: 0; accent-color: #e3a05f; cursor: pointer; }
+.viewport-layout-actions { display: flex; gap: 6px; }
+.viewport-layout-secondary { flex: 1; min-height: 29px; padding: 5px 7px; border: 1px solid #39342c; border-radius: 5px; background: #211e19; color: #bfb4a4; font-size: 10px; cursor: pointer; }
+.viewport-layout-secondary:hover { border-color: #68503a; color: #fff0de; }
+.viewport-layout-panel-footer { display: flex; flex-direction: column; gap: 7px; padding-top: 10px; border-top: 1px solid #373027; }
+.viewport-layout-drag-toggle,.viewport-layout-hud-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid #62503a; border-radius: 6px; background: #30261c; color: #efc18c; font-size: 10px; font-weight: 650; cursor: pointer; }
+.viewport-layout-drag-toggle svg,.viewport-layout-hud-button svg { flex: none; width: 15px; height: 15px; }
+.viewport-layout-drag-toggle.active { border-color: #e4a467; background: #493321; color: #ffe2bd; }
+.viewport-layout-hud-button { border-color: #3c454c; background: #23282d; color: #d0d8e0; }
+.viewport-layout-hud-button:hover { border-color: #797f85; background: #2c3339; }
+.viewport-layout-panel-footer p { margin: 1px 0 0; color: #8f8678; font-size: 9px; line-height: 1.45; }
+.viewport-layout-handles { position: absolute; z-index: 130; inset: 0; overflow: hidden; pointer-events: none; }
+.viewport-layout-outline { position: absolute; box-sizing: border-box; min-width: 20px; min-height: 20px; border: 1px solid #efad65; border-radius: 3px; background: #ed9e4510; box-shadow: 0 0 0 1px #100d09a8, 0 0 0 1px #f1b7762b inset; pointer-events: none; }
+.viewport-layout-move-handle,.viewport-layout-resize-handle { position: absolute; z-index: 2; display: grid; place-items: center; width: 23px; height: 21px; padding: 0; border: 1px solid #7f5834; border-radius: 4px; background: #35261b; color: #ffd09a; font-size: 15px; line-height: 1; pointer-events: auto; cursor: grab; touch-action: none; }
+.viewport-layout-move-handle { top: 2px; left: 2px; }
+.viewport-layout-resize-handle { right: 2px; bottom: 2px; cursor: nwse-resize; }
+.viewport-layout-move-handle:active { cursor: grabbing; }
+.viewport-layout-outline-name { position: absolute; top: 3px; left: 29px; max-width: calc(100% - 58px); overflow: hidden; padding: 4px 6px; border-radius: 3px; background: #20170fef; color: #f7d5ad; font: 600 9px 'IBM Plex Sans', sans-serif; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+@media(max-width:760px) {
+  .viewport-layout-config-panel { right: 8px; top: 54px; width: min(350px, calc(100% - 16px)); max-height: calc(100% - 62px); padding: 10px; }
+  .viewport-layout-config-trigger { right: 8px; top: 8px; width: 34px; height: 34px; }
+  .viewport-layout-item { min-height: 43px; }
 }
 </style>
