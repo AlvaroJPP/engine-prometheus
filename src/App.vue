@@ -3435,6 +3435,13 @@ input[type='range'] { accent-color: #e98524; }
 .app.is-running .player-hud .hud-custom-image.is-positioning {
   cursor:move !important;
 }
+/* O Arsenal precisa receber eventos de ponteiro para que selects e rolagem
+   funcionem em Run, em vez de deixar o canvas capturar a roda e aplicar zoom. */
+.app.is-running .player-hud .veilborne-loadout-trigger,
+.app.is-running .player-hud .veilborne-loadout-panel,
+.app.is-running .player-hud .veilborne-loadout-panel * {
+  pointer-events:auto !important;
+}
 .app.is-running .model-import-launch { display:none !important; }
 .model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
 .model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
