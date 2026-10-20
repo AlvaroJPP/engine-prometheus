@@ -120,8 +120,8 @@ export class Engine {
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
   private runtimeModeActive = false
-  /** Botões do mouse que já foram convertidos em controles pressionados no runtime. */
-  private readonly pressedMouseBindings = new Set<string>()
+  /** Mapeia o botão físico pressionado para o controle que foi acionado no jogo. */
+  private readonly pressedMouseBindings = new Map<string, string>()
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
@@ -2634,7 +2634,7 @@ export class Engine {
     }
 
     this.runtimeModeActive = false
-    for (const code of this.pressedMouseBindings) this.dispatchMouseBinding(code, 'keyup')
+    for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
     this.pressedMouseBindings.clear()
     this.veilbornePlayerRespawnRemainingSeconds = 0
     this.veilborneDefaultSpawnPosition = null
@@ -2777,38 +2777,40 @@ export class Engine {
     if (!code || this.isInteractiveRuntimeTarget(event.target)) return
 
     const isMappedControl = Object.values(this.playerControlBindings).some(binding => binding === code)
-    // Compatibilidade com projetos anteriores: clique esquerdo continua sendo
-    // ataque rápido quando o mapa ainda usa uma tecla de teclado para primaryAction.
-    const primaryUsesMouse = /^Mouse(?:Left|Right|Middle|Back|Forward)$/.test(this.playerControlBindings.primaryAction)
+    const primaryActionUsesMouse = /^Mouse(?:Left|Right|Middle|Back|Forward)$/.test(this.playerControlBindings.primaryAction)
+    // Em VEILBORNE, o clique esquerdo continua sendo o ataque padrão quando o
+    // projeto ainda usa uma tecla para primaryAction. Convertemos o clique nessa
+    // tecla em vez de chamar o ataque diretamente: assim animação, combate e
+    // eventos do Visual Script percorrem o mesmo caminho do teclado.
     const isLegacyPrimaryClick = event.button === 0 &&
       this.isVeilborneEnabled() &&
-      !primaryUsesMouse
+      !primaryActionUsesMouse
 
-    if (isMappedControl) {
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      if (this.pressedMouseBindings.has(code)) return
-      this.pressedMouseBindings.add(code)
-      this.dispatchMouseBinding(code, 'keydown')
-      return
-    }
+    const dispatchedCode = isMappedControl
+      ? code
+      : isLegacyPrimaryClick
+        ? this.playerControlBindings.primaryAction
+        : null
 
-    if (!isLegacyPrimaryClick) return
+    if (!dispatchedCode) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (this.avatar.isMounted() || this.avatar.isCombatStaggered()) return
-    this.performVeilborneWeaponAttack(false)
+    if (this.pressedMouseBindings.has(code)) return
+    this.pressedMouseBindings.set(code, dispatchedCode)
+    this.dispatchMouseBinding(dispatchedCode, 'keydown')
   }
 
   private onRuntimePointerUp = (event: PointerEvent): void => {
     if (!this.cameraStateBeforeRun || !this.runtimeModeActive) return
-    const code = this.mouseButtonBindingCode(event.button)
-    if (!code || !this.pressedMouseBindings.has(code)) return
+    const mouseCode = this.mouseButtonBindingCode(event.button)
+    if (!mouseCode) return
+    const dispatchedCode = this.pressedMouseBindings.get(mouseCode)
+    if (!dispatchedCode) return
 
     event.preventDefault()
     event.stopImmediatePropagation()
-    this.pressedMouseBindings.delete(code)
-    this.dispatchMouseBinding(code, 'keyup')
+    this.pressedMouseBindings.delete(mouseCode)
+    this.dispatchMouseBinding(dispatchedCode, 'keyup')
   }
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
