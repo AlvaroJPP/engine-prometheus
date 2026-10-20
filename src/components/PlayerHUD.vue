@@ -8,6 +8,7 @@ const props = defineProps<{
   controlMapName: string
   firstPerson: boolean
   settingsOpen: boolean
+  editorPreview: boolean
   worldFullscreen: boolean
   bindings: Record<string, string>
   gameVariables: Record<string, boolean | number | string>
@@ -1151,20 +1152,20 @@ function resetSettings() {
 </script>
 
 <template>
-  <section class="player-hud" :class="{ 'hud-world-fullscreen': worldFullscreen }" :style="hudStyle" aria-label="Interface do jogador">
+  <section class="player-hud" :class="{ 'hud-world-fullscreen': worldFullscreen, 'editor-preview': editorPreview }" :style="hudStyle" :aria-label="editorPreview ? 'Prévia da interface do jogador' : 'Interface do jogador'">
     <div class="hud-topline" :class="{ 'topline-reverse': settings.dock === 'right' }">
       <div v-if="settings.showPlayer" class="hud-player-card">
         <div class="hud-avatar" aria-hidden="true"><span>P</span></div>
         <div class="hud-player-copy">
           <span class="hud-eyebrow">JOGADOR</span>
           <strong :title="playerName">{{ playerName || 'Player' }}</strong>
-          <span class="hud-state"><i /> EM JOGO</span>
+          <span class="hud-state"><i /> {{ editorPreview ? 'PRÉVIA' : 'EM JOGO' }}</span>
         </div>
       </div>
 
       <div v-if="settings.showSession" class="hud-session-card">
         <span class="hud-live-dot" />
-        <span>RUN</span>
+        <span>{{ editorPreview ? 'PRÉVIA' : 'RUN' }}</span>
         <span class="hud-session-divider" />
         <span class="hud-camera">{{ cameraMode }}</span>
         <span class="hud-session-divider" />
@@ -1211,6 +1212,7 @@ function resetSettings() {
     <aside
       v-if="veilborneActive && veilborneLoadoutOpen"
       class="veilborne-loadout-panel"
+      @wheel.stop
       :style="loadoutPanelStyle"
       role="dialog"
       aria-label="Arsenal VEILBORNE"
@@ -1333,12 +1335,12 @@ function resetSettings() {
       </div>
     </div>
 
-    <div v-if="showSettings" class="hud-settings-panel" role="dialog" aria-label="Personalizar interface do jogador">
+    <div v-if="showSettings" class="hud-settings-panel" role="dialog" aria-label="Personalizar interface do jogador" @wheel.stop>
       <div class="settings-heading">
         <div><span class="hud-eyebrow">ENGINE PROMETHEUS</span><strong>Personalizar HUD</strong></div>
         <button type="button" class="settings-close" @click="showSettings = false" aria-label="Fechar">×</button>
       </div>
-      <p class="settings-description">Escolha o que aparece durante o jogo. As preferências são salvas neste dispositivo.</p>
+      <p class="settings-description">{{ editorPreview ? 'Prévia no modo de edição. Ajuste os elementos e confira o resultado antes de executar a cena.' : 'Escolha o que aparece durante o jogo. As preferências são salvas neste dispositivo.' }}</p>
       <div class="settings-toggles">
         <label><input v-model="settings.showPlayer" type="checkbox"> Cartão do jogador</label>
         <label><input v-model="settings.showSession" type="checkbox"> Câmera e FPS</label>
@@ -1735,6 +1737,9 @@ function resetSettings() {
 .hud-key-cluster { display:flex; flex-wrap:wrap; gap:3px; }
 .hud-key-cluster kbd { min-width:22px; }
 .hud-actions { display:flex; flex-direction:column; gap:8px; width:min(235px,42vw); pointer-events:auto; }
+.player-hud.editor-preview .hud-actions,
+.player-hud.editor-preview .veilborne-loadout-trigger,
+.player-hud.editor-preview .veilborne-loadout-panel { pointer-events:none; }
 .hud-action-button,.hud-exit-button { display:flex; align-items:center; gap:10px; min-height:53px; padding:8px 10px; border-radius:7px; color:#e6e8ec; text-align:left; cursor:pointer; }
 .hud-action-button:hover { border-color:#f5a52488; background:#201d16ef; }
 .hud-exit-button { border-color:#b96c554d; }
