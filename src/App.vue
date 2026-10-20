@@ -308,7 +308,7 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
   const dx = event.clientX - drag.pointerX
   const dy = event.clientY - drag.pointerY
   const item = viewportLayout.value[drag.id]
-  const effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
+  let effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
   if (drag.mode === 'move') {
     const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
@@ -318,7 +318,7 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
     const unit = Math.max(120, drag.width, drag.height)
     const requestedScale = drag.scale + (dx + dy) / (2 * unit)
     item.scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(drag.id, target), requestedScale))
-    const effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
+    effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
     const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
     item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
