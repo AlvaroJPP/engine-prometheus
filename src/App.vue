@@ -184,7 +184,8 @@ function getViewportLayoutMinimumX(id: ViewportLayoutId, scaledWidth = 0): numbe
   if (!sidebarCollapsed.value || worldFullscreen.value || (id !== 'fps' && id !== 'axes')) return 0
   // Mantém os indicadores fora da faixa fixa usada pela lateral recolhida.
   const width = Math.max(1, viewportLayoutBounds.value.width)
-  const railClearance = width <= 760 ? 172 : 188
+  const isNarrowWindow = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
+  const railClearance = isNarrowWindow ? 172 : 188
   return Math.min(railClearance, Math.max(0, width - scaledWidth - 4))
 }
 
