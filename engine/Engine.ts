@@ -120,6 +120,8 @@ export class Engine {
   private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
   private runtimeModeActive = false
+  /** Botões do mouse que já foram convertidos em controles pressionados no runtime. */
+  private readonly pressedMouseBindings = new Set<string>()
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
@@ -202,6 +204,7 @@ export class Engine {
     // Escuta no window para o ataque também funcionar quando o canvas está coberto
     // por camadas transparentes do HUD. O handler ignora controles e o Arsenal.
     window.addEventListener('pointerdown', this.onRuntimePointerDown, true)
+    window.addEventListener('pointerup', this.onRuntimePointerUp, true)
     window.addEventListener('keydown', this.onRuleKeyDown)
     window.addEventListener('keyup', this.onVeilborneKeyUp)
     window.addEventListener('blur', this.onVeilborneBlur)
@@ -1485,6 +1488,7 @@ export class Engine {
   }
 
   private onVeilborneBlur = (): void => {
+    this.pressedMouseBindings.clear()
     this.veilborneBlocking = false
     this.veilborneHeavyChargeStartedAt = null
     if (this.logic.getVariable('carregando_ataque') !== undefined) this.logic.setVariable('carregando_ataque', false)
@@ -2738,21 +2742,71 @@ export class Engine {
     }
   }
 
+  private mouseButtonBindingCode(button: number): string | null {
+    const codes: Record<number, string> = {
+      0: 'MouseLeft',
+      1: 'MouseMiddle',
+      2: 'MouseRight',
+      3: 'MouseBack',
+      4: 'MouseForward',
+    }
+    return codes[button] ?? null
+  }
+
+  private dispatchMouseBinding(code: string, type: 'keydown' | 'keyup'): void {
+    // Usa a mesma rota do teclado para movimento, animações, combate e Visual Script.
+    window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }))
+  }
+
+  private isInteractiveRuntimeTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && !!target.closest(
+      'button, input, select, textarea, a, [role="dialog"], .veilborne-loadout-panel, .veilborne-loadout-trigger, .hud-settings-panel, .hud-custom-image, [data-no-game-attack]',
+    )
+  }
+
   private onRuntimePointerDown = (event: PointerEvent): void => {
-    // No runtime VEILBORNE, o clique esquerdo é o ataque rápido. O HUD fica
-    // acima do canvas; não podemos exigir que o evento tenha o canvas como alvo.
     if (
-      event.button !== 0 ||
+      event.pointerType !== 'mouse' ||
       !this.cameraStateBeforeRun ||
-      !this.runtimeModeActive ||
-      !this.isVeilborneEnabled()
+      !this.runtimeModeActive
     ) return
-    const target = event.target
-    if (target instanceof Element && target.closest('button, input, select, textarea, a, [role="dialog"], .veilborne-loadout-panel, [data-no-game-attack]')) return
+
+    const code = this.mouseButtonBindingCode(event.button)
+    if (!code || this.isInteractiveRuntimeTarget(event.target)) return
+
+    const isMappedControl = Object.values(this.playerControlBindings).some(binding => binding === code)
+    // Compatibilidade com projetos anteriores: clique esquerdo continua sendo
+    // ataque rápido quando o mapa ainda usa uma tecla de teclado para primaryAction.
+    const primaryUsesMouse = /^Mouse(?:Left|Right|Middle|Back|Forward)$/.test(this.playerControlBindings.primaryAction)
+    const isLegacyPrimaryClick = event.button === 0 &&
+      this.isVeilborneEnabled() &&
+      !primaryUsesMouse
+
+    if (isMappedControl) {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (this.pressedMouseBindings.has(code)) return
+      this.pressedMouseBindings.add(code)
+      this.dispatchMouseBinding(code, 'keydown')
+      return
+    }
+
+    if (!isLegacyPrimaryClick) return
     event.preventDefault()
     event.stopImmediatePropagation()
     if (this.avatar.isMounted() || this.avatar.isCombatStaggered()) return
     this.performVeilborneWeaponAttack(false)
+  }
+
+  private onRuntimePointerUp = (event: PointerEvent): void => {
+    if (!this.cameraStateBeforeRun || !this.runtimeModeActive) return
+    const code = this.mouseButtonBindingCode(event.button)
+    if (!code || !this.pressedMouseBindings.has(code)) return
+
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    this.pressedMouseBindings.delete(code)
+    this.dispatchMouseBinding(code, 'keyup')
   }
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
@@ -3759,6 +3813,7 @@ export class Engine {
 
   dispose(): void {
     window.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
+    window.removeEventListener('pointerup', this.onRuntimePointerUp, true)
     window.removeEventListener('keydown', this.onRuleKeyDown)
     window.removeEventListener('keyup', this.onVeilborneKeyUp)
     window.removeEventListener('blur', this.onVeilborneBlur)
