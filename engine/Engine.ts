@@ -126,6 +126,8 @@ export class Engine {
   private readonly veilborneCooldowns = new Map<string, number>()
   private readonly veilborneEffects = new Map<THREE.Mesh, { remaining: number; duration: number }>()
   private readonly veilborneDamageNumbers = new Map<THREE.Sprite, { remaining: number; duration: number; rise: number }>()
+  private readonly veilborneHealthBars = new Map<string, { sprite: THREE.Sprite; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; texture: THREE.CanvasTexture; vitality: number; maximum: number }>()
+  private readonly veilborneProjectiles = new Map<THREE.Group, { remaining: number; duration: number; start: THREE.Vector3; end: THREE.Vector3 }>()
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -197,7 +199,9 @@ export class Engine {
       this.events.on('toolChanged', () => this.viewport.invalidate()),
       this.events.on('cameraChanged', () => this.viewport.invalidate()),
     )
-    canvas.addEventListener('pointerdown', this.onRuntimePointerDown, true)
+    // Escuta no window para o ataque também funcionar quando o canvas está coberto
+    // por camadas transparentes do HUD. O handler ignora controles e o Arsenal.
+    window.addEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.addEventListener('keydown', this.onRuleKeyDown)
     window.addEventListener('keyup', this.onVeilborneKeyUp)
     window.addEventListener('blur', this.onVeilborneBlur)
@@ -1245,6 +1249,85 @@ export class Engine {
     return point
   }
 
+  private updateVeilborneHealthBars(): void {
+    const hostiles = this.getVeilborneHostilePackages()
+    const activeIds = new Set<string>()
+    for (const { instance, object } of hostiles) {
+      activeIds.add(object.id)
+      const vitality = Math.max(0, Number(instance.variables.vida ?? 100))
+      const maximum = Math.max(1, Number(instance.variables.vida_max ?? 100))
+      let entry = this.veilborneHealthBars.get(object.id)
+      if (!entry) {
+        const canvas = document.createElement('canvas')
+        canvas.width = 256
+        canvas.height = 48
+        const context = canvas.getContext('2d')
+        if (!context) continue
+        const texture = new THREE.CanvasTexture(canvas)
+        texture.colorSpace = THREE.SRGBColorSpace
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+        const sprite = new THREE.Sprite(material)
+        sprite.scale.set(1.15, 0.22, 1)
+        sprite.renderOrder = 25
+        this.world.scene.add(sprite)
+        entry = { sprite, canvas, context, texture, vitality: Number.NaN, maximum: Number.NaN }
+        this.veilborneHealthBars.set(object.id, entry)
+      }
+      const worldPosition = object.mesh.getWorldPosition(new THREE.Vector3())
+      entry.sprite.position.set(worldPosition.x, worldPosition.y + 2.15, worldPosition.z)
+      entry.sprite.visible = object.mesh.visible
+      if (entry.vitality !== vitality || entry.maximum !== maximum) {
+        const { context, canvas } = entry
+        context.clearRect(0, 0, canvas.width, canvas.height)
+        context.fillStyle = 'rgba(12, 8, 14, 0.88)'
+        context.fillRect(5, 5, 246, 38)
+        context.strokeStyle = 'rgba(231, 207, 215, 0.8)'
+        context.lineWidth = 3
+        context.strokeRect(5, 5, 246, 38)
+        context.fillStyle = '#45212d'
+        context.fillRect(12, 12, 232, 24)
+        context.fillStyle = vitality / maximum <= 0.25 ? '#ff4c55' : '#c9344e'
+        context.fillRect(12, 12, 232 * Math.min(1, vitality / maximum), 24)
+        context.fillStyle = '#fff4f5'
+        context.font = 'bold 17px Arial'
+        context.textAlign = 'center'
+        context.textBaseline = 'middle'
+        context.shadowColor = '#10070b'
+        context.shadowBlur = 4
+        context.fillText(`${Math.ceil(vitality)} / ${Math.ceil(maximum)}`, 128, 24)
+        context.shadowBlur = 0
+        entry.texture.needsUpdate = true
+        entry.vitality = vitality
+        entry.maximum = maximum
+      }
+    }
+    for (const [id, entry] of this.veilborneHealthBars) {
+      if (activeIds.has(id)) continue
+      this.world.scene.remove(entry.sprite)
+      entry.sprite.material.map?.dispose()
+      entry.sprite.material.dispose()
+      this.veilborneHealthBars.delete(id)
+    }
+  }
+
+  private spawnVeilborneProjectile(start: THREE.Vector3, end: THREE.Vector3, color: number, duration: number): void {
+    const projectile = new THREE.Group()
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 12, 10),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
+    )
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 10, 8),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }),
+    )
+    projectile.add(halo, core)
+    projectile.position.copy(start)
+    projectile.renderOrder = 24
+    this.world.scene.add(projectile)
+    this.veilborneProjectiles.set(projectile, { remaining: Math.max(0.05, duration), duration: Math.max(0.05, duration), start: start.clone(), end: end.clone() })
+    this.viewport.invalidate()
+  }
+
   private spawnVeilborneEffect(position: THREE.Vector3, color: number, scale: number, duration = 0.32, slash = false): void {
     const geometry = slash
       ? new THREE.TorusGeometry(Math.max(0.2, scale), 0.045, 5, 20, Math.PI * 1.35)
@@ -1290,6 +1373,23 @@ export class Engine {
   }
 
   private clearVeilborneEffects(): void {
+    for (const [projectile] of this.veilborneProjectiles) {
+      this.world.scene.remove(projectile)
+      projectile.traverse(node => {
+        const mesh = node as THREE.Mesh
+        if (!mesh.isMesh) return
+        mesh.geometry.dispose()
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        materials.forEach(material => material.dispose())
+      })
+    }
+    this.veilborneProjectiles.clear()
+    for (const [entry] of this.veilborneHealthBars) {
+      this.world.scene.remove(entry.sprite)
+      entry.texture.dispose()
+      entry.sprite.material.dispose()
+    }
+    this.veilborneHealthBars.clear()
     for (const [sprite] of this.veilborneDamageNumbers) {
       this.world.scene.remove(sprite)
       sprite.material.map?.dispose()
@@ -1307,6 +1407,24 @@ export class Engine {
   }
 
   private tickVeilborneEffects(dt: number): void {
+    for (const [projectile, state] of this.veilborneProjectiles) {
+      state.remaining -= Math.max(0, dt)
+      const progress = THREE.MathUtils.clamp(1 - state.remaining / state.duration, 0, 1)
+      projectile.position.lerpVectors(state.start, state.end, progress)
+      projectile.rotation.y += Math.max(0, dt) * 12
+      projectile.scale.setScalar(0.9 + Math.sin(progress * Math.PI) * 0.3)
+      if (state.remaining <= 0) {
+        this.world.scene.remove(projectile)
+        projectile.traverse(node => {
+          const mesh = node as THREE.Mesh
+          if (!mesh.isMesh) return
+          mesh.geometry.dispose()
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+          materials.forEach(material => material.dispose())
+        })
+        this.veilborneProjectiles.delete(projectile)
+      }
+    }
     for (const [sprite, state] of this.veilborneDamageNumbers) {
       state.remaining -= Math.max(0, dt)
       const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
@@ -1596,16 +1714,21 @@ export class Engine {
       ? target.object.mesh.position.clone()
       : this.avatar.mesh.position.clone().addScaledVector(forward, Math.min(spell.range * 0.45, 7))
     impactPosition.y += 0.7
+    const origin = this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0))
+    const projectileDuration = spell.targeting === 'projectile'
+      ? Math.max(spell.castTimeSeconds, origin.distanceTo(impactPosition) / Math.max(1, spell.projectileSpeed))
+      : spell.castTimeSeconds
     this.veilbornePendingCast = {
       spellId: spell.id,
-      remainingSeconds: spell.castTimeSeconds,
+      remainingSeconds: projectileDuration,
       targetId: target?.object.id ?? null,
       impactPosition,
     }
     this.veilborneCooldowns.set(cooldownKey, spell.cooldownSeconds)
     this.syncVeilbornePlayerCombatant(player)
-    this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)), spell.visualColor, 0.32, Math.max(0.2, spell.castTimeSeconds + 0.08))
-    if (spell.castTimeSeconds <= 0) this.resolveVeilborneSpellCast()
+    if (spell.targeting === 'projectile') this.spawnVeilborneProjectile(origin, impactPosition, spell.visualColor, projectileDuration)
+    else this.spawnVeilborneEffect(origin, spell.visualColor, 0.32, Math.max(0.2, spell.castTimeSeconds + 0.08))
+    if (projectileDuration <= 0) this.resolveVeilborneSpellCast()
   }
 
   private resolveVeilborneSpellCast(): void {
@@ -2183,6 +2306,7 @@ export class Engine {
 
     if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return
     this.ensureVeilbornePlayerVariables()
+    this.updateVeilborneHealthBars()
     const step = Math.max(0, Math.min(dt, 0.1))
     if (this.veilbornePlayerStaggerRemainingSeconds > 0) {
       this.veilbornePlayerStaggerRemainingSeconds = Math.max(0, this.veilbornePlayerStaggerRemainingSeconds - Math.min(step, 0.05))
@@ -2614,15 +2738,16 @@ export class Engine {
   }
 
   private onRuntimePointerDown = (event: PointerEvent): void => {
-    // No runtime VEILBORNE, o clique esquerdo é o ataque rápido.
-    // Capturamos antes do controlador do editor para não selecionar ou arrastar
-    // objetos da cena enquanto o jogador está combatendo.
+    // No runtime VEILBORNE, o clique esquerdo é o ataque rápido. O HUD fica
+    // acima do canvas; não podemos exigir que o evento tenha o canvas como alvo.
     if (
       event.button !== 0 ||
       !this.cameraStateBeforeRun ||
       !this.runtimeModeActive ||
       !this.isVeilborneEnabled()
     ) return
+    const target = event.target
+    if (target instanceof Element && target.closest('button, input, select, textarea, a, [role="dialog"], .veilborne-loadout-panel, [data-no-game-attack]')) return
     event.preventDefault()
     event.stopImmediatePropagation()
     if (this.avatar.isMounted() || this.avatar.isCombatStaggered()) return
