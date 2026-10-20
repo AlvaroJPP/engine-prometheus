@@ -5678,6 +5678,12 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
     padding-inline:10px;
   }
 }
+/* A barra de status fica fixa sobre os últimos 28 px da janela; a HUD termina antes dela. */
+.app:not(.world-fullscreen) .viewport > .player-hud {
+  bottom:28px !important;
+  height:auto !important;
+}
+
 /* The HUD must use only the area to the right of the collapsed editor rail. */
 .app.sidebar-collapsed:not(.world-fullscreen) .viewport > .player-hud {
   left:172px !important;
