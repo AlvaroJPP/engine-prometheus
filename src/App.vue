@@ -2640,7 +2640,8 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 .eye.off { background: transparent; box-shadow: none; opacity: 0.5; }
 
 /* viewport */
-.viewport { position: relative; flex: 1; min-width: 0; background: var(--bg); }
+.viewport { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; contain: paint; isolation: isolate; background: var(--bg); }
+.viewport > .statusbar { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; }
 .canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
 .canvas.tool-terrain { cursor: crosshair; }
 .canvas.tool-build { cursor: copy; }
