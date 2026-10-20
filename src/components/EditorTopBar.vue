@@ -957,6 +957,11 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   box-shadow:0 8px 22px #0003;
   backdrop-filter:blur(10px);
 }
+.viewport-tools-overlay > *,
+.viewport-tools-overlay .viewport-camera-switch,
+.viewport-tools-overlay .viewport-tool {
+  flex-shrink:0;
+}
 .viewport-camera-switch { display:flex; align-items:center; gap:2px; min-width:0; }
 .viewport-tool {
   display:inline-flex;
