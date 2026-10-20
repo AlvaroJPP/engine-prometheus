@@ -55,6 +55,7 @@ export class Viewport {
   private updateTimeAccumulated = 0
   private updateTimeSamples = 0
   private readonly invalidateFromInput = () => this.invalidate()
+  private readonly handleWindowResize = () => this.resize()
 
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
     this.canvas = canvas
@@ -75,6 +76,7 @@ export class Viewport {
     }
     window.addEventListener('keydown', this.invalidateFromInput)
     window.addEventListener('keyup', this.invalidateFromInput)
+    window.addEventListener('resize', this.handleWindowResize)
     document.addEventListener('visibilitychange', this.invalidateFromInput)
     this.resize()
   }
@@ -345,6 +347,7 @@ export class Viewport {
     }
     window.removeEventListener('keydown', this.invalidateFromInput)
     window.removeEventListener('keyup', this.invalidateFromInput)
+    window.removeEventListener('resize', this.handleWindowResize)
     document.removeEventListener('visibilitychange', this.invalidateFromInput)
     this.fpsListener = null
     this.renderStatsListener = null
