@@ -2634,6 +2634,8 @@ export class Engine {
     }
 
     this.runtimeModeActive = false
+    for (const code of this.pressedMouseBindings) this.dispatchMouseBinding(code, 'keyup')
+    this.pressedMouseBindings.clear()
     this.veilbornePlayerRespawnRemainingSeconds = 0
     this.veilborneDefaultSpawnPosition = null
     this.veilbornePendingCast = null
