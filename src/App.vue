@@ -1916,7 +1916,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
-      :hud-settings-open="hudSettingsOpen"
       :objects="objects"
       :components="placeableSavedComponents"
       @select-object="selectItem"
