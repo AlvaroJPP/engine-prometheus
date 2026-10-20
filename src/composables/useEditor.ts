@@ -1288,6 +1288,21 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
+  /**
+   * Atualiza uma variável global diretamente no runtime.
+   * Diferente do editor de variáveis, essa rota aceita campos criados pelo pacote
+   * durante a execução (como atributos de arquétipo e equipamento), sem depender
+   * de um snapshot reativo que pode estar um frame atrasado.
+   */
+  function setRuntimeGlobalVariable(name: string, value: boolean | number | string): void {
+    const key = name.trim()
+    if (!engine || !runtimeMode || !key) return
+    engine.setLogicVariable(key, value)
+    globalLogicVariables.value = engine.logicVariables()
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    dirty.value = true
+  }
+
   function toggleLogicVariable(name: string, scope: 'global' | 'object' = 'object') {
     const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
     const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
@@ -1687,7 +1702,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
