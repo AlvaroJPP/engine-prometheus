@@ -1889,6 +1889,9 @@ function resetSettings() {
   touch-action:none;
 }
 .hud-custom-image.is-positioning {
+  /* Só a camada selecionada recebe o mouse; sem isto o pointerdown nunca chega
+     a beginHudImageDrag porque as imagens do HUD normalmente ignoram cliques. */
+  pointer-events:auto;
   outline:1px dashed #e8572b;
   outline-offset:2px;
   cursor:move;
