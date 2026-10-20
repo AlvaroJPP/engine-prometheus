@@ -165,6 +165,11 @@ const vitalityStat = computed(() => readHudStat(settings.vitalityVariable, setti
 const etherStat = computed(() => readHudStat(settings.etherVariable, settings.etherMaxVariable, settings.etherMaxValue))
 
 const veilborneLoadoutOpen = ref(false)
+const loadoutPanelPosition = ref<{ x: number; y: number } | null>(null)
+let loadoutDragOffset: { x: number; y: number } | null = null
+const loadoutPanelStyle = computed(() => loadoutPanelPosition.value
+  ? { left: `${loadoutPanelPosition.value.x}px`, top: `${loadoutPanelPosition.value.y}px`, right: 'auto' }
+  : {})
 const veilborneActive = computed(() => typeof props.gameVariables.arma_equipada === 'string')
 const veilborneWeaponOptions = [
   { id: 'starter_arcane_sword', label: 'Lâmina do Véu' },
@@ -285,6 +290,42 @@ const veilborneProgression = computed(() => {
 
 function setLoadoutValue(name: string, value: string | number | boolean): void {
   emit('set-global-variable', name, value)
+}
+
+function startLoadoutDrag(event: PointerEvent): void {
+  if (event.button !== 0 || (event.target instanceof Element && event.target.closest('button'))) return
+  const header = event.currentTarget as HTMLElement
+  const panel = header.closest('.veilborne-loadout-panel') as HTMLElement | null
+  if (!panel) return
+  const rect = panel.getBoundingClientRect()
+  loadoutPanelPosition.value = { x: rect.left, y: rect.top }
+  loadoutDragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+  window.addEventListener('pointermove', moveLoadoutPanel)
+  window.addEventListener('pointerup', finishLoadoutDrag)
+  window.addEventListener('pointercancel', finishLoadoutDrag)
+  event.preventDefault()
+}
+
+function moveLoadoutPanel(event: PointerEvent): void {
+  if (!loadoutDragOffset) return
+  const panelWidth = Math.min(390, window.innerWidth - 28)
+  const panelHeight = Math.min(720, window.innerHeight - 24)
+  loadoutPanelPosition.value = {
+    x: Math.max(8, Math.min(window.innerWidth - panelWidth - 8, event.clientX - loadoutDragOffset.x)),
+    y: Math.max(8, Math.min(window.innerHeight - panelHeight - 8, event.clientY - loadoutDragOffset.y)),
+  }
+}
+
+function finishLoadoutDrag(): void {
+  loadoutDragOffset = null
+  window.removeEventListener('pointermove', moveLoadoutPanel)
+  window.removeEventListener('pointerup', finishLoadoutDrag)
+  window.removeEventListener('pointercancel', finishLoadoutDrag)
+}
+
+function onVeilborneArchetypeChange(value: string): void {
+  selectedVeilborneArchetype.value = value
+  if (value !== 'custom') applyVeilborneArchetype()
 }
 
 function setVeilborneSigilSlot(slot: number, value: string): void {
@@ -441,6 +482,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onVeilborneInventoryKeydown)
   finishHudImageDrag()
   cancelHudCropDrag()
+  finishLoadoutDrag()
   Object.values(hudImageUrls.value).forEach(url => URL.revokeObjectURL(url))
   if (hudSheetPreviewUrl.value) URL.revokeObjectURL(hudSheetPreviewUrl.value)
 })
@@ -1169,10 +1211,11 @@ function resetSettings() {
     <aside
       v-if="veilborneActive && veilborneLoadoutOpen"
       class="veilborne-loadout-panel"
+      :style="loadoutPanelStyle"
       role="dialog"
       aria-label="Arsenal VEILBORNE"
     >
-      <header class="veilborne-loadout-heading">
+      <header class="veilborne-loadout-heading" @pointerdown="startLoadoutDrag" title="Arraste para mover o Arsenal">
         <div>
           <span class="hud-eyebrow">VEILBORNE · EQUIPAMENTO</span>
           <strong>Arsenal do Véu</strong>
@@ -1218,7 +1261,7 @@ function resetSettings() {
       <div class="veilborne-archetype-block">
         <label class="veilborne-loadout-field">
           <span>Arquétipo</span>
-          <select v-model="selectedVeilborneArchetype">
+          <select :value="selectedVeilborneArchetype" @change="onVeilborneArchetypeChange(($event.target as HTMLSelectElement).value)">
             <option value="custom">Personalizado / atual</option>
             <option v-for="item in veilborneArchetypes" :key="item.id" :value="item.id">{{ item.label }}</option>
           </select>
@@ -1577,7 +1620,7 @@ function resetSettings() {
   color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
   box-shadow:0 20px 70px #0009; backdrop-filter:blur(18px); pointer-events:auto;
 }
-.veilborne-loadout-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:13px; border-bottom:1px solid #ffffff18; }
+.veilborne-loadout-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:13px; border-bottom:1px solid #ffffff18; cursor:grab; touch-action:none; user-select:none; }
 .veilborne-loadout-heading .hud-eyebrow { display:block; color:#cd9ab0; font-size:9px; letter-spacing:.16em; }
 .veilborne-loadout-heading strong { display:block; margin-top:4px; font-family:Georgia,serif; font-size:20px; font-weight:600; letter-spacing:.02em; }
 .veilborne-loadout-close { width:28px; height:28px; border:1px solid #ffffff25; border-radius:5px; color:#e9d6e0; background:#ffffff08; font-size:20px; cursor:pointer; }
