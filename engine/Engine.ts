@@ -2644,9 +2644,10 @@ export class Engine {
     this.veilborneParryStartedAt = Number.NEGATIVE_INFINITY
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
-    this.clearVeilborneEffects()
-    this.clearActiveVeilborneSigils()
-    this.clearVeilborneWard()
+    // A falha ao liberar um efeito visual não pode impedir o retorno ao editor.
+    try { this.clearVeilborneEffects() } catch (error) { console.warn('Falha ao limpar efeitos VEILBORNE:', error) }
+    try { this.clearActiveVeilborneSigils() } catch (error) { console.warn('Falha ao limpar sigilos VEILBORNE:', error) }
+    try { this.clearVeilborneWard() } catch (error) { console.warn('Falha ao limpar proteção VEILBORNE:', error) }
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
     this.avatar.setEnabled(false)
