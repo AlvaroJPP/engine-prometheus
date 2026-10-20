@@ -1913,8 +1913,10 @@ async function toggleWorldFullscreen() {
       console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
     }
   } else {
-    worldFullscreen.value = false
     try {
+      // Primeiro restaura a janela nativa/navegador e só depois reaplica
+      // o layout normal. Isso evita calcular larguras de painel usando ainda
+      // as dimensões do monitor inteiro durante a saída da tela cheia.
       if (isTauri()) {
         const appWindow = getCurrentWindow()
         if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
@@ -1924,10 +1926,11 @@ async function toggleWorldFullscreen() {
     } catch (error) {
       console.warn('Não foi possível restaurar o tamanho da janela.', error)
     }
+    worldFullscreen.value = false
   }
 
   fullscreenTransition.value = false
-  await nextTick()
+  await settleViewportAfterFullscreenChange()
 }
 
 function handleWorldFullscreenKeydown(event: KeyboardEvent) {
@@ -1941,9 +1944,24 @@ function handleWorldFullscreenKeydown(event: KeyboardEvent) {
   void toggleWorldFullscreen()
 }
 
+async function settleViewportAfterFullscreenChange(): Promise<void> {
+  // Espere o CSS e o redimensionamento do host estabilizarem antes de
+  // recalcular os overlays e o aspect ratio do renderizador.
+  await nextTick()
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
+  refreshViewportLayoutBounds()
+  viewportLayoutRefresh.value += 1
+  // Também acorda o ResizeObserver de layout do motor e cobre hosts que não
+  // disparam resize de forma consistente ao alternar a tela cheia.
+  window.dispatchEvent(new Event('resize'))
+}
+
 function syncWorldFullscreenAfterBrowserExit() {
   if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
     worldFullscreen.value = false
+    void settleViewportAfterFullscreenChange()
   }
 }
 
