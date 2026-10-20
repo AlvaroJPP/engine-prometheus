@@ -5676,6 +5676,19 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
     padding-inline:10px;
   }
 }
+/* The HUD must use only the area to the right of the collapsed editor rail. */
+.app.sidebar-collapsed:not(.world-fullscreen) .viewport > .player-hud {
+  left:172px !important;
+  right:0 !important;
+  width:calc(100% - 172px) !important;
+}
+@media(max-width:760px) {
+  .app.sidebar-collapsed:not(.world-fullscreen) .viewport > .player-hud {
+    left:160px !important;
+    width:calc(100% - 160px) !important;
+  }
+}
+
 /* Keep viewport indicators outside the collapsed sidebar's footprint. */
 .app.sidebar-collapsed:not(.world-fullscreen) .chips,
 .app.sidebar-collapsed:not(.world-fullscreen) .axes {
