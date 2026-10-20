@@ -99,6 +99,17 @@ const viewportLayoutItems: Array<{ id: ViewportLayoutId; label: string; descript
   { id: 'axes', label: 'Eixos X · Y · Z', description: 'Indicadores de largura, altura e profundidade', icon: 'XYZ' },
   { id: 'tools', label: 'Ferramentas 3D', description: 'Selecionar, mover, rotacionar, escalar e criar', icon: '⌖' },
 ]
+// A barra de ferramentas fica bloqueada no modo de lateral recolhida.
+const selectableViewportLayoutItems = computed(() =>
+  sidebarCollapsed.value
+    ? viewportLayoutItems.filter(item => item.id !== 'tools')
+    : viewportLayoutItems,
+)
+watch(sidebarCollapsed, (collapsed) => {
+  if (collapsed && activeViewportLayoutItem.value === 'tools') {
+    activeViewportLayoutItem.value = 'render'
+  }
+})
 type ViewportLayoutDrag = {
   id: ViewportLayoutId
   mode: 'move' | 'resize'
@@ -168,7 +179,8 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const target = getViewportLayoutTarget(id)
   const width = Math.max(1, bounds.width)
   const height = Math.max(1, viewportLayoutUsableHeight.value)
-  const scale = getViewportLayoutEffectiveScale(id, target)
+  const lockedCollapsedToolbar = id === 'tools' && sidebarCollapsed.value && !worldFullscreen.value
+  const scale = lockedCollapsedToolbar ? 1 : getViewportLayoutEffectiveScale(id, target)
   const scaledWidth = (target?.offsetWidth || 180) * scale
   const scaledHeight = (target?.offsetHeight || 80) * scale
   const localX = Math.max(0, Math.min(item.x * width, width - scaledWidth - 4))
@@ -201,6 +213,7 @@ function persistViewportLayout(): void {
   }
 }
 function clampViewportLayoutItem(id: ViewportLayoutId): void {
+  if (id === 'tools' && sidebarCollapsed.value) return
   const root = viewportRoot.value
   if (!root) return
   const rootRect = root.getBoundingClientRect()
@@ -219,7 +232,10 @@ function clampViewportLayoutItem(id: ViewportLayoutId): void {
   item.y = Math.max(0, Math.min(maxY, item.y * height)) / height
 }
 function clampAllViewportLayoutItems(): void {
-  for (const item of viewportLayoutItems) clampViewportLayoutItem(item.id)
+  for (const item of viewportLayoutItems) {
+    if (sidebarCollapsed.value && item.id === 'tools') continue
+    clampViewportLayoutItem(item.id)
+  }
   viewportLayoutRefresh.value += 1
 }
 function refreshViewportLayoutBounds(): void {
@@ -240,18 +256,22 @@ function toggleViewportLayoutConfig(): void {
   viewportLayoutConfigOpen.value = true
 }
 function updateViewportLayoutPercent(axis: 'x' | 'y', value: number): void {
-  const item = viewportLayout.value[activeViewportLayoutItem.value]
+  const id = activeViewportLayoutItem.value
+  if (id === 'tools' && sidebarCollapsed.value) return
+  const item = viewportLayout.value[id]
   item[axis] = Math.max(0, Math.min(1, value / 100))
   viewportLayoutRefresh.value += 1
   void nextTick(() => clampViewportLayoutItem(activeViewportLayoutItem.value))
 }
 function updateViewportLayoutScale(value: number): void {
   const id = activeViewportLayoutItem.value
+  if (id === 'tools' && sidebarCollapsed.value) return
   viewportLayout.value[id].scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(id), value / 100))
   viewportLayoutRefresh.value += 1
   void nextTick(() => clampViewportLayoutItem(id))
 }
 function resetViewportLayoutItem(id: ViewportLayoutId): void {
+  if (id === 'tools' && sidebarCollapsed.value) return
   viewportLayout.value[id] = { ...DEFAULT_VIEWPORT_LAYOUT[id] }
   void nextTick(() => {
     clampViewportLayoutItem(id)
@@ -264,7 +284,9 @@ function resetAllViewportLayout(): void {
     render: { ...DEFAULT_VIEWPORT_LAYOUT.render },
     fps: { ...DEFAULT_VIEWPORT_LAYOUT.fps },
     axes: { ...DEFAULT_VIEWPORT_LAYOUT.axes },
-    tools: { ...DEFAULT_VIEWPORT_LAYOUT.tools },
+    tools: sidebarCollapsed.value
+      ? { ...viewportLayout.value.tools }
+      : { ...DEFAULT_VIEWPORT_LAYOUT.tools },
   }
   void nextTick(() => {
     clampAllViewportLayoutItems()
@@ -277,6 +299,7 @@ function openHudSettingsFromViewportLayout(): void {
   viewportLayoutEditMode.value = false
 }
 function beginViewportLayoutDrag(event: PointerEvent, id: ViewportLayoutId, mode: 'move' | 'resize'): void {
+  if (id === 'tools' && sidebarCollapsed.value) return
   event.preventDefault()
   event.stopPropagation()
   const root = viewportRoot.value
@@ -308,6 +331,10 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
   const root = viewportRoot.value
   const target = drag ? getViewportLayoutTarget(drag.id) : null
   if (!drag || !root || !target) return
+  if (drag.id === 'tools' && sidebarCollapsed.value) {
+    finishViewportLayoutDrag()
+    return
+  }
   event.preventDefault()
   const rootRect = root.getBoundingClientRect()
   const width = Math.max(1, rootRect.width)
@@ -2172,7 +2199,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 
           <div class="viewport-layout-items" role="group" aria-label="Selecionar menu para ajustar">
             <button
-              v-for="item in viewportLayoutItems"
+              v-for="item in selectableViewportLayoutItems"
               :key="item.id"
               type="button"
               class="viewport-layout-item"
@@ -2219,7 +2246,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
         </div>
 
         <div v-if="viewportLayoutEditMode && executionMode === 'edit' && !worldFullscreen" class="viewport-layout-handles" aria-label="Controles para mover e redimensionar menus">
-          <div v-for="item in viewportLayoutItems" :key="'outline-' + item.id" class="viewport-layout-outline" :style="viewportLayoutOutlineStyle(item.id)">
+          <div v-for="item in selectableViewportLayoutItems" :key="'outline-' + item.id" class="viewport-layout-outline" :style="viewportLayoutOutlineStyle(item.id)">
             <button type="button" class="viewport-layout-move-handle" :title="'Arrastar para mover: ' + item.label" :aria-label="'Mover ' + item.label" @pointerdown="beginViewportLayoutDrag($event, item.id, 'move')"><span aria-hidden="true">⠿</span></button>
             <span class="viewport-layout-outline-name" aria-hidden="true">{{ item.label }}</span>
             <button type="button" class="viewport-layout-resize-handle" :title="'Arrastar para redimensionar: ' + item.label" :aria-label="'Redimensionar ' + item.label" @pointerdown="beginViewportLayoutDrag($event, item.id, 'resize')"><span aria-hidden="true">↘</span></button>
