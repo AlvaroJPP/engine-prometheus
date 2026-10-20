@@ -1677,7 +1677,9 @@ export class Engine {
     })
     const playerController = getAnimationControllerFromObject(this.avatar.mesh)
     if (playerController) playerController.playOneShot(heavy ? 'secondary_action' : 'primary_action')
-    this.veilborneCooldowns.set(cooldownKey, heavy ? 0.62 + (chargeScale - 1) * 0.12 : 0.28)
+    // O ataque rápido exige 1,5 s entre acionamentos para evitar ataques em sequência.
+    // Ataques pesados mantêm o tempo ajustado pela carga.
+    this.veilborneCooldowns.set(cooldownKey, heavy ? 0.62 + (chargeScale - 1) * 0.12 : 1.5)
     this.syncVeilbornePlayerCombatant(player)
     const effectPosition = target
       ? this.getVeilborneWorldPoint(target.object.id) ?? target.object.mesh.position.clone()
