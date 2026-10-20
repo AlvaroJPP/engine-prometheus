@@ -25,6 +25,7 @@ const WALKABLE_SURFACE_NORMAL_Y = 0.24
 // Degraus/guia de cidade podem ultrapassar o limite antigo de 0,52 u.
 // A parede continua bloqueando; este limite só se aplica se houver piso caminhável acima.
 const MAX_WALK_STEP_UP = 0.68
+const STEP_UP_SPEED = 4.8
 const MAX_WALK_OFF_DROP = 1.1
 const LEDGE_EDGE_TOP_TOLERANCE = 0.045
 const PLAYER_SUPPORT_PROBE_FACTORS: ReadonlyArray<readonly [number, number]> = [
@@ -791,7 +792,8 @@ export class HumanoidAvatar {
             // da escada e a própria colisão lateral cancela a subida.
             // findObjectLanding repõe os pés exatamente sobre o triângulo do degrau
             // no fim deste mesmo frame.
-            const candidateY = Math.max(previousY, stepUp) + 0.065 * this.getBodyScale()
+            const targetY = Math.max(previousY, stepUp) + 0.065 * this.getBodyScale()
+            const candidateY = Math.min(targetY, previousY + STEP_UP_SPEED * step)
             this.mesh.position.y = candidateY
             if (!this.collidesWithObjects()) {
               horizontalStepY = candidateY
@@ -799,7 +801,13 @@ export class HumanoidAvatar {
               lastSafe = coordinate
               continue
             }
-            this.mesh.position.y = previousY
+            // A elevação parcial continua entre quadros; não teleporta o avatar
+            // até o topo nem perde todo o progresso quando a aresta ainda colide.
+            horizontalStepY = candidateY
+            this.verticalVelocity = 0
+            this.mesh.position[axis] = lastSafe
+            this.mesh.updateMatrixWorld(true)
+            break
           }
 
           // Para no último ponto livre, sem reverter o outro eixo nem teleportar.
@@ -873,7 +881,11 @@ export class HumanoidAvatar {
     // Plataformas/rampas têm prioridade sobre o terreno base. Caso contrário,
     // um quadro em que nextY chega ao nível do terreno pode apagar o pouso
     // válido numa plataforma logo acima dele.
-    if (canLandOnObject && landing !== null) {
+    if (horizontalStepY !== null && horizontalStepY > oldY + 0.01 * bodyScale) {
+      this.mesh.position.y = horizontalStepY
+      this.verticalVelocity = 0
+      this.grounded = true
+    } else if (canLandOnObject && landing !== null) {
       this.mesh.position.y = landing
       this.verticalVelocity = 0
       this.grounded = true
