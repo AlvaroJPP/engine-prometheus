@@ -268,9 +268,18 @@ function refreshViewportLayoutBounds(): void {
   const root = viewportRoot.value
   if (!root) return
   const rect = root.getBoundingClientRect()
+  // Não reescreva x/y ao redimensionar a viewport. Os valores são frações
+  // da área útil e precisam continuar iguais ao recolher/expandir a hierarquia.
   viewportLayoutBounds.value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
   void nextTick(() => {
-    clampAllViewportLayoutItems()
+    const updatedRect = root.getBoundingClientRect()
+    viewportLayoutBounds.value = {
+      left: updatedRect.left,
+      top: updatedRect.top,
+      width: updatedRect.width,
+      height: updatedRect.height,
+    }
+    viewportLayoutRefresh.value += 1
   })
 }
 function toggleViewportLayoutConfig(): void {
@@ -393,11 +402,15 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
 }
 function finishViewportLayoutDrag(): void {
   if (!viewportLayoutDrag) return
+  const changedId = viewportLayoutDrag.id
   viewportLayoutDrag = null
   window.removeEventListener('pointermove', moveViewportLayoutDrag)
   window.removeEventListener('pointerup', finishViewportLayoutDrag)
   window.removeEventListener('pointercancel', finishViewportLayoutDrag)
-  clampAllViewportLayoutItems()
+  // Finaliza apenas o item manipulado; os demais mantêm suas coordenadas
+  // proporcionais mesmo que a viewport tenha acabado de mudar de tamanho.
+  clampViewportLayoutItem(changedId)
+  viewportLayoutRefresh.value += 1
   persistViewportLayout()
 }
 function handleViewportLayoutWindowResize(): void {
