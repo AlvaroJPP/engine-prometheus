@@ -1684,7 +1684,7 @@ function resetSettings() {
 .veilborne-loadout-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
 .veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
 .veilborne-loot-toast {
-  position:absolute; left:50%; bottom:clamp(96px,14vh,150px); z-index:44; transform:translateX(-50%);
+  position:absolute; left:50%; bottom:clamp(8px,14%,120px); z-index:44; transform:translateX(-50%);
   max-width:min(82%,430px); padding:10px 16px; border:1px solid #d8a56d80; border-radius:5px;
   color:#f6e5cb; background:#17131df0; box-shadow:0 9px 25px #0006; font-size:12px;
   text-align:center; pointer-events:none;
@@ -1726,7 +1726,7 @@ function resetSettings() {
 .hud-player-card,.hud-session-card,.hud-controls,.hud-action-button,.hud-exit-button,.hud-settings-panel,.hud-quick-slots {
   border:1px solid #ffffff20; background:linear-gradient(135deg,#111820ef,#11151be8); box-shadow:0 8px 26px #0003; backdrop-filter:blur(12px);
 }
-.hud-player-card { display:flex; align-items:center; gap:calc(11px * var(--hud-scale)); min-width:0; max-width:min(360px,58vw); padding:calc(10px * var(--hud-scale)) calc(14px * var(--hud-scale)); border-radius:8px; }
+.hud-player-card { display:flex; align-items:center; gap:calc(11px * var(--hud-scale)); min-width:0; max-width:min(360px,58%); padding:calc(10px * var(--hud-scale)) calc(14px * var(--hud-scale)); border-radius:8px; }
 .hud-avatar { display:grid; place-items:center; width:calc(38px * var(--hud-scale)); height:calc(38px * var(--hud-scale)); flex:none; border:1px solid #f5a52477; border-radius:7px; background:#f5a52418; color:#ffc45c; font-size:calc(17px * var(--hud-scale)); font-weight:700; }
 .hud-player-copy { display:flex; flex-direction:column; min-width:0; gap:2px; }
 .hud-eyebrow,.hud-player-copy strong,.hud-state,.hud-session-card,.hud-controls-toggle,.hud-control-row,.hud-action-button small,.hud-exit-button small { letter-spacing:.045em; }
@@ -1766,7 +1766,7 @@ function resetSettings() {
 .hud-crosshair span { top:0; left:7px; } .hud-crosshair i { bottom:0; left:7px; } .hud-crosshair b { top:7px; left:0; } .hud-crosshair em { top:7px; right:0; }
 .hud-bottomline { align-items:flex-end; }
 .hud-bottomline.dock-right { flex-direction:row-reverse; }
-.hud-controls { width:min(280px,45vw); overflow:hidden; border-radius:8px; pointer-events:auto; }
+.hud-controls { width:min(280px,45%); overflow:hidden; border-radius:8px; pointer-events:auto; }
 .hud-controls-toggle { display:flex; align-items:center; width:100%; gap:9px; min-height:43px; padding:8px 11px; border:0; border-bottom:1px solid #ffffff12; border-radius:0; background:transparent; color:#e5e9ef; text-align:left; cursor:pointer; }
 .hud-control-mark { display:grid; place-items:center; width:25px; height:25px; border:1px solid #ffffff20; border-radius:5px; color:#f5b64c; }
 .hud-controls-toggle>span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:2px; font-size:10px; font-weight:700; }
@@ -1777,7 +1777,7 @@ function resetSettings() {
 .hud-control-row kbd,.hud-action-button kbd,.hud-exit-button kbd,.quick-slot kbd { min-width:25px; padding:3px 5px; border:1px solid #ffffff24; border-bottom-color:#ffffff3b; border-radius:4px; background:#ffffff08; color:#f2f4f7; font:9px 'IBM Plex Mono',monospace; text-align:center; white-space:nowrap; }
 .hud-key-cluster { display:flex; flex-wrap:wrap; gap:3px; }
 .hud-key-cluster kbd { min-width:22px; }
-.hud-actions { display:flex; flex-direction:column; gap:8px; width:min(235px,42vw); pointer-events:auto; }
+.hud-actions { display:flex; flex-direction:column; gap:8px; width:min(235px,42%); pointer-events:auto; }
 .player-hud.editor-preview .hud-actions,
 .player-hud.editor-preview .veilborne-loadout-trigger,
 .player-hud.editor-preview .veilborne-loadout-panel { pointer-events:none; }
@@ -1800,8 +1800,8 @@ function resetSettings() {
   .hud-avatar { width:30px; height:30px; }
   .hud-player-copy strong { max-width:130px; font-size:11px; }
   .hud-session-card { gap:6px; padding:0 7px; font-size:9px; }
-  .hud-controls { width:min(245px,58vw); }
-  .hud-actions { width:min(205px,44vw); }
+  .hud-controls { width:min(245px,58%); }
+  .hud-actions { width:min(205px,44%); }
   .hud-action-button,.hud-exit-button { gap:6px; padding:7px; }
   .hud-action-button strong,.hud-exit-button strong { font-size:9px; }
   .hud-settings-panel { top:76px; left:9px; right:auto; width:min(350px,calc(100% - 18px)); max-height:calc(100% - 110px); padding:11px; }
@@ -1814,7 +1814,7 @@ function resetSettings() {
   .hud-control-list { gap:4px; padding:6px 9px; }
   .hud-control-row { font-size:9px; }
   .hud-action-button,.hud-exit-button { min-height:42px; }
-  .hud-settings-panel { top:72px; max-height:calc(100dvh - 150px); }
+  .hud-settings-panel { top:72px; max-height:calc(100% - 150px); }
 }
 
 /* In fullscreen, keep the runtime/session card and its HUD-edit button out of
@@ -1826,7 +1826,7 @@ function resetSettings() {
 }
 .player-hud.hud-world-fullscreen .hud-settings-panel {
   top: calc(158px * var(--hud-scale));
-  left: clamp(10px, 2vw, 26px);
+  left: clamp(10px, 2%, 26px);
   right: auto;
   max-height: calc(100% - 182px);
 }
@@ -1942,7 +1942,7 @@ function resetSettings() {
 /* Libera a área inicial das imagens enquanto os controles de posição estão abertos. */
 .player-hud.is-positioning-hud-image .hud-settings-panel {
   left:auto;
-  right:clamp(10px,2vw,26px);
+  right:clamp(8px,2%,20px);
 }
 .hud-image-file-input { display:none; }
 .hud-image-import,.hud-image-remove,.hud-image-actions button {
