@@ -9,19 +9,8 @@
 .grid-toggle.active { border-color: #547eaa; color: #c6e2ff; background: #23364a; }
 .grid-state { color: #a9c9ec; }
 
-/* Engine Prometheus v0.1.0 — UI redesign */
+/* Estilos base dos componentes globais; tokens de tema ficam no App.vue. */
 
-:root {
-  --bg: #0e1013;
-  --panel: #14171c;
-  --panel-2: #181c23;
-  --line: #252a33;
-  --text: #e6e8ec;
-  --muted: #9aa1ae;
-  --accent: #f5a524;
-  --accent-dark: #5a3c0d;
-  --green: #3fb950;
-}
 html, body, #app { width:100%; height:100%; margin:0; }
 body { overflow:hidden; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:12px; }
 * { box-sizing:border-box; }
