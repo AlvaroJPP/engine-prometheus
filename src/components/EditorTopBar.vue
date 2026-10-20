@@ -1049,10 +1049,11 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   top: 12px !important;
   right: 12px !important;
   left: auto !important;
-  width: max-content;
-  max-width: calc(100vw - 24px) !important;
-  transform: none !important;
-  flex-wrap: wrap;
+  width: max-content !important;
+  max-width: none !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top right !important;
+  flex-wrap: nowrap !important;
 }
 :global(.app.world-fullscreen) .viewport-tools-overlay .render-settings-popover {
   right: 0;
