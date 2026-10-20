@@ -56,10 +56,10 @@ type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
 type ViewportLayoutItem = { x: number; y: number; scale: number }
 type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
 
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v4'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v5'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
   render: { x: 0.29, y: 0.015, scale: 1 },
-  fps: { x: 0.66, y: 0.08, scale: 1 },
+  fps: { x: 0.66, y: 0.11, scale: 1 },
   axes: { x: 0.015, y: 0.78, scale: 1 },
   tools: { x: 0.015, y: 0.02, scale: 1 },
 }
