@@ -180,6 +180,14 @@ function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLEle
   const requestedScale = viewportLayout.value[id].scale
   return target ? Math.min(requestedScale, getViewportLayoutMaximumScale(id, target)) : requestedScale
 }
+function getViewportLayoutMinimumX(id: ViewportLayoutId, scaledWidth = 0): number {
+  if (!sidebarCollapsed.value || worldFullscreen.value || (id !== 'fps' && id !== 'axes')) return 0
+  // Mantém os indicadores fora da faixa fixa usada pela lateral recolhida.
+  const width = Math.max(1, viewportLayoutBounds.value.width)
+  const railClearance = width <= 760 ? 172 : 188
+  return Math.min(railClearance, Math.max(0, width - scaledWidth - 4))
+}
+
 function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   void viewportLayoutRefresh.value
   const bounds = viewportLayoutBounds.value
@@ -191,7 +199,9 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const scale = lockedCollapsedToolbar ? 1 : getViewportLayoutEffectiveScale(id, target)
   const scaledWidth = (target?.offsetWidth || 180) * scale
   const scaledHeight = (target?.offsetHeight || 80) * scale
-  const localX = Math.max(0, Math.min(item.x * width, width - scaledWidth - 4))
+  const minX = getViewportLayoutMinimumX(id, scaledWidth)
+  const maxX = Math.max(minX, width - scaledWidth - 4)
+  const localX = Math.max(minX, Math.min(item.x * width, maxX))
   const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
   // FPS e eixos ficam dentro de .viewport, cujo contain: paint torna o
   // posicionamento fixo relativo à própria viewport. Para eles, use coordenadas
@@ -240,9 +250,10 @@ function clampViewportLayoutItem(id: ViewportLayoutId): void {
   const effectiveScale = getViewportLayoutEffectiveScale(id, target)
   const targetWidth = Math.max(1, target.offsetWidth) * effectiveScale
   const targetHeight = Math.max(1, target.offsetHeight) * effectiveScale
-  const maxX = Math.max(0, width - targetWidth - 4)
+  const minX = getViewportLayoutMinimumX(id, targetWidth)
+  const maxX = Math.max(minX, width - targetWidth - 4)
   const maxY = Math.max(0, height - targetHeight - 4)
-  item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
+  item.x = Math.max(minX, Math.min(maxX, item.x * width)) / width
   item.y = Math.max(0, Math.min(maxY, item.y * height)) / height
 }
 function clampAllViewportLayoutItems(): void {
@@ -358,18 +369,22 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
   const item = viewportLayout.value[drag.id]
   let effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
   if (drag.mode === 'move') {
-    const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
+    const targetWidth = target.offsetWidth * effectiveScale
+    const minX = getViewportLayoutMinimumX(drag.id, targetWidth)
+    const maxX = Math.max(minX, width - targetWidth - 4)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
-    item.x = Math.max(0, Math.min(maxX, drag.originX + dx)) / width
+    item.x = Math.max(minX, Math.min(maxX, drag.originX + dx)) / width
     item.y = Math.max(0, Math.min(maxY, drag.originY + dy)) / usableHeight
   } else {
     const unit = Math.max(120, drag.width, drag.height)
     const requestedScale = drag.scale + (dx + dy) / (2 * unit)
     item.scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(drag.id, target), requestedScale))
     effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
-    const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
+    const targetWidth = target.offsetWidth * effectiveScale
+    const minX = getViewportLayoutMinimumX(drag.id, targetWidth)
+    const maxX = Math.max(minX, width - targetWidth - 4)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
-    item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
+    item.x = Math.max(minX, Math.min(maxX, item.x * width)) / width
     item.y = Math.max(0, Math.min(maxY, item.y * usableHeight)) / usableHeight
   }
   viewportLayoutBounds.value = { left: rootRect.left, top: rootRect.top, width: rootRect.width, height: rootRect.height }
@@ -5914,14 +5929,13 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   }
 }
 
-/* Keep viewport indicators outside the collapsed sidebar's footprint. */
-.app.sidebar-collapsed:not(.world-fullscreen) .chips,
-.app.sidebar-collapsed:not(.world-fullscreen) .axes {
+/* Keep the fixed status chips outside the collapsed sidebar. FPS and axes use
+   viewport-relative coordinates from the layout controller above. */
+.app.sidebar-collapsed:not(.world-fullscreen) .chips {
   left:188px !important;
 }
 @media(max-width:760px) {
-  .app.sidebar-collapsed:not(.world-fullscreen) .chips,
-  .app.sidebar-collapsed:not(.world-fullscreen) .axes {
+  .app.sidebar-collapsed:not(.world-fullscreen) .chips {
     left:172px !important;
   }
 }
