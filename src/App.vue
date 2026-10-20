@@ -5955,8 +5955,12 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   gap: 5px !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: #494137 transparent !important;
+  scrollbar-width: none !important;
+}
+.app .toolbar.viewport-layout-positioned::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 .app .toolbar.viewport-layout-positioned .toolbar-group { width: 100%; align-items: stretch; flex: none; gap: 3px; }
 .app .toolbar.viewport-layout-positioned .toolbar-separator { flex: none; width: 100%; }
