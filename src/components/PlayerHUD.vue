@@ -1614,8 +1614,10 @@ function resetSettings() {
 }
 .veilborne-loadout-trigger kbd { margin-left:5px; border:1px solid #ffffff24; border-radius:4px; padding:3px 5px; color:#e5d2dd; font-size:10px; }
 .veilborne-loadout-panel {
-  position:absolute; top:clamp(116px,16vh,164px); right:clamp(12px,2vw,26px); z-index:40;
-  width:min(390px,calc(100vw - 28px)); max-height:min(76vh,720px); overflow:auto;
+  position:fixed; top:clamp(116px,16vh,164px); right:clamp(12px,2vw,26px); z-index:1000;
+  display:block; box-sizing:border-box; width:min(390px,calc(100vw - 28px));
+  max-height:calc(100dvh - 24px); overflow-x:hidden; overflow-y:auto;
+  overscroll-behavior:contain; scrollbar-gutter:stable; -webkit-overflow-scrolling:touch;
   padding:16px; border:1px solid #9a647d7a; border-radius:8px;
   color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
   box-shadow:0 20px 70px #0009; backdrop-filter:blur(18px); pointer-events:auto;
