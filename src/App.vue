@@ -6103,7 +6103,6 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 .viewport-layout-outline-name { position: absolute; top: 3px; left: 29px; max-width: calc(100% - 58px); overflow: hidden; padding: 4px 6px; border-radius: 3px; background: #20170fef; color: #f7d5ad; font: 600 9px 'IBM Plex Sans', sans-serif; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
 @media(max-width:760px) {
   .viewport-layout-config-panel { right: 8px; top: 54px; width: min(350px, calc(100% - 16px)); max-height: calc(100% - 62px); padding: 10px; }
-  .viewport-layout-config-trigger { right: 8px; top: 8px; width: 34px; height: 34px; }
   .viewport-layout-item { min-height: 43px; }
 }
 </style>
