@@ -5986,7 +5986,7 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   max-width: none !important;
   height: auto !important;
   min-height: 0 !important;
-  max-height: none !important;
+  max-height: calc((100dvh - 84px) / var(--viewport-layout-scale, 1)) !important;
   margin: 0 !important;
   padding: 132px 7px 10px !important;
   display: flex !important;
