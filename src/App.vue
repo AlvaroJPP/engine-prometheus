@@ -1944,6 +1944,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       :grass-wind-percent="grassWindPercent"
       :execution-mode="executionMode"
       :world-fullscreen="worldFullscreen"
+      :viewport-layout-config-open="viewportLayoutConfigOpen"
       :objects="objects"
       :components="placeableSavedComponents"
       @select-object="selectItem"
@@ -1952,6 +1953,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       @run-world="runWorld"
       @edit-world="returnToEdit"
       @toggle-world-fullscreen="toggleWorldFullscreen"
+      @toggle-viewport-layout-config="toggleViewportLayoutConfig"
       @render-distance-change="setRenderDistance"
       @render-all-change="setRenderAll"
       @performance-mode-change="setPerformanceMode"
@@ -2152,22 +2154,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="seg grow-text">{{ status || hint }}</span>
           <span class="seg status-version">v{{ ENGINE_VERSION }}</span>
         </div>
-
-        <button
-          v-if="executionMode === 'edit' && !worldFullscreen"
-          class="viewport-layout-config-trigger"
-          type="button"
-          :aria-expanded="viewportLayoutConfigOpen"
-          aria-controls="viewport-layout-config-panel"
-          aria-label="Configurar posições e tamanhos da viewport"
-          title="Configurar a posição e o tamanho dos menus da viewport"
-          @click.stop="toggleViewportLayoutConfig"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
-            <path d="m19.2 13.7 1.2.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.4.8l-.2 1.5h-3l-.3-1.5a7.4 7.4 0 0 1-1.4-.8l-1.4.6-1.5-2.6 1.2-.9a7.1 7.1 0 0 1 0-1.6l-1.2-.9 1.5-2.6 1.4.6a7.8 7.8 0 0 1 1.4-.8l.3-1.5h3l.2 1.5a7.8 7.8 0 0 1 1.4.8l1.4-.6 1.5 2.6-1.2.9a7.1 7.1 0 0 1 0 1.6Z" />
-          </svg>
-        </button>
 
         <div
           v-if="viewportLayoutConfigOpen && executionMode === 'edit' && !worldFullscreen"
@@ -6055,25 +6041,6 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   white-space: nowrap !important;
 }
 .app .axes.viewport-layout-positioned { display: flex; }
-.viewport-layout-config-trigger {
-  position: absolute;
-  z-index: 140;
-  top: 12px;
-  right: 12px;
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #51412e;
-  border-radius: 8px;
-  background: rgba(25, 22, 18, .96);
-  color: #f0c28c;
-  box-shadow: 0 5px 18px #0006;
-  cursor: pointer;
-}
-.viewport-layout-config-trigger svg { width: 19px; height: 19px; }
-.viewport-layout-config-trigger:hover,
-.viewport-layout-config-trigger[aria-expanded="true"] { border-color: #e5a567; background: #34281d; color: #ffe0b8; }
 .viewport-layout-config-panel {
   position: absolute;
   z-index: 150;
