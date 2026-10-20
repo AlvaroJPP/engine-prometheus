@@ -1152,7 +1152,7 @@ function resetSettings() {
 </script>
 
 <template>
-  <section class="player-hud" :class="{ 'hud-world-fullscreen': worldFullscreen, 'editor-preview': editorPreview }" :style="hudStyle" :aria-label="editorPreview ? 'Prévia da interface do jogador' : 'Interface do jogador'">
+  <section class="player-hud" :class="{ 'hud-world-fullscreen': worldFullscreen, 'editor-preview': editorPreview, 'is-positioning-hud-image': activeHudImageId !== null }" :style="hudStyle" :aria-label="editorPreview ? 'Prévia da interface do jogador' : 'Interface do jogador'">
     <div class="hud-topline" :class="{ 'topline-reverse': settings.dock === 'right' }">
       <div v-if="settings.showPlayer" class="hud-player-card">
         <div class="hud-avatar" aria-hidden="true"><span>P</span></div>
@@ -1895,6 +1895,11 @@ function resetSettings() {
   outline:1px dashed #e8572b;
   outline-offset:2px;
   cursor:move;
+}
+/* Libera a área inicial das imagens enquanto os controles de posição estão abertos. */
+.player-hud.is-positioning-hud-image .hud-settings-panel {
+  left:auto;
+  right:clamp(10px,2vw,26px);
 }
 .hud-image-file-input { display:none; }
 .hud-image-import,.hud-image-remove,.hud-image-actions button {
