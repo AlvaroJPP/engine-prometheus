@@ -56,13 +56,14 @@ type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
 type ViewportLayoutItem = { x: number; y: number; scale: number }
 type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
 
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v6'
-const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v5'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v7'
+const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6 = 'engine-prometheus.viewport-layout.v6'
+const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5 = 'engine-prometheus.viewport-layout.v5'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
   render: { x: 0.29, y: 0.015, scale: 1 },
   fps: { x: 0.66, y: 0.11, scale: 1 },
   axes: { x: 0.015, y: 0.78, scale: 1 },
-  tools: { x: 0.015, y: 0.02, scale: 0.25 },
+  tools: { x: 0.015, y: 0.02, scale: 1 },
 }
 function boundedLayoutNumber(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -74,20 +75,22 @@ function loadViewportLayout(): ViewportLayoutSettings {
     const current = localStorage.getItem(VIEWPORT_LAYOUT_STORAGE_KEY)
     const migratingLegacyLayout = current === null
     const saved = JSON.parse(
-      current ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY) ?? '{}',
+      current
+        ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6)
+        ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5)
+        ?? '{}',
     ) as Partial<ViewportLayoutSettings>
     const result = {} as ViewportLayoutSettings
     for (const id of ['render', 'fps', 'axes', 'tools'] as const) {
       const candidate = saved[id]
       const fallback = DEFAULT_VIEWPORT_LAYOUT[id]
-      const minScale = id === 'tools' ? 0.25 : 0.55
       result[id] = {
         x: boundedLayoutNumber(candidate?.x, fallback.x, 0, 1),
         y: boundedLayoutNumber(candidate?.y, fallback.y, 0, 1),
-        // Aplica a redução de 75% uma vez, preservando as demais preferências antigas.
+        // A redução da barra é feita pela área rolável, não pela escala visual.
         scale: id === 'tools' && migratingLegacyLayout
-          ? 0.25
-          : boundedLayoutNumber(candidate?.scale, fallback.scale, minScale, 1.6),
+          ? 1
+          : boundedLayoutNumber(candidate?.scale, fallback.scale, 0.55, 1.6),
       }
     }
     if (migratingLegacyLayout) {
@@ -176,9 +179,8 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
     return Math.max(0.55, Math.min(1.6, availableWidth / width))
   }
 
-  // A barra normal pode ser reduzida até 25%; os demais elementos mantêm o mínimo de 55%.
-  const minScale = id === 'tools' ? 0.25 : 0.55
-  return Math.max(minScale, Math.min(1.6, availableWidth / width, availableHeight / height))
+  // Todos os componentes conservam a escala visual; o espaço da barra é limitado via CSS.
+  return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
 function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
   const target = element ?? getViewportLayoutTarget(id)
@@ -279,8 +281,7 @@ function updateViewportLayoutPercent(axis: 'x' | 'y', value: number): void {
 function updateViewportLayoutScale(value: number): void {
   const id = activeViewportLayoutItem.value
   if (id === 'tools' && sidebarCollapsed.value) return
-  const minScale = id === 'tools' ? 0.25 : 0.55
-  viewportLayout.value[id].scale = Math.max(minScale, Math.min(getViewportLayoutMaximumScale(id), value / 100))
+  viewportLayout.value[id].scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(id), value / 100))
   viewportLayoutRefresh.value += 1
   void nextTick(() => clampViewportLayoutItem(id))
 }
@@ -2238,7 +2239,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             </label>
             <label class="viewport-layout-range">
               <span>Tamanho <strong>{{ Math.round(viewportLayout[activeViewportLayoutItem].scale * 100) }}%</strong></span>
-              <input type="range" :min="activeViewportLayoutItem === 'tools' ? 25 : 55" max="160" step="5" :value="Math.round(viewportLayout[activeViewportLayoutItem].scale * 100)" @input="updateViewportLayoutScale(Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
+              <input type="range" min="55" max="160" step="5" :value="Math.round(viewportLayout[activeViewportLayoutItem].scale * 100)" @input="updateViewportLayoutScale(Number(($event.target as HTMLInputElement).value))" @change="persistViewportLayout" />
             </label>
             <div class="viewport-layout-actions">
               <button type="button" class="viewport-layout-secondary" @click="resetViewportLayoutItem(activeViewportLayoutItem)">Restaurar este menu</button>
@@ -5946,13 +5947,16 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   box-sizing: border-box !important;
   width: 42px !important;
   min-width: 42px !important;
-  max-height: none !important;
+  /* Limita a área física a aproximadamente 1/4 da viewport e rola os botões internamente. */
+  max-height: max(120px, calc((100dvh - 110px) / 4)) !important;
   height: auto !important;
   min-height: 0 !important;
   padding: 5px !important;
   gap: 5px !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #494137 transparent !important;
 }
 .app .toolbar.viewport-layout-positioned .toolbar-group { width: 100%; align-items: stretch; flex: none; gap: 3px; }
 .app .toolbar.viewport-layout-positioned .toolbar-separator { flex: none; width: 100%; }
