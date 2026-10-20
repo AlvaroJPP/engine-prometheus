@@ -158,28 +158,21 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
   const usableHeight = viewportLayoutUsableHeight.value
   if (!target || rect.width <= 0 || usableHeight <= 0) return 1.6
 
-  const item = viewportLayout.value[id]
   const width = Math.max(1, target.offsetWidth)
   const height = Math.max(1, target.offsetHeight)
+  const availableWidth = Math.max(1, rect.width - 8)
+  const availableHeight = Math.max(1, usableHeight - 8)
 
-  // Alguns estados têm âncora própria: a barra lateral acompanha a hierarquia
-  // recolhida; em tela cheia, os controles de câmera ficam presos ao canto direito.
+  // A barra lateral recolhida tem largura fixa e rolagem interna.
+  // Sua escala é bloqueada separadamente no layout; aqui evitamos usar a
+  // altura total do conteúdo para limitar o tamanho visual.
   const anchoredRail = id === 'tools' && sidebarCollapsed.value && !worldFullscreen.value
-  const fullscreenRender = id === 'render' && worldFullscreen.value
-  const left = anchoredRail || fullscreenRender ? 0 : item.x * rect.width
-  const top = anchoredRail || fullscreenRender ? 0 : item.y * usableHeight
-  const availableWidth = Math.max(1, rect.width - left - 8)
-  const availableHeight = Math.max(1, usableHeight - top - 8)
-
-  // A lateral recolhida é rolável: limitar sua escala pela altura total do
-  // conteúdo bloquearia o aumento mesmo quando o painel tem barra de rolagem.
-  // Sua altura visível é compensada pelo CSS conforme a escala; limitamos
-  // apenas pela largura para que o tamanho também mude nesse estado.
   if (anchoredRail) {
     return Math.max(0.55, Math.min(1.6, availableWidth / width))
   }
 
-  // Todos os componentes conservam a escala visual; o espaço da barra é limitado via CSS.
+  // O tamanho máximo depende da viewport inteira, não da posição atual.
+  // Assim, FPS e eixos não encolhem durante o arraste nem ficam presos no meio.
   return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
 function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
