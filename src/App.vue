@@ -5029,193 +5029,9 @@ button:disabled { cursor: not-allowed; }
 </style>
 
 
-<style>
-/* Give the viewport tool palette enough room to show tool names, not only icons. */
-.toolbar {
-  width: 154px !important;
-  min-width: 154px;
-  align-items: stretch !important;
-  padding: 6px !important;
-  gap: 6px !important;
-  overflow-x: hidden;
-}
-.toolbar-group {
-  width: 100%;
-  align-items: stretch;
-  gap: 3px;
-}
-.toolbar-separator {
-  flex: none;
-  width: 100%;
-}
-.toolbar .tool {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start !important;
-  gap: 9px;
-  width: 100% !important;
-  min-width: 0 !important;
-  min-height: 34px;
-  height: auto !important;
-  padding: 5px 8px !important;
-  text-align: left;
-}
-.toolbar .tool-ico {
-  flex: 0 0 18px;
-  width: 18px;
-  text-align: center;
-  font-size: 17px;
-}
-.toolbar .tool-label {
-  position: static !important;
-  display: block;
-  width: auto !important;
-  height: auto !important;
-  min-width: 0;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: visible !important;
-  clip: auto !important;
-  white-space: normal !important;
-  font-size: 11px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-@media (max-width: 1180px) {
-  .toolbar { left: 232px !important; }
-}
-@media (max-width: 760px) {
-  .toolbar {
-    left: 188px !important;
-    width: 126px !important;
-    min-width: 126px;
-    padding: 4px !important;
-  }
-  .toolbar .tool { gap: 6px; padding-inline: 5px !important; }
-  .toolbar .tool-ico { flex-basis: 16px; width: 16px; }
-  .toolbar .tool-label { font-size: 10px; }
-}
-</style>
 
 
-<style>
-/* Keep the viewport tool palette narrow and increase its vertical working area. */
-.toolbar {
-  width: 42px !important;
-  min-width: 42px !important;
-  height: calc(100dvh - 96px) !important;
-  max-height: calc(100dvh - 96px) !important;
-  min-height: 0;
-  align-items: stretch !important;
-  justify-content: flex-start;
-  padding: 5px !important;
-  gap: 5px !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-}
-.toolbar-group {
-  width: 100%;
-  align-items: stretch;
-  flex: none;
-  gap: 3px;
-}
-.toolbar-separator { flex: none; width: 100%; }
-.toolbar .tool {
-  display: flex;
-  align-items: center;
-  justify-content: center !important;
-  gap: 0;
-  width: 30px !important;
-  min-width: 30px !important;
-  min-height: 32px !important;
-  height: 32px !important;
-  padding: 0 !important;
-}
-.toolbar .tool-ico {
-  flex: none;
-  width: auto;
-  text-align: center;
-  font-size: 16px;
-}
-.toolbar .tool-label {
-  position: absolute !important;
-  display: block;
-  width: 1px !important;
-  height: 1px !important;
-  min-width: 0;
-  margin: -1px !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0;
-}
-@media (max-width: 760px) {
-  .toolbar {
-    left: 188px !important;
-    width: 42px !important;
-    min-width: 42px !important;
-    height: calc(100dvh - 92px) !important;
-    max-height: calc(100dvh - 92px) !important;
-    padding: 4px !important;
-  }
-}
-</style>
 
-
-<style>
-/* Keep the tool palette at roughly half the available viewport height. */
-.toolbar {
-  height: calc((100dvh - 96px) / 2) !important;
-  max-height: calc((100dvh - 96px) / 2) !important;
-  overflow-y: auto !important;
-}
-@media (max-width: 760px) {
-  .toolbar {
-    height: calc((100dvh - 92px) / 2) !important;
-    max-height: calc((100dvh - 92px) / 2) !important;
-  }
-}
-</style>
-
-
-<style>
-/* Reduz a barra de ferramentas em 30%, preservando os controles e o scroll. */
-.toolbar {
-  box-sizing: border-box;
-  width: 29px !important;
-  min-width: 29px !important;
-  padding: 3.5px !important;
-  gap: 3.5px !important;
-  height: calc(((100dvh - 96px) / 2) * 0.7) !important;
-  max-height: calc(((100dvh - 96px) / 2) * 0.7) !important;
-}
-.toolbar-group { gap: 2px !important; }
-.toolbar .tool {
-  width: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
-  height: 22px !important;
-}
-.toolbar .tool-ico { font-size: 12px !important; }
-.toolbar-separator { margin-block: 1px !important; }
-@media (max-width: 760px) {
-  .toolbar {
-    width: 29px !important;
-    min-width: 29px !important;
-    height: calc(((100dvh - 92px) / 2) * 0.7) !important;
-    max-height: calc(((100dvh - 92px) / 2) * 0.7) !important;
-    padding: 3px !important;
-  }
-  .toolbar .tool {
-    width: 22px !important;
-    min-width: 22px !important;
-    min-height: 22px !important;
-    height: 22px !important;
-  }
-}
-</style>
 
 <style>
 /* Controle de horário do ciclo solar: a trilha e a faixa cromática usam a mesma escala 0–24 h. */
@@ -6092,7 +5908,8 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
 /* Configuração do layout: os quatro elementos usam coordenadas medidas a partir da viewport. */
 .app .toolbar.viewport-layout-positioned,
 .app .viewport-fps.viewport-layout-positioned,
-.app .axes.viewport-layout-positioned {
+.app .axes.viewport-layout-positioned,
+.app .viewport-tools-overlay.viewport-layout-positioned {
   position: fixed !important;
   left: var(--viewport-layout-left, 0px) !important;
   top: var(--viewport-layout-top, 0px) !important;
@@ -6102,7 +5919,49 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   transform-origin: top left !important;
   max-width: var(--viewport-layout-max-width, 100%) !important;
 }
-.app .toolbar.viewport-layout-positioned { max-height: var(--viewport-layout-max-height, 80vh) !important; }
+.app .toolbar.viewport-layout-positioned {
+  box-sizing: border-box !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  max-height: var(--viewport-layout-max-height, 80vh) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 5px !important;
+  gap: 5px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+.app .toolbar.viewport-layout-positioned .toolbar-group { width: 100%; align-items: stretch; flex: none; gap: 3px; }
+.app .toolbar.viewport-layout-positioned .toolbar-separator { flex: none; width: 100%; }
+.app .toolbar.viewport-layout-positioned .tool {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+.app .toolbar.viewport-layout-positioned .tool-ico { flex: none; width: auto; font-size: 16px; }
+.app .toolbar.viewport-layout-positioned .tool-label {
+  position: absolute !important;
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.app .viewport-tools-overlay.viewport-layout-positioned {
+  max-width: var(--viewport-layout-max-width, calc(100vw - 24px)) !important;
+}
 .app .axes.viewport-layout-positioned { display: flex; }
 .viewport-layout-config-trigger {
   position: absolute;
