@@ -52,7 +52,8 @@ const executionMode = ref<'edit' | 'running'>('edit')
 const worldFullscreen = ref(false)
 const playerHudSettingsOpen = ref(false)
 watch(executionMode, (mode) => {
-  if (mode !== 'running') playerHudSettingsOpen.value = false
+  // A configuração da HUD pertence ao modo de edição; ao iniciar o jogo, feche-a.
+  if (mode !== 'edit') playerHudSettingsOpen.value = false
 })
 const fullscreenTransition = ref(false)
 const controlMapsOpen = ref(false)
@@ -733,6 +734,16 @@ function cycleCameraView() {
     setFirstPersonMode(false)
   }
   cycleCamera()
+}
+function handleHudToggleCamera() {
+  if (executionMode.value === 'running') cycleCameraView()
+}
+function handleHudExitRuntime() {
+  if (executionMode.value === 'running') returnToEdit()
+}
+function handleHudGlobalVariable(name: string, value: string | number | boolean) {
+  if (executionMode.value !== 'running') return
+  setLogicVariableValue(name, String(value), 'global')
 }
 function runWorld() {
   graphOpen.value = false
@@ -1762,20 +1773,21 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="['tool-' + tool, viewportCursorClass]" />
         <PlayerHUD
-          v-if="executionMode === 'running'"
+          v-if="executionMode === 'running' || playerHudSettingsOpen"
           :player-name="playerModelName"
           :camera-mode="firstPersonMode ? 'Primeira pessoa' : CAMERA_LABELS[cameraPreset]"
           :fps="fps"
           :control-map-name="activeControlMap.name"
           :first-person="firstPersonMode"
           :settings-open="playerHudSettingsOpen"
+          :editor-preview="executionMode !== 'running'"
           :world-fullscreen="worldFullscreen"
           :bindings="activeControlMap.bindings"
           :game-variables="globalLogicVariables"
-          @toggle-camera="cycleCameraView"
-          @exit-runtime="returnToEdit"
+          @toggle-camera="handleHudToggleCamera"
+          @exit-runtime="handleHudExitRuntime"
           @settings-open-change="playerHudSettingsOpen = $event"
-          @set-global-variable="(name, value) => setLogicVariableValue(name, String(value), 'global')"
+          @set-global-variable="handleHudGlobalVariable"
         />
         <div class="viewport-actions" aria-label="Ações rápidas da cena">
           <div class="quick-add-wrap">
