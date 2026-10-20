@@ -149,6 +149,11 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
   // inteiro por transform: scale(), sem comprimir os botões ou o texto.
   return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
+function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
+  const target = element ?? getViewportLayoutTarget(id)
+  const requestedScale = viewportLayout.value[id].scale
+  return target ? Math.min(requestedScale, getViewportLayoutMaximumScale(id, target)) : requestedScale
+}
 function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   void viewportLayoutRefresh.value
   const bounds = viewportLayoutBounds.value
@@ -156,14 +161,15 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const target = getViewportLayoutTarget(id)
   const width = Math.max(1, bounds.width)
   const height = Math.max(1, viewportLayoutUsableHeight.value)
-  const scaledWidth = (target?.offsetWidth || 180) * item.scale
-  const scaledHeight = (target?.offsetHeight || 80) * item.scale
+  const scale = getViewportLayoutEffectiveScale(id, target)
+  const scaledWidth = (target?.offsetWidth || 180) * scale
+  const scaledHeight = (target?.offsetHeight || 80) * scale
   const localX = Math.max(0, Math.min(item.x * width, width - scaledWidth - 4))
   const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
   return {
     '--viewport-layout-left': Math.round(bounds.left + localX) + 'px',
     '--viewport-layout-top': Math.round(bounds.top + localY) + 'px',
-    '--viewport-layout-scale': String(item.scale),
+    '--viewport-layout-scale': String(scale),
   }
 }
 function viewportLayoutOutlineStyle(id: ViewportLayoutId): Record<string, string> {
@@ -197,9 +203,9 @@ function clampViewportLayoutItem(id: ViewportLayoutId): void {
   const target = getViewportLayoutTarget(id)
   const item = viewportLayout.value[id]
   if (!target) return
-  item.scale = Math.min(item.scale, getViewportLayoutMaximumScale(id, target))
-  const targetWidth = Math.max(1, target.offsetWidth) * item.scale
-  const targetHeight = Math.max(1, target.offsetHeight) * item.scale
+  const effectiveScale = getViewportLayoutEffectiveScale(id, target)
+  const targetWidth = Math.max(1, target.offsetWidth) * effectiveScale
+  const targetHeight = Math.max(1, target.offsetHeight) * effectiveScale
   const maxX = Math.max(0, width - targetWidth - 4)
   const maxY = Math.max(0, height - targetHeight - 4)
   item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
@@ -283,8 +289,8 @@ function beginViewportLayoutDrag(event: PointerEvent, id: ViewportLayoutId, mode
     originX: item.x * rootRect.width,
     originY: item.y * Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0)),
     scale: item.scale,
-    width: Math.max(1, target.offsetWidth) * item.scale,
-    height: Math.max(1, target.offsetHeight) * item.scale,
+    width: Math.max(1, target.offsetWidth) * getViewportLayoutEffectiveScale(id, target),
+    height: Math.max(1, target.offsetHeight) * getViewportLayoutEffectiveScale(id, target),
   }
   window.addEventListener('pointermove', moveViewportLayoutDrag)
   window.addEventListener('pointerup', finishViewportLayoutDrag)
@@ -302,17 +308,19 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
   const dx = event.clientX - drag.pointerX
   const dy = event.clientY - drag.pointerY
   const item = viewportLayout.value[drag.id]
+  const effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
   if (drag.mode === 'move') {
-    const maxX = Math.max(0, width - target.offsetWidth * item.scale - 4)
-    const maxY = Math.max(0, usableHeight - target.offsetHeight * item.scale - 4)
+    const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
+    const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
     item.x = Math.max(0, Math.min(maxX, drag.originX + dx)) / width
     item.y = Math.max(0, Math.min(maxY, drag.originY + dy)) / usableHeight
   } else {
     const unit = Math.max(120, drag.width, drag.height)
     const requestedScale = drag.scale + (dx + dy) / (2 * unit)
     item.scale = Math.max(0.55, Math.min(getViewportLayoutMaximumScale(drag.id, target), requestedScale))
-    const maxX = Math.max(0, width - target.offsetWidth * item.scale - 4)
-    const maxY = Math.max(0, usableHeight - target.offsetHeight * item.scale - 4)
+    const effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
+    const maxX = Math.max(0, width - target.offsetWidth * effectiveScale - 4)
+    const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
     item.x = Math.max(0, Math.min(maxX, item.x * width)) / width
     item.y = Math.max(0, Math.min(maxY, item.y * usableHeight)) / usableHeight
   }
