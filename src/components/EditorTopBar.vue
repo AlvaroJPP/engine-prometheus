@@ -166,8 +166,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         @click="emit('toggle-viewport-layout-config')"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
-          <path d="m19.4 15.1.1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.65 1.65 0 0 0-1.8-.33 1.65 1.65 0 0 0-1 1.52v.15a1.7 1.7 0 0 1-3.4 0v-.15a1.65 1.65 0 0 0-1-1.52 1.65 1.65 0 0 0-1.8.33l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.65 1.65 0 0 0 .33-1.8 1.65 1.65 0 0 0-1.52-1H4.3a1.7 1.7 0 0 1 0-3.4h.15a1.65 1.65 0 0 0 1.52-1 1.65 1.65 0 0 0-.33-1.8l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.65 1.65 0 0 0 1.8.33 1.65 1.65 0 0 0 1-1.52V3.3a1.7 1.7 0 0 1 3.4 0v.15a1.65 1.65 0 0 0 1 1.52 1.65 1.65 0 0 0 1.8-.33l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.65 1.65 0 0 0-.33 1.8 1.65 1.65 0 0 0 1.52 1h.15a1.7 1.7 0 0 1 0 3.4h-.15a1.65 1.65 0 0 0-1.52 1 1.65 1.65 0 0 0 .33 1.8Z" />
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96c-.5-.38-1.03-.69-1.62-.93l-.36-2.53a.5.5 0 0 0-.49-.41h-3.84a.5.5 0 0 0-.49.41L9.22 5.34c-.59.24-1.13.56-1.62.93l-2.39-.96a.5.5 0 0 0-.6.22L2.69 8.85a.5.5 0 0 0 .12.63l2.03 1.58c-.04.3-.06.62-.06.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.63l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.38 1.03.69 1.62.93l.36 2.53a.5.5 0 0 0 .49.41h3.84a.5.5 0 0 0 .49-.41l.36-2.53c.59-.24 1.13-.56 1.62-.93l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58Z" />
         </svg>
       </button>
       <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">
