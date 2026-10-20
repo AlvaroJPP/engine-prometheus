@@ -56,7 +56,7 @@ type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
 type ViewportLayoutItem = { x: number; y: number; scale: number }
 type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
 
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v1'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v2'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
   render: { x: 0.29, y: 0.015, scale: 1 },
   fps: { x: 0.66, y: 0.04, scale: 1 },
@@ -149,8 +149,6 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
     '--viewport-layout-left': Math.round(bounds.left + localX) + 'px',
     '--viewport-layout-top': Math.round(bounds.top + localY) + 'px',
     '--viewport-layout-scale': String(item.scale),
-    '--viewport-layout-max-width': Math.max(120, width - localX - 8) + 'px',
-    '--viewport-layout-max-height': Math.max(80, height - localY - 8) + 'px',
   }
 }
 function viewportLayoutOutlineStyle(id: ViewportLayoutId): Record<string, string> {
@@ -5885,13 +5883,13 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   bottom: auto !important;
   transform: scale(var(--viewport-layout-scale, 1)) !important;
   transform-origin: top left !important;
-  max-width: var(--viewport-layout-max-width, 100%) !important;
+  max-width: none !important;
 }
 .app .toolbar.viewport-layout-positioned {
   box-sizing: border-box !important;
   width: 42px !important;
   min-width: 42px !important;
-  max-height: var(--viewport-layout-max-height, 80vh) !important;
+  max-height: none !important;
   height: auto !important;
   min-height: 0 !important;
   padding: 5px !important;
@@ -5928,7 +5926,93 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   border: 0 !important;
 }
 .app .viewport-tools-overlay.viewport-layout-positioned {
-  max-width: var(--viewport-layout-max-width, calc(100vw - 24px)) !important;
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: none !important;
+  flex-wrap: nowrap !important;
+}
+
+/* Na lateral recolhida, a barra 3D conserva o tamanho da lateral com rótulos.
+   A escala reduz o conjunto inteiro; não comprimimos a largura dos botões. */
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned {
+  position: fixed !important;
+  top: 56px !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  box-sizing: border-box !important;
+  width: 172px !important;
+  min-width: 172px !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 132px 7px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top left !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-group {
+  display: flex !important;
+  flex: none !important;
+  width: 100% !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-separator {
+  display: block !important;
+  flex: none !important;
+  width: auto !important;
+  height: 1px !important;
+  margin: 1px 4px 2px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 34px !important;
+  padding: 5px 7px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool-ico {
+  display: grid !important;
+  place-items: center !important;
+  flex: none !important;
+  width: 20px !important;
+  font-size: 16px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool-label {
+  position: static !important;
+  display: block !important;
+  flex: 1 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: auto !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 .app .axes.viewport-layout-positioned { display: flex; }
 .viewport-layout-config-trigger {
