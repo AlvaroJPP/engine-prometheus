@@ -1,8 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-/* base global; os estilos do editor ficam no App.vue */
-html, body, #app { margin: 0; height: 100%; }
-body { background: #12151c; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 13px; overflow: hidden; }
-* { box-sizing: border-box; }
+/* Reset global mantido em um único bloco abaixo. */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #2c3340; border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
