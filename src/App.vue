@@ -193,9 +193,15 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const scaledHeight = (target?.offsetHeight || 80) * scale
   const localX = Math.max(0, Math.min(item.x * width, width - scaledWidth - 4))
   const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
+  // FPS e eixos ficam dentro de .viewport, cujo contain: paint torna o
+  // posicionamento fixo relativo à própria viewport. Para eles, use coordenadas
+  // locais; somar bounds.left/top deslocava os controles e os prendia no meio.
+  const positionedInsideViewport = id === 'fps' || id === 'axes'
+  const left = positionedInsideViewport ? localX : bounds.left + localX
+  const top = positionedInsideViewport ? localY : bounds.top + localY
   return {
-    '--viewport-layout-left': Math.round(bounds.left + localX) + 'px',
-    '--viewport-layout-top': Math.round(bounds.top + localY) + 'px',
+    '--viewport-layout-left': Math.round(left) + 'px',
+    '--viewport-layout-top': Math.round(top) + 'px',
     '--viewport-layout-scale': String(scale),
   }
 }
