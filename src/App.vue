@@ -5932,6 +5932,16 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   flex-wrap: nowrap !important;
 }
 
+/* A tela cheia mantém o menu no canto superior direito, mas nunca comprime seu conteúdo. */
+.app.world-fullscreen .viewport-tools-overlay.viewport-layout-positioned {
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: none !important;
+  flex-wrap: nowrap !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top right !important;
+}
+
 /* Na lateral recolhida, a barra 3D conserva o tamanho da lateral com rótulos.
    A escala reduz o conjunto inteiro; não comprimimos a largura dos botões. */
 .app.sidebar-collapsed .toolbar.viewport-layout-positioned {
