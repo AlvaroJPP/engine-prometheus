@@ -145,8 +145,15 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
   const availableWidth = Math.max(1, rect.width - left - 8)
   const availableHeight = Math.max(1, usableHeight - top - 8)
 
-  // A geometria original fica intacta. Quando não couber, reduzimos o conjunto
-  // inteiro por transform: scale(), sem comprimir os botões ou o texto.
+  // A lateral recolhida é rolável: limitar sua escala pela altura total do
+  // conteúdo bloquearia o aumento mesmo quando o painel tem barra de rolagem.
+  // Sua altura visível é compensada pelo CSS conforme a escala; limitamos
+  // apenas pela largura para que o tamanho também mude nesse estado.
+  if (anchoredRail) {
+    return Math.max(0.55, Math.min(1.6, availableWidth / width))
+  }
+
+  // Nos outros elementos, garante que o conjunto inteiro permaneça visível.
   return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
 function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
