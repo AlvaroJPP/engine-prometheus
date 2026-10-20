@@ -3757,7 +3757,7 @@ export class Engine {
   }
 
   dispose(): void {
-    this.runtimeInputCanvas.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
+    window.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.removeEventListener('keydown', this.onRuleKeyDown)
     window.removeEventListener('keyup', this.onVeilborneKeyUp)
     window.removeEventListener('blur', this.onVeilborneBlur)
