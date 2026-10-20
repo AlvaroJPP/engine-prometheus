@@ -866,7 +866,7 @@ export class HumanoidAvatar {
       this.verticalVelocity <= 0 &&
       (
         nextY <= landing + 0.05 * bodyScale ||
-        (wasGrounded && length > 0 && landing >= oldY - this.getMaxWalkOffDrop() && landing <= oldY + this.getMaxWalkStepUp()) ||
+        (wasGrounded && length > 0 && landing >= oldY - 0.16 * bodyScale && landing <= oldY + this.getMaxWalkStepUp()) ||
         canFollowObjectSlopeDown
       )
 
@@ -881,11 +881,9 @@ export class HumanoidAvatar {
       this.mesh.position.y = newGroundY
       this.verticalVelocity = 0
       this.grounded = true
-    } else if (landing !== null && this.verticalVelocity <= 0) {
-      this.mesh.position.y = landing
-      this.verticalVelocity = 0
-      this.grounded = true
     } else {
+      // Não force o personagem para uma plataforma que ainda está abaixo dele.
+      // Deixe a gravidade conduzir a queda e só pouse quando nextY alcançar a superfície.
       this.grounded = false
     }
 
