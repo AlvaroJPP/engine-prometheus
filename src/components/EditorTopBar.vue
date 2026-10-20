@@ -29,7 +29,7 @@ const props = defineProps<{
   grassWindPercent: number
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
-  hudSettingsOpen: boolean
+  hudSettingsOpen?: boolean
   objects: Array<{ id: string; name: string }>
   components: Array<{ id: string; name: string }>
 }>()
