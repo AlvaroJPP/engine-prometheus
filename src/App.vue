@@ -1802,7 +1802,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           </div>
           <button class="model-import-launch" title="Importa arquivos 3D, configura o modelo e as animações antes de salvar na biblioteca." aria-label="Importar modelo 3D" @click="previewComponentAsset = null; modelImportOpen = true"><span aria-hidden="true">＋</span> Importar 3D</button>
         </div>
-        <div v-if="!modelImportOpen" class="viewport-fps" aria-label="Diagnóstico de renderização">
+        <div v-if="!modelImportOpen && executionMode !== 'running'" class="viewport-fps" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': fps > 0 && fps < 30, 'fps-medium': fps >= 30 && fps < 50 }">
             <span class="fps-indicator" />
             <span>FPS</span>
