@@ -442,6 +442,18 @@ export class PointerController {
   }
 
   private onWheel = (e: WheelEvent): void => {
+    // A roda em painéis HTML deve rolar o painel, não aproximar/afastar a câmera.
+    // elementFromPoint também cobre sobreposições que deixam passar o ponteiro
+    // até o canvas por causa de pointer-events.
+    const elements = [
+      e.target instanceof Element ? e.target : null,
+      document.elementFromPoint(e.clientX, e.clientY),
+    ]
+    const overUi = elements.some(element => element?.closest(
+      '.veilborne-loadout-panel, .hud-settings-panel, [data-no-camera-zoom], [role="dialog"], .scroll, .sidebar, .inspector, input, textarea, select, button, a, [contenteditable="true"]',
+    ))
+    if (overUi) return
+
     e.preventDefault()
     if (this.drag.kind === 'none' || this.drag.kind === 'orbitPending') this.flashCursorOverride('zoom')
     this.orbit.zoom(e.deltaY)
