@@ -2936,18 +2936,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 </template>
 
 <style>
-:root {
-  --bg: #0e1013;
-  --panel: #14171c;
-  --panel-2: #181c23;
-  --line: #252a33;
-  --text: #e6e8ec;
-  --muted: #9aa1ae;
-  --accent: #f5a524;
-  --accent-dark: #8a5a0a;
-  --green: #3fb950;
-  --warn: #e0b04a;
-}
+/* Tokens de tema centralizados na camada visual final. */
 
 .app { display: flex; flex-direction: column; height: 100%; background: var(--bg); color: var(--text); }
 .grow { flex: 1; }
@@ -3139,18 +3128,7 @@ input:focus { outline: none; border-color: var(--accent); }
 
 <style>
 /* Tema visual inspirado no Blender: painéis grafite, controles compactos e seleção laranja. */
-:root {
-  --bg: #282828;
-  --panel: #303030;
-  --panel-2: #383838;
-  --line: #202020;
-  --text: #dedede;
-  --muted: #a0a0a0;
-  --accent: #e98524;
-  --accent-dark: #b96313;
-  --green: #83b879;
-  --warn: #e4b65c;
-}
+/* Tokens de tema centralizados na camada visual final. */
 
 .app { background: #282828; color: #dedede; }
 .topbar {
@@ -3860,18 +3838,8 @@ input[type='range'] { accent-color: #e98524; }
 
 <style>
 /* Final cascade layer: keep the redesign ahead of legacy App.vue rules. */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-:root {
-  --bg: #0e1013;
-  --panel: #14171c;
-  --panel-2: #181c23;
-  --line: #252a33;
-  --text: #e6e8ec;
-  --muted: #9aa1ae;
-  --accent: #f5a524;
-  --accent-dark: #5a3c0d;
-  --green: #3fb950;
-}
+/* As fontes são carregadas uma única vez por src/style.css. */
+/* Tokens de tema centralizados na camada visual final. */
 html, body, #app { width:100%; height:100%; margin:0; }
 body { overflow:hidden; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:12px; }
 * { box-sizing:border-box; }
