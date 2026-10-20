@@ -162,11 +162,27 @@ function restoreBindings() {
 
 function startCapture(action: ActionKey) {
   capturingAction.value = action
-  message.value = `Pressione a tecla desejada para “${actions.find(item => item.key === action)?.label ?? action}”. Esc cancela.`
+  message.value = `Pressione uma tecla ou clique em um botão do mouse para “${actions.find(item => item.key === action)?.label ?? action}”. Esc cancela.`
+}
+
+function mouseButtonCode(button: number): string | null {
+  const codes: Record<number, string> = {
+    0: 'MouseLeft',
+    1: 'MouseMiddle',
+    2: 'MouseRight',
+    3: 'MouseBack',
+    4: 'MouseForward',
+  }
+  return codes[button] ?? null
 }
 
 function keyLabel(code: string): string {
   const labels: Record<string, string> = {
+    MouseLeft: 'Mouse esquerdo',
+    MouseRight: 'Mouse direito',
+    MouseMiddle: 'Mouse do meio',
+    MouseBack: 'Mouse voltar',
+    MouseForward: 'Mouse avançar',
     Space: 'Espaço',
     ArrowUp: '↑',
     ArrowDown: '↓',
@@ -196,25 +212,13 @@ function keyLabel(code: string): string {
   return code
 }
 
-function onCaptureKey(event: KeyboardEvent) {
-  if (!capturingAction.value || !props.open) return
-  event.preventDefault()
-  event.stopPropagation()
-  if (event.code === 'Escape') {
-    capturingAction.value = null
-    message.value = 'Alteração de tecla cancelada.'
-    return
-  }
-  if (['MetaLeft', 'MetaRight'].includes(event.code) || ((event.ctrlKey || event.altKey) && !['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight'].includes(event.code))) {
-    message.value = 'Escolha uma tecla individual. Combinações com Ctrl/Alt ainda não são suportadas.'
-    return
-  }
-
+function applyCapturedBinding(code: string): void {
   const action = capturingAction.value
+  if (!action) return
   const profile = activeProfile.value
-  const conflict = actions.find(item => item.key !== action && profile.bindings[item.key] === event.code)
+  const conflict = actions.find(item => item.key !== action && profile.bindings[item.key] === code)
   if (conflict) {
-    message.value = `Essa tecla já está atribuída a “${conflict.label}”. Escolha outra tecla.`
+    message.value = `Esse controle já está atribuído a “${conflict.label}”. Escolha outro.`
     return
   }
 
@@ -222,16 +226,49 @@ function onCaptureKey(event: KeyboardEvent) {
     ...props.settings,
     profiles: props.settings.profiles.map(item =>
       item.id === profile.id
-        ? { ...item, bindings: { ...item.bindings, [action]: event.code } }
+        ? { ...item, bindings: { ...item.bindings, [action]: code } }
         : item,
     ),
   })
   capturingAction.value = null
-  message.value = `Tecla definida: ${keyLabel(event.code)}.`
+  message.value = `Controle definido: ${keyLabel(code)}.`
 }
 
-onMounted(() => window.addEventListener('keydown', onCaptureKey, true))
-onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
+function onCaptureKey(event: KeyboardEvent) {
+  if (!capturingAction.value || !props.open) return
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation()
+  if (event.code === 'Escape') {
+    capturingAction.value = null
+    message.value = 'Alteração de controle cancelada.'
+    return
+  }
+  if (['MetaLeft', 'MetaRight'].includes(event.code) || ((event.ctrlKey || event.altKey) && !['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight'].includes(event.code))) {
+    message.value = 'Escolha uma tecla individual. Combinações com Ctrl/Alt ainda não são suportadas.'
+    return
+  }
+  applyCapturedBinding(event.code)
+}
+
+function onCapturePointerDown(event: PointerEvent): void {
+  if (!capturingAction.value || !props.open || event.pointerType !== 'mouse') return
+  const code = mouseButtonCode(event.button)
+  if (!code) return
+  event.preventDefault()
+  event.stopPropagation()
+  event.stopImmediatePropagation()
+  applyCapturedBinding(code)
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onCaptureKey, true)
+  window.addEventListener('pointerdown', onCapturePointerDown, true)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onCaptureKey, true)
+  window.removeEventListener('pointerdown', onCapturePointerDown, true)
+})
 </script>
 
 <template>
@@ -241,7 +278,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
         <div>
           <div class="eyebrow">PREFERÊNCIAS DE ENTRADA</div>
           <h2 id="controls-title">Mapas de controles</h2>
-          <p>Escolha um perfil pronto ou monte seu próprio conjunto de teclas.</p>
+          <p>Escolha um perfil pronto ou monte seu próprio conjunto de controles, incluindo botões do mouse.</p>
         </div>
         <button class="icon-button" aria-label="Fechar mapas de controles" @click="close">×</button>
       </header>
@@ -282,8 +319,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
             <strong>{{ action.label }}</strong>
             <small v-if="action.key === 'interact'">Também pode acionar pacotes de comportamento, como montarias.</small>
           </div>
-          <button class="key-button" :class="{ capturing: capturingAction === action.key }" :title="capturingAction === action.key ? 'Pressione a nova tecla ou combinação para esta ação.' : 'Clique para trocar a tecla de: ' + action.label + '.'" @click="startCapture(action.key)">
-            {{ capturingAction === action.key ? 'Pressione uma tecla…' : keyLabel(activeProfile.bindings[action.key]) }}
+          <button class="key-button" :class="{ capturing: capturingAction === action.key }" :title="capturingAction === action.key ? 'Pressione uma tecla ou clique em um botão do mouse para esta ação.' : 'Clique para trocar o controle de: ' + action.label + '.'" @click="startCapture(action.key)">
+            {{ capturingAction === action.key ? 'Aguardando tecla ou mouse…' : keyLabel(activeProfile.bindings[action.key]) }}
             <span>{{ capturingAction === action.key ? 'Esc cancela' : 'Alterar' }}</span>
           </button>
         </div>
@@ -292,7 +329,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onCaptureKey, true))
       <div class="controls-message" aria-live="polite">{{ message || 'As alterações são salvas automaticamente neste computador.' }}</div>
 
       <footer class="controls-footer">
-        <span>Movimentos funcionam no jogo; ações marcadas como gatilho podem ativar regras key_pressed. Inventário e combate precisam de lógica/sistemas próprios.</span>
+        <span>Teclas e botões do mouse podem ser atribuídos a movimento e ações. Movimentos usam o controle enquanto estiver pressionado; as ações também podem disparar regras key_pressed.</span>
         <button class="secondary-button" title="Restaura os vínculos padrão do mapa atual." @click="restoreBindings">Restaurar teclas</button>
         <button class="primary-button" title="Fecha a janela de controles; as alterações já são aplicadas ao mapa." @click="close">Concluído</button>
       </footer>
