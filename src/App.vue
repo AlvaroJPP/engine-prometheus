@@ -745,13 +745,22 @@ function runWorld() {
   status.value = `Modo Run ativo · mapa “${activeControlMap.value.name}”. Use Controles para personalizar as teclas.`
 }
 function returnToEdit() {
-  if (firstPersonMode.value) {
-    firstPersonMode.value = false
-    setFirstPersonMode(false)
+  // Atualiza a interface mesmo se algum recurso do runtime falhar ao ser encerrado.
+  try {
+    if (firstPersonMode.value) {
+      firstPersonMode.value = false
+      setFirstPersonMode(false)
+    }
+    setRuntimeMode(false)
+  } catch (error) {
+    console.error('Falha ao encerrar o modo Run:', error)
+    status.value = 'Ocorreu um erro ao encerrar o jogo. O editor foi reativado; confira o console.'
+  } finally {
+    executionMode.value = 'edit'
+    if (!status.value.includes('Ocorreu um erro ao encerrar')) {
+      status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
+    }
   }
-  setRuntimeMode(false)
-  executionMode.value = 'edit'
-  status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
 }
 const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
 const selectedObjectPackages = computed(() => behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedId.value))
