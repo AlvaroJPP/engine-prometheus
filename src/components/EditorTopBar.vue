@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 const props = defineProps<{
   projectName: string
+  viewportLayoutStyle: Record<string, string>
   dirty: boolean
   cameraLabel: string
   firstPersonMode: boolean
@@ -204,7 +205,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </button>
     </div>
 
-    <div class="viewport-tools-overlay" role="toolbar" aria-label="Controles da visualização do mundo">
+    <div class="viewport-tools-overlay viewport-layout-positioned" :style="viewportLayoutStyle" role="toolbar" aria-label="Controles da visualização do mundo">
       <div class="viewport-camera-switch" role="group" aria-label="Câmera">
         <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="8" cy="8" r="1.8" /></svg>
