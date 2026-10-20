@@ -125,7 +125,7 @@ const {
   setSkyTexture, setTimeOfDay, setDayNightCycleEnabled, setDayNightCycleSpeed,
   logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
   installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
-  createLogicVariable, setLogicVariableValue, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+  createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
   markDirty,
   setTool,
   setTransform,
@@ -743,7 +743,9 @@ function handleHudExitRuntime() {
 }
 function handleHudGlobalVariable(name: string, value: string | number | boolean) {
   if (executionMode.value !== 'running') return
-  setLogicVariableValue(name, String(value), 'global')
+  // Equipamentos, arquétipos e espaços de habilidade escrevem diretamente
+  // no runtime para que a seleção afete imediatamente a lógica de combate.
+  setRuntimeGlobalVariable(name, value)
 }
 function runWorld() {
   graphOpen.value = false
