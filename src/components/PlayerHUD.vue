@@ -39,6 +39,8 @@ type HudImageDrag = {
   originY: number
   viewportWidth: number
   viewportHeight: number
+  imageWidthPercent: number
+  imageHeightPercent: number
 }
 type HudCropRect = {
   id: string
@@ -168,6 +170,7 @@ const etherStat = computed(() => readHudStat(settings.etherVariable, settings.et
 const veilborneLoadoutOpen = ref(false)
 const loadoutPanelPosition = ref<{ x: number; y: number } | null>(null)
 let loadoutDragOffset: { x: number; y: number } | null = null
+let loadoutDragRoot: HTMLElement | null = null
 const loadoutPanelStyle = computed(() => loadoutPanelPosition.value
   ? { left: `${loadoutPanelPosition.value.x}px`, top: `${loadoutPanelPosition.value.y}px`, right: 'auto' }
   : {})
@@ -297,9 +300,13 @@ function startLoadoutDrag(event: PointerEvent): void {
   if (event.button !== 0 || (event.target instanceof Element && event.target.closest('button'))) return
   const header = event.currentTarget as HTMLElement
   const panel = header.closest('.veilborne-loadout-panel') as HTMLElement | null
-  if (!panel) return
+  const root = header.closest('.player-hud') as HTMLElement | null
+  if (!panel || !root) return
   const rect = panel.getBoundingClientRect()
-  loadoutPanelPosition.value = { x: rect.left, y: rect.top }
+  const rootRect = root.getBoundingClientRect()
+  loadoutDragRoot = root
+  // Usa coordenadas da própria HUD, nunca as dimensões da janela inteira.
+  loadoutPanelPosition.value = { x: rect.left - rootRect.left, y: rect.top - rootRect.top }
   loadoutDragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top }
   window.addEventListener('pointermove', moveLoadoutPanel)
   window.addEventListener('pointerup', finishLoadoutDrag)
@@ -308,17 +315,25 @@ function startLoadoutDrag(event: PointerEvent): void {
 }
 
 function moveLoadoutPanel(event: PointerEvent): void {
-  if (!loadoutDragOffset) return
-  const panelWidth = Math.min(390, window.innerWidth - 28)
-  const panelHeight = Math.min(720, window.innerHeight - 24)
+  const root = loadoutDragRoot
+  if (!loadoutDragOffset || !root) return
+  const panel = root.querySelector<HTMLElement>('.veilborne-loadout-panel')
+  if (!panel) return
+  const rootRect = root.getBoundingClientRect()
+  const panelRect = panel.getBoundingClientRect()
+  const width = Math.min(panelRect.width, root.clientWidth)
+  const height = Math.min(panelRect.height, root.clientHeight)
+  const maxX = Math.max(0, root.clientWidth - width)
+  const maxY = Math.max(0, root.clientHeight - height)
   loadoutPanelPosition.value = {
-    x: Math.max(8, Math.min(window.innerWidth - panelWidth - 8, event.clientX - loadoutDragOffset.x)),
-    y: Math.max(8, Math.min(window.innerHeight - panelHeight - 8, event.clientY - loadoutDragOffset.y)),
+    x: Math.max(0, Math.min(maxX, event.clientX - rootRect.left - loadoutDragOffset.x)),
+    y: Math.max(0, Math.min(maxY, event.clientY - rootRect.top - loadoutDragOffset.y)),
   }
 }
 
 function finishLoadoutDrag(): void {
   loadoutDragOffset = null
+  loadoutDragRoot = null
   window.removeEventListener('pointermove', moveLoadoutPanel)
   window.removeEventListener('pointerup', finishLoadoutDrag)
   window.removeEventListener('pointercancel', finishLoadoutDrag)
@@ -1078,6 +1093,7 @@ function beginHudImageDrag(event: PointerEvent, layer: HudImageLayer): void {
   const root = (event.currentTarget as HTMLElement).closest('.player-hud')
   if (!(root instanceof HTMLElement)) return
   const rect = root.getBoundingClientRect()
+  const imageRect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   if (!rect.width || !rect.height) return
 
   event.preventDefault()
@@ -1090,6 +1106,8 @@ function beginHudImageDrag(event: PointerEvent, layer: HudImageLayer): void {
     originY: layer.y,
     viewportWidth: rect.width,
     viewportHeight: rect.height,
+    imageWidthPercent: imageRect.width / rect.width * 100,
+    imageHeightPercent: imageRect.height / rect.height * 100,
   }
   window.addEventListener('pointermove', moveHudImage)
   window.addEventListener('pointerup', finishHudImageDrag)
@@ -1101,8 +1119,9 @@ function moveHudImage(event: PointerEvent): void {
   if (!drag) return
   const layer = settings.images.find(item => item.id === drag.id)
   if (!layer) return
-  layer.x = boundedHudNumber(drag.originX + ((event.clientX - drag.startX) / drag.viewportWidth) * 100, drag.originX, 0, 100 - layer.width)
-  layer.y = boundedHudNumber(drag.originY + ((event.clientY - drag.startY) / drag.viewportHeight) * 100, drag.originY, 0, 100)
+  // Mantém a camada inteira dentro da HUD, considerando seu tamanho renderizado.
+  layer.x = boundedHudNumber(drag.originX + ((event.clientX - drag.startX) / drag.viewportWidth) * 100, drag.originX, 0, Math.max(0, 100 - drag.imageWidthPercent))
+  layer.y = boundedHudNumber(drag.originY + ((event.clientY - drag.startY) / drag.viewportHeight) * 100, drag.originY, 0, Math.max(0, 100 - drag.imageHeightPercent))
 }
 
 function finishHudImageDrag(): void {
@@ -1601,8 +1620,8 @@ function resetSettings() {
 
 <style scoped>
 .veilborne-loadout-trigger {
-  position:absolute; right:clamp(12px,2vw,26px); top:clamp(74px,10vh,118px); z-index:36;
-  display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid #a36f8a80;
+  position:absolute; right:clamp(8px,2%,20px); top:clamp(12px,10%,118px); z-index:36;
+  display:flex; align-items:center; gap:10px; max-width:calc(100% - 16px); min-width:0; flex-wrap:wrap; padding:9px 12px; border:1px solid #a36f8a80;
   border-radius:7px; color:#f5eaf0; background:#17131ceb; box-shadow:0 10px 24px #0004;
   text-align:left; pointer-events:auto; cursor:pointer;
 }
@@ -1616,9 +1635,9 @@ function resetSettings() {
 }
 .veilborne-loadout-trigger kbd { margin-left:5px; border:1px solid #ffffff24; border-radius:4px; padding:3px 5px; color:#e5d2dd; font-size:10px; }
 .veilborne-loadout-panel {
-  position:fixed; top:clamp(116px,16vh,164px); right:clamp(12px,2vw,26px); z-index:1000;
-  display:block; box-sizing:border-box; width:min(390px,calc(100vw - 28px));
-  max-height:calc(100dvh - 24px); overflow-x:hidden; overflow-y:auto;
+  position:absolute; top:clamp(8px,16%,164px); right:clamp(8px,2%,20px); z-index:1000;
+  display:block; box-sizing:border-box; min-width:0; width:min(390px,calc(100% - 16px));
+  max-height:calc(100% - 16px); overflow-x:hidden; overflow-y:auto;
   overscroll-behavior:contain; scrollbar-gutter:stable; -webkit-overflow-scrolling:touch;
   padding:16px; border:1px solid #9a647d7a; border-radius:8px;
   color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
@@ -1645,7 +1664,7 @@ function resetSettings() {
 .veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
 .veilborne-loot-toast {
   position:absolute; left:50%; bottom:clamp(96px,14vh,150px); z-index:44; transform:translateX(-50%);
-  max-width:min(82vw,430px); padding:10px 16px; border:1px solid #d8a56d80; border-radius:5px;
+  max-width:min(82%,430px); padding:10px 16px; border:1px solid #d8a56d80; border-radius:5px;
   color:#f6e5cb; background:#17131df0; box-shadow:0 9px 25px #0006; font-size:12px;
   text-align:center; pointer-events:none;
 }
@@ -1677,6 +1696,7 @@ function resetSettings() {
 .player-hud {
   --hud-scale: 1;
   position:absolute; z-index:20; inset:0; display:flex; flex-direction:column; justify-content:space-between;
+  min-width:0; min-height:0; max-width:100%; max-height:100%; overflow:hidden; box-sizing:border-box;
   padding:calc(clamp(12px, 2vw, 26px) * var(--hud-scale)); color:#f1f3f6; pointer-events:none;
   font-family:'IBM Plex Sans','Segoe UI',sans-serif; text-shadow:0 1px 2px #0008;
 }
@@ -1699,7 +1719,7 @@ function resetSettings() {
 .hud-fps { color:#e5f7cf; font-family:'IBM Plex Mono',monospace; }
 .hud-fps small { color:#9ba8b5; font-family:inherit; font-size:9px; }
 .settings-close:hover { border-color:#f5a52488; background:#f5a52418; }
-.hud-settings-panel { position:absolute; z-index:30; top:calc(104px * var(--hud-scale)); left:clamp(10px,2vw,26px); right:auto; width:min(350px,calc(100vw - 24px)); max-height:min(480px,calc(100dvh - 128px)); overflow:auto; overscroll-behavior:contain; padding:15px; border-radius:9px; pointer-events:auto; text-shadow:none; }
+.hud-settings-panel { position:absolute; z-index:30; top:calc(104px * var(--hud-scale)); left:clamp(10px,2%,26px); right:auto; width:min(350px,calc(100% - 20px)); min-width:0; max-height:min(480px,calc(100% - 128px)); overflow:auto; overscroll-behavior:contain; padding:15px; border-radius:9px; pointer-events:auto; text-shadow:none; }
 .settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .settings-heading>div { display:flex; flex-direction:column; gap:4px; }
 .settings-heading strong { color:#f2f4f7; font-size:15px; }
@@ -1763,7 +1783,7 @@ function resetSettings() {
   .hud-actions { width:min(205px,44vw); }
   .hud-action-button,.hud-exit-button { gap:6px; padding:7px; }
   .hud-action-button strong,.hud-exit-button strong { font-size:9px; }
-  .hud-settings-panel { top:76px; left:9px; right:auto; width:min(350px,calc(100vw - 18px)); max-height:calc(100dvh - 110px); padding:11px; }
+  .hud-settings-panel { top:76px; left:9px; right:auto; width:min(350px,calc(100% - 18px)); max-height:calc(100% - 110px); padding:11px; }
   .hud-quick-slots { max-width:calc(100% - 18px); gap:4px; padding:4px; }
   .quick-slot { min-width:0; gap:4px; padding:5px; font-size:9px; }
 }
@@ -1787,21 +1807,21 @@ function resetSettings() {
   top: calc(158px * var(--hud-scale));
   left: clamp(10px, 2vw, 26px);
   right: auto;
-  max-height: calc(100dvh - 182px);
+  max-height: calc(100% - 182px);
 }
 @media(max-width:620px) {
   .player-hud.hud-world-fullscreen .hud-settings-panel {
     top: 108px;
     left: 9px;
-    width: min(350px, calc(100vw - 18px));
-    max-height: calc(100dvh - 130px);
+    width: min(350px, calc(100% - 18px));
+    max-height: calc(100% - 130px);
   }
 }
 @media(max-height:520px) {
   .player-hud.hud-world-fullscreen .hud-topline { gap: 5px; }
   .player-hud.hud-world-fullscreen .hud-settings-panel {
     top: 112px;
-    max-height: calc(100dvh - 132px);
+    max-height: calc(100% - 132px);
   }
 }
 
@@ -1881,7 +1901,9 @@ function resetSettings() {
   z-index:22;
   display:block;
   height:auto;
-  max-width:none;
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
   transform:none;
   pointer-events:none;
   user-select:none;
