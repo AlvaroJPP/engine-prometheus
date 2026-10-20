@@ -1124,6 +1124,26 @@ function moveHudImage(event: PointerEvent): void {
   layer.y = boundedHudNumber(drag.originY + ((event.clientY - drag.startY) / drag.viewportHeight) * 100, drag.originY, 0, Math.max(0, 100 - drag.imageHeightPercent))
 }
 
+function keepHudImageInside(event: Event, layer: HudImageLayer): void {
+  if (layer.fitScreen) return
+  const image = event.currentTarget as HTMLImageElement
+  const root = image.closest('.player-hud')
+  if (!(root instanceof HTMLElement)) return
+  const rootRect = root.getBoundingClientRect()
+  const imageRect = image.getBoundingClientRect()
+  if (!rootRect.width || !rootRect.height || !imageRect.width || !imageRect.height) return
+
+  // Também corrige as posições antigas salvas antes de existir o limite vertical.
+  const maxX = Math.max(0, 100 - imageRect.width / rootRect.width * 100)
+  const maxY = Math.max(0, 100 - imageRect.height / rootRect.height * 100)
+  const nextX = boundedHudNumber(layer.x, 0, 0, maxX)
+  const nextY = boundedHudNumber(layer.y, 0, 0, maxY)
+  if (nextX === layer.x && nextY === layer.y) return
+  layer.x = nextX
+  layer.y = nextY
+  persistHudSettings()
+}
+
 function finishHudImageDrag(): void {
   const hadActiveDrag = hudImageDrag.value !== null
   hudImageDrag.value = null
@@ -1205,6 +1225,7 @@ function resetSettings() {
         : { left: layer.x + '%', top: layer.y + '%', width: layer.width + '%', opacity: layer.opacity / 100 }"
       draggable="false"
       @pointerdown="beginHudImageDrag($event, layer)"
+      @load="keepHudImageInside($event, layer)"
     >
 
     <div
@@ -1637,7 +1658,7 @@ function resetSettings() {
 .veilborne-loadout-panel {
   position:absolute; top:clamp(8px,16%,164px); right:clamp(8px,2%,20px); z-index:1000;
   display:block; box-sizing:border-box; min-width:0; width:min(390px,calc(100% - 16px));
-  max-height:calc(100% - 16px); overflow-x:hidden; overflow-y:auto;
+  max-height:calc(100% - clamp(8px,16%,164px) - 16px); overflow-x:hidden; overflow-y:auto;
   overscroll-behavior:contain; scrollbar-gutter:stable; -webkit-overflow-scrolling:touch;
   padding:16px; border:1px solid #9a647d7a; border-radius:8px;
   color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
