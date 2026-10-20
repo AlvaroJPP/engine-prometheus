@@ -29,6 +29,7 @@ const props = defineProps<{
   grassWindPercent: number
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
+  viewportLayoutConfigOpen: boolean
   hudSettingsOpen?: boolean
   objects: Array<{ id: string; name: string }>
   components: Array<{ id: string; name: string }>
@@ -66,6 +67,7 @@ const emit = defineEmits<{
   'run-world': []
   'edit-world': []
   'toggle-world-fullscreen': []
+  'toggle-viewport-layout-config': []
   'toggle-hud-settings': []
   'select-object': [id: string]
   'place-component': [id: string]
@@ -152,6 +154,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
     </div>
 
         <div class="mode-segment" aria-label="Modo do editor">
+      <button
+        v-if="executionMode === 'edit' && !worldFullscreen"
+        class="viewport-layout-config-action"
+        type="button"
+        :aria-expanded="viewportLayoutConfigOpen"
+        aria-controls="viewport-layout-config-panel"
+        aria-label="Configurar layout da viewport"
+        title="Configurar posições e tamanhos da viewport"
+        data-tooltip="Posição, escala e tamanho dos menus da viewport."
+        @click="emit('toggle-viewport-layout-config')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
+          <path d="m19.4 15.1.1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.65 1.65 0 0 0-1.8-.33 1.65 1.65 0 0 0-1 1.52v.15a1.7 1.7 0 0 1-3.4 0v-.15a1.65 1.65 0 0 0-1-1.52 1.65 1.65 0 0 0-1.8.33l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.65 1.65 0 0 0 .33-1.8 1.65 1.65 0 0 0-1.52-1H4.3a1.7 1.7 0 0 1 0-3.4h.15a1.65 1.65 0 0 0 1.52-1 1.65 1.65 0 0 0-.33-1.8l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.65 1.65 0 0 0 1.8.33 1.65 1.65 0 0 0 1-1.52V3.3a1.7 1.7 0 0 1 3.4 0v.15a1.65 1.65 0 0 0 1 1.52 1.65 1.65 0 0 0 1.8-.33l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.65 1.65 0 0 0-.33 1.8 1.65 1.65 0 0 0 1.52 1h.15a1.7 1.7 0 0 1 0 3.4h-.15a1.65 1.65 0 0 0-1.52 1 1.65 1.65 0 0 0 .33 1.8Z" />
+        </svg>
+      </button>
       <button :class="{ active: executionMode !== 'running' }" @click="emit('edit-world')" :title="executionMode === 'running' ? 'Interromper execução e voltar ao modo de edição' : 'Modo de edição'" :data-tooltip="executionMode === 'running' ? 'Para o jogo e retorna às ferramentas de edição.' : 'Edita objetos, terreno, iluminação e lógica da cena.'">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z" /></svg><span>Editar</span>
       </button>
@@ -1100,5 +1118,42 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
     width: min(340px, calc(100vw - 24px));
     max-height: calc(100dvh - 86px);
   }
+}
+
+/* A engrenagem de layout pertence à barra superior, ao lado de Editar/Jogar. */
+.topbar .mode-segment button.viewport-layout-config-action {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  flex: none;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  margin-right: 2px;
+  padding: 0;
+  border: 1px solid #3b3730;
+  border-bottom: 1px solid #3b3730;
+  border-radius: 7px;
+  background: #1d1b17;
+  color: #b5afa2;
+  box-shadow: none;
+}
+.topbar .mode-segment button.viewport-layout-config-action svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.topbar .mode-segment button.viewport-layout-config-action:hover,
+.topbar .mode-segment button.viewport-layout-config-action[aria-expanded="true"] {
+  border-color: #a64f32;
+  border-bottom-color: #e8572b;
+  background: #34241c;
+  color: #ff997d;
+}
+.topbar .mode-segment button.viewport-layout-config-action:focus-visible {
+  outline: 2px solid #e8572b;
+  outline-offset: 2px;
 }
 </style>
