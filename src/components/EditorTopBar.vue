@@ -944,14 +944,11 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .topbar .global-search-result small { color:#b5afa2; }
 .topbar .global-search-empty { color:#b5afa2; }
 .viewport-tools-overlay {
-  position:fixed;
   z-index:45;
-  top:68px;
-  right:264px;
   display:flex;
   align-items:center;
   gap:6px;
-  max-width:calc(100vw - 24px);
+  width:max-content;
   padding:4px;
   border:1px solid #2e2b25;
   border-radius:12px;
@@ -1064,7 +1061,6 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 }
 @media(max-width:1180px) {
   .topbar { gap:8px; }
-  .viewport-tools-overlay { right:215px; }
   .topbar-left,.topbar-right { gap:6px; }
   .topbar .pname { width:112px; }
   .topbar .global-search-wrap { width:200px; flex-basis:200px; }
@@ -1081,51 +1077,19 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .topbar .topbar-divider { display:none; }
   .topbar .mode-segment button { padding-inline:10px; }
 }
-@media(max-width:900px) {
-  .viewport-tools-overlay { transform:scale(.84); transform-origin:top right; }
-}
-@media(max-width:820px) {
-  .viewport-tools-overlay { transform:scale(.76); }
-}
 @media(max-width:760px) {
   .topbar { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:3px; padding-inline:5px; }
   .topbar .brand-mark { display:none; }
   .topbar .pname { width:76px; min-width:58px; }
   .topbar .global-search-wrap { width:120px; flex-basis:120px; min-width:100px; }
   .topbar .mode-segment button { padding-inline:7px; font-size:11px; }
-  .viewport-tools-overlay { right:187px; gap:2px; padding:3px; transform:scale(.92); transform-origin:top right; }
-  .viewport-tool { gap:4px; padding-inline:7px; font-size:11px; }
 }
 
-/* Keep the camera/render controls inside the viewport's usable width.
-   The inspector occupies the last 340px of the editor, so the toolbar must
-   stop before that panel instead of sitting underneath it. */
-.viewport-tools-overlay {
-  right: 352px;
-  max-width: calc(100vw - 640px);
-}
 .viewport-tools-overlay .render-settings-popover {
   max-height: min(64vh, 560px);
   overscroll-behavior: contain;
 }
-@media (max-width: 1180px) {
-  .viewport-tools-overlay {
-    right: 352px;
-    max-width: calc(100vw - 620px);
-  }
-}
-@media (max-width: 900px) {
-  .viewport-tools-overlay {
-    right: 352px;
-    max-width: calc(100vw - 620px);
-  }
-}
 @media (max-width: 760px) {
-  .viewport-tools-overlay {
-    top: 62px;
-    right: 8px;
-    max-width: calc(100vw - 16px);
-  }
   .viewport-tools-overlay .render-settings-popover {
     right: 0;
     width: min(340px, calc(100vw - 24px));
