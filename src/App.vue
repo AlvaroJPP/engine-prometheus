@@ -56,7 +56,7 @@ type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
 type ViewportLayoutItem = { x: number; y: number; scale: number }
 type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
 
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v2'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v3'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
   render: { x: 0.29, y: 0.015, scale: 1 },
   fps: { x: 0.66, y: 0.04, scale: 1 },
@@ -129,10 +129,25 @@ function getViewportLayoutTarget(id: ViewportLayoutId): HTMLElement | null {
 function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
   const target = element ?? getViewportLayoutTarget(id)
   const rect = viewportLayoutBounds.value
-  if (!target || rect.width <= 0 || viewportLayoutUsableHeight.value <= 0) return 1.6
+  const usableHeight = viewportLayoutUsableHeight.value
+  if (!target || rect.width <= 0 || usableHeight <= 0) return 1.6
+
+  const item = viewportLayout.value[id]
   const width = Math.max(1, target.offsetWidth)
   const height = Math.max(1, target.offsetHeight)
-  return Math.max(0.55, Math.min(1.6, (rect.width - 8) / width, (viewportLayoutUsableHeight.value - 8) / height))
+
+  // Alguns estados têm âncora própria: a barra lateral acompanha a hierarquia
+  // recolhida; em tela cheia, os controles de câmera ficam presos ao canto direito.
+  const anchoredRail = id === 'tools' && sidebarCollapsed.value && !worldFullscreen.value
+  const fullscreenRender = id === 'render' && worldFullscreen.value
+  const left = anchoredRail || fullscreenRender ? 0 : item.x * rect.width
+  const top = anchoredRail || fullscreenRender ? 0 : item.y * usableHeight
+  const availableWidth = Math.max(1, rect.width - left - 8)
+  const availableHeight = Math.max(1, usableHeight - top - 8)
+
+  // A geometria original fica intacta. Quando não couber, reduzimos o conjunto
+  // inteiro por transform: scale(), sem comprimir os botões ou o texto.
+  return Math.max(0.55, Math.min(1.6, availableWidth / width, availableHeight / height))
 }
 function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   void viewportLayoutRefresh.value
