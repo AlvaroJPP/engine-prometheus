@@ -1998,16 +1998,25 @@ function handleWorldFullscreenKeydown(event: KeyboardEvent) {
 }
 
 async function settleViewportAfterFullscreenChange(): Promise<void> {
-  // Espere o CSS e o redimensionamento do host estabilizarem antes de
-  // recalcular os overlays e o aspect ratio do renderizador.
+  // Primeiro deixe o Windows/WebView concluir a troca de tamanho.
   await nextTick()
   await new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
   })
+
+  // A primeira leitura pode retornar o tamanho anterior porque setFullscreen()
+  // conclui antes do evento de redimensionamento do WebView. Leia novamente
+  // somente depois dos dois frames para que a raiz não pare na antiga altura.
+  if (worldFullscreen.value) {
+    await syncFullscreenViewportBounds()
+    // Uma segunda estabilização permite aplicar as dimensões atualizadas no DOM.
+    await nextTick()
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+
   refreshViewportLayoutBounds()
   viewportLayoutRefresh.value += 1
-  // Também acorda o ResizeObserver de layout do motor e cobre hosts que não
-  // disparam resize de forma consistente ao alternar a tela cheia.
+  // Acorda o ResizeObserver do canvas e recalcula câmera/renderização.
   window.dispatchEvent(new Event('resize'))
 }
 
