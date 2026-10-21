@@ -44,6 +44,7 @@ function cloneSavedBehaviorPackageSettings(
   }]))
 }
 
+const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
 const sidebarCollapsed = ref(false)
@@ -1899,19 +1900,28 @@ async function toggleWorldFullscreen() {
   const entering = !worldFullscreen.value
 
   if (entering) {
-    worldFullscreen.value = true
     quickAddOpen.value = false
     try {
       if (isTauri()) {
+        // Primeiro maximize a janela nativa; só depois ative as regras de CSS
+        // da tela cheia, para o canvas nascer com as dimensões finais.
         await getCurrentWindow().setFullscreen(true)
       } else if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen()
+        // O próprio editor vira o elemento de tela cheia. Isso evita que o
+        // canvas dependa da altura herdada do contêiner externo (#app).
+        const fullscreenTarget = appRoot.value
+        if (fullscreenTarget && typeof fullscreenTarget.requestFullscreen === 'function') {
+          await fullscreenTarget.requestFullscreen()
+        } else {
+          await document.documentElement.requestFullscreen()
+        }
       }
     } catch (error) {
       // Mesmo sem a API de tela cheia do host, o viewport continua ocupando
       // toda a área da janela por meio do modo CSS.
       console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
     }
+    worldFullscreen.value = true
   } else {
     try {
       // Primeiro restaura a janela nativa/navegador e só depois reaplica
@@ -2002,7 +2012,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 </script>
 
 <template>
-  <div class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
+  <div ref="appRoot" class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="projectName"
       :viewport-layout-style="viewportLayoutStyle('render')"
