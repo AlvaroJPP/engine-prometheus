@@ -5242,14 +5242,14 @@ button:disabled { cursor: not-allowed; }
 
 
 <style>
-/* Tela cheia do mundo: amplia apenas o viewport e oculta os painéis do editor. */
+/* Tela cheia do mundo: as quatro bordas definem a área útil, evitando
+   faixas vazias quando o tamanho CSS do WebView diverge de 100dvh. */
 .app.world-fullscreen {
   position:fixed !important;
   inset:0 !important;
   z-index:10000 !important;
-  width:100vw !important;
-  height:100vh !important;
-  height:100dvh !important;
+  width:auto !important;
+  height:auto !important;
   min-height:0 !important;
   overflow:hidden !important;
   background:#0e1013 !important;
@@ -5265,9 +5265,8 @@ button:disabled { cursor: not-allowed; }
   inset:0 !important;
   z-index:10001 !important;
   display:block !important;
-  width:100vw !important;
-  height:100vh !important;
-  height:100dvh !important;
+  width:auto !important;
+  height:auto !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
@@ -5278,9 +5277,8 @@ button:disabled { cursor: not-allowed; }
   inset:0 !important;
   z-index:10002 !important;
   display:block !important;
-  width:100vw !important;
-  height:100vh !important;
-  height:100dvh !important;
+  width:auto !important;
+  height:auto !important;
   min-width:0 !important;
   margin:0 !important;
   border:0 !important;
