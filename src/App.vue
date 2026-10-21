@@ -6040,8 +6040,14 @@ body,.app { background:#14120f !important; color:#f3efe6 !important; }
   flex-wrap: nowrap !important;
 }
 
-/* A tela cheia mantém o menu no canto superior direito, mas nunca comprime seu conteúdo. */
+/* Na tela cheia, ancore a barra na borda direita em vez de reutilizar
+   a coordenada horizontal salva para o modo de edição. */
 .app.world-fullscreen .viewport-tools-overlay.viewport-layout-positioned {
+  position: fixed !important;
+  top: 12px !important;
+  left: auto !important;
+  right: 12px !important;
+  bottom: auto !important;
   box-sizing: border-box !important;
   width: max-content !important;
   max-width: none !important;
