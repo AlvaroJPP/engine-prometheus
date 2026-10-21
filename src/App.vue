@@ -46,9 +46,9 @@ function cloneSavedBehaviorPackageSettings(
 
 const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
-const nativeFullscreenBounds = ref<{ width: number; height: number } | null>(null)
+const fullscreenViewportBounds = ref<{ width: number; height: number } | null>(null)
 const worldFullscreenStyle = computed<Record<string, string>>(() => {
-  const bounds = nativeFullscreenBounds.value
+  const bounds = fullscreenViewportBounds.value
   if (!bounds) return {}
   return {
     '--world-fullscreen-width': Math.round(bounds.width) + 'px',
@@ -1932,7 +1932,7 @@ async function toggleWorldFullscreen() {
       console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
     }
     worldFullscreen.value = true
-    await syncNativeFullscreenBounds()
+    await syncFullscreenViewportBounds()
   } else {
     try {
       // Primeiro restaura a janela nativa/navegador e só depois reaplica
@@ -1948,33 +1948,41 @@ async function toggleWorldFullscreen() {
       console.warn('Não foi possível restaurar o tamanho da janela.', error)
     }
     worldFullscreen.value = false
-    nativeFullscreenBounds.value = null
+    fullscreenViewportBounds.value = null
   }
 
   fullscreenTransition.value = false
   await settleViewportAfterFullscreenChange()
 }
 
-async function syncNativeFullscreenBounds(): Promise<void> {
-  if (!isTauri() || !worldFullscreen.value) return
+async function syncFullscreenViewportBounds(): Promise<void> {
+  if (!worldFullscreen.value) return
   try {
-    const appWindow = getCurrentWindow()
-    const [physicalSize, scaleFactor] = await Promise.all([
-      appWindow.innerSize(),
-      appWindow.scaleFactor(),
-    ])
-    const logicalSize = physicalSize.toLogical(scaleFactor)
-    if (logicalSize.width <= 0 || logicalSize.height <= 0) return
-    nativeFullscreenBounds.value = {
-      width: logicalSize.width,
-      height: logicalSize.height,
+    let width = 0
+    let height = 0
+    if (isTauri()) {
+      const appWindow = getCurrentWindow()
+      const [physicalSize, scaleFactor] = await Promise.all([
+        appWindow.innerSize(),
+        appWindow.scaleFactor(),
+      ])
+      const logicalSize = physicalSize.toLogical(scaleFactor)
+      width = logicalSize.width
+      height = logicalSize.height
+    } else {
+      // Use o tamanho físico lógico do monitor, pois innerHeight/dvh pode
+      // continuar preso à altura anterior em algumas transições Fullscreen API.
+      width = window.screen.width || window.innerWidth
+      height = window.screen.height || window.innerHeight
     }
+    if (width <= 0 || height <= 0) return
+    fullscreenViewportBounds.value = { width, height }
     await nextTick()
     refreshViewportLayoutBounds()
     viewportLayoutRefresh.value += 1
     window.dispatchEvent(new Event('resize'))
   } catch (error) {
-    console.warn('Não foi possível sincronizar as dimensões nativas da tela cheia.', error)
+    console.warn('Não foi possível sincronizar as dimensões da tela cheia.', error)
   }
 }
 
@@ -2006,7 +2014,7 @@ async function settleViewportAfterFullscreenChange(): Promise<void> {
 function syncWorldFullscreenAfterBrowserExit() {
   if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
     worldFullscreen.value = false
-    nativeFullscreenBounds.value = null
+    fullscreenViewportBounds.value = null
     void settleViewportAfterFullscreenChange()
   }
 }
@@ -2017,7 +2025,7 @@ onMounted(() => {
   document.addEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
   if (isTauri()) {
     void getCurrentWindow().onResized(() => {
-      if (worldFullscreen.value) void syncNativeFullscreenBounds()
+      if (worldFullscreen.value) void syncFullscreenViewportBounds()
     }).then((unlisten) => {
       unlistenNativeWindowResize = unlisten
     }).catch((error) => {
