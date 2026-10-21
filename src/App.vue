@@ -1962,16 +1962,21 @@ async function syncFullscreenViewportBounds(): Promise<void> {
     let height = 0
     if (isTauri()) {
       const appWindow = getCurrentWindow()
-      const [physicalSize, scaleFactor] = await Promise.all([
-        appWindow.innerSize(),
-        appWindow.scaleFactor(),
-      ])
-      const logicalSize = physicalSize.toLogical(scaleFactor)
-      width = logicalSize.width
-      height = logicalSize.height
+      // innerSize() pode devolver a área útil anterior quando o evento de
+      // tela cheia ainda está terminando. Use o monitor que contém a janela,
+      // incluindo a altura abaixo da barra de tarefas, e converta para CSS px.
+      const monitor = await appWindow.currentMonitor()
+      if (monitor) {
+        const logicalSize = monitor.size.toLogical(monitor.scaleFactor)
+        width = logicalSize.width
+        height = logicalSize.height
+      } else {
+        width = window.screen.width || window.innerWidth
+        height = window.screen.height || window.innerHeight
+      }
     } else {
-      // Use o tamanho físico lógico do monitor, pois innerHeight/dvh pode
-      // continuar preso à altura anterior em algumas transições Fullscreen API.
+      // Use o tamanho do monitor em vez de innerHeight/dvh, que pode continuar
+      // preso à altura anterior em algumas transições Fullscreen API.
       width = window.screen.width || window.innerWidth
       height = window.screen.height || window.innerHeight
     }
