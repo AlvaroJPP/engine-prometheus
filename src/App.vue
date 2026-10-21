@@ -46,6 +46,16 @@ function cloneSavedBehaviorPackageSettings(
 
 const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
+const nativeFullscreenBounds = ref<{ width: number; height: number } | null>(null)
+const worldFullscreenStyle = computed<Record<string, string>>(() => {
+  const bounds = nativeFullscreenBounds.value
+  if (!bounds) return {}
+  return {
+    '--world-fullscreen-width': Math.round(bounds.width) + 'px',
+    '--world-fullscreen-height': Math.round(bounds.height) + 'px',
+  }
+})
+let unlistenNativeWindowResize: (() => void) | null = null
 const rootOpen = ref(true)
 const sidebarCollapsed = ref(false)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
@@ -1922,6 +1932,7 @@ async function toggleWorldFullscreen() {
       console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
     }
     worldFullscreen.value = true
+    await syncNativeFullscreenBounds()
   } else {
     try {
       // Primeiro restaura a janela nativa/navegador e só depois reaplica
@@ -1937,10 +1948,34 @@ async function toggleWorldFullscreen() {
       console.warn('Não foi possível restaurar o tamanho da janela.', error)
     }
     worldFullscreen.value = false
+    nativeFullscreenBounds.value = null
   }
 
   fullscreenTransition.value = false
   await settleViewportAfterFullscreenChange()
+}
+
+async function syncNativeFullscreenBounds(): Promise<void> {
+  if (!isTauri() || !worldFullscreen.value) return
+  try {
+    const appWindow = getCurrentWindow()
+    const [physicalSize, scaleFactor] = await Promise.all([
+      appWindow.innerSize(),
+      appWindow.scaleFactor(),
+    ])
+    const logicalSize = physicalSize.toLogical(scaleFactor)
+    if (logicalSize.width <= 0 || logicalSize.height <= 0) return
+    nativeFullscreenBounds.value = {
+      width: logicalSize.width,
+      height: logicalSize.height,
+    }
+    await nextTick()
+    refreshViewportLayoutBounds()
+    viewportLayoutRefresh.value += 1
+    window.dispatchEvent(new Event('resize'))
+  } catch (error) {
+    console.warn('Não foi possível sincronizar as dimensões nativas da tela cheia.', error)
+  }
 }
 
 function handleWorldFullscreenKeydown(event: KeyboardEvent) {
@@ -1971,6 +2006,7 @@ async function settleViewportAfterFullscreenChange(): Promise<void> {
 function syncWorldFullscreenAfterBrowserExit() {
   if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
     worldFullscreen.value = false
+    nativeFullscreenBounds.value = null
     void settleViewportAfterFullscreenChange()
   }
 }
@@ -1979,11 +2015,22 @@ onMounted(() => {
   window.addEventListener('pointerdown', closeQuickAddOutside)
   window.addEventListener('keydown', handleWorldFullscreenKeydown)
   document.addEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
+  if (isTauri()) {
+    void getCurrentWindow().onResized(() => {
+      if (worldFullscreen.value) void syncNativeFullscreenBounds()
+    }).then((unlisten) => {
+      unlistenNativeWindowResize = unlisten
+    }).catch((error) => {
+      console.warn('Não foi possível observar o redimensionamento da janela.', error)
+    })
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', closeQuickAddOutside)
   window.removeEventListener('keydown', handleWorldFullscreenKeydown)
   document.removeEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
+  unlistenNativeWindowResize?.()
+  unlistenNativeWindowResize = null
 })
 
 onMounted(() => {
@@ -2012,7 +2059,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 </script>
 
 <template>
-  <div ref="appRoot" class="app" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
+  <div ref="appRoot" class="app" :style="worldFullscreenStyle" :class="{ 'is-running': executionMode === 'running', 'world-fullscreen': worldFullscreen, 'sidebar-collapsed': sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="projectName"
       :viewport-layout-style="viewportLayoutStyle('render')"
@@ -5252,15 +5299,19 @@ button:disabled { cursor: not-allowed; }
 
 
 <style>
-/* Tela cheia do mundo: as quatro bordas definem a área útil, evitando
-   faixas vazias quando o tamanho CSS do WebView diverge de 100dvh. */
+/* Tela cheia usa as dimensões nativas quando disponíveis. A viewport é
+   posicionada dentro do editor, sem depender de alturas herdadas do WebView. */
 .app.world-fullscreen {
   position:fixed !important;
-  inset:0 !important;
-  z-index:10000 !important;
-  width:auto !important;
-  height:auto !important;
+  top:0 !important;
+  left:0 !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:var(--world-fullscreen-width, 100vw) !important;
+  height:var(--world-fullscreen-height, 100vh) !important;
+  height:var(--world-fullscreen-height, 100dvh) !important;
   min-height:0 !important;
+  z-index:10000 !important;
   overflow:hidden !important;
   background:#0e1013 !important;
 }
@@ -5271,25 +5322,32 @@ button:disabled { cursor: not-allowed; }
   display:none !important;
 }
 .app.world-fullscreen .main {
-  position:fixed !important;
-  inset:0 !important;
+  position:absolute !important;
+  top:0 !important;
+  left:0 !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:100% !important;
+  height:100% !important;
   z-index:10001 !important;
   display:block !important;
-  width:auto !important;
-  height:auto !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
   overflow:hidden !important;
 }
 .app.world-fullscreen .viewport {
-  position:fixed !important;
-  inset:0 !important;
+  position:absolute !important;
+  top:0 !important;
+  left:0 !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:100% !important;
+  height:100% !important;
   z-index:10002 !important;
   display:block !important;
-  width:auto !important;
-  height:auto !important;
   min-width:0 !important;
+  min-height:0 !important;
   margin:0 !important;
   border:0 !important;
   overflow:hidden !important;
