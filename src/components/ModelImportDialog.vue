@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
-import { collectModelPreviewParts } from '@/lib/assets/ModelPreviewParts'
+import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
@@ -152,12 +152,12 @@ const previewPackageModelNodes = computed(() => {
   const result = previewParts.value
     .filter(part => part.object !== activeRoot && isDescendantOf(part.object, activeRoot))
     .map(part => ({
-      path: getPreviewModelNodePath(part.object, activeRoot),
+      path: getModelPreviewNodePath(part.object, activeRoot),
       name: part.name,
       meshCount: part.meshCount,
     }))
     .filter(node => node.path)
-  const rootPath = getPreviewModelNodePath(activeRoot, activeRoot)
+  const rootPath = getModelPreviewNodePath(activeRoot, activeRoot)
   const rootPart = chosenPart
     ? { path: rootPath, name: chosenPart.name, meshCount: chosenPart.meshCount }
     : {
@@ -1465,25 +1465,6 @@ function setImportPackageControlBinding(packageId: string, key: keyof ModelContr
     : {}
   updateImportPackageConfigValue(packageId, 'controlBindings', { ...bindings, [key]: value })
   if (key === 'interact') updateImportPackageConfigValue(packageId, 'interactionKey', value)
-}
-
-function getPreviewModelNodePath(node: THREE.Object3D, rootOverride?: THREE.Object3D): string {
-  const root = rootOverride ?? model.value
-  if (!root) return ''
-  const segments: string[] = []
-  let current: THREE.Object3D | null = node
-  while (current && current !== root) {
-    const label = current.name.trim() || current.type
-    const parent: THREE.Object3D | null = current.parent
-    const siblings = parent?.children.filter(sibling => (sibling.name.trim() || sibling.type) === label) ?? []
-    const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
-    segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
-    current = parent
-  }
-  if (current !== root) return ''
-  // Prefixo versionado: o nome da raiz do GLB pode mudar quando o importador
-  // conserva os bytes originais. A versão 2 identifica caminhos relativos à raiz visual.
-  return ['@v2', 'ImportedVisualPivot', ...segments].join('/')
 }
 
 function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
