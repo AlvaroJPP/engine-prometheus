@@ -37,6 +37,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 ## Serviços e lógica de domínio
 
 - `engine/lib/BinaryEncoding.ts`: codificação e decodificação Base64 de buffers binários compartilhada entre runtime, projetos, importação de modelos e biblioteca de componentes.
+- `src/lib/PackageJson.ts`: clonagem profunda de valores e registros de configuração de pacotes sem `structuredClone`, compatível com objetos Proxy reativos do Vue; reutilizado pelo importador de modelos e pela biblioteca de componentes.
 - `src/lib/animation/AnimationRetargeting.ts`: criação e transferência de clipes de animação, poses de repouso e conversão de trilhas entre rigs.
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
 - `src/lib/animation/RetargetAnimationLibrary.ts`: valida e persiste na biblioteca local os assets de animação reutilizáveis, sem acoplar o acesso ao armazenamento ao componente.
