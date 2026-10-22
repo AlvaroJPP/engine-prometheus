@@ -1,0 +1,16 @@
+.viewport { position:relative; min-width:0; min-height:0; flex:1; overflow:hidden; contain:paint; isolation:isolate; background:#0e1013; }
+.viewport > .statusbar { position:absolute !important; left:0 !important; right:0 !important; bottom:0 !important; }
+.model-import-launch { position:absolute !important; z-index:12 !important; top:12px !important; right:14px !important; min-height:34px; padding:0 12px !important; border:1px solid #8a641c !important; border-radius:6px !important; background:#f5a524 !important; color:#1a1204 !important; font-weight:700; }
+.chips { top:14px; left:14px; gap:6px; }
+.chip { min-height:26px; padding:4px 8px; border-color:#252a33; border-radius:5px; background:#14171ce8; color:#9aa1ae; font-size:9px; letter-spacing:.06em; }
+.chip.live { color:#e6e8ec; }
+.chip .dot { width:6px; height:6px; }
+.viewport-fps { top:48px !important; left:14px !important; right:auto !important; gap:3px !important; padding:6px 8px !important; border-color:#252a33 !important; border-radius:6px !important; background:#14171ce8 !important; color:#9aa1ae !important; font-size:10px !important; }
+.viewport-fps strong { color:#f5a524 !important; }
+.viewport-render-stats { border-color:#252a33 !important; color:#9aa1ae !important; }
+.viewport-render-stats strong { color:#e6e8ec !important; }
+.axes { left:14px; bottom:42px; gap:5px; }
+.axis { padding:4px 7px; border-color:#252a33; border-radius:5px; background:#14171ce8; color:#9aa1ae; font-size:10px; }
+.ax-x { color:#ff6b6b !important; } .ax-y { color:#5bd67b !important; } .ax-z { color:#6ea8ff !important; }
+.statusbar { position:fixed !important; z-index:15; left:264px !important; right:340px !important; bottom:0 !important; height:28px; min-height:28px; background:#0b0d10f2 !important; border-top:1px solid #252a33 !important; font-size:10px !important; }
+.seg { padding:0 10px !important; height:27px; }
