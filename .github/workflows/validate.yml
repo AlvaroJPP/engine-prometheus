@@ -51,6 +51,8 @@ jobs:
         run: npm run model:owned-urls:self-test
       - name: Test model collider preview
         run: npm run model:collider-preview:self-test
+      - name: Test imported model resource cleanup
+        run: npm run model:resource-cleanup:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

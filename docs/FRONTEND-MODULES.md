@@ -66,6 +66,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ImportBehaviorPackageDrafts.ts`: cria, mescla e clona rascunhos de configuração dos pacotes de comportamento, sincronizando as teclas do pacote Montaria sem manter essa lógica dentro do diálogo.
 - `src/lib/assets/ThreeObjectResources.ts`: libera geometrias, materiais e texturas únicos, com modos explícitos para preservar as regras de propriedade do importador, da biblioteca de componentes e das miniaturas.
 - `src/lib/assets/ModelOwnedObjectUrls.ts`: recolhe URLs Blob temporárias marcadas na árvore do modelo e revoga URLs únicas de forma centralizada ao limpar modelos ou cancelar importações ZIP.
+- `src/lib/assets/ModelImportResourceCleanup.ts`: organiza a liberação do modelo importado na ordem correta: remoção da cena, liberação do colisor estático, texturas recuperadas, URLs próprias e recursos Three.js.
 - `src/lib/hud/HudImageStorage.ts`: concentra leitura, gravação e remoção dos blobs de imagens personalizadas do HUD no IndexedDB. O componente mantém somente o estado visual e as URLs temporárias.
 
 ## Diagnóstico da tela preta

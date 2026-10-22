@@ -2,8 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
-import { collectModelOwnedObjectUrls, revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
+import { revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
 import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/assets/ModelColliderPreview'
+import { disposeImportedModelResources } from '@/lib/assets/ModelImportResourceCleanup'
 import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
@@ -1112,12 +1113,10 @@ function clearLoadedModel(preserveRetargetSource = false) {
   rigMessage.value = ''
   animationClipRevision.value = 0
   if (model.value) {
-    scene?.remove(model.value)
-    releaseStaticMeshCollider(model.value)
-    const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
-    recoveredTextures?.forEach(texture => texture.dispose())
-    revokeOwnedObjectUrls(collectModelOwnedObjectUrls(model.value))
-    disposeModel(model.value)
+    disposeImportedModelResources(model.value, {
+      scene,
+      releaseStaticCollider: releaseStaticMeshCollider,
+    })
   }
   model.value = null
   if (colliderPreview) { disposeModelColliderPreview(scene, colliderPreview); colliderPreview = null }
