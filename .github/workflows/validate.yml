@@ -29,6 +29,8 @@ jobs:
         run: npm run rigging:self-test
       - name: Test model import visual states
         run: npm run model:states:self-test
+      - name: Test animation role options and bindings
+        run: npm run animation:roles:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

@@ -50,6 +50,7 @@ import {
 import type { RetargetPreviewStage } from '@/lib/animation/RetargetPreviewStage'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
+import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS } from '@/lib/animation/AnimationRoleOptions'
 import {
   createReusableAnimationAsset,
   findAnimationNode,
@@ -197,93 +198,9 @@ const controlBindingFields: Array<{ key: ControlBindingAction; label: string; de
   { key: 'jump', label: 'Pular', description: 'Salto do personagem ou montaria' },
   { key: 'interact', label: 'Interagir / montar', description: 'Montar e desmontar quando o pacote Montaria estiver instalado' },
 ]
-const animationRoleBaseOptions: Array<{ value: AnimationRole; label: string }> = [
-  { value: 'ignore', label: 'Não usar' },
-  { value: 'idle', label: 'Parado / repouso' },
-  { value: 'walk', label: 'Andar para frente' },
-  { value: 'walk_slow', label: 'Andar devagar (alternância de caminhada)' },
-  { value: 'walk_backward', label: 'Andar para trás' },
-  { value: 'walk_left', label: 'Deslocar para esquerda' },
-  { value: 'walk_right', label: 'Deslocar para direita' },
-  { value: 'walk_diagonal_left', label: 'Andar na diagonal esquerda' },
-  { value: 'walk_diagonal_right', label: 'Andar na diagonal direita' },
-  { value: 'walk_backward_diagonal_left', label: 'Andar para trás e esquerda' },
-  { value: 'walk_backward_diagonal_right', label: 'Andar para trás e direita' },
-  { value: 'run', label: 'Correr para frente' },
-  { value: 'run_backward', label: 'Correr para trás' },
-  { value: 'run_left', label: 'Correr para esquerda' },
-  { value: 'run_right', label: 'Correr para direita' },
-  { value: 'run_diagonal_left', label: 'Correr na diagonal esquerda' },
-  { value: 'run_diagonal_right', label: 'Correr na diagonal direita' },
-  { value: 'run_backward_diagonal_left', label: 'Correr para trás e esquerda' },
-  { value: 'run_backward_diagonal_right', label: 'Correr para trás e direita' },
-  { value: 'run_stop', label: 'Parar após correr' },
-  { value: 'jump', label: 'Pular' },
-  { value: 'crouch', label: 'Agachar parado' },
-  { value: 'crouch_walk', label: 'Mover agachado' },
-  { value: 'prone', label: 'Deitado / rastejar parado' },
-  { value: 'prone_crawl', label: 'Rastejar em movimento' },
-  { value: 'dodge', label: 'Esquiva' },
-  { value: 'slide', label: 'Deslizar' },
-  { value: 'roll', label: 'Rolamento evasivo' },
-  { value: 'interact', label: 'Interagir' },
-  { value: 'primary_action', label: 'Ação principal / ataque' },
-  { value: 'secondary_action', label: 'Ação secundária / defesa' },
-  { value: 'inventory', label: 'Abrir inventário' },
-  { value: 'use_item', label: 'Usar item' },
-  { value: 'reload', label: 'Recarregar' },
-  { value: 'ability_1', label: 'Habilidade 1' },
-  { value: 'ability_2', label: 'Habilidade 2' },
-  { value: 'ability_3', label: 'Habilidade 3' },
-  { value: 'ability_4', label: 'Habilidade 4' },
-  { value: 'emote', label: 'Emote / gesto' },
-  { value: 'mount', label: 'Montar / subir' },
-  { value: 'dismount', label: 'Desmontar / descer' },
-]
-const animationRoleControlBindingKeys: Partial<Record<AnimationRole, keyof ControlMapBindings>> = {
-  walk: 'forward',
-  walk_slow: 'walkToggle',
-  walk_backward: 'backward',
-  walk_left: 'left',
-  walk_right: 'right',
-  walk_diagonal_left: 'left',
-  walk_diagonal_right: 'right',
-  walk_backward_diagonal_left: 'left',
-  walk_backward_diagonal_right: 'right',
-  run: 'run',
-  run_backward: 'backward',
-  run_left: 'left',
-  run_right: 'right',
-  run_diagonal_left: 'left',
-  run_diagonal_right: 'right',
-  run_backward_diagonal_left: 'left',
-  run_backward_diagonal_right: 'right',
-  run_stop: 'run',
-  jump: 'jump',
-  crouch: 'crouchToggle',
-  crouch_walk: 'crouchToggle',
-  prone: 'proneToggle',
-  prone_crawl: 'proneToggle',
-  dodge: 'dodge',
-  slide: 'slide',
-  roll: 'roll',
-  interact: 'interact',
-  mount: 'interact',
-  dismount: 'interact',
-  primary_action: 'primaryAction',
-  secondary_action: 'secondaryAction',
-  inventory: 'inventory',
-  use_item: 'useItem',
-  reload: 'reload',
-  ability_1: 'ability1',
-  ability_2: 'ability2',
-  ability_3: 'ability3',
-  ability_4: 'ability4',
-  emote: 'emote',
-}
 const activeControlMapBindings = computed(() => props.controlMap ?? DEFAULT_CONTROL_MAPS[0]!.bindings)
-const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option => {
-  const bindingKey = animationRoleControlBindingKeys[option.value]
+const animationRoleOptions = computed(() => ANIMATION_ROLE_BASE_OPTIONS.map(option => {
+  const bindingKey = ANIMATION_ROLE_CONTROL_BINDING_KEYS[option.value]
   if (!bindingKey) return option
   const keyCode = activeControlMapBindings.value[bindingKey] ?? DEFAULT_CONTROL_MAPS[0]!.bindings[bindingKey]
   return { ...option, label: `${option.label} · ${formatModelControlKey(keyCode)}` }
@@ -672,7 +589,7 @@ function createRigAnimation() {
   previewAnimationIndex.value = newIndex
   refreshModelDiagnostics()
   selectPreviewAnimation(newIndex)
-  rigMessage.value = `Animação "${name}" criada com ${clip.tracks.length / 3} trilhas e associada ao papel "${animationRoleBaseOptions.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
+  rigMessage.value = `Animação "${name}" criada com ${clip.tracks.length / 3} trilhas e associada ao papel "${ANIMATION_ROLE_BASE_OPTIONS.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
 }
 
 function setRigTime(value: number) {
@@ -1558,7 +1475,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
     const savedRole = savedRoles?.[String(index)]
     const guessed = guessedAnimationRole(clip.name)
     const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
-    const recognizedRoles: AnimationRole[] = animationRoleBaseOptions.map(option => option.value)
+    const recognizedRoles: AnimationRole[] = ANIMATION_ROLE_BASE_OPTIONS.map(option => option.value)
     // Atualiza classificações automáticas antigas que guardaram um papel genérico.
     nextRoles[String(index)] = savedRole && recognizedRoles.includes(savedRole) && !(guessedIsDiagonal && ['ignore', 'walk', 'run'].includes(savedRole))
       ? savedRole
@@ -3217,7 +3134,7 @@ onBeforeUnmount(() => {
               </label>
               <label v-if="retargetSourceClip" class="model-rigging-field">Papel no jogo
                 <select v-model="rigClipRole">
-                  <option v-for="role in animationRoleBaseOptions.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
+                  <option v-for="role in ANIMATION_ROLE_BASE_OPTIONS.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
                 </select>
               </label>
               <div v-if="retargetSourceClip && retargetSourceNodeNames.length" class="model-retarget-mapping-wrap">
@@ -3401,7 +3318,7 @@ onBeforeUnmount(() => {
               </label>
               <label class="model-rigging-field">Papel no jogo
                 <select v-model="rigClipRole">
-                  <option v-for="role in animationRoleBaseOptions.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
+                  <option v-for="role in ANIMATION_ROLE_BASE_OPTIONS.filter(option => option.value !== 'ignore')" :key="role.value" :value="role.value">{{ role.label }}</option>
                 </select>
               </label>
               <button type="button" class="model-rigging-primary" :disabled="rigKeyframes.length < 2 || !!props.initialAsset" title="Cria uma animação interpolando os quadros-chave gravados." @click="createRigAnimation">Criar clipe de animação</button>
