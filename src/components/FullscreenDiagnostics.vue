@@ -22,6 +22,9 @@ const { snapshot, requestRemeasure, logSnapshot } = useFullscreenDiagnostics()
       <span :class="snapshot.contextLost === 'true' ? 'state-warning' : 'state-ok'">
         WebGL: {{ snapshot.webglReady }} · Contexto perdido: {{ snapshot.contextLost }}
       </span>
+      <span v-if="snapshot.webglError !== 'nenhum'" class="state-warning">
+        Erro ao iniciar WebGL: {{ snapshot.webglError }}
+      </span>
       <span v-if="snapshot.lastRenderError !== 'nenhum'" class="state-warning">
         Erro de renderização: {{ snapshot.lastRenderError }}
       </span>
@@ -34,7 +37,7 @@ const { snapshot, requestRemeasure, logSnapshot } = useFullscreenDiagnostics()
       <dt>Raiz .app</dt><dd>{{ snapshot.rootRect }} · display={{ snapshot.rootDisplay }}</dd>
       <dt>Área .main</dt><dd>{{ snapshot.mainRect }}</dd>
       <dt>Viewport</dt><dd>{{ snapshot.viewportRect }} · display={{ snapshot.viewportDisplay }}</dd>
-      <dt>Canvas CSS</dt><dd>{{ snapshot.canvasRect }} · {{ snapshot.canvasVisibility }}</dd>
+      <dt>Canvas CSS</dt><dd>{{ snapshot.canvasRect }} · {{ snapshot.canvasVisibility }} · z={{ snapshot.canvasZIndex }}</dd>
       <dt>Canvas / buffer WebGL</dt><dd>{{ snapshot.canvasClientSize }} / {{ snapshot.canvasBufferSize }}</dd>
       <dt>Último buffer desenhado</dt><dd>{{ snapshot.lastRenderSize }}</dd>
       <dt>Último resize</dt><dd>{{ snapshot.lastResize }}</dd>
