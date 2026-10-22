@@ -3,7 +3,7 @@ import { useFullscreenDiagnostics } from '@/composables/useFullscreenDiagnostics
 
 defineEmits<{ exit: [] }>()
 
-const { snapshot, requestRemeasure, logSnapshot } = useFullscreenDiagnostics()
+const { snapshot, requestRemeasure, logSnapshot, copySnapshot, copyMessage } = useFullscreenDiagnostics()
 </script>
 
 <template>
@@ -46,8 +46,9 @@ const { snapshot, requestRemeasure, logSnapshot } = useFullscreenDiagnostics()
     </dl>
     <footer>
       <button type="button" @click="requestRemeasure">Forçar nova medição</button>
+      <button type="button" @click="copySnapshot">Copiar diagnóstico</button>
       <button type="button" @click="logSnapshot">Registrar no console</button>
-      <span>Use Ctrl+Shift+F para abrir este diagnóstico fora da tela cheia.</span>
+      <span>{{ copyMessage || 'Use Ctrl+Shift+F para abrir este diagnóstico fora da tela cheia.' }}</span>
     </footer>
   </section>
 </template>
