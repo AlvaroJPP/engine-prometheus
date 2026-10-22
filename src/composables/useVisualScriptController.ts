@@ -1,7 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { getBehaviorPackageDefinition } from '@engine'
 import type {
-  BehaviorPackageDefinition,
   BehaviorPackageInstance,
   ControlMapProfile,
   LogicRule,
