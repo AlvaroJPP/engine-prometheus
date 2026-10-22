@@ -50,6 +50,11 @@ import {
 import type { RetargetPreviewStage } from '@/lib/animation/RetargetPreviewStage'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
+import {
+  cloneImportBehaviorPackageSettings,
+  mergeImportBehaviorPackageDraft,
+} from '@/lib/assets/ImportBehaviorPackageDrafts'
+import type { ImportBehaviorPackageDraft } from '@/lib/assets/ImportBehaviorPackageDrafts'
 import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS } from '@/lib/animation/AnimationRoleOptions'
 import {
   createReusableAnimationAsset,
@@ -67,19 +72,6 @@ import {
 } from '@/lib/animation/RetargetAnimationLibrary'
 import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vue'
 
-type ImportBehaviorPackageDraft = {
-  variables: Record<string, PackageScalar>
-  config: Record<string, PackageJsonValue>
-}
-
-function cloneImportBehaviorPackageSettings(
-  settings: Record<string, ImportBehaviorPackageDraft>,
-): Record<string, ImportBehaviorPackageDraft> {
-  return Object.fromEntries(Object.entries(settings).map(([id, draft]) => [id, {
-    variables: { ...draft.variables },
-    config: clonePackageJsonRecord(draft.config),
-  }]))
-}
 type ModelImportBatchItem = {
   partId: string
   name: string
@@ -1063,41 +1055,14 @@ const importPackageControlBindingFields: Array<{ key: keyof ModelControlBindings
   { key: 'interact', label: 'Interagir / montar' },
 ]
 
-function createImportBehaviorPackageDraft(definition: BehaviorPackageDefinition): ImportBehaviorPackageDraft {
-  const variables = Object.fromEntries(definition.variables.map(variable => [variable.name, variable.defaultValue])) as Record<string, PackageScalar>
-  const config = clonePackageJsonRecord(definition.defaultConfig)
-  if (definition.id === 'mount') {
-    const defaults = config.controlBindings && typeof config.controlBindings === 'object' && !Array.isArray(config.controlBindings)
-      ? config.controlBindings as Record<string, PackageJsonValue>
-      : {}
-    config.controlBindings = { ...defaults, ...controlBindings.value } as Record<string, PackageJsonValue>
-    config.interactionKey = controlBindings.value.interact
-  }
-  return { variables, config }
-}
-
 function ensureImportBehaviorPackageDraft(packageId: string): ImportBehaviorPackageDraft {
   const definition = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === packageId)
   if (!definition) return { variables: {}, config: {} }
-  const defaults = createImportBehaviorPackageDraft(definition)
-  const existing = selectedBehaviorPackageSettings.value[packageId]
-  const draft: ImportBehaviorPackageDraft = existing
-    ? {
-        variables: { ...defaults.variables, ...existing.variables },
-        config: { ...defaults.config, ...existing.config },
-      }
-    : defaults
-
-  const current = selectedBehaviorPackageSettings.value[packageId]
-  const currentControls = current?.config.controlBindings
-  if (definition.id === 'mount' && currentControls && typeof currentControls === 'object' && !Array.isArray(currentControls)) {
-    draft.config.controlBindings = {
-      ...((defaults.config.controlBindings && typeof defaults.config.controlBindings === 'object' && !Array.isArray(defaults.config.controlBindings))
-        ? defaults.config.controlBindings as Record<string, PackageJsonValue>
-        : {}),
-      ...(currentControls as Record<string, PackageJsonValue>),
-    }
-  }
+  const draft = mergeImportBehaviorPackageDraft(
+    definition,
+    controlBindings.value,
+    selectedBehaviorPackageSettings.value[packageId],
+  )
   selectedBehaviorPackageSettings.value = { ...selectedBehaviorPackageSettings.value, [packageId]: draft }
   return draft
 }

@@ -31,6 +31,8 @@ jobs:
         run: npm run model:states:self-test
       - name: Test animation role options and bindings
         run: npm run animation:roles:self-test
+      - name: Test import behavior package drafts
+        run: npm run behavior:packages:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies
