@@ -29,6 +29,7 @@ import { createZipImportContext } from '@/lib/assets/ZipModelImport'
 import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@engine/lib/BinaryEncoding'
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
+import { applyRecoveredBaseColorTexture } from '@/lib/assets/ModelColorTextureRepair'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
 import { formatModelControlKey, normalizeModelControlBindings } from '@/lib/assets/ModelControlBindings'
 import { clonePackageJsonRecord } from '@/lib/PackageJson'
@@ -917,32 +918,7 @@ async function applyRecoveredColorTexture(materialIndex: number) {
     texture.colorSpace = THREE.SRGBColorSpace
     texture.flipY = false
     texture.needsUpdate = true
-    let assigned = 0
-    const recoveredTextures = (root.userData.importRecoveredTextures as THREE.Texture[] | undefined) ?? []
-    root.traverse(node => {
-      if (!(node instanceof THREE.Mesh)) return
-      const materials = Array.isArray(node.material) ? node.material : [node.material]
-      for (const material of materials) {
-        if (material.name !== materialInfo.name || !('map' in material)) continue
-        const standard = material as THREE.MeshStandardMaterial
-        // Só substitua mapas ausentes ou aplicados por esta ferramenta; nunca
-        // sobrescreva uma textura original válida do arquivo.
-        if (standard.map && !recoveredTextures.includes(standard.map)) continue
-        standard.map = texture
-        standard.needsUpdate = true
-        assigned += 1
-      }
-    })
-    if (!assigned) {
-      texture.dispose()
-      throw new Error(`Não encontrei malhas usando o material "${materialInfo.name || `Material ${materialIndex}`}" sem mapa de cor.`)
-    }
-    const applied = (root.userData.importRecoveredColorTextures as Record<string, number> | undefined) ?? {}
-    applied[String(materialIndex)] = imageIndex
-    root.userData.importRecoveredColorTextures = applied
-    root.userData.importNeedsReexport = true
-    recoveredTextures.push(texture)
-    root.userData.importRecoveredTextures = recoveredTextures
+    applyRecoveredBaseColorTexture(root, materialInfo.name, materialIndex, imageIndex, texture)
     textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialInfo.name || materialIndex}. O mapa normal e os demais mapas foram preservados.`
     refreshModelDiagnostics()
   } catch (e) {
