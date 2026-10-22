@@ -1,6 +1,7 @@
 import { computed, onMounted, ref, type Ref } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
+import { encodeArrayBufferBase64 } from '@/lib/assets/BinaryEncoding'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
@@ -231,16 +232,6 @@ function closeModelImport() {
   modelImportOpen.value = false
   previewComponentAsset.value = null
   previewAnimationSourceAsset.value = null
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  const chunkSize = 0x8000
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
 }
 
 function disposeComponentSource(root: THREE.Object3D) {
@@ -553,7 +544,7 @@ async function placeSavedComponent(id: string) {
       model.userData.componentId = component.id
       model.userData.componentLogic = component.logic ?? []
     }
-    model.userData.importedModelData = arrayBufferToBase64(component.bytes)
+    model.userData.importedModelData = encodeArrayBufferBase64(component.bytes)
     model.userData.importedModelHeight = component.height
     model.userData.importBehaviorPackageIds = [...(component.behaviorPackageIds ?? [])]
     model.userData.importBehaviorPackageSettings = cloneSavedBehaviorPackageSettings(component.behaviorPackageSettings ?? {})
