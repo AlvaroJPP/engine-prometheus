@@ -45,6 +45,8 @@ jobs:
         run: npm run model:texture-repair:self-test
       - name: Test model spatial measurements
         run: npm run model:spatial-measurements:self-test
+      - name: Test model preview selection and visibility
+        run: npm run model:preview-selection:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

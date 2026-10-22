@@ -10,6 +10,11 @@ import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
+  isWithinModelPreviewTree,
+  restoreModelPreviewVisibility,
+  setModelPreviewSoloVisibility,
+} from '@/lib/assets/ModelPreviewSelection'
+import {
   createImportModelStateDraft,
   parseImportModelStateValue,
   parseImportModelStates,
@@ -148,7 +153,7 @@ const previewPackageModelNodes = computed(() => {
     : undefined
   const activeRoot = chosenPart?.object ?? baseModel
   const result = previewParts.value
-    .filter(part => part.object !== activeRoot && isDescendantOf(part.object, activeRoot))
+    .filter(part => part.object !== activeRoot && isWithinModelPreviewTree(part.object, activeRoot))
     .map(part => ({
       path: getModelPreviewNodePath(part.object, activeRoot),
       name: part.name,
@@ -761,15 +766,6 @@ function findPreviewPart(id: string) {
   return previewParts.value.find(part => part.id === id)
 }
 
-function isObjectWithin(object: THREE.Object3D, ancestor: THREE.Object3D): boolean {
-  let current: THREE.Object3D | null = object
-  while (current) {
-    if (current === ancestor) return true
-    current = current.parent
-  }
-  return false
-}
-
 function toggleBatchPartSelection(
   part: ModelPreviewPart,
   checked: boolean,
@@ -785,8 +781,8 @@ function toggleBatchPartSelection(
     const selected = findPreviewPart(id)
     if (!selected) return false
     return selected.id !== part.id
-      && !isObjectWithin(selected.object, part.object)
-      && !isObjectWithin(part.object, selected.object)
+      && !isWithinModelPreviewTree(selected.object, part.object)
+      && !isWithinModelPreviewTree(part.object, selected.object)
   })
   next.push(part.id)
   batchSelectedPartIds.value = next
@@ -837,12 +833,7 @@ function showOnlyPreviewPart(part: ModelPreviewPart) {
     // Os ancestrais precisam permanecer visíveis: no Three.js, esconder um pai
     // também esconde todos os seus descendentes, mesmo que o filho esteja visible=true.
     invalidateStaticMeshCollider(root)
-    root.traverse(node => {
-      const isPart = node === part.object
-      const isChild = isDescendantOf(node, part.object)
-      const isParent = isDescendantOf(part.object, node)
-      node.visible = node === root || isPart || isChild || isParent
-    })
+    setModelPreviewSoloVisibility(root, part.object)
     soloPartId.value = part.id
     selectedPartId.value = part.id
     if (!props.initialAsset) {
@@ -867,18 +858,9 @@ function selectWholeModel() {
   updateColliderPreview()
 }
 
-function isDescendantOf(node: THREE.Object3D, ancestor: THREE.Object3D) {
-  let current: THREE.Object3D | null = node
-  while (current) {
-    if (current === ancestor) return true
-    current = current.parent
-  }
-  return false
-}
-
 function restorePreviewVisibility() {
   const root = model.value
-  root?.traverse(node => { node.visible = true })
+  if (root) restoreModelPreviewVisibility(root)
   if (root) invalidateStaticMeshCollider(root)
   soloPartId.value = ''
 }
