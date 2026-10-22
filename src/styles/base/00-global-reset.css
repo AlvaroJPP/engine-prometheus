@@ -1,0 +1,20 @@
+/* Reset global mantido em um único bloco abaixo. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2c3340; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Controles da malha e do gizmo 3D */
+.grid-toggle { white-space: nowrap; }
+.grid-toggle.active { border-color: #547eaa; color: #c6e2ff; background: #23364a; }
+.grid-state { color: #a9c9ec; }
+
+/* Estilos base dos componentes globais; tokens de tema ficam no App.vue. */
+
+html, body, #app { width:100%; height:100%; margin:0; }
+body { overflow:hidden; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:12px; }
+* { box-sizing:border-box; }
+button, input, select, textarea { font:inherit; }
+button { min-height:32px; border-radius:6px; }
+input, select, textarea { min-height:32px; border-color:#2c323d; border-radius:6px; background:#0e1013; color:#e6e8ec; }
+input:focus, select:focus, textarea:focus { outline:1px solid #f5a524; border-color:#f5a524; }
+.mono, code, kbd, .viewport-fps, .variable-id, .variable-type { font-family:'IBM Plex Mono',monospace !important; }
