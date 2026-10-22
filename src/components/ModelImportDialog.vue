@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
+import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -470,22 +471,14 @@ function setAnimationRole(index: number, role: AnimationRole) {
 let rigHelper: THREE.SkeletonHelper | null = null
 
 function removeRigHelper() {
-  if (!rigHelper) return
-  scene?.remove(rigHelper)
-  rigHelper.geometry.dispose()
-  const material = rigHelper.material
-  if (Array.isArray(material)) material.forEach(item => item.dispose())
-  else material.dispose()
+  disposeRigPreviewHelper(rigHelper, scene)
   rigHelper = null
 }
 
 function refreshRigHelper() {
   if (!model.value || !scene || rigBones.value.length === 0) return
   removeRigHelper()
-  rigHelper = new THREE.SkeletonHelper(model.value)
-  rigHelper.name = 'ModelWorkspaceRigHelper'
-  rigHelper.renderOrder = 999
-  rigHelper.frustumCulled = false
+  rigHelper = createRigPreviewHelper(model.value)
   scene.add(rigHelper)
   rigHelper.updateMatrixWorld(true)
 }
