@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
 import type { LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -58,6 +58,7 @@ const activeControlMap = computed(() =>
 )
 const firstPersonMode = ref(false)
 const publicLibraryOpen = ref(false)
+const quickAddOpen = ref(false)
 
 const {
   projectName,
@@ -286,14 +287,12 @@ const {
   patchSelectedAction,
   patchSelectedCondition,
   patchSelectedTrigger,
-  portPositions,
   resetGraphView,
   ruleValueFromInput,
   scriptDraft,
   selectedGraphRule,
   selectedGraphRuleActionVariables,
   selectedGraphRulePackages,
-  selectedGraphRuleOwnerObjectId,
   setSelectedActionType,
   setSelectedTriggerType,
   startGraphPan,
@@ -605,7 +604,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', closeQuickAddOutside)
 })
 
-const { fullscreenTransition, toggleWorldFullscreen } = useWorldFullscreen({
+const { toggleWorldFullscreen } = useWorldFullscreen({
   appRoot,
   worldFullscreen,
   beforeEnter: () => { quickAddOpen.value = false },
