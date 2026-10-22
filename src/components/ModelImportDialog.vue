@@ -7,6 +7,7 @@ import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/a
 import { disposeImportedModelResources } from '@/lib/assets/ModelImportResourceCleanup'
 import {
   calculateImportColliderSize,
+  calculateImportColliderSizeFromObjectBounds,
   normalizeImportColliderForType,
   updateImportColliderVector,
 } from '@/lib/assets/ModelColliderSizing'
@@ -751,16 +752,13 @@ function clearBatchSelection() {
 }
 
 function setColliderFromPreviewPart(part: ModelPreviewPart) {
-  const bounds = new THREE.Box3().setFromObject(part.object)
-  if (bounds.isEmpty()) return
-  const size = bounds.getSize(new THREE.Vector3())
-  // O colisor acompanha a escala que será aplicada ao componente no mundo.
-  const scale = modelHeight.value / Math.max(size.y, 0.05)
-  colliderSize.value = calculateImportColliderSize(
-    [size.x, size.y, size.z],
-    scale,
+  const size = calculateImportColliderSizeFromObjectBounds(
+    part.object,
+    modelHeight.value,
     colliderType.value,
   )
+  if (!size) return
+  colliderSize.value = size
   colliderOffset.value = [0, 0, 0]
 }
 

@@ -1,6 +1,8 @@
+import * as THREE from 'three'
 import assert from 'node:assert/strict'
 import {
   calculateImportColliderSize,
+  calculateImportColliderSizeFromObjectBounds,
   normalizeImportColliderForType,
   updateImportColliderVector,
 } from '../src/lib/assets/ModelColliderSizing.ts'
@@ -88,5 +90,41 @@ assert.equal(
   null,
   'Non-finite input is ignored',
 )
+
+
+const measuredRoot = new THREE.Group()
+const measuredMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 4, 6),
+  new THREE.MeshBasicMaterial(),
+)
+measuredMesh.position.set(10, 20, -4)
+measuredRoot.add(measuredMesh)
+measuredRoot.updateMatrixWorld(true)
+assert.deepEqual(
+  calculateImportColliderSizeFromObjectBounds(measuredRoot, 8, 'box'),
+  [4, 8, 12],
+  'Collider size follows global bounds and the requested component height',
+)
+assert.deepEqual(
+  calculateImportColliderSizeFromObjectBounds(measuredRoot, 8, 'sphere'),
+  [4, 4, 4],
+  'Object-bound sphere sizing uses the smallest scaled dimension',
+)
+const scaledMeasuredRoot = new THREE.Group()
+scaledMeasuredRoot.scale.set(2, 0.5, 1)
+scaledMeasuredRoot.add(new THREE.Mesh(new THREE.BoxGeometry(2, 4, 6), new THREE.MeshBasicMaterial()))
+assert.deepEqual(
+  calculateImportColliderSizeFromObjectBounds(scaledMeasuredRoot, 4, 'box'),
+  [8, 4, 12],
+  'Global bounds account for parent scale',
+)
+assert.equal(
+  calculateImportColliderSizeFromObjectBounds(new THREE.Group(), 2, 'box'),
+  null,
+  'Parts without geometry do not replace the current collider size',
+)
+
+measuredMesh.geometry.dispose()
+measuredMesh.material.dispose()
 
 console.log('Model collider sizing self-test passed.')

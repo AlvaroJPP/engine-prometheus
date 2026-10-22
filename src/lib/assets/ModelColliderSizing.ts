@@ -1,3 +1,5 @@
+import * as THREE from 'three'
+
 export type ImportColliderType = 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
 export type ImportColliderSize = [number, number, number]
 
@@ -58,4 +60,25 @@ export function updateImportColliderVector(
     vector.splice(0, 3, safeValue, safeValue, safeValue)
   }
   return vector
+}
+
+/**
+ * Calculates collider size from a model part's global Three.js bounds.
+ * Returns null for a part with no measurable geometry.
+ */
+export function calculateImportColliderSizeFromObjectBounds(
+  object: THREE.Object3D,
+  targetHeight: number,
+  type: ImportColliderType,
+): ImportColliderSize | null {
+  const bounds = new THREE.Box3().setFromObject(object)
+  if (bounds.isEmpty()) return null
+
+  const dimensions = bounds.getSize(new THREE.Vector3())
+  const scale = targetHeight / Math.max(dimensions.y, 0.05)
+  return calculateImportColliderSize(
+    [dimensions.x, dimensions.y, dimensions.z],
+    scale,
+    type,
+  )
 }
