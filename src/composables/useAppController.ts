@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window'
 import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
 import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -40,7 +40,7 @@ function cloneSavedBehaviorPackageSettings(
 const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const fullscreenViewportBounds = ref<{ width: number; height: number } | null>(null)
-const worldFullscreenStyle = computed<Record<string, string>>(() => {
+const worldFullscreenStyle = computed(() => {
   const bounds = fullscreenViewportBounds.value
   if (!bounds) return {}
   return {
@@ -1979,11 +1979,9 @@ async function syncFullscreenViewportBounds(): Promise<void> {
     let width = 0
     let height = 0
     if (isTauri()) {
-      const appWindow = getCurrentWindow()
-      // innerSize() pode devolver a área útil anterior quando o evento de
-      // tela cheia ainda está terminando. Use o monitor que contém a janela,
-      // incluindo a altura abaixo da barra de tarefas, e converta para CSS px.
-      const monitor = await appWindow.currentMonitor()
+      // Leia o monitor que contém a janela pelo helper público do Tauri.
+      // Converta a resolução física para CSS px antes de dimensionar a viewport.
+      const monitor = await currentMonitor()
       if (monitor) {
         const logicalSize = monitor.size.toLogical(monitor.scaleFactor)
         width = logicalSize.width
