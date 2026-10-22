@@ -254,7 +254,11 @@ const conditionVariable = ref('has_key')
 const conditionOperator = ref<'equals' | 'not_equals' | 'greater_than' | 'less_than'>('equals')
 const conditionValue = ref('true')
 function submitVariable(scope: 'global' | 'object' = 'object') {
-  createLogicVariable(newVariableName.value, neconst {
+  createLogicVariable(newVariableName.value, newVariableValue.value, scope, newVariableType.value)
+  newVariableName.value = ''
+}
+
+const {
   TOOLS,
   TRANSFORMS,
   changeGraphRuleActionPackage,
@@ -310,9 +314,6 @@ function submitVariable(scope: 'global' | 'object' = 'object') {
   returnToEdit,
   updateLogicRule,
 })
-con: '↻', label: 'Rotacionar' },
-  { id: 'scale', icon: '⤢', label: 'Escalar' },
-]
 
 const viewportCursorClass = computed(() => {
   if (tool.value === 'terrain') return 'cursor-editar-terreno'
