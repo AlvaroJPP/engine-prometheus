@@ -29,9 +29,8 @@ assert.deepEqual(box.preview.geometry.boundingBox.max.toArray(), [2, 4, 6])
 
 const sphere = createModelColliderPreview({ ...options, type: 'sphere', offset: [0, 0, 0] })
 assert.ok(sphere.preview)
-sphere.preview.geometry.computeBoundingBox()
-assert.ok(Math.abs(sphere.preview.geometry.boundingBox.max.x - 3) < 0.01)
-assert.ok(Math.abs(sphere.preview.geometry.boundingBox.min.x + 3) < 0.01)
+sphere.preview.geometry.computeBoundingSphere()
+assert.ok(Math.abs(sphere.preview.geometry.boundingSphere.radius - 3) < 0.01, 'The icosahedron preview should preserve the configured bounding radius')
 
 const capsule = createModelColliderPreview({
   ...options,
