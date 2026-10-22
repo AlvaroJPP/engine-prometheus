@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
-import { decodeBase64ArrayBuffer } from '@/lib/assets/BinaryEncoding'
-export { encodeArrayBufferBase64, decodeBase64ArrayBuffer } from '@/lib/assets/BinaryEncoding'
+import { decodeBase64ArrayBuffer } from '@engine/lib/BinaryEncoding'
 
 /** Formato devolvido pelo comando nativo que extrai um ZIP de modelo. */
 export type ZipModelBundle = {
