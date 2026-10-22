@@ -4,6 +4,7 @@ import {
   isWithinModelPreviewTree,
   restoreModelPreviewVisibility,
   setModelPreviewSoloVisibility,
+  toggleModelPreviewBatchSelection,
 } from '../src/lib/assets/ModelPreviewSelection.ts'
 
 const root = new THREE.Group()
@@ -49,5 +50,44 @@ assert.equal(branchA.visible, true)
 assert.equal(subgroup.visible, true)
 assert.equal(mesh.visible, true)
 assert.equal(branchB.visible, false)
+
+
+const previewParts = [
+  { id: 'branchA', name: 'BranchA', object: branchA, depth: 0, meshCount: 1 },
+  { id: 'subgroup', name: 'Subgroup', object: subgroup, depth: 1, meshCount: 1 },
+  { id: 'mesh', name: 'SelectedMesh', object: mesh, depth: 2, meshCount: 1 },
+  { id: 'branchB', name: 'BranchB', object: branchB, depth: 0, meshCount: 1 },
+  { id: 'siblingMesh', name: 'SiblingMesh', object: siblingMesh, depth: 1, meshCount: 1 },
+]
+assert.deepEqual(
+  toggleModelPreviewBatchSelection([], previewParts, previewParts[0], true),
+  ['branchA'],
+  'Selecting a part adds it to the batch selection',
+)
+assert.deepEqual(
+  toggleModelPreviewBatchSelection(['branchA'], previewParts, previewParts[1], true),
+  ['subgroup'],
+  'Selecting a child replaces its selected ancestor',
+)
+assert.deepEqual(
+  toggleModelPreviewBatchSelection(['subgroup'], previewParts, previewParts[0], true),
+  ['branchA'],
+  'Selecting a parent replaces its selected descendants',
+)
+assert.deepEqual(
+  toggleModelPreviewBatchSelection(['branchA'], previewParts, previewParts[3], true),
+  ['branchA', 'branchB'],
+  'Independent sibling branches can be selected together',
+)
+assert.deepEqual(
+  toggleModelPreviewBatchSelection(['branchA', 'stale-id'], previewParts, previewParts[3], true),
+  ['branchA', 'branchB'],
+  'Selecting a part also drops stale hierarchy IDs',
+)
+assert.deepEqual(
+  toggleModelPreviewBatchSelection(['branchA', 'branchB'], previewParts, previewParts[0], false),
+  ['branchB'],
+  'Unchecking a part removes only that part',
+)
 
 console.log('Model preview selection self-test passed.')

@@ -19,6 +19,7 @@ import {
   isWithinModelPreviewTree,
   restoreModelPreviewVisibility,
   setModelPreviewSoloVisibility,
+  toggleModelPreviewBatchSelection,
 } from '@/lib/assets/ModelPreviewSelection'
 import {
   createImportModelStateDraft,
@@ -737,22 +738,12 @@ function toggleBatchPartSelection(
   part: ModelPreviewPart,
   checked: boolean,
 ) {
-  if (!checked) {
-    batchSelectedPartIds.value = batchSelectedPartIds.value.filter(id => id !== part.id)
-    return
-  }
-
-  // A seleção usa grupos mutuamente exclusivos: salvar um grupo já inclui seus
-  // descendentes, então selecionar um filho substitui o pai e vice-versa.
-  const next = batchSelectedPartIds.value.filter(id => {
-    const selected = findPreviewPart(id)
-    if (!selected) return false
-    return selected.id !== part.id
-      && !isWithinModelPreviewTree(selected.object, part.object)
-      && !isWithinModelPreviewTree(part.object, selected.object)
-  })
-  next.push(part.id)
-  batchSelectedPartIds.value = next
+  batchSelectedPartIds.value = toggleModelPreviewBatchSelection(
+    batchSelectedPartIds.value,
+    previewParts.value,
+    part,
+    checked,
+  )
 }
 
 function clearBatchSelection() {
