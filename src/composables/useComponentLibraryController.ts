@@ -1,5 +1,6 @@
 import { computed, onMounted, ref, type Ref } from 'vue'
 import * as THREE from 'three'
+import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
@@ -243,21 +244,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 function disposeComponentSource(root: THREE.Object3D) {
-  const geometries = new Set<THREE.BufferGeometry>()
-  const materials = new Set<THREE.Material>()
-  const textures = new Set<THREE.Texture>()
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return
-    geometries.add(node.geometry)
-    const list = Array.isArray(node.material) ? node.material : [node.material]
-    list.forEach(material => {
-      materials.add(material)
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture) textures.add(value)
-    })
-  })
-  geometries.forEach(geometry => geometry.dispose())
-  materials.forEach(material => material.dispose())
-  textures.forEach(texture => texture.dispose())
+  disposeThreeObjectResources(root, 'meshes')
 }
 
 async function handleModelImport(payload: { name: string; model: import('three').Object3D; height: number; thumbnail?: string; componentId?: string; sourceGlbBytes?: ArrayBuffer; batchModels?: Array<{ partId: string; name: string; model: import('three').Object3D; height: number }> }): Promise<boolean> {
