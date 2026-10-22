@@ -491,7 +491,7 @@ async function main() {
 main().catch(error => {
   if (error instanceof Error) {
     console.error(`Erro: ${error.message}`)
-    if (process.env.DEBUG_RIG_SIMILARITY === '1') console.error(error.stack)
+    if (process.env.DEBUG_RIG_SIMILARITY === '1' || process.argv.includes('--self-test')) console.error(error.stack)
   } else {
     console.error(`Erro: ${String(error)}`)
   }
