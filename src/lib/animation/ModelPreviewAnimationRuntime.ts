@@ -28,8 +28,11 @@ export class ModelPreviewAnimationRuntime<TController extends PreviewAnimationCo
   private mixer: THREE.AnimationMixer | null = null
   private root: THREE.Object3D | null = null
   controller: TController | null = null
+  private readonly createController: PreviewAnimationControllerFactory<TController>
 
-  constructor(private readonly createController: PreviewAnimationControllerFactory<TController>) {}
+  constructor(createController: PreviewAnimationControllerFactory<TController>) {
+    this.createController = createController
+  }
 
   ensure(root: THREE.Object3D, clips: readonly THREE.AnimationClip[]): TController {
     if (!this.mixer || !this.controller || this.root !== root) {
