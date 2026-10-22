@@ -150,6 +150,35 @@ export function useFullscreenDiagnostics() {
     })
   }
 
+  const copyMessage = ref('')
+
+  async function copySnapshot(): Promise<void> {
+    await refreshSnapshot()
+    const payload = JSON.stringify({
+      ...snapshot.value,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString(),
+    }, null, 2)
+
+    try {
+      await navigator.clipboard.writeText(payload)
+      copyMessage.value = 'Diagnóstico copiado'
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = payload
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-10000px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      const copied = document.execCommand('copy')
+      textarea.remove()
+      copyMessage.value = copied
+        ? 'Diagnóstico copiado'
+        : 'Cópia bloqueada; use Registrar no console'
+    }
+  }
+
   onMounted(() => {
     void refreshSnapshot()
     timer = window.setInterval(() => { void refreshSnapshot() }, 750)
@@ -161,5 +190,5 @@ export function useFullscreenDiagnostics() {
     timer = null
   })
 
-  return { snapshot, requestRemeasure, refreshSnapshot, logSnapshot }
+  return { snapshot, requestRemeasure, refreshSnapshot, logSnapshot, copySnapshot, copyMessage }
 }
