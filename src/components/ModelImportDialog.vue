@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
+import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -797,42 +798,6 @@ function updateColliderPreview() {
   geometry.dispose()
 }
 
-/** Identifica cenários largos e multipartes para iniciar com colisão de malha estática. */
-function shouldDefaultToStaticCityCollider(root: THREE.Object3D): boolean {
-  let meshCount = 0
-  let triangleCount = 0
-  let hasAnimatedGeometry = false
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return
-    const position = node.geometry.getAttribute('position')
-    if (!position || position.count < 3) return
-    meshCount += 1
-    if (node instanceof THREE.SkinnedMesh || (node.geometry.morphAttributes.position?.length ?? 0) > 0) {
-      hasAnimatedGeometry = true
-    }
-    const index = node.geometry.getIndex()
-    triangleCount += Math.floor((index ? index.count : position.count) / 3)
-  })
-
-  // Evita mudar automaticamente o colisor de personagens, veículos ou arquivos
-  // com clipes de animação. A malha estática continua selecionável manualmente.
-  const clips = root.userData.importAnimations
-  const hasAnimationClips = Array.isArray(clips) && clips.length > 0
-  if (hasAnimatedGeometry || hasAnimationClips || meshCount === 0) return false
-
-  // A biblioteca salva modelos já normalizados pela altura final. Para que
-  // cidades importadas anteriormente também sejam reconhecidas, use proporção e
-  // detalhe além da extensão absoluta, que pode ter diminuído após a normalização.
-  const [width, height, depth] = dimensions.value
-  const footprint = Math.max(width, depth)
-  const aspectRatio = footprint / Math.max(height, 0.1)
-  const detailedScene = triangleCount >= 800 || meshCount >= 12
-  const wideLandscape = footprint >= 18 && detailedScene
-  const manyIndependentParts = meshCount >= 36 && footprint >= 8
-  const scaleNormalizedCity = footprint >= 8 && aspectRatio >= 3 && triangleCount >= 800
-  return wideLandscape || manyIndependentParts || scaleNormalizedCity
-}
-
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
   colliderType.value = value
   // Malha estática usa o transform das superfícies reais. Não aplica o offset
@@ -1623,7 +1588,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   componentName.value = loaded.name
   partSearch.value = ''
   const height = centerAndMeasure(loaded)
-  colliderType.value = shouldDefaultToStaticCityCollider(loaded) ? 'mesh' : 'box'
+  colliderType.value = shouldDefaultToStaticCityCollider(loaded, dimensions.value) ? 'mesh' : 'box'
   const safeTargetHeight = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : 2
   const initialScale = safeTargetHeight / height
   loaded.scale.setScalar(initialScale)
