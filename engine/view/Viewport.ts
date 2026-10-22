@@ -61,6 +61,14 @@ export class Viewport {
     this.canvas = canvas
     this.onResize = onResize
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
+    this.canvas.dataset.engineWebglReady = 'true'
+    this.canvas.addEventListener('webglcontextlost', () => {
+      this.canvas.dataset.engineContextLost = 'true'
+    })
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.canvas.dataset.engineContextLost = 'false'
+      this.invalidate()
+    })
     // Alinhe a saída do viewport com o espaço de cor sRGB esperado por glTF.
     // Sem isso, materiais/texturas podem parecer diferentes da prévia de importação.
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -173,11 +181,19 @@ export class Viewport {
   }
 
   private resize(): void {
-    const w = this.canvas.clientWidth
-    const h = this.canvas.clientHeight
-    if (!w || !h) return
+    const rect = this.canvas.getBoundingClientRect()
+    const w = Math.round(rect.width)
+    const h = Math.round(rect.height)
+    if (!w || !h) {
+      this.canvas.dataset.engineResizeBlocked = `zero-size:${w}x${h}`
+      return
+    }
+    this.canvas.dataset.engineResizeBlocked = ''
     this.renderer.setSize(w, h, false)
     this.onResize(w / h)
+    this.canvas.dataset.engineClientSize = `${w}x${h}`
+    this.canvas.dataset.engineBufferSize = `${this.canvas.width}x${this.canvas.height}`
+    this.canvas.dataset.engineLastResizeAt = String(Date.now())
     this.invalidate()
   }
 
@@ -270,6 +286,9 @@ export class Viewport {
 
     const renderStartedAt = performance.now()
     this.renderer.render(scene, camera)
+    this.canvas.dataset.engineLastRenderAt = String(Date.now())
+    this.canvas.dataset.engineLastRenderSize = `${this.canvas.width}x${this.canvas.height}`
+    this.canvas.dataset.engineRenderCount = String(Number(this.canvas.dataset.engineRenderCount || 0) + 1)
     const renderDuration = performance.now() - renderStartedAt
     this.dirty = false
     this.hasRenderedCamera = true
