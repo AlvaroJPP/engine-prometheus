@@ -286,7 +286,7 @@ export class Viewport {
     const renderStartedAt = performance.now()
     try {
       this.renderer.render(scene, camera)
-      this.diagnostics.markRenderCompleted()
+      this.diagnostics.markRenderCompleted(this.renderer.info.render)
     } catch (error) {
       this.diagnostics.markRenderError(error)
       throw error
