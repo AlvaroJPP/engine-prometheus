@@ -1,0 +1,231 @@
+/* Configuração do layout: os quatro elementos usam coordenadas medidas a partir da viewport. */
+.app .toolbar.viewport-layout-positioned,
+.app .viewport-fps.viewport-layout-positioned,
+.app .axes.viewport-layout-positioned,
+.app .viewport-tools-overlay.viewport-layout-positioned {
+  position: fixed !important;
+  left: var(--viewport-layout-left, 0px) !important;
+  top: var(--viewport-layout-top, 0px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top left !important;
+  max-width: none !important;
+}
+.app .toolbar.viewport-layout-positioned {
+  box-sizing: border-box !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  /* Limita a área física a aproximadamente 1/4 da viewport e rola os botões internamente. */
+  max-height: max(120px, calc((100dvh - 110px) / 4)) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 5px !important;
+  gap: 5px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: none !important;
+}
+.app .toolbar.viewport-layout-positioned::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.app .toolbar.viewport-layout-positioned .toolbar-group { width: 100%; align-items: stretch; flex: none; gap: 3px; }
+.app .toolbar.viewport-layout-positioned .toolbar-separator { flex: none; width: 100%; }
+.app .toolbar.viewport-layout-positioned .tool {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+.app .toolbar.viewport-layout-positioned .tool-ico { flex: none; width: auto; font-size: 16px; }
+.app .toolbar.viewport-layout-positioned .tool-label {
+  position: absolute !important;
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.app .viewport-tools-overlay.viewport-layout-positioned {
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: none !important;
+  flex-wrap: nowrap !important;
+}
+
+/* Na tela cheia, ancore a barra na borda direita em vez de reutilizar
+   a coordenada horizontal salva para o modo de edição. */
+.app.world-fullscreen .viewport-tools-overlay.viewport-layout-positioned {
+  position: fixed !important;
+  top: 12px !important;
+  left: auto !important;
+  right: 12px !important;
+  bottom: auto !important;
+  box-sizing: border-box !important;
+  width: max-content !important;
+  max-width: none !important;
+  flex-wrap: nowrap !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top right !important;
+}
+
+/* Na lateral recolhida, a barra 3D conserva o tamanho da lateral com rótulos.
+   A escala reduz o conjunto inteiro; não comprimimos a largura dos botões. */
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned {
+  position: fixed !important;
+  top: 56px !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  box-sizing: border-box !important;
+  width: 172px !important;
+  min-width: 172px !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: calc((100dvh - 84px) / var(--viewport-layout-scale, 1)) !important;
+  margin: 0 !important;
+  padding: 132px 7px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  transform: scale(var(--viewport-layout-scale, 1)) !important;
+  transform-origin: top left !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-group {
+  display: flex !important;
+  flex: none !important;
+  width: 100% !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-separator {
+  display: block !important;
+  flex: none !important;
+  width: auto !important;
+  height: 1px !important;
+  margin: 1px 4px 2px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 34px !important;
+  padding: 5px 7px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool-ico {
+  display: grid !important;
+  place-items: center !important;
+  flex: none !important;
+  width: 20px !important;
+  font-size: 16px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned .tool-label {
+  position: static !important;
+  display: block !important;
+  flex: 1 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: auto !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.app .axes.viewport-layout-positioned { display: flex; }
+.viewport-layout-config-panel {
+  position: absolute;
+  z-index: 150;
+  top: 58px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 70px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding: 13px;
+  border: 1px solid #45392b;
+  border-radius: 9px;
+  background: rgba(24, 22, 19, .98);
+  color: #eee8de;
+  box-shadow: 0 18px 45px #000a;
+  font: 11px/1.4 'IBM Plex Sans', sans-serif;
+  text-shadow: none;
+}
+.viewport-layout-config-heading { display: flex; align-items: center; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid #373027; }
+.viewport-layout-config-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 1px solid #59442f; border-radius: 7px; background: #30251b; color: #f0ba7c; font-size: 17px; }
+.viewport-layout-config-heading > div { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.viewport-layout-config-heading strong { color: #fff4e6; font-size: 13px; font-weight: 650; }
+.viewport-layout-config-heading small { color: #a79b8b; font-size: 10px; }
+.viewport-layout-close { display: grid; place-items: center; flex: none; width: 27px; height: 27px; border: 1px solid #39342d; border-radius: 5px; background: #211e19; color: #bdb2a3; font-size: 18px; cursor: pointer; }
+.viewport-layout-items { display: flex; flex-direction: column; gap: 4px; }
+.viewport-layout-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 6px 8px; border: 1px solid #302c26; border-radius: 6px; background: #201e1a; color: #e3ddd4; text-align: left; cursor: pointer; }
+.viewport-layout-item:hover { border-color: #65503b; background: #29251f; }
+.viewport-layout-item.active { border-color: #9a6439; background: #34271b; }
+.viewport-layout-item-icon { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 5px; background: #302a22; color: #edb579; font: 600 12px 'IBM Plex Mono', monospace; }
+.viewport-layout-item-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.viewport-layout-item-copy strong { color: #f4eee4; font-size: 11px; font-weight: 650; }
+.viewport-layout-item-copy small { color: #9e9486; font-size: 9px; line-height: 1.3; }
+.viewport-layout-item-check { color: #e5a567; font-size: 11px; }
+.viewport-layout-adjustments { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #373027; }
+.viewport-layout-section-title { color: #aa9f91; font: 700 9px 'IBM Plex Mono', monospace; letter-spacing: .08em; }
+.viewport-layout-range { display: flex; flex-direction: column; gap: 5px; color: #bfb5a7; font-size: 10px; }
+.viewport-layout-range > span { display: flex; justify-content: space-between; gap: 12px; }
+.viewport-layout-range strong { color: #f0bf87; font: 600 10px 'IBM Plex Mono', monospace; }
+.viewport-layout-range input { width: 100%; margin: 0; accent-color: #e3a05f; cursor: pointer; }
+.viewport-layout-actions { display: flex; gap: 6px; }
+.viewport-layout-secondary { flex: 1; min-height: 29px; padding: 5px 7px; border: 1px solid #39342c; border-radius: 5px; background: #211e19; color: #bfb4a4; font-size: 10px; cursor: pointer; }
+.viewport-layout-secondary:hover { border-color: #68503a; color: #fff0de; }
+.viewport-layout-panel-footer { display: flex; flex-direction: column; gap: 7px; padding-top: 10px; border-top: 1px solid #373027; }
+.viewport-layout-drag-toggle,.viewport-layout-hud-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid #62503a; border-radius: 6px; background: #30261c; color: #efc18c; font-size: 10px; font-weight: 650; cursor: pointer; }
+.viewport-layout-drag-toggle svg,.viewport-layout-hud-button svg { flex: none; width: 15px; height: 15px; }
+.viewport-layout-drag-toggle.active { border-color: #e4a467; background: #493321; color: #ffe2bd; }
+.viewport-layout-hud-button { border-color: #3c454c; background: #23282d; color: #d0d8e0; }
+.viewport-layout-hud-button:hover { border-color: #797f85; background: #2c3339; }
+.viewport-layout-panel-footer p { margin: 1px 0 0; color: #8f8678; font-size: 9px; line-height: 1.45; }
+.viewport-layout-handles { position: absolute; z-index: 130; inset: 0; overflow: hidden; pointer-events: none; }
+.viewport-layout-outline { position: absolute; box-sizing: border-box; min-width: 20px; min-height: 20px; border: 1px solid #efad65; border-radius: 3px; background: #ed9e4510; box-shadow: 0 0 0 1px #100d09a8, 0 0 0 1px #f1b7762b inset; pointer-events: none; }
+.viewport-layout-move-handle,.viewport-layout-resize-handle { position: absolute; z-index: 2; display: grid; place-items: center; width: 23px; height: 21px; padding: 0; border: 1px solid #7f5834; border-radius: 4px; background: #35261b; color: #ffd09a; font-size: 15px; line-height: 1; pointer-events: auto; cursor: grab; touch-action: none; }
+.viewport-layout-move-handle { top: 2px; left: 2px; }
+.viewport-layout-resize-handle { right: 2px; bottom: 2px; cursor: nwse-resize; }
+.viewport-layout-move-handle:active { cursor: grabbing; }
+.viewport-layout-outline-name { position: absolute; top: 3px; left: 29px; max-width: calc(100% - 58px); overflow: hidden; padding: 4px 6px; border-radius: 3px; background: #20170fef; color: #f7d5ad; font: 600 9px 'IBM Plex Sans', sans-serif; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+@media(max-width:760px) {
+  .viewport-layout-config-panel { right: 8px; top: 54px; width: min(350px, calc(100% - 16px)); max-height: calc(100% - 62px); padding: 10px; }
+  .viewport-layout-item { min-height: 43px; }
+}
