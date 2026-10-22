@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
+import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
@@ -1023,24 +1024,7 @@ function restoreRetargetRestPose(root: THREE.Object3D, bones?: THREE.Bone[]): bo
 const previewClock = new THREE.Clock()
 
 function disposeModel(object: THREE.Object3D) {
-  const geometries = new Set<THREE.BufferGeometry>()
-  const materials = new Set<THREE.Material>()
-  const textures = new Set<THREE.Texture>()
-  object.traverse((child) => {
-    if (child instanceof THREE.Mesh || child instanceof THREE.Line || child instanceof THREE.Points) {
-      geometries.add(child.geometry)
-      const childMaterials = Array.isArray(child.material) ? child.material : [child.material]
-      childMaterials.forEach(material => {
-        materials.add(material)
-        for (const value of Object.values(material)) {
-          if (value instanceof THREE.Texture) textures.add(value)
-        }
-      })
-    }
-  })
-  geometries.forEach(geometry => geometry.dispose())
-  materials.forEach(material => material.dispose())
-  textures.forEach(texture => texture.dispose())
+  disposeThreeObjectResources(object, 'renderables')
 }
 
 function refreshPreviewParts() {
