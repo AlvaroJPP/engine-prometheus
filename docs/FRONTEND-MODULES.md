@@ -46,6 +46,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
 - `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
 - `src/lib/assets/ColliderPreviewGeometry.ts`: gera a geometria de contorno amostrada para visualizar colisores de malha sem substituir a geometria completa usada pela colisão em runtime.
+- `src/lib/assets/ModelColliderDefaults.ts`: decide, usando a geometria e as dimensões medidas, quando um cenário estático grande deve iniciar com colisor de malha; evita habilitar essa escolha automaticamente para modelos animados.
 - `src/lib/assets/ModelPreviewParts.ts`: monta a hierarquia selecionável do preview, agrega a quantidade de malhas de baixo para cima e cria caminhos estáveis para partes com nomes repetidos.
 - `src/lib/assets/ModelControlBindings.ts`: normaliza teclas persistidas e converte códigos de teclado em rótulos legíveis, fora do componente.
 - `src/lib/assets/ThreeObjectResources.ts`: libera geometrias, materiais e texturas únicos, com modos explícitos para preservar as regras de propriedade do importador, da biblioteca de componentes e das miniaturas.
