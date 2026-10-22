@@ -1,0 +1,90 @@
+
+name: Visual Preview Engine Prometheus
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-preview:
+    name: Build and capture interface
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx --yes playwright install --with-deps chromium
+
+      - name: Start production preview
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 \
+            > /tmp/engine-prometheus-preview.log 2>&1 &
+          echo $! > /tmp/engine-prometheus-preview.pid
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ \
+              > /dev/null; then
+              echo "Preview server is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/engine-prometheus-preview.log
+          echo "Preview server did not start."
+          exit 1
+
+      - name: Capture interface screenshots
+        run: |
+          mkdir -p artifacts
+
+          npx --yes playwright screenshot \
+            --browser chromium \
+            --viewport-size="1280,720" \
+            --wait-for-timeout=7000 \
+            http://127.0.0.1:4173 \
+            artifacts/engine-prometheus-1280x720.png
+
+          npx --yes playwright screenshot \
+            --browser chromium \
+            --viewport-size="1920,1080" \
+            --wait-for-timeout=7000 \
+            http://127.0.0.1:4173 \
+            artifacts/engine-prometheus-1920x1080.png
+
+      - name: Save preview log
+        if: always()
+        run: |
+          mkdir -p artifacts
+          if [ -f /tmp/engine-prometheus-preview.log ]; then
+            cp /tmp/engine-prometheus-preview.log artifacts/
+          fi
+
+      - name: Upload preview artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-preview-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
