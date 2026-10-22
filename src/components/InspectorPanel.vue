@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
+import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
-function setExternalRef(name: string, element: unknown): void {
-  const externalRef = context[name]
-  if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
-}
-import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 </script>
 
 <template>
