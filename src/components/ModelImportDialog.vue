@@ -33,6 +33,7 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
+import { cloneRetargetPreviewObject, disposeRetargetPreviewObject } from '@/lib/animation/RetargetPreviewObjects'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import {
@@ -2231,51 +2232,6 @@ type RetargetPreviewStage = {
 
 let retargetSourcePreviewStage: RetargetPreviewStage | null = null
 let retargetTargetPreviewStage: RetargetPreviewStage | null = null
-
-// Clones do preview precisam de geometria/material próprios para a limpeza das
-// miniaturas nunca liberar recursos do modelo real que continuará no editor.
-function cloneRetargetPreviewObject(source: THREE.Object3D): THREE.Object3D {
-  const clone = cloneSkinnedModel(source)
-  clone.updateMatrixWorld(true)
-  clone.traverse(node => {
-    // A prévia de peças permite ocultar/isolá-las durante a inspeção do modelo.
-    // A cena de animação sempre apresenta o personagem completo.
-    node.visible = true
-    if (node instanceof THREE.Mesh) {
-      // Evita que uma submalha deformada pela animação desapareça por bounds
-      // de repouso desatualizados, principalmente nas pernas e na pelve.
-      node.frustumCulled = false
-      node.geometry = node.geometry.clone()
-      node.material = Array.isArray(node.material)
-        ? node.material.map(material => {
-            const clonedMaterial = material.clone()
-            clonedMaterial.visible = true
-            return clonedMaterial
-          })
-        : node.material.clone()
-      if (!Array.isArray(node.material)) node.material.visible = true
-      if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
-    }
-  })
-  clone.updateMatrixWorld(true)
-  return clone
-}
-
-function disposeRetargetPreviewObject(root: THREE.Object3D) {
-  const geometries = new Set<THREE.BufferGeometry>()
-  const materials = new Set<THREE.Material>()
-  root.traverse(node => {
-    if (node instanceof THREE.Mesh || node instanceof THREE.Line || node instanceof THREE.Points) {
-      geometries.add(node.geometry)
-      const list = Array.isArray(node.material) ? node.material : [node.material]
-      list.forEach(material => materials.add(material))
-    }
-  })
-  geometries.forEach(geometry => geometry.dispose())
-  // Os materiais são clones; as texturas são referências compartilhadas e não
-  // devem ser descartadas enquanto o modelo principal estiver aberto.
-  materials.forEach(material => material.dispose())
-}
 
 function createRetargetPreviewStage(canvasElement: HTMLCanvasElement, key: 'source' | 'target'): RetargetPreviewStage {
   const scene = new THREE.Scene()
