@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
 import { isTauri } from '@tauri-apps/api/core'
-import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
 import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
@@ -39,15 +39,6 @@ function cloneSavedBehaviorPackageSettings(
 
 const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
-const fullscreenViewportBounds = ref<{ width: number; height: number } | null>(null)
-const worldFullscreenStyle = computed(() => {
-  const bounds = fullscreenViewportBounds.value
-  if (!bounds) return {}
-  return {
-    '--world-fullscreen-width': Math.round(bounds.width) + 'px',
-    '--world-fullscreen-height': Math.round(bounds.height) + 'px',
-  }
-})
 let unlistenNativeWindowResize: (() => void) | null = null
 const rootOpen = ref(true)
 const sidebarCollapsed = ref(false)
@@ -1909,7 +1900,6 @@ async function toggleWorldFullscreen() {
       // Ative o modo visual antes de aguardar o host. Assim a viewport não
       // fica dependente do tempo de resposta da janela nativa.
       worldFullscreen.value = true
-      fullscreenViewportBounds.value = null
 
       if (isTauri()) {
         const appWindow = getCurrentWindow()
@@ -1941,7 +1931,6 @@ async function toggleWorldFullscreen() {
       // Reponha o layout do editor imediatamente enquanto o host restaura
       // a janela, evitando manter a viewport presa nas dimensões do monitor.
       worldFullscreen.value = false
-      fullscreenViewportBounds.value = null
 
       if (isTauri()) {
         const appWindow = getCurrentWindow()
@@ -1964,7 +1953,6 @@ async function toggleWorldFullscreen() {
       await syncFullscreenViewportBounds()
     } else {
       worldFullscreen.value = false
-      fullscreenViewportBounds.value = null
     }
   } finally {
     fullscreenTransition.value = false
@@ -1975,36 +1963,13 @@ async function toggleWorldFullscreen() {
 
 async function syncFullscreenViewportBounds(): Promise<void> {
   if (!worldFullscreen.value) return
-  try {
-    let width = 0
-    let height = 0
-    if (isTauri()) {
-      // Leia o monitor que contém a janela pelo helper público do Tauri.
-      // Converta a resolução física para CSS px antes de dimensionar a viewport.
-      const monitor = await currentMonitor()
-      if (monitor) {
-        const logicalSize = monitor.size.toLogical(monitor.scaleFactor)
-        width = logicalSize.width
-        height = logicalSize.height
-      } else {
-        width = window.screen.width || window.innerWidth
-        height = window.screen.height || window.innerHeight
-      }
-    } else {
-      // Use o tamanho do monitor em vez de innerHeight/dvh, que pode continuar
-      // preso à altura anterior em algumas transições Fullscreen API.
-      width = window.screen.width || window.innerWidth
-      height = window.screen.height || window.innerHeight
-    }
-    if (width <= 0 || height <= 0) return
-    fullscreenViewportBounds.value = { width, height }
-    await nextTick()
-    refreshViewportLayoutBounds()
-    viewportLayoutRefresh.value += 1
-    window.dispatchEvent(new Event('resize'))
-  } catch (error) {
-    console.warn('Não foi possível sincronizar as dimensões da tela cheia.', error)
-  }
+
+  // Use o tamanho real calculado pelo WebView, não a resolução do monitor.
+  // O CSS aplica inset: 0 e o ResizeObserver mede o canvas já redimensionado.
+  await nextTick()
+  refreshViewportLayoutBounds()
+  viewportLayoutRefresh.value += 1
+  window.dispatchEvent(new Event('resize'))
 }
 
 function handleWorldFullscreenKeydown(event: KeyboardEvent) {
@@ -2044,7 +2009,6 @@ async function settleViewportAfterFullscreenChange(): Promise<void> {
 function syncWorldFullscreenAfterBrowserExit() {
   if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
     worldFullscreen.value = false
-    fullscreenViewportBounds.value = null
     void settleViewportAfterFullscreenChange()
   }
 }
@@ -2360,7 +2324,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     viewportRoot,
     wallOcclusionQuality,
     worldFullscreen,
-    worldFullscreenStyle,
     zoomGraph,
   }
 }
