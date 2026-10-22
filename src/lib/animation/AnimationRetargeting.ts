@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { AnimationRole } from '@engine'
-import { findAnimationNode } from './BoneMapping.ts'
+import { findAnimationNode, signatureForBoneName } from './BoneMapping.ts'
 
 export type AnimationPoseSnapshot = {
   position: [number, number, number]
