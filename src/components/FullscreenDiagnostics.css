@@ -1,0 +1,58 @@
+.fullscreen-diagnostics {
+  position: fixed;
+  z-index: 20050;
+  top: 12px;
+  left: 12px;
+  width: min(455px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #586474;
+  border-radius: 8px;
+  background: rgba(12, 16, 22, 0.97);
+  color: #edf2f7;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  font: 11px/1.4 'IBM Plex Sans', sans-serif;
+  pointer-events: auto;
+}
+.diagnostics-header, .diagnostics-header > div, footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.diagnostics-header strong { font-size: 11px; letter-spacing: .08em; }
+.diagnostics-header small, footer span { display: block; color: #aab5c3; font-size: 10px; }
+.diagnostics-header > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+button {
+  flex: none;
+  border: 1px solid #495669;
+  border-radius: 5px;
+  padding: 5px 9px;
+  background: #222c39;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+button:hover { background: #303d4d; }
+.diagnostics-close { background: #51292b; border-color: #85444a; }
+.diagnostics-state {
+  display: grid;
+  gap: 3px;
+  margin: 10px 0 8px;
+  padding: 7px;
+  border-radius: 5px;
+  background: #1a222d;
+}
+.state-ok { color: #9ae6b4; }
+.state-warning { color: #f8c66a; }
+dl {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  gap: 5px 9px;
+  margin: 0;
+}
+dt { color: #9eaaba; }
+dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #f0f4fa; }
+footer { justify-content: flex-start; align-items: flex-start; margin-top: 10px; padding-top: 9px; border-top: 1px solid #35404e; }
+footer span { padding-top: 3px; }
