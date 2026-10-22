@@ -253,7 +253,9 @@ export interface VeilborneRuntimeSpell extends VeilborneSpellProfile {
   name: string
   range: number
   radius: number
-  targeting: 'single' | 'area'
+  targeting: 'single' | 'area' | 'projectile'
+  /** Velocidade opcional dos feitiços que viajam como projéteis, em unidades/s. */
+  projectileSpeed?: number
   visualColor: number
   statusEffect?: VeilborneStatusId
   statusPotency?: number
