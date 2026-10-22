@@ -20,6 +20,7 @@ import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImpo
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
 import { formatModelControlKey, normalizeModelControlBindings } from '@/lib/assets/ModelControlBindings'
+import { clonePackageJsonRecord } from '@/lib/PackageJson'
 
 import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 import { parseGltfModel } from '@/lib/assets/GltfModelParser'
@@ -49,24 +50,6 @@ import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vu
 type ImportBehaviorPackageDraft = {
   variables: Record<string, PackageScalar>
   config: Record<string, PackageJsonValue>
-}
-
-// Clona valores JSON recursivamente sem structuredClone: dados lidos de refs do Vue
-// podem ser Proxy reativos, que structuredClone rejeita.
-function clonePackageJsonValue(value: PackageJsonValue): PackageJsonValue {
-  if (Array.isArray(value)) return value.map(clonePackageJsonValue)
-  if (value !== null && typeof value === 'object') {
-    const copy: Record<string, PackageJsonValue> = {}
-    for (const [key, nested] of Object.entries(value)) {
-      copy[key] = clonePackageJsonValue(nested)
-    }
-    return copy
-  }
-  return value
-}
-
-function clonePackageJsonRecord(record: Record<string, PackageJsonValue>): Record<string, PackageJsonValue> {
-  return clonePackageJsonValue(record) as Record<string, PackageJsonValue>
 }
 
 function cloneImportBehaviorPackageSettings(
