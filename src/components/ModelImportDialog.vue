@@ -1978,7 +1978,7 @@ watch(() => props.open, async (open) => {
         const savedColliderType = props.initialAsset.colliderType
         // Atualiza componentes de cidade salvos antes do colisor côncavo.
         // Para modelos comuns, mantém a forma que o usuário já havia escolhido.
-        const restoreStaticCityCollider = Boolean(model.value && shouldDefaultToStaticCityCollider(model.value))
+        const restoreStaticCityCollider = Boolean(model.value && shouldDefaultToStaticCityCollider(model.value, dimensions.value))
         colliderType.value = restoreStaticCityCollider
           ? 'mesh'
           : savedColliderType === 'sphere' || savedColliderType === 'capsule' || savedColliderType === 'mesh' || savedColliderType === 'none'
