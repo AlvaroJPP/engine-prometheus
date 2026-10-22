@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
+import { useAppController } from '@/composables/useAppController'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
 import EditorToolbar from '@/components/EditorToolbar.vue'
@@ -8,8 +9,7 @@ import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import InspectorPanel from '@/components/InspectorPanel.vue'
 import EditorViewport from '@/components/EditorViewport.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
-const props = defineProps<{ context: Record<string, any> }>()
-const context = props.context
+const context = useAppController()
 const ctx = reactive(context)
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
@@ -91,8 +91,8 @@ function setExternalRef(name: string, element: unknown): void {
       v-if="ctx.controlMapsOpen"
       :open="ctx.controlMapsOpen"
       :settings="ctx.controlMapSettings"
-      @update:open="controlMapsOpen = $event"
-      @update:settings="updateControlMapSettings"
+      @update:open="ctx.controlMapsOpen = $event"
+      @update:settings="ctx.updateControlMapSettings"
     />
 
     <EditorToolbar
