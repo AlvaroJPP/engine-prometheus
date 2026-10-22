@@ -32,6 +32,8 @@ import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, Mode
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
+import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
+import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import {
   createReusableAnimationAsset,
@@ -279,8 +281,6 @@ const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option 
   const keyCode = activeControlMapBindings.value[bindingKey] ?? DEFAULT_CONTROL_MAPS[0]!.bindings[bindingKey]
   return { ...option, label: `${option.label} · ${formatModelControlKey(keyCode)}` }
 }))
-type RigPose = ReturnType<typeof captureRigPose>
-type RigKeyframe = { time: number; pose: RigPose }
 const rigPreset = ref<AutoRigPreset>('auto')
 const rigBones = shallowRef<THREE.Bone[]>([])
 const rigRestPose = shallowRef<RigPose>({})
@@ -656,31 +656,11 @@ function createRigAnimation() {
   }
   const clipFrames = frames[0]!.time > 0 ? [{ ...frames[0]!, time: 0 }, ...frames] : frames
   const duration = Math.max(0.1, rigDuration.value, clipFrames[clipFrames.length - 1]!.time)
-  const times = clipFrames.map(frame => frame.time)
-  const tracks: THREE.KeyframeTrack[] = []
-
-  for (const bone of rigBones.value) {
-    const positions: number[] = []
-    const quaternions: number[] = []
-    const scales: number[] = []
-    for (const frame of clipFrames) {
-      const transform = frame.pose[bone.name]
-      if (!transform) continue
-      positions.push(...transform.position)
-      quaternions.push(...transform.quaternion)
-      scales.push(...transform.scale)
-    }
-    if (positions.length !== times.length * 3 || quaternions.length !== times.length * 4 || scales.length !== times.length * 3) continue
-    tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, positions))
-    tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, quaternions))
-    tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.scale`, times, scales))
-  }
-  if (!tracks.length) {
+  const clip = createRigAnimationClip(name, duration, rigBones.value, clipFrames)
+  if (!clip) {
     rigMessage.value = 'Não existem trilhas válidas para exportar. Confira o rig e grave as poses novamente.'
     return
   }
-
-  const clip = new THREE.AnimationClip(name, duration, tracks)
   const clips = [...previewAnimations.value, clip]
   const newIndex = clips.length - 1
   const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
@@ -693,7 +673,7 @@ function createRigAnimation() {
   previewAnimationIndex.value = newIndex
   refreshModelDiagnostics()
   selectPreviewAnimation(newIndex)
-  rigMessage.value = `Animação "${name}" criada com ${tracks.length / 3} trilhas e associada ao papel "${animationRoleBaseOptions.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
+  rigMessage.value = `Animação "${name}" criada com ${clip.tracks.length / 3} trilhas e associada ao papel "${animationRoleBaseOptions.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
 }
 
 function setRigTime(value: number) {
