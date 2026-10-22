@@ -39,6 +39,10 @@ import {
   suggestAutonomousBoneMappingsDetailed,
 } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
+import {
+  loadRetargetAnimationLibrary as readRetargetAnimationLibrary,
+  persistRetargetAnimationLibrary as writeRetargetAnimationLibrary,
+} from '@/lib/animation/RetargetAnimationLibrary'
 import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vue'
 
 type ImportBehaviorPackageDraft = {
@@ -323,7 +327,6 @@ watch(skinTokensExecutablePath, value => {
 
 // Biblioteca de animações reutilizáveis. Armazena clipes e poses de repouso,
 // sem guardar a geometria do modelo de origem.
-const RETARGET_ANIMATION_LIBRARY_KEY = 'engine-prometheus.reusable-animations.v1'
 const retargetFileInput = ref<HTMLInputElement | null>(null)
 const retargetSourceRoot = shallowRef<THREE.Object3D | null>(null)
 const retargetSourceBytes = shallowRef<ArrayBuffer | null>(null)
@@ -2168,41 +2171,15 @@ watch(() => props.open, async (open) => {
 })
 
 function loadRetargetAnimationLibrary() {
-  try {
-    const raw = window.localStorage.getItem(RETARGET_ANIMATION_LIBRARY_KEY)
-    if (!raw) {
-      retargetLibrary.value = []
-      return
-    }
-    const parsed: unknown = JSON.parse(raw)
-    retargetLibrary.value = Array.isArray(parsed)
-      ? parsed.filter((item): item is ReusableAnimationAsset => Boolean(
-        item && typeof item === 'object'
-        && typeof (item as ReusableAnimationAsset).id === 'string'
-        && typeof (item as ReusableAnimationAsset).name === 'string'
-        && typeof (item as ReusableAnimationAsset).sourceName === 'string'
-        && (item as ReusableAnimationAsset).clipJson
-        && typeof (item as ReusableAnimationAsset).clipJson === 'object'
-        && Array.isArray((item as ReusableAnimationAsset).sourceNodeNames)
-        && (item as ReusableAnimationAsset).sourcePose
-        && typeof (item as ReusableAnimationAsset).sourcePose === 'object',
-      ))
-      : []
-  } catch (cause) {
-    console.warn('[AnimationRetargeting] Não foi possível ler a biblioteca local.', cause)
-    retargetLibrary.value = []
-  }
+  retargetLibrary.value = readRetargetAnimationLibrary()
 }
 
 function persistRetargetAnimationLibrary() {
-  try {
-    window.localStorage.setItem(RETARGET_ANIMATION_LIBRARY_KEY, JSON.stringify(retargetLibrary.value))
-    return true
-  } catch (cause) {
-    console.warn('[AnimationRetargeting] Não foi possível salvar a biblioteca local.', cause)
+  const saved = writeRetargetAnimationLibrary(retargetLibrary.value)
+  if (!saved) {
     retargetMessage.value = 'Não foi possível guardar a animação. A biblioteca local pode estar sem espaço.'
-    return false
   }
+  return saved
 }
 
 function clearRetargetSource() {
