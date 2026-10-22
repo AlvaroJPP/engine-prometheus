@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
+import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
@@ -832,20 +833,13 @@ function setColliderFromPreviewPart(part: ModelPreviewPart) {
   const bounds = new THREE.Box3().setFromObject(part.object)
   if (bounds.isEmpty()) return
   const size = bounds.getSize(new THREE.Vector3())
-  // O componente será normalizado para a altura escolhida ao colocá-lo no
-  // mundo, por isso o colisor também precisa usar essa escala final.
+  // O colisor acompanha a escala que será aplicada ao componente no mundo.
   const scale = modelHeight.value / Math.max(size.y, 0.05)
-  const scaledSize: [number, number, number] = [
-    Math.max(0.05, size.x * scale),
-    Math.max(0.05, size.y * scale),
-    Math.max(0.05, size.z * scale),
-  ]
-  if (colliderType.value === 'sphere') {
-    const diameter = Math.max(0.05, Math.min(...scaledSize))
-    colliderSize.value = [diameter, diameter, diameter]
-  } else {
-    colliderSize.value = scaledSize
-  }
+  colliderSize.value = calculateImportColliderSize(
+    [size.x, size.y, size.z],
+    scale,
+    colliderType.value,
+  )
   colliderOffset.value = [0, 0, 0]
 }
 
@@ -900,17 +894,7 @@ function selectWholeModel() {
   selectedPartId.value = ''
   componentName.value = root.name.trim() || fileName.value.replace(/\.[^.]+$/, '') || 'Modelo 3D'
   const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
-  const wholeModelSize: [number, number, number] = [
-    Math.max(0.05, dimensions.value[0] * scale),
-    Math.max(0.05, dimensions.value[1] * scale),
-    Math.max(0.05, dimensions.value[2] * scale),
-  ]
-  if (colliderType.value === 'sphere') {
-    const diameter = Math.max(0.05, Math.min(...wholeModelSize))
-    colliderSize.value = [diameter, diameter, diameter]
-  } else {
-    colliderSize.value = wholeModelSize
-  }
+  colliderSize.value = calculateImportColliderSize(dimensions.value, scale, colliderType.value)
   colliderOffset.value = [0, 0, 0]
   fitCamera(root)
   updateColliderPreview()
