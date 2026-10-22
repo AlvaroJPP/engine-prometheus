@@ -19,8 +19,11 @@ function setExternalRef(name: string, element: unknown): void {
 const diagnosticsOpen = ref(false)
 
 function handleDiagnosticsShortcut(event: KeyboardEvent): void {
-  if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== 'KeyF') return
+  const diagnosticChord = (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF'
+  const emergencyShortcut = event.key === 'F9' && !event.ctrlKey && !event.altKey && !event.metaKey
+  if (!diagnosticChord && !emergencyShortcut) return
   event.preventDefault()
+  event.stopPropagation()
   diagnosticsOpen.value = !diagnosticsOpen.value
 }
 
@@ -29,8 +32,9 @@ function handleDiagnosticsExit(): void {
   if (ctx.worldFullscreen) void ctx.toggleWorldFullscreen()
 }
 
-onMounted(() => window.addEventListener('keydown', handleDiagnosticsShortcut))
-onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsShortcut))
+// Captura antes dos handlers do editor/WebGL para continuar acessível com o canvas focado.
+onMounted(() => window.addEventListener('keydown', handleDiagnosticsShortcut, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsShortcut, true))
 </script>
 
 <template>
