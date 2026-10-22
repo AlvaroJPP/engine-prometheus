@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import type { AssetImportPackageContext, AssetPackageFile } from '@/lib/assets/AssetImporter'
+import { decodeBase64ArrayBuffer } from '@/lib/assets/BinaryEncoding'
+export { encodeArrayBufferBase64, decodeBase64ArrayBuffer } from '@/lib/assets/BinaryEncoding'
 
 /** Formato devolvido pelo comando nativo que extrai um ZIP de modelo. */
 export type ZipModelBundle = {
@@ -10,23 +12,6 @@ export type ZipModelBundle = {
 /** Contexto mantido durante a importação para revogar todas as URLs temporárias depois. */
 export type ZipImportContext = AssetImportPackageContext & {
   objectUrls: string[]
-}
-
-export function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  const chunkSize = 0x8000
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
-}
-
-export function decodeBase64ArrayBuffer(value: string): ArrayBuffer {
-  const binary = atob(value)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return bytes.buffer
 }
 
 /** Normaliza caminhos tanto para comparação quanto para resolver referências dentro do pacote. */
