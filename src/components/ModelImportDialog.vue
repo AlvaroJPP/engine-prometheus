@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
+import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -735,35 +736,6 @@ const colliderPreviewNotice = ref('')
 const colliderSize = ref<[number, number, number]>([1, 1, 1])
 const colliderOffset = ref<[number, number, number]>([0, 0, 0])
 let colliderPreview: THREE.LineSegments | null = null
-
-/** Gera uma prévia leve; a colisão em runtime continua usando todos os triângulos no BVH. */
-function createStaticColliderPreviewGeometry(source: THREE.BufferGeometry, maxTriangles = 60_000): { geometry: THREE.BufferGeometry; sampled: boolean } {
-  const position = source.getAttribute('position')
-  const index = source.getIndex()
-  const triangleCount = Math.floor((index ? index.count : position?.count ?? 0) / 3)
-  const stride = Math.max(1, Math.ceil(triangleCount / maxTriangles))
-  const output = new Float32Array(Math.ceil(triangleCount / stride) * 18)
-  let cursor = 0
-
-  const writeVertex = (vertexIndex: number) => {
-    output[cursor++] = position.getX(vertexIndex)
-    output[cursor++] = position.getY(vertexIndex)
-    output[cursor++] = position.getZ(vertexIndex)
-  }
-
-  for (let triangle = 0; triangle < triangleCount; triangle += stride) {
-    const a = index ? index.getX(triangle * 3) : triangle * 3
-    const b = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1
-    const d = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2
-    writeVertex(a); writeVertex(b)
-    writeVertex(b); writeVertex(d)
-    writeVertex(d); writeVertex(a)
-  }
-
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(cursor === output.length ? output : output.slice(0, cursor), 3))
-  return { geometry, sampled: stride > 1 }
-}
 
 function updateColliderPreview() {
   colliderPreviewNotice.value = ''
