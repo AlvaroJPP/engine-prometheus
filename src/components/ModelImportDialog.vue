@@ -5,7 +5,7 @@ import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { collectModelPreviewParts } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import {
@@ -19,8 +19,9 @@ import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@engine/lib/Bi
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
-import { extractGltfMetadata } from '@/lib/assets/GltfMetadata'
+
 import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
+import { parseGltfModel } from '@/lib/assets/GltfModelParser'
 import { AnimationController, inferAnimationRole } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
@@ -1712,21 +1713,11 @@ async function parseFile(file: File) {
   }
   const buffer = await file.arrayBuffer()
   if (ext === 'glb' || ext === 'gltf') {
-    const loader = new GLTFLoader()
     const url = URL.createObjectURL(file)
     currentObjectUrl = url
-    return await new Promise<THREE.Object3D>((resolve, reject) => {
-      loader.parse(buffer, url.substring(0, url.lastIndexOf('/') + 1), gltf => {
-        // GLTFLoader mantém as animações separadas da hierarquia da cena; guarde-as
-        // no root para transferi-las junto com o modelo ao confirmar a importação.
-        gltf.scene.userData.importAnimations = gltf.animations ?? []
-        if (ext === 'glb') gltf.scene.userData.importSourceGlbBytes = buffer.slice(0)
-        // Preserve metadata from the original glTF JSON so we can distinguish
-        // an embedded image from a texture actually assigned to baseColorTexture.
-        gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
-        resolve(gltf.scene)
-      }, reject)
-    })
+    const loaded = await parseGltfModel(buffer, url.substring(0, url.lastIndexOf('/') + 1))
+    if (ext === 'glb') loaded.userData.importSourceGlbBytes = buffer.slice(0)
+    return loaded
   }
   throw new Error('Não foi possível interpretar o arquivo GLB/glTF.')
 }
@@ -1798,14 +1789,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
 }
 
 async function parseGlbBytes(bytes: ArrayBuffer, manager?: THREE.LoadingManager): Promise<THREE.Object3D> {
-  const loader = new GLTFLoader(manager ?? new THREE.LoadingManager())
-  return await new Promise<THREE.Object3D>((resolve, reject) => {
-    loader.parse(bytes, '', (gltf) => {
-      gltf.scene.userData.importAnimations = gltf.animations ?? []
-      gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
-      resolve(gltf.scene)
-    }, reject)
-  })
+  return parseGltfModel(bytes, '', manager)
 }
 
 async function chooseSkinTokensExecutable() {
@@ -2016,15 +2000,8 @@ async function importBlendZip() {
     if (extension === 'glb') {
       loaded = await parseGlbBytes(await primaryFile.arrayBuffer(), zipContext.manager)
     } else if (extension === 'gltf') {
-      const loader = new GLTFLoader(zipContext.manager)
       const jsonText = await primaryFile.text()
-      loaded = await new Promise<THREE.Object3D>((resolve, reject) => {
-        loader.parse(jsonText, '', (gltf) => {
-          gltf.scene.userData.importAnimations = gltf.animations ?? []
-          gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
-          resolve(gltf.scene)
-        }, reject)
-      })
+      loaded = await parseGltfModel(jsonText, '', zipContext.manager)
     } else {
       loaded = await loadAssetFile(primaryFile, zipContext)
     }
