@@ -15,6 +15,10 @@ export type FullscreenDiagnosticSnapshot = {
   canvasClientSize: string
   canvasBufferSize: string
   canvasRenderCount: string
+  drawCalls: string
+  triangles: string
+  points: string
+  lines: string
   lastRenderSize: string
   lastResize: string
   lastRender: string
@@ -44,6 +48,10 @@ const initialSnapshot: FullscreenDiagnosticSnapshot = {
   canvasClientSize: '—',
   canvasBufferSize: '—',
   canvasRenderCount: '—',
+  drawCalls: '—',
+  triangles: '—',
+  points: '—',
+  lines: '—',
   lastRenderSize: '—',
   lastResize: '—',
   lastRender: '—',
@@ -117,6 +125,10 @@ export function useFullscreenDiagnostics() {
         canvasClientSize: readData(canvas, 'engineClientSize', canvas ? `${canvas.clientWidth}x${canvas.clientHeight}` : 'canvas não encontrado'),
         canvasBufferSize: readData(canvas, 'engineBufferSize', canvas ? `${canvas.width}x${canvas.height}` : 'canvas não encontrado'),
         canvasRenderCount: readData(canvas, 'engineRenderCount', 'nenhum quadro registrado'),
+        drawCalls: readData(canvas, 'engineDrawCalls', '—'),
+        triangles: readData(canvas, 'engineTriangles', '—'),
+        points: readData(canvas, 'enginePoints', '—'),
+        lines: readData(canvas, 'engineLines', '—'),
         lastRenderSize: readData(canvas, 'engineLastRenderSize', '—'),
         lastResize: timestampAge(canvas?.dataset.engineLastResizeAt),
         lastRender: timestampAge(canvas?.dataset.engineLastRenderAt),
