@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
-import type { BehaviorPackageDefinition, ModelControlBindings, PackageJsonValue } from '../engine/index.ts'
 import {
   cloneImportBehaviorPackageSettings,
   createImportBehaviorPackageDraft,
   mergeImportBehaviorPackageDraft,
 } from '../src/lib/assets/ImportBehaviorPackageDrafts.ts'
 
-const controls: ModelControlBindings = {
+const controls = {
   forward: 'KeyW',
   backward: 'KeyS',
   left: 'KeyA',
@@ -25,7 +24,7 @@ const mountDefinition = {
     seatOffset: [0, 0.5, 0],
     mode: 'horse',
   },
-} as unknown as BehaviorPackageDefinition
+}
 
 const initial = createImportBehaviorPackageDraft(mountDefinition, controls)
 assert.equal(initial.variables.speed, 4)
@@ -41,14 +40,14 @@ assert.deepEqual(initial.config.controlBindings, {
 })
 assert.equal(initial.config.interactionKey, 'KeyE')
 assert.deepEqual(initial.config.seatOffset, [0, 0.5, 0])
-assert.equal((mountDefinition.defaultConfig as Record<string, PackageJsonValue>).interactionKey, 'KeyF', 'Creating a draft must not mutate package defaults')
+assert.equal(mountDefinition.defaultConfig.interactionKey, 'KeyF', 'Creating a draft must not mutate package defaults')
 
 const existing = {
   variables: { speed: 8, customValue: true },
   config: {
-    controlBindings: { forward: 'KeyI', custom: 'KeyP' } as unknown as PackageJsonValue,
+    controlBindings: { forward: 'KeyI', custom: 'KeyP' },
     interactionKey: 'KeyI',
-    extraConfig: { enabled: true } as unknown as PackageJsonValue,
+    extraConfig: { enabled: true },
   },
 }
 const merged = mergeImportBehaviorPackageDraft(mountDefinition, controls, existing)
@@ -71,14 +70,14 @@ const otherDefinition = {
   ...mountDefinition,
   id: 'follow',
   defaultConfig: { controlBindings: { forward: 'ArrowUp' }, interactionKey: 'default' },
-} as unknown as BehaviorPackageDefinition
+}
 const otherDraft = createImportBehaviorPackageDraft(otherDefinition, controls)
 assert.deepEqual(otherDraft.config.controlBindings, { forward: 'ArrowUp' }, 'Only the mount package should inherit component control bindings')
 assert.equal(otherDraft.config.interactionKey, 'default')
 
 const cloned = cloneImportBehaviorPackageSettings({ mount: merged })
-;(cloned.mount!.config.extraConfig as Record<string, PackageJsonValue>).enabled = false
-;(cloned.mount!.variables as Record<string, PackageJsonValue>).speed = 99
+cloned.mount.config.extraConfig.enabled = false
+cloned.mount.variables.speed = 99
 assert.deepEqual(merged.config.extraConfig, { enabled: true }, 'Cloned nested config must be independent')
 assert.equal(merged.variables.speed, 8, 'Cloned variable settings must be independent')
 
