@@ -56,7 +56,7 @@ const selectedBox = createModelColliderPreview({
   offset: [0, 0, 0],
   selectedPart,
 })
-assert.deepEqual(selectedBox.preview.position.toArray(), [8, 1, -3], 'Preview should align to selected part center')
+assert.deepEqual(selectedBox.preview.position.toArray(), [10, 4, 1], 'Preview should align to the selected part world-space center')
 
 const staticMeshRoot = new THREE.Group()
 staticMeshRoot.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshBasicMaterial()))
