@@ -1,0 +1,152 @@
+/* Visual Script: propriedade à esquerda, requisitos e ações com conexões coloridas. */
+.graph-library.property-source { padding:16px 12px; display:flex; flex-direction:column; background:#20232c; }
+.property-source h3 { margin:7px 0 14px!important; font-size:14px!important; letter-spacing:.11em; color:#f0f1f5; }
+.property-event-list { display:flex; flex-direction:column; gap:7px; }
+.property-event { min-height:38px; display:flex; align-items:center; gap:9px; padding:0 9px; border:1px solid #353a48; border-radius:5px; background:#292d37; color:#b4bac7; font-size:11px; }
+.property-event .event-icon { width:20px; text-align:center; font-size:15px; }
+.property-event.active { border-color:#f3c34e; box-shadow:0 0 0 1px #f3c34e,0 0 13px #f3c34e25; color:#fff2c5; background:#393426; }
+.property-event.active i { margin-left:auto; width:6px; height:6px; border-radius:50%; background:#f3c34e; box-shadow:0 0 8px #f3c34e; }
+.property-event.muted { opacity:.48; }
+.property-character { height:178px; position:relative; margin:20px 0 5px; overflow:hidden; border-radius:7px; background:radial-gradient(ellipse at 50% 70%,#363e50 0, #252a34 50%,#20232c 78%); }
+.character-shadow { position:absolute; bottom:14px; left:50%; width:85px; height:15px; transform:translateX(-50%); border-radius:50%; background:#11151c; }
+.character-head { position:absolute; z-index:3; left:calc(50% - 20px); top:22px; width:40px; height:45px; border-radius:45% 45% 43% 43%; background:#dca77c; box-shadow:inset -6px -2px #bd805b; }
+.character-hair { position:absolute; left:-2px; top:-5px; width:43px; height:20px; border-radius:55% 45% 20% 20%; background:#68432e; box-shadow:inset 0 -4px #4a3024; }
+.character-face { position:absolute; left:9px; top:23px; width:4px; height:4px; border-radius:50%; background:#392b25; box-shadow:16px 0 #392b25,7px 10px 0 -1px #9a5147; }
+.character-body { position:absolute; z-index:2; left:calc(50% - 25px); top:65px; width:50px; height:55px; border-radius:12px 12px 7px 7px; background:linear-gradient(90deg,#245b9d,#377fc4 55%,#1f548e); }
+.character-arm { position:absolute; z-index:1; top:69px; width:14px; height:48px; border-radius:8px; background:#dca77c; }
+.left-arm { left:calc(50% - 34px); transform:rotate(12deg); }.right-arm { left:calc(50% + 20px); transform:rotate(-12deg); }
+.character-leg { position:absolute; z-index:1; top:113px; width:18px; height:43px; border-radius:4px 4px 7px 7px; background:linear-gradient(90deg,#24476f,#4775a5); }
+.left-leg { left:calc(50% - 20px); }.right-leg { left:calc(50% + 2px); }
+.character-shoe { position:absolute; z-index:2; bottom:12px; width:22px; height:9px; border-radius:5px 7px 3px 3px; background:#d9dce2; }
+.left-shoe { left:calc(50% - 23px); }.right-shoe { left:calc(50% + 1px); }
+.property-object-name { text-align:center; color:#dce1eb; font-size:11px; font-weight:600; }
+.property-source .graph-tip { margin-top:auto; padding-top:13px; }
+.graph-node { width:232px; min-height:130px; border-radius:7px; background:#252934; border:1px solid #414756; overflow:visible; }
+.graph-node.trigger { border:1px solid #f1bd45; box-shadow:0 0 0 1px #f1bd4544,0 5px 18px #0005; }
+.graph-node.condition { border:1px solid #9a6cf0; box-shadow:0 0 0 1px #9a6cf055,0 5px 18px #0005; }
+.graph-node.action { border:1px solid #e86659; box-shadow:0 0 0 1px #e8665944,0 5px 18px #0005; }
+.graph-node.condition .node-head { color:#d7c4ff; background:#30283f; }
+.graph-node.action .node-head { color:#ffb4a9; background:#3d292d; }
+.graph-node.trigger .node-head { color:#ffe39a; background:#3a3323; }
+.graph-node .node-port { z-index:3; width:11px; height:11px; border-width:2px; background:#f3c34e; border-color:#252934; box-shadow:0 0 7px currentColor; }
+.graph-node.condition .node-port { background:#a27aff; }
+.graph-node.action .node-port { background:#f07868; }
+.graph-wires path { stroke-width:3; filter:drop-shadow(0 0 3px currentColor); }
+.graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
+.graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
+.graph-node .node-foot { color:#c1c6d1; }
+@media(max-width:800px) { .property-character { height:130px; } }
+
+
+\n
+/* Os eventos compartilham uma única lista; condições e ações permanecem como nós individuais. */
+.graph-node.trigger-list { width:270px; min-height:0; padding-bottom:5px; border:1px solid #f1bd45; border-top:3px solid #f1bd45; background:#252934; }
+.trigger-list .node-head { min-height:35px; align-items:center; }
+.event-list-row { position:relative; display:flex; align-items:center; gap:9px; width:calc(100% - 14px); min-height:48px; margin:5px 7px; padding:5px 9px; text-align:left; border:1px solid #45424a; border-radius:4px; background:#30313a; color:#ececf2; cursor:pointer; }
+.event-list-row:hover { background:#3a3940; border-color:#b99a4a; }
+.event-list-row.chosen { border-color:#f3c34e; background:#433a27; box-shadow:0 0 0 1px #f3c34e55; }
+.event-list-row.disabled { opacity:.55; }
+.event-row-icon { display:grid; place-items:center; width:25px; height:25px; flex:none; border-radius:4px; background:#45402f; color:#f3c34e; font-size:16px; }
+.event-row-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.event-row-copy strong { font-size:11px; font-weight:600; }
+.event-row-copy small { overflow:hidden; color:#9ea6b5; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.event-row-port { position:absolute; right:-6px; top:50%; width:11px; height:11px; transform:translateY(-50%); border:2px solid #252934; border-radius:50%; background:#f3c34e; box-shadow:0 0 7px #f3c34e88; }
+.event-list-empty { padding:16px 10px; color:#9ea6b5; font-size:11px; }
+.graph-node.condition { border-color:#9a6cf0; border-top:3px solid #9a6cf0; }
+.graph-node.action { border-color:#e86659; border-top:3px solid #e86659; }
+.graph-node.condition .node-port { background:#a27aff; }
+.graph-node.action .node-port { background:#f07868; }
+.graph-wires path.trigger-condition { stroke:#f3b94b; color:#f3b94b; }
+.graph-wires path.condition-action { stroke:#e56b60; color:#e56b60; }
+
+
+.graph-object-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px}
+.graph-object-heading h3{margin:4px 0 0;font-size:16px;font-weight:650;letter-spacing:.01em;color:#edf0f6}
+.graph-object-total{display:grid;place-items:center;min-width:28px;height:26px;padding:0 8px;border:1px solid #3a414f;border-radius:6px;background:#222630;color:#bfc7d5;font-size:11px;font-variant-numeric:tabular-nums}
+.graph-object-search{display:flex;align-items:center;gap:8px;height:34px;margin-bottom:16px;padding:0 9px;border:1px solid #3a404d;border-radius:6px;background:#20232b;color:#8e98a9}
+.graph-object-search:focus-within{border-color:#d98a39;box-shadow:0 0 0 2px #d98a3918}
+.graph-object-search>span{font-size:20px;line-height:1}
+.graph-object-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#e5e9f0;font:inherit;font-size:11px}
+.graph-object-search input::placeholder{color:#727c8d}
+.graph-object-search button{border:0;background:transparent;color:#aeb6c4;cursor:pointer;font-size:16px}
+.graph-object-section-label{display:flex;justify-content:space-between;margin-bottom:7px;color:#7f899b;font-size:9px;font-weight:700;letter-spacing:.11em}
+.graph-object-picker{display:flex;flex-direction:column;gap:4px;max-height:calc(100% - 150px);overflow:auto;padding:0 2px 8px 0}
+.graph-object-picker-row{display:flex;align-items:center;gap:9px;width:100%;min-height:48px;padding:7px 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:#c5cad5;text-align:left;cursor:pointer;transition:background .12s,border-color .12s}
+.graph-object-picker-row:hover{border-color:#3b414e;background:#2b303a}
+.graph-object-picker-row.active{border-color:#8c5b2e;background:linear-gradient(90deg,#4a3525 0%,#302a27 100%);color:#fff}
+.object-picker-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid #424958;border-radius:6px;background:#252a34;color:#d7a16b}
+.object-picker-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.graph-object-picker-row.active .object-picker-icon{border-color:#9d6837;background:#503923;color:#ffc17f}
+.object-picker-copy{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.object-picker-name{overflow:hidden;color:#e0e5ed;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.object-picker-type{overflow:hidden;color:#7f8999;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.graph-object-picker-row.active .object-picker-type{color:#c5a17d}
+.object-picker-count{display:flex;align-items:center;justify-content:center;gap:5px;flex:none;min-width:25px;padding:4px 6px;border:1px solid #3b414d;border-radius:5px;background:#242831;color:#aeb6c4;font-size:10px;font-variant-numeric:tabular-nums}
+.object-count-dot{width:4px;height:4px;border-radius:50%;background:#778396}
+.graph-object-picker-row.active .object-picker-count{border-color:#76502e;background:#3a2e25;color:#f3c38f}
+.graph-object-picker-row.active .object-count-dot{background:#e8a45c}
+.graph-object-empty{display:flex;align-items:center;flex-direction:column;gap:7px;padding:28px 8px;color:#929cad;text-align:center}
+.graph-object-empty>span{font-size:26px;color:#7f8999}
+.graph-object-empty strong{font-size:11px;font-weight:600;color:#cbd2de}
+.graph-object-empty small{font-size:10px;line-height:1.5;color:#858fa0}
+.graph-tip{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:10px;border:1px solid #353b47;border-radius:6px;background:#242831;color:#8f99aa;font-size:10px;line-height:1.5}
+.graph-tip strong{color:#c9d0dc;font-size:10px}
+
+/* Durante Run, bloqueia a edição da cena, mas mantém o viewport e a barra superior interativos. */
+.app.is-running * { pointer-events:none !important; }
+.app.is-running canvas.canvas,
+.app.is-running .topbar,
+.app.is-running .topbar * { pointer-events:auto !important; }
+/* Run blocks editor interaction globally; explicitly restore pointer input for
+   the interactive HUD controls without making the full-screen HUD intercept
+   clicks intended for the 3D canvas. */
+.app.is-running .player-hud { pointer-events:none !important; }
+.app.is-running .player-hud .hud-settings-panel,
+.app.is-running .player-hud .hud-settings-panel *,
+.app.is-running .player-hud .hud-controls,
+.app.is-running .player-hud .hud-controls *,
+.app.is-running .player-hud .hud-actions,
+.app.is-running .player-hud .hud-actions *,
+.app.is-running .player-hud button,
+.app.is-running .player-hud input,
+.app.is-running .player-hud .hud-custom-image.is-positioning {
+  pointer-events:auto !important;
+}
+.app.is-running .player-hud .hud-custom-image.is-positioning {
+  cursor:move !important;
+}
+/* O Arsenal precisa receber eventos de ponteiro para que selects e rolagem
+   funcionem em Run, em vez de deixar o canvas capturar a roda e aplicar zoom. */
+.app.is-running .player-hud .veilborne-loadout-trigger,
+.app.is-running .player-hud .veilborne-loadout-panel,
+.app.is-running .player-hud .veilborne-loadout-panel * {
+  pointer-events:auto !important;
+}
+.app.is-running .model-import-launch { display:none !important; }
+.model-import-launch{position:absolute;z-index:8;top:54px;right:16px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #5b4a39;border-radius:4px;background:#29251fdd;color:#f0c18f;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 4px 16px #0004}
+.model-import-launch:hover{border-color:#d19a64;background:#3b3025;color:#ffe0bd}
+.model-import-launch span{font-size:17px;line-height:10px}
+
+.project-io-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:24px;background:rgba(10,12,16,.72);backdrop-filter:blur(3px)}
+.project-io-card{width:min(420px,100%);padding:24px;border:1px solid #454b57;border-radius:8px;background:#242830;color:#edf0f6;box-shadow:0 20px 70px #0008}
+.project-io-icon{display:grid;place-items:center;width:38px;height:38px;margin-bottom:16px;border:1px solid #5e4b35;border-radius:7px;background:#342a20;color:#f0b879;font-size:23px}
+.project-io-heading{font-size:16px;font-weight:650}
+.project-io-message{min-height:20px;margin:9px 0 18px;color:#aeb6c4;font-size:12px;overflow-wrap:anywhere}
+.project-io-track{height:7px;overflow:hidden;border-radius:10px;background:#11151b}
+.project-io-fill{height:100%;border-radius:10px;background:#d89a55;transition:width .18s ease}
+.project-io-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:#8993a3;font-size:10px}
+.project-io-meta strong{color:#f0c18f;font-size:11px;font-variant-numeric:tabular-nums}
+.environment-editor{display:flex;flex-direction:column;gap:9px;margin-top:18px;padding-top:14px;border-top:1px solid #353b47}.environment-editor h4{margin:8px 0 0}.environment-button{width:100%;min-height:34px}.environment-file{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#aeb6c4;font-size:10px;overflow-wrap:anywhere}.environment-file button{flex:none}.environment-range{width:100%;accent-color:#d89a55}.environment-editor .checkline{margin:4px 0}
+
+.viewport-fps{position:absolute;z-index:8;top:15px;right:16px;display:flex;flex-direction:column;align-items:stretch;gap:4px;min-height:27px;padding:5px 9px 6px;border:1px solid #383f49;border-radius:4px;background:#1d2229e8;color:#aab3c0;font-size:10px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;backdrop-filter:blur(4px);pointer-events:none}
+.viewport-fps-head{display:flex;align-items:center;gap:7px;min-height:22px}
+.viewport-fps .fps-indicator{width:6px;height:6px;border-radius:50%;background:#8edb7e;box-shadow:0 0 0 3px #8edb7e18}
+.viewport-fps strong{min-width:17px;color:#d6f5c1;font-size:12px;text-align:right}
+.viewport-fps-head.fps-medium .fps-indicator{background:#e9c16f;box-shadow:0 0 0 3px #e9c16f18}
+.viewport-fps-head.fps-medium strong{color:#f1cb82}
+.viewport-fps-head.fps-low .fps-indicator{background:#f07870;box-shadow:0 0 0 3px #f0787018}
+.viewport-fps-head.fps-low strong{color:#ffaaa2}
+.viewport-render-stats{display:flex;align-items:center;gap:7px;border-top:1px solid #343b46;padding-top:5px;color:#9da8b7;font-size:9px;letter-spacing:0;white-space:nowrap}
+.viewport-render-stats strong{min-width:0;color:#e3e9f1;font-size:10px;font-weight:800;text-align:left}
+
+/* Final cascade layer: keep the redesign ahead of legacy App.vue rules. */
