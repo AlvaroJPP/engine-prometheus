@@ -19,6 +19,7 @@ import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@engine/lib/Bi
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
+import { formatModelControlKey, normalizeModelControlBindings } from '@/lib/assets/ModelControlBindings'
 
 import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 import { parseGltfModel } from '@/lib/assets/GltfModelParser'
@@ -291,7 +292,7 @@ const animationRoleOptions = computed(() => animationRoleBaseOptions.map(option 
   const bindingKey = animationRoleControlBindingKeys[option.value]
   if (!bindingKey) return option
   const keyCode = activeControlMapBindings.value[bindingKey] ?? DEFAULT_CONTROL_MAPS[0]!.bindings[bindingKey]
-  return { ...option, label: `${option.label} · ${formatControlKey(keyCode)}` }
+  return { ...option, label: `${option.label} · ${formatModelControlKey(keyCode)}` }
 }))
 type RigPose = ReturnType<typeof captureRigPose>
 type RigKeyframe = { time: number; pose: RigPose }
@@ -712,53 +713,6 @@ function createRigAnimation() {
 
 function setRigTime(value: number) {
   rigFrameTime.value = Math.max(0, Number.isFinite(value) ? value : 0)
-}
-
-function normalizeControlBindings(value: unknown): ModelControlBindings {
-  const raw = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Partial<ModelControlBindings>
-    : {}
-  const read = (key: ControlBindingAction): string => {
-    const candidate = raw[key]
-    return typeof candidate === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate)
-      ? candidate
-      : DEFAULT_MODEL_CONTROL_BINDINGS[key]
-  }
-  return {
-    forward: read('forward'),
-    backward: read('backward'),
-    left: read('left'),
-    right: read('right'),
-    run: read('run'),
-    jump: read('jump'),
-    interact: read('interact'),
-  }
-}
-
-function formatControlKey(code: string): string {
-  const names: Record<string, string> = {
-    Space: 'Espaço',
-    ShiftLeft: 'Shift esquerdo',
-    ShiftRight: 'Shift direito',
-    ControlLeft: 'Ctrl esquerdo',
-    ControlRight: 'Ctrl direito',
-    AltLeft: 'Alt esquerdo',
-    AltRight: 'Alt direito',
-    ArrowUp: '↑',
-    ArrowDown: '↓',
-    ArrowLeft: '←',
-    ArrowRight: '→',
-    Escape: 'Esc',
-    Enter: 'Enter',
-    Tab: 'Tab',
-    Backspace: 'Backspace',
-    CapsLock: 'Caps Lock',
-  }
-  if (names[code]) return names[code]!
-  if (code.startsWith('Key')) return code.slice(3)
-  if (code.startsWith('Digit')) return code.slice(5)
-  if (code.startsWith('Numpad')) return 'Num ' + code.slice(6)
-  return code
 }
 
 function startControlBindingCapture(action: ControlBindingAction) {
@@ -1723,7 +1677,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   restoreModelRenderableMeshes(loaded)
   modelHeight.value = safeTargetHeight
   colliderSize.value = [Math.max(0.05, dimensions.value[0] * safeTargetHeight / height), safeTargetHeight, Math.max(0.05, dimensions.value[2] * safeTargetHeight / height)]
-  controlBindings.value = normalizeControlBindings(loaded.userData.importControlBindings)
+  controlBindings.value = normalizeModelControlBindings(loaded.userData.importControlBindings)
   loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
   retargetRestPoseByModel.set(loaded, captureRetargetRestPose(loaded))
@@ -3504,7 +3458,7 @@ onBeforeUnmount(() => {
                   :class="{ listening: listeningForBinding === binding.key }"
                   :disabled="!model || isReadOnlyPreview"
                   @click="startControlBindingCapture(binding.key)"
-                >{{ listeningForBinding === binding.key ? 'Pressione…' : formatControlKey(controlBindings[binding.key]) }}</button>
+                >{{ listeningForBinding === binding.key ? 'Pressione…' : formatModelControlKey(controlBindings[binding.key]) }}</button>
               </div>
             </div>
             <p v-if="listeningForBinding" class="model-control-capture-tip">Aguardando tecla para “{{ controlBindingFields.find(item => item.key === listeningForBinding)?.label }}”. Pressione Esc para cancelar.</p>
