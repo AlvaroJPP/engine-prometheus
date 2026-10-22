@@ -109,7 +109,6 @@ export class Engine {
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private orbit = new OrbitCamera()
   private viewport: Viewport
-  private readonly runtimeInputCanvas: HTMLCanvasElement
   private input: PointerController
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
@@ -166,7 +165,6 @@ export class Engine {
   private readonly viewportInvalidationOffs: Array<() => void> = []
 
   constructor(canvas: HTMLCanvasElement) {
-    this.runtimeInputCanvas = canvas
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
@@ -1387,7 +1385,7 @@ export class Engine {
       })
     }
     this.veilborneProjectiles.clear()
-    for (const [entry] of this.veilborneHealthBars) {
+    for (const entry of this.veilborneHealthBars.values()) {
       this.world.scene.remove(entry.sprite)
       entry.texture.dispose()
       entry.sprite.material.dispose()
@@ -1722,7 +1720,7 @@ export class Engine {
     impactPosition.y += 0.7
     const origin = this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0))
     const projectileDuration = spell.targeting === 'projectile'
-      ? Math.max(spell.castTimeSeconds, origin.distanceTo(impactPosition) / Math.max(1, spell.projectileSpeed))
+      ? Math.max(spell.castTimeSeconds, origin.distanceTo(impactPosition) / Math.max(1, spell.projectileSpeed ?? 24))
       : spell.castTimeSeconds
     this.veilbornePendingCast = {
       spellId: spell.id,
