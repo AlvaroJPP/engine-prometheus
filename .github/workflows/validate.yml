@@ -35,6 +35,8 @@ jobs:
         run: npm run behavior:packages:self-test
       - name: Test retarget rest pose cache
         run: npm run retarget:rest-pose:self-test
+      - name: Test model renderable mesh restoration
+        run: npm run animation:renderable-meshes:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

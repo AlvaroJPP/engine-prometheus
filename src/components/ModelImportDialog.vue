@@ -41,6 +41,7 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
+import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
 import {
   getRetargetRestPose,
   restoreRetargetRestPose,
@@ -933,18 +934,7 @@ function restorePreviewVisibility() {
 
 /** Restaura a renderização de malhas importadas antes de avaliar uma animação. */
 function restoreModelRenderableMeshes(root: THREE.Object3D) {
-  root.traverse(node => {
-    node.visible = true
-    if (!(node instanceof THREE.Mesh)) return
-    const materials = Array.isArray(node.material) ? node.material : [node.material]
-    for (const material of materials) material.visible = true
-    // Malhas esqueléticas não devem ser descartadas pelo frustum com bounds de repouso.
-    if (node instanceof THREE.SkinnedMesh) node.frustumCulled = false
-  })
-  root.updateMatrixWorld(true)
-  root.traverse(node => {
-    if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
-  })
+  restoreRenderableMeshes(root)
   invalidateStaticMeshCollider(root)
 }
 

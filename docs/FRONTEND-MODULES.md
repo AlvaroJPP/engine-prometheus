@@ -43,6 +43,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/RigPreviewHelper.ts`: cria e descarta o auxiliar visual de ossos do rig, mantendo a gestão de geometria/material fora do diálogo.
 - `src/lib/animation/AnimationRoleOptions.ts`: mantém os papéis de animação disponíveis e o mapeamento de cada papel para a tecla do mapa de controles, fora do diálogo de importação.
 - `src/lib/animation/RetargetRestPose.ts`: memoriza poses de repouso por instância de modelo, restaura transformações dos ossos e atualiza os esqueletos durante a transferência de animações.
+- `src/lib/animation/ModelRenderableMeshes.ts`: restaura a visibilidade das malhas e materiais antes da prévia de animação e desativa o frustum culling apenas para malhas esqueléticas.
 - `src/lib/animation/RetargetPreviewObjects.ts`: cria clones isolados para prévias de retargeting e libera suas geometrias/materiais sem descartar texturas compartilhadas com o modelo principal.
 - `src/lib/animation/RetargetPreviewStage.ts`: configura, enquadra, anima, redimensiona e libera as cenas Three.js das prévias de retargeting; o diálogo mantém apenas estado e decisões de origem/destino.
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
