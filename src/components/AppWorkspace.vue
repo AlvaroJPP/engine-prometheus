@@ -8,23 +8,19 @@ import PlayerHUD from '@/components/PlayerHUD.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import InspectorPanel from '@/components/InspectorPanel.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
-
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
-
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
-  if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) {
-    externalRef.value = element
-  }
+  if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
 </script>
 
 <template>
   <div :ref="element => setExternalRef('appRoot', element)" class="app" :style="ctx.worldFullscreenStyle" :class="{ 'is-running': ctx.executionMode === 'running', 'world-fullscreen': ctx.worldFullscreen, 'sidebar-collapsed': ctx.sidebarCollapsed }">
     <EditorTopBar
-      v-model:project-name="projectName"
+      v-model:project-name="ctx.projectName"
       :viewport-layout-style="ctx.viewportLayoutStyle('render')"
       :dirty="ctx.dirty"
       :camera-label="ctx.cameraLabel"
@@ -175,7 +171,7 @@ function setExternalRef(name: string, element: unknown): void {
 
     <div class="main">
       <SceneHierarchy
-        v-model:root-open="rootOpen"
+        v-model:root-open="ctx.rootOpen"
         :components="ctx.savedComponents"
         :objects="ctx.objects"
         :terrain="ctx.terrain"

@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
-
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
-  if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) {
-    externalRef.value = element
-  }
+  if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
 </script>
 
+<template>
 <div v-if="ctx.graphOpen" class="graph-overlay">
       <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="ctx.graphObjectFilter" @change="ctx.resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="ctx.addLogicRule()">+ Criar fluxo</button><button class="primary" @click="ctx.saveProject(false)">Salvar projeto</button><button class="ghost" @click="ctx.graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
@@ -240,3 +237,4 @@ function setExternalRef(name: string, element: unknown): void {
         </aside>
       </div>
     </div>
+</template>
