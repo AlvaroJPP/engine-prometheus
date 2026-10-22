@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
-import { calculateImportColliderSize } from '../src/lib/assets/ModelColliderSizing.ts'
+import {
+  calculateImportColliderSize,
+  normalizeImportColliderForType,
+  updateImportColliderVector,
+} from '../src/lib/assets/ModelColliderSizing.ts'
 
 assert.deepEqual(
   calculateImportColliderSize([1, 2, 3], 2, 'box'),
@@ -30,6 +34,59 @@ assert.deepEqual(
   calculateImportColliderSize([1, 2, 3], 1, 'mesh'),
   [1, 2, 3],
   'Mesh collider sizing should preserve its measured dimensions',
+)
+
+
+assert.deepEqual(
+  normalizeImportColliderForType('sphere', [3, 1.2, 2], [4, -2, 8]),
+  { size: [1.2, 1.2, 1.2], offset: [4, -2, 8] },
+  'Switching to a sphere should equalize dimensions and retain the offset',
+)
+assert.deepEqual(
+  normalizeImportColliderForType('mesh', [3, 1.2, 2], [4, -2, 8]),
+  { size: [3, 1.2, 2], offset: [0, 0, 0] },
+  'Mesh colliders reset the previous offset',
+)
+assert.deepEqual(
+  normalizeImportColliderForType('box', [3, 1.2, 2], [4, -2, 8]),
+  { size: [3, 1.2, 2], offset: [4, -2, 8] },
+  'Box and capsule settings stay unchanged when switching modes',
+)
+assert.deepEqual(
+  normalizeImportColliderForType('sphere', [0.01, 0.1, 0.08], [0, 1, 2]).size,
+  [0.05, 0.05, 0.05],
+  'Sphere diameter honors the minimum size',
+)
+
+assert.deepEqual(
+  updateImportColliderVector([1, 2, 3], 'colliderSize', 1, 120, 'box'),
+  [1, 100, 3],
+  'Collider sizes are capped at 100',
+)
+assert.deepEqual(
+  updateImportColliderVector([1, 2, 3], 'colliderSize', 1, -2, 'box'),
+  [1, 0.05, 3],
+  'Collider sizes enforce the 0.05 minimum',
+)
+assert.deepEqual(
+  updateImportColliderVector([1, 2, 3], 'colliderOffset', 0, -120, 'box'),
+  [-100, 2, 3],
+  'Offsets are clamped to the supported range',
+)
+assert.deepEqual(
+  updateImportColliderVector([1, 2, 3], 'colliderOffset', 1, 7, 'mesh'),
+  [1, 7, 3],
+  'Offset vector axes can be edited for all collider types',
+)
+assert.deepEqual(
+  updateImportColliderVector([1, 2, 3], 'colliderSize', 2, 4, 'sphere'),
+  [4, 4, 4],
+  'Editing any sphere diameter synchronizes all axes',
+)
+assert.equal(
+  updateImportColliderVector([1, 2, 3], 'colliderSize', 2, Number.NaN, 'box'),
+  null,
+  'Non-finite input is ignored',
 )
 
 console.log('Model collider sizing self-test passed.')

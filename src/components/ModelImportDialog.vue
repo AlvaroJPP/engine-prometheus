@@ -5,7 +5,11 @@ import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
 import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/assets/ModelColliderPreview'
 import { disposeImportedModelResources } from '@/lib/assets/ModelImportResourceCleanup'
-import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
+import {
+  calculateImportColliderSize,
+  normalizeImportColliderForType,
+  updateImportColliderVector,
+} from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
@@ -673,25 +677,18 @@ function updateColliderPreview() {
 
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
   colliderType.value = value
-  // Malha estática usa o transform das superfícies reais. Não aplica o offset
-  // de caixas/cápsulas de um modo anterior, para preview e runtime coincidirem.
-  if (value === 'mesh') colliderOffset.value = [0, 0, 0]
-  if (value === 'sphere') {
-    const diameter = Math.max(0.05, Math.min(...colliderSize.value))
-    colliderSize.value = [diameter, diameter, diameter]
-  }
+  const normalized = normalizeImportColliderForType(value, colliderSize.value, colliderOffset.value)
+  colliderSize.value = normalized.size
+  colliderOffset.value = normalized.offset
   updateColliderPreview()
 }
 
 function setColliderVector(field: 'colliderSize' | 'colliderOffset', axis: 0 | 1 | 2, value: number) {
-  if (!Number.isFinite(value)) return
-  const vector: [number, number, number] = [...(field === 'colliderSize' ? colliderSize.value : colliderOffset.value)]
-  const safeValue = field === 'colliderSize' ? Math.max(0.05, Math.min(100, value)) : Math.max(-100, Math.min(100, value))
-  vector[axis] = safeValue
-  if (field === 'colliderSize') {
-    if (colliderType.value === 'sphere') vector.splice(0, 3, safeValue, safeValue, safeValue)
-    colliderSize.value = vector
-  } else colliderOffset.value = vector
+  const current = field === 'colliderSize' ? colliderSize.value : colliderOffset.value
+  const vector = updateImportColliderVector(current, field, axis, value, colliderType.value)
+  if (!vector) return
+  if (field === 'colliderSize') colliderSize.value = vector
+  else colliderOffset.value = vector
   updateColliderPreview()
 }
 
