@@ -18,7 +18,7 @@ function setExternalRef(name: string, element: unknown): void {
 </script>
 
 <template>
-  <div :ref="element => setExternalRef('appRoot', element)" class="app" :style="ctx.worldFullscreenStyle" :class="{ 'is-running': ctx.executionMode === 'running', 'world-fullscreen': ctx.worldFullscreen, 'sidebar-collapsed': ctx.sidebarCollapsed }">
+  <div :ref="element => setExternalRef('appRoot', element)" class="app" :class="{ 'is-running': ctx.executionMode === 'running', 'world-fullscreen': ctx.worldFullscreen, 'sidebar-collapsed': ctx.sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="ctx.projectName"
       :viewport-layout-style="ctx.viewportLayoutStyle('render')"
