@@ -39,6 +39,8 @@ jobs:
         run: npm run animation:renderable-meshes:self-test
       - name: Test model collider sizing
         run: npm run collider:sizing:self-test
+      - name: Test model preview animation runtime
+        run: npm run animation:preview-runtime:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies
