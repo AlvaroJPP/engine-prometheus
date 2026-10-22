@@ -43,6 +43,8 @@ jobs:
         run: npm run animation:preview-runtime:self-test
       - name: Test model base-color texture repair
         run: npm run model:texture-repair:self-test
+      - name: Test model spatial measurements
+        run: npm run model:spatial-measurements:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

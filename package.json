@@ -18,7 +18,8 @@
     "animation:renderable-meshes:self-test": "node --experimental-strip-types scripts/model-renderable-meshes-self-test.mjs",
     "collider:sizing:self-test": "node --experimental-strip-types scripts/model-collider-sizing-self-test.mjs",
     "animation:preview-runtime:self-test": "node --experimental-strip-types scripts/model-preview-animation-runtime-self-test.mjs",
-    "model:texture-repair:self-test": "node --experimental-strip-types scripts/model-color-texture-repair-self-test.mjs"
+    "model:texture-repair:self-test": "node --experimental-strip-types scripts/model-color-texture-repair-self-test.mjs",
+    "model:spatial-measurements:self-test": "node --experimental-strip-types scripts/model-spatial-measurements-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

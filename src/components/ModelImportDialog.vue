@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
 import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
+import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
@@ -1265,21 +1266,13 @@ function initPreview() {
 }
 
 function centerAndMeasure(object: THREE.Object3D) {
-  object.updateMatrixWorld(true)
-  const bounds = new THREE.Box3().setFromObject(object)
-  if (bounds.isEmpty()) throw new Error('O arquivo não contém uma malha 3D visível.')
-  const size = bounds.getSize(new THREE.Vector3())
-  if (![size.x, size.y, size.z].every(Number.isFinite) || Math.max(size.x, size.y, size.z) <= 0) {
-    throw new Error('Não foi possível calcular o tamanho deste modelo.')
-  }
-  dimensions.value = [size.x, size.y, size.z]
-  originalHeight.value = size.y
-  // Guarde o centro em coordenadas do modelo. A correção de posição precisa
-  // ser aplicada depois da escala; alterar position antes da escala deixa o
-  // deslocamento enorme em assets cujas coordenadas originais são muito grandes.
-  const center = bounds.getCenter(new THREE.Vector3())
-  object.userData.importCenter = center.toArray()
-  return size.y
+  const measurement = measureModelImportSpatialData(object)
+  dimensions.value = measurement.dimensions
+  originalHeight.value = measurement.height
+  // Corrija a posição apenas depois da escala para evitar deslocamentos
+  // enormes em assets cujas coordenadas originais são muito grandes.
+  object.userData.importCenter = measurement.center
+  return measurement.height
 }
 
 async function parseFile(file: File) {
