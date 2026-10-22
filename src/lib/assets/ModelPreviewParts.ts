@@ -49,3 +49,24 @@ export function collectModelPreviewParts(root: THREE.Object3D): ModelPreviewPart
   }
   return parts
 }
+
+/**
+ * Cria um caminho estável relativo à raiz visual, acrescentando índices aos
+ * nomes repetidos para que grupos homônimos possam ser endereçados sem ambiguidade.
+ */
+export function getModelPreviewNodePath(node: THREE.Object3D, root: THREE.Object3D): string {
+  const segments: string[] = []
+  let current: THREE.Object3D | null = node
+  while (current && current !== root) {
+    const label = current.name.trim() || current.type
+    const parent: THREE.Object3D | null = current.parent
+    const siblings = parent?.children.filter(sibling => (sibling.name.trim() || sibling.type) === label) ?? []
+    const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
+    segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
+    current = parent
+  }
+  if (current !== root) return ''
+  // Prefixo versionado: a raiz do GLB original pode mudar, então o caminho é relativo
+  // à raiz visual que o importador usa ao gravar estados de modelo.
+  return ['@v2', 'ImportedVisualPivot', ...segments].join('/')
+}
