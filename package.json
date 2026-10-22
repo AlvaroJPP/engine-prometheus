@@ -23,7 +23,8 @@
     "model:preview-selection:self-test": "node --experimental-strip-types scripts/model-preview-selection-self-test.mjs",
     "model:owned-urls:self-test": "node --experimental-strip-types scripts/model-owned-object-urls-self-test.mjs",
     "model:collider-preview:self-test": "node --experimental-strip-types scripts/model-collider-preview-self-test.mjs",
-    "model:resource-cleanup:self-test": "node --experimental-strip-types scripts/model-import-resource-cleanup-self-test.mjs"
+    "model:resource-cleanup:self-test": "node --experimental-strip-types scripts/model-import-resource-cleanup-self-test.mjs",
+    "behavior:package-config:self-test": "node --experimental-strip-types scripts/import-behavior-package-config-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

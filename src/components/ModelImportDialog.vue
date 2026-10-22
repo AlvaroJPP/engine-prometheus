@@ -72,6 +72,14 @@ import {
   mergeImportBehaviorPackageDraft,
 } from '@/lib/assets/ImportBehaviorPackageDrafts'
 import type { ImportBehaviorPackageDraft } from '@/lib/assets/ImportBehaviorPackageDrafts'
+import {
+  formatPackageConfigLabel,
+  isSimplePackageConfigValue,
+  parseImportPackageConfigScalar,
+  readImportPackageVectorAxis,
+  resolveImportPackageControlBinding,
+  updateImportPackageVector,
+} from '@/lib/assets/ImportBehaviorPackageConfig'
 import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS } from '@/lib/animation/AnimationRoleOptions'
 import {
   createReusableAnimationAsset,
@@ -964,26 +972,11 @@ function updateImportPackageConfigValue(packageId: string, key: string, value: P
   }
 }
 
-function isSimplePackageConfigValue(key: string, value: PackageJsonValue): boolean {
-  return !['interactionKey', 'seatOffset', 'controlBindings', 'modelStates'].includes(key)
-    && (typeof value === 'string' || typeof value === 'number')
-}
-
-function formatPackageConfigLabel(key: string): string {
-  return key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, letter => letter.toUpperCase())
-}
-
 function updateImportPackageConfigScalar(packageId: string, key: string, fallback: PackageJsonValue, event: Event) {
   if (isReadOnlyPreview.value) return
-  const target = event.target as HTMLInputElement
-  const raw = target.value.trim()
-  if (typeof fallback === 'number') {
-    const parsed = Number(raw.replace(',', '.'))
-    if (raw === '' || !Number.isFinite(parsed)) return
-    updateImportPackageConfigValue(packageId, key, parsed)
-  } else {
-    updateImportPackageConfigValue(packageId, key, target.value)
-  }
+  const value = parseImportPackageConfigScalar((event.target as HTMLInputElement).value, fallback)
+  if (value === null) return
+  updateImportPackageConfigValue(packageId, key, value)
 }
 
 function setImportPackageInteractionKey(packageId: string, keyCode: string) {
@@ -1006,32 +999,26 @@ function setImportPackageInteractionKey(packageId: string, keyCode: string) {
 }
 
 function importPackageVectorValue(packageId: string, key: string, axis: 0 | 1 | 2, fallback: number): number {
-  const value = importPackageConfigValue(packageId, key, [0, 0.55, 0])
-  if (!Array.isArray(value)) return fallback
-  const parsed = Number(value[axis])
-  return Number.isFinite(parsed) ? parsed : fallback
+  return readImportPackageVectorAxis(importPackageConfigValue(packageId, key, [0, 0.55, 0]), axis, fallback)
 }
 
 function setImportPackageVector(packageId: string, key: string, axis: 0 | 1 | 2, event: Event) {
   if (isReadOnlyPreview.value) return
-  const target = event.target as HTMLInputElement
-  const parsed = Number(target.value.trim().replace(',', '.'))
-  if (!Number.isFinite(parsed)) return
-  const value = importPackageConfigValue(packageId, key, [0, 0.55, 0])
-  const vector: [number, number, number] = Array.isArray(value) && value.length === 3
-    ? [Number(value[0]) || 0, Number(value[1]) || 0, Number(value[2]) || 0]
-    : [0, 0.55, 0]
-  vector[axis] = Math.max(-10, Math.min(10, parsed))
+  const vector = updateImportPackageVector(
+    importPackageConfigValue(packageId, key, [0, 0.55, 0]),
+    axis,
+    (event.target as HTMLInputElement).value,
+  )
+  if (!vector) return
   updateImportPackageConfigValue(packageId, key, vector)
 }
 
 function importPackageControlBindingValue(packageId: string, key: keyof ModelControlBindings): string {
-  const value = importPackageConfigValue(packageId, 'controlBindings', {})
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const item = (value as Record<string, PackageJsonValue>)[key]
-    if (typeof item === 'string' && item) return item
-  }
-  return DEFAULT_MODEL_CONTROL_BINDINGS[key]
+  return resolveImportPackageControlBinding(
+    importPackageConfigValue(packageId, 'controlBindings', {}),
+    key,
+    DEFAULT_MODEL_CONTROL_BINDINGS[key],
+  )
 }
 
 function setImportPackageControlBinding(packageId: string, key: keyof ModelControlBindings, event: Event) {
