@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
+import { collectModelPreviewParts } from '@/lib/assets/ModelPreviewParts'
+import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
@@ -120,7 +122,7 @@ const modelHeight = ref(2)
 const originalHeight = ref(0)
 const dimensions = ref<[number, number, number]>([0, 0, 0])
 const model = shallowRef<THREE.Object3D | null>(null)
-const previewParts = shallowRef<Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }>>([])
+const previewParts = shallowRef<Array<ModelPreviewPart>>([])
 const selectedPartId = ref('')
 const batchSelectedPartIds = ref<string[]>([])
 const batchSavedPartIds = ref<string[]>([])
@@ -1036,41 +1038,8 @@ function refreshPreviewParts() {
     return
   }
 
-  // Conte os nós de baixo para cima: a quantidade de malhas de cada grupo é
-  // calculada uma só vez, em vez de percorrer seus descendentes repetidamente.
-  const nodes: Array<{ node: THREE.Object3D; depth: number }> = []
-  const collect = (node: THREE.Object3D, depth: number) => {
-    nodes.push({ node, depth })
-    for (const child of node.children) collect(child, depth + 1)
-  }
-  collect(root, -1)
-
-  const meshCounts = new Map<THREE.Object3D, number>()
-  for (const entry of nodes) meshCounts.set(entry.node, entry.node instanceof THREE.Mesh ? 1 : 0)
-  for (let index = nodes.length - 1; index >= 0; index -= 1) {
-    const entry = nodes[index]!
-    const parent = entry.node.parent
-    if (parent) {
-      meshCounts.set(parent, (meshCounts.get(parent) ?? 0) + (meshCounts.get(entry.node) ?? 0))
-    }
-  }
-
-  const parts: Array<{ id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }> = []
-  let unnamedIndex = 0
-  for (const { node, depth } of nodes) {
-    if (node === root) continue
-    const meshCount = meshCounts.get(node) ?? 0
-    if (!meshCount) continue
-    unnamedIndex += 1
-    parts.push({
-      id: node.uuid,
-      name: node.name.trim() || (node instanceof THREE.Mesh ? `Malha ${unnamedIndex}` : `Grupo ${unnamedIndex}`),
-      object: node,
-      depth,
-      meshCount,
-    })
-  }
-
+  // Mantém seleção e estado de lotes válidos após reconstruir a hierarquia.
+  const parts = collectModelPreviewParts(root)
   previewParts.value = parts
   const validIds = new Set(parts.map(part => part.id))
   batchSelectedPartIds.value = batchSelectedPartIds.value.filter(id => validIds.has(id))
@@ -1093,7 +1062,7 @@ function isObjectWithin(object: THREE.Object3D, ancestor: THREE.Object3D): boole
 }
 
 function toggleBatchPartSelection(
-  part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number },
+  part: ModelPreviewPart,
   checked: boolean,
 ) {
   if (!checked) {
@@ -1118,7 +1087,7 @@ function clearBatchSelection() {
   batchSelectedPartIds.value = []
 }
 
-function setColliderFromPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+function setColliderFromPreviewPart(part: ModelPreviewPart) {
   const bounds = new THREE.Box3().setFromObject(part.object)
   if (bounds.isEmpty()) return
   const size = bounds.getSize(new THREE.Vector3())
@@ -1139,7 +1108,7 @@ function setColliderFromPreviewPart(part: { id: string; name: string; object: TH
   colliderOffset.value = [0, 0, 0]
 }
 
-function selectPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+function selectPreviewPart(part: ModelPreviewPart) {
   if (soloPartId.value) restorePreviewVisibility()
   selectedPartId.value = part.id
   if (!props.initialAsset) {
@@ -1150,14 +1119,14 @@ function selectPreviewPart(part: { id: string; name: string; object: THREE.Objec
   updateColliderPreview()
 }
 
-function togglePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+function togglePreviewPart(part: ModelPreviewPart) {
   if (soloPartId.value) restorePreviewVisibility()
   part.object.visible = !part.object.visible
   if (model.value) invalidateStaticMeshCollider(model.value)
   updateColliderPreview()
 }
 
-function showOnlyPreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+function showOnlyPreviewPart(part: ModelPreviewPart) {
   const root = model.value
   if (!root) return
   if (soloPartId.value === part.id) {
@@ -1239,7 +1208,7 @@ function restoreModelRenderableMeshes(root: THREE.Object3D) {
   invalidateStaticMeshCollider(root)
 }
 
-function deletePreviewPart(part: { id: string; name: string; object: THREE.Object3D; depth: number; meshCount: number }) {
+function deletePreviewPart(part: ModelPreviewPart) {
   if (!model.value || !part.object.parent) return
   invalidateStaticMeshCollider(model.value)
   part.object.removeFromParent()
