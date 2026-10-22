@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
+import { collectModelOwnedObjectUrls, revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
 import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
 import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
@@ -1152,18 +1153,7 @@ function clearLoadedModel(preserveRetargetSource = false) {
     releaseStaticMeshCollider(model.value)
     const recoveredTextures = model.value.userData.importRecoveredTextures as THREE.Texture[] | undefined
     recoveredTextures?.forEach(texture => texture.dispose())
-    const ownedUrls = new Set<string>()
-    model.value.traverse(node => {
-      const url = node.userData.importOwnedObjectUrl
-      if (typeof url === 'string') ownedUrls.add(url)
-      const packageUrls = node.userData.importOwnedObjectUrls
-      if (Array.isArray(packageUrls)) {
-        for (const packageUrl of packageUrls) {
-          if (typeof packageUrl === 'string') ownedUrls.add(packageUrl)
-        }
-      }
-    })
-    ownedUrls.forEach(url => URL.revokeObjectURL(url))
+    revokeOwnedObjectUrls(collectModelOwnedObjectUrls(model.value))
     disposeModel(model.value)
   }
   model.value = null
@@ -1171,7 +1161,7 @@ function clearLoadedModel(preserveRetargetSource = false) {
   textureRepairSelections.value = {}
   textureRepairMessage.value = ''
   refreshModelDiagnostics()
-  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+  if (currentObjectUrl) revokeOwnedObjectUrls([currentObjectUrl])
   currentObjectUrl = ''
 }
 
@@ -1570,7 +1560,7 @@ async function importBlendZip() {
     fileName.value = ''
     clearLoadedModel()
   } finally {
-    if (!importedSuccessfully) zipContext?.objectUrls.forEach(url => URL.revokeObjectURL(url))
+    if (!importedSuccessfully && zipContext) revokeOwnedObjectUrls(zipContext.objectUrls)
     loading.value = false
   }
 }
