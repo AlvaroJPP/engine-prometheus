@@ -1897,28 +1897,27 @@ async function toggleWorldFullscreen() {
     if (entering) {
       quickAddOpen.value = false
 
-      // Ative o modo visual antes de aguardar o host. Assim a viewport não
-      // fica dependente do tempo de resposta da janela nativa.
-      worldFullscreen.value = true
-
+      // Primeiro deixe o sistema nativo colocar o WebView em tela cheia.
+      // Só aplique o layout que oculta os painéis depois da troca de janela,
+      // para não mudar o canvas enquanto o Windows redimensiona sua superfície.
       if (isTauri()) {
         const appWindow = getCurrentWindow()
-        await nextTick()
         await appWindow.setFullscreen(true)
 
-        // No Windows/WebView o comando pode concluir antes de a janela
-        // terminar a transição. Confirme o estado e tente uma segunda vez
-        // depois de um frame se o host ainda reportar janela normal.
         if (!(await appWindow.isFullscreen())) {
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          })
           await appWindow.setFullscreen(true)
         }
+
         if (!(await appWindow.isFullscreen())) {
-          console.warn('O Tauri não confirmou a tela cheia nativa; mantendo a viewport expandida.')
+          console.warn('O Tauri não confirmou a tela cheia nativa; aplicando o modo expandido do viewport.')
         }
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        })
       } else if (!document.fullscreenElement) {
-        // Faça o pedido diretamente na interação do usuário para preservar
-        // a ativação exigida pela Fullscreen API do navegador.
         const fullscreenTarget = appRoot.value
         const request = fullscreenTarget && typeof fullscreenTarget.requestFullscreen === 'function'
           ? fullscreenTarget.requestFullscreen()
@@ -1926,12 +1925,10 @@ async function toggleWorldFullscreen() {
         await request
       }
 
+      worldFullscreen.value = true
       await syncFullscreenViewportBounds()
     } else {
-      // Reponha o layout do editor imediatamente enquanto o host restaura
-      // a janela, evitando manter a viewport presa nas dimensões do monitor.
-      worldFullscreen.value = false
-
+      // Saia do modo nativo antes de reativar o layout normal dos painéis.
       if (isTauri()) {
         const appWindow = getCurrentWindow()
         if (await appWindow.isFullscreen()) {
@@ -1944,16 +1941,14 @@ async function toggleWorldFullscreen() {
       } else if (document.fullscreenElement) {
         await document.exitFullscreen()
       }
-    }
-  } catch (error) {
-    console.warn('Não foi possível concluir a transição de tela cheia; mantendo o layout recuperável.', error)
-    if (entering) {
-      // Não abandone o modo de viewport expandida se a API nativa falhar.
-      worldFullscreen.value = true
-      await syncFullscreenViewportBounds()
-    } else {
+
       worldFullscreen.value = false
     }
+  } catch (error) {
+    console.warn('Não foi possível concluir a transição nativa de tela cheia; usando o layout recuperável da viewport.', error)
+    // Se o host recusar a operação, ainda permita expandir/recolher a cena via CSS.
+    worldFullscreen.value = entering
+    if (entering) await syncFullscreenViewportBounds()
   } finally {
     fullscreenTransition.value = false
   }
