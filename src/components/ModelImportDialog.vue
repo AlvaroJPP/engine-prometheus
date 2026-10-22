@@ -6,6 +6,13 @@ import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPrevie
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
+import {
+  createImportModelStateDraft,
+  parseImportModelStateValue,
+  parseImportModelStates,
+  serializeImportModelStates,
+} from '@/lib/assets/ImportModelStates'
+import type { ImportModelStateDraft } from '@/lib/assets/ImportModelStates'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
@@ -64,14 +71,6 @@ function cloneImportBehaviorPackageSettings(
     variables: { ...draft.variables },
     config: clonePackageJsonRecord(draft.config),
   }]))
-}
-type ImportModelStateDraft = {
-  id: string
-  nodePath: string
-  variable: string
-  operator: 'equals' | 'not_equals'
-  value: PackageScalar
-  visibleWhenMatched: boolean
 }
 type ModelImportBatchItem = {
   partId: string
@@ -1323,37 +1322,11 @@ function setImportPackageControlBinding(packageId: string, key: keyof ModelContr
 }
 
 function importPackageModelStates(packageId: string): ImportModelStateDraft[] {
-  const raw = importPackageConfigValue(packageId, 'modelStates', [])
-  if (!Array.isArray(raw)) return []
-  const states: ImportModelStateDraft[] = []
-  for (const item of raw) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-    const record = item as Record<string, PackageJsonValue>
-    const value = record.value
-    if (typeof record.id !== 'string' || typeof record.nodePath !== 'string' || !record.nodePath
-      || typeof record.variable !== 'string' || !record.variable
-      || (typeof value !== 'boolean' && typeof value !== 'number' && typeof value !== 'string')) continue
-    states.push({
-      id: record.id,
-      nodePath: record.nodePath,
-      variable: record.variable,
-      operator: record.operator === 'not_equals' ? 'not_equals' : 'equals',
-      value,
-      visibleWhenMatched: record.visibleWhenMatched !== false,
-    })
-  }
-  return states
+  return parseImportModelStates(importPackageConfigValue(packageId, 'modelStates', []))
 }
 
 function writeImportPackageModelStates(packageId: string, states: ImportModelStateDraft[]) {
-  updateImportPackageConfigValue(packageId, 'modelStates', states.map(state => ({
-    id: state.id,
-    nodePath: state.nodePath,
-    variable: state.variable,
-    operator: state.operator,
-    value: state.value,
-    visibleWhenMatched: state.visibleWhenMatched,
-  })) as unknown as PackageJsonValue)
+  updateImportPackageConfigValue(packageId, 'modelStates', serializeImportModelStates(states))
 }
 
 function addImportPackageModelState(packageId: string) {
@@ -1363,16 +1336,7 @@ function addImportPackageModelState(packageId: string) {
   const variable = definition.variables.find(item => item.name === 'mounted') ?? definition.variables[0]
   if (!variable) return
   const node = previewPackageModelNodes.value[0]!
-  const state: ImportModelStateDraft = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'mount-state-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
-    nodePath: node.path,
-    variable: variable.name,
-    operator: 'equals',
-    value: variable.name === 'mounted' ? true : variable.defaultValue,
-    visibleWhenMatched: true,
-  }
+  const state = createImportModelStateDraft(node.path, variable)
   writeImportPackageModelStates(packageId, [...importPackageModelStates(packageId), state])
 }
 
@@ -1383,11 +1347,7 @@ function updateImportPackageModelState(packageId: string, stateId: string, patch
 }
 
 function onImportPackageModelStateValueChange(packageId: string, stateId: string, event: Event) {
-  const raw = (event.target as HTMLInputElement).value
-  const trimmed = raw.trim()
-  const value: PackageScalar = trimmed === 'true' ? true
-    : trimmed === 'false' ? false
-      : trimmed !== '' && Number.isFinite(Number(trimmed)) ? Number(trimmed) : raw
+  const value = parseImportModelStateValue((event.target as HTMLInputElement).value)
   updateImportPackageModelState(packageId, stateId, { value })
 }
 
