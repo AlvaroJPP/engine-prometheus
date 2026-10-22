@@ -9,7 +9,7 @@ import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import InspectorPanel from '@/components/InspectorPanel.vue'
 import EditorViewport from '@/components/EditorViewport.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
-const context = useAppController()
+const context = useAppController() as Record<string, any>
 const ctx = reactive(context)
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
