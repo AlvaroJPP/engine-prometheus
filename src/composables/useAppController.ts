@@ -1,12 +1,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
-import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ENGINE_VERSION, TERRAIN_ID, markEntity, BEHAVIOR_PACKAGE_DEFINITIONS, getBehaviorPackageDefinition } from '@engine'
 import type { ToolMode, TransformMode, LogicRule, BehaviorPackageInstance, BehaviorPackageDefinition, PackageJsonValue, PackageScalar, ControlMapSettings } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
 import { loadControlMapSettings, saveControlMapSettings } from '@/lib/controls/controlMapSettings'
 import * as THREE from 'three'
 import { useViewportLayout } from '@/composables/useViewportLayout'
+import { useWorldFullscreen } from '@/composables/useWorldFullscreen'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
@@ -41,7 +40,6 @@ function cloneSavedBehaviorPackageSettings(
 const appRoot = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const viewportRoot = ref<HTMLElement | null>(null)
-let unlistenNativeWindowResize: (() => void) | null = null
 const rootOpen = ref(true)
 const sidebarCollapsed = ref(false)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
@@ -80,7 +78,6 @@ watch(executionMode, (mode) => {
   // A configuração da HUD pertence ao modo de edição; ao iniciar o jogo, feche-a.
   if (mode !== 'edit') playerHudSettingsOpen.value = false
 })
-const fullscreenTransition = ref(false)
 const controlMapsOpen = ref(false)
 const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
 const activeControlMap = computed(() =>
@@ -1552,149 +1549,20 @@ function closeQuickAddOutside(event: PointerEvent) {
   if (target instanceof Element && !target.closest('.quick-add-wrap')) quickAddOpen.value = false
 }
 
-async function toggleWorldFullscreen() {
-  if (fullscreenTransition.value) return
-  fullscreenTransition.value = true
-  const entering = !worldFullscreen.value
-
-  try {
-    if (entering) {
-      quickAddOpen.value = false
-
-      // Primeiro deixe o sistema nativo colocar o WebView em tela cheia.
-      // Só aplique o layout que oculta os painéis depois da troca de janela,
-      // para não mudar o canvas enquanto o Windows redimensiona sua superfície.
-      if (isTauri()) {
-        const appWindow = getCurrentWindow()
-        await appWindow.setFullscreen(true)
-
-        if (!(await appWindow.isFullscreen())) {
-          await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-          })
-          await appWindow.setFullscreen(true)
-        }
-
-        if (!(await appWindow.isFullscreen())) {
-          console.warn('O Tauri não confirmou a tela cheia nativa; aplicando o modo expandido do viewport.')
-        }
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-        })
-      } else if (!document.fullscreenElement) {
-        const fullscreenTarget = appRoot.value
-        const request = fullscreenTarget && typeof fullscreenTarget.requestFullscreen === 'function'
-          ? fullscreenTarget.requestFullscreen()
-          : document.documentElement.requestFullscreen()
-        await request
-      }
-
-      worldFullscreen.value = true
-      await syncFullscreenViewportBounds()
-    } else {
-      // Saia do modo nativo antes de reativar o layout normal dos painéis.
-      if (isTauri()) {
-        const appWindow = getCurrentWindow()
-        if (await appWindow.isFullscreen()) {
-          await appWindow.setFullscreen(false)
-          if (await appWindow.isFullscreen()) {
-            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-            await appWindow.setFullscreen(false)
-          }
-        }
-      } else if (document.fullscreenElement) {
-        await document.exitFullscreen()
-      }
-
-      worldFullscreen.value = false
-    }
-  } catch (error) {
-    console.warn('Não foi possível concluir a transição nativa de tela cheia; usando o layout recuperável da viewport.', error)
-    // Se o host recusar a operação, ainda permita expandir/recolher a cena via CSS.
-    worldFullscreen.value = entering
-    if (entering) await syncFullscreenViewportBounds()
-  } finally {
-    fullscreenTransition.value = false
-  }
-
-  await settleViewportAfterFullscreenChange()
-}
-
-async function syncFullscreenViewportBounds(): Promise<void> {
-  if (!worldFullscreen.value) return
-
-  // Use o tamanho real calculado pelo WebView, não a resolução do monitor.
-  // O CSS aplica inset: 0 e o ResizeObserver mede o canvas já redimensionado.
-  await nextTick()
-  refreshViewportLayoutBounds()
-  viewportLayoutRefresh.value += 1
-  window.dispatchEvent(new Event('resize'))
-}
-
-function handleWorldFullscreenKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !worldFullscreen.value) return
-
-  // No navegador, deixe o próprio Fullscreen API tratar Esc para não disputar
-  // com a saída da tela cheia nativa. Se só o modo CSS estiver ativo, saia daqui.
-  if (!isTauri() && document.fullscreenElement) return
-
-  event.preventDefault()
-  void toggleWorldFullscreen()
-}
-
-async function settleViewportAfterFullscreenChange(): Promise<void> {
-  // Primeiro deixe o Windows/WebView concluir a troca de tamanho.
-  await nextTick()
-  await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  })
-
-  // A primeira leitura pode retornar o tamanho anterior porque setFullscreen()
-  // conclui antes do evento de redimensionamento do WebView. Leia novamente
-  // somente depois dos dois frames para que a raiz não pare na antiga altura.
-  if (worldFullscreen.value) {
-    await syncFullscreenViewportBounds()
-    // Uma segunda estabilização permite aplicar as dimensões atualizadas no DOM.
-    await nextTick()
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-  }
-
-  refreshViewportLayoutBounds()
-  viewportLayoutRefresh.value += 1
-  // Acorda o ResizeObserver do canvas e recalcula câmera/renderização.
-  window.dispatchEvent(new Event('resize'))
-}
-
-function syncWorldFullscreenAfterBrowserExit() {
-  if (!isTauri() && worldFullscreen.value && !document.fullscreenElement) {
-    worldFullscreen.value = false
-    void settleViewportAfterFullscreenChange()
-  }
-}
-
 onMounted(() => {
   window.addEventListener('pointerdown', closeQuickAddOutside)
-  window.addEventListener('keydown', handleWorldFullscreenKeydown)
-  document.addEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
-  if (isTauri()) {
-    void getCurrentWindow().onResized(() => {
-      if (worldFullscreen.value) void syncFullscreenViewportBounds()
-    }).then((unlisten) => {
-      unlistenNativeWindowResize = unlisten
-    }).catch((error) => {
-      console.warn('Não foi possível observar o redimensionamento da janela.', error)
-    })
-  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', closeQuickAddOutside)
-  window.removeEventListener('keydown', handleWorldFullscreenKeydown)
-  document.removeEventListener('fullscreenchange', syncWorldFullscreenAfterBrowserExit)
-  unlistenNativeWindowResize?.()
-  unlistenNativeWindowResize = null
 })
 
-
+const { fullscreenTransition, toggleWorldFullscreen } = useWorldFullscreen({
+  appRoot,
+  worldFullscreen,
+  beforeEnter: () => { quickAddOpen.value = false },
+  refreshViewportLayoutBounds,
+  viewportLayoutRefresh,
+})
 
 const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W mover · E rotacionar · R escalar'
 
