@@ -14,7 +14,7 @@ export function findAnimationNode(root: THREE.Object3D, name: string): THREE.Obj
   return match
 }
 
-type BoneNameSignature = {
+export type BoneNameSignature = {
   original: string
   normalized: string
   compact: string
@@ -33,7 +33,7 @@ const BONE_PREFIX_TOKENS = new Set([
   'reference', 'rootnode',
 ])
 
-function signatureForBoneName(name: string): BoneNameSignature {
+export function signatureForBoneName(name: string): BoneNameSignature {
   // O nome do canal pode vir qualificado como Armature|mixamorig:Hips.
   // Para comparar, usamos o segmento final e preservamos sufixos .001 como índices.
   const leaf = name.split(/[|/:]/).filter(Boolean).pop() ?? name
