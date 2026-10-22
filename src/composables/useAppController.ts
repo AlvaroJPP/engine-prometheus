@@ -2321,6 +2321,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     transform,
     ungroupSelectedObjects,
     updateBehaviorPackage,
+    updateControlMapSettings,
     updateLogicRule,
     updateMountModelState,
     updateViewportLayoutPercent,
