@@ -40,6 +40,7 @@ const { snapshot, requestRemeasure, logSnapshot, copySnapshot, copyMessage } = u
       <dt>Canvas CSS</dt><dd>{{ snapshot.canvasRect }} · {{ snapshot.canvasVisibility }} · z={{ snapshot.canvasZIndex }}</dd>
       <dt>Canvas / buffer WebGL</dt><dd>{{ snapshot.canvasClientSize }} / {{ snapshot.canvasBufferSize }}</dd>
       <dt>Último buffer desenhado</dt><dd>{{ snapshot.lastRenderSize }}</dd>
+      <dt>Geometria enviada à GPU</dt><dd>{{ snapshot.drawCalls }} draw calls · {{ snapshot.triangles }} triângulos · {{ snapshot.points }} pontos · {{ snapshot.lines }} linhas</dd>
       <dt>Último resize</dt><dd>{{ snapshot.lastResize }}</dd>
       <dt>Resize bloqueado</dt><dd>{{ snapshot.resizeBlocked }}</dd>
       <dt>Perda do contexto</dt><dd>{{ snapshot.contextLostAt }}</dd>
