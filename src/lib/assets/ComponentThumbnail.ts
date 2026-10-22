@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
 const THUMBNAIL_SIZE = 160
@@ -48,27 +49,7 @@ function ensureThumbnailRenderer(): boolean {
 }
 
 function disposeModelResources(root: THREE.Object3D) {
-  const geometries = new Set<THREE.BufferGeometry>()
-  const materials = new Set<THREE.Material>()
-  const textures = new Set<THREE.Texture>()
-
-  root.traverse(node => {
-    const mesh = node as THREE.Mesh
-    if (mesh.geometry instanceof THREE.BufferGeometry) geometries.add(mesh.geometry)
-    if (!('material' in mesh)) return
-    const assigned = mesh.material
-    for (const material of Array.isArray(assigned) ? assigned : [assigned]) {
-      if (!(material instanceof THREE.Material)) continue
-      materials.add(material)
-      for (const value of Object.values(material)) {
-        if (value instanceof THREE.Texture) textures.add(value)
-      }
-    }
-  })
-
-  geometries.forEach(geometry => geometry.dispose())
-  materials.forEach(material => material.dispose())
-  textures.forEach(texture => texture.dispose())
+  disposeThreeObjectResources(root, 'nodes-with-resources')
 }
 
 /**
