@@ -40,11 +40,10 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
-import { cloneRetargetPreviewObject, disposeRetargetPreviewObject } from '@/lib/animation/RetargetPreviewObjects'
+import { cloneRetargetPreviewObject } from '@/lib/animation/RetargetPreviewObjects'
 import {
   createRetargetPreviewStage,
   disposeRetargetPreviewStage,
-  fitRetargetPreviewCamera,
   setRetargetPreviewStageObject,
 } from '@/lib/animation/RetargetPreviewStage'
 import type { RetargetPreviewStage } from '@/lib/animation/RetargetPreviewStage'
