@@ -7,6 +7,9 @@ const { snapshot, requestRemeasure, logSnapshot, copySnapshot, copyMessage } = u
 </script>
 
 <template>
+  <!-- Teleport tira o painel da árvore .app/.viewport para escapar de stacking contexts,
+       contain: paint e regras exclusivas do modo tela cheia. -->
+  <Teleport to="body">
   <section class="fullscreen-diagnostics" role="status" aria-live="polite">
     <header class="diagnostics-header">
       <div>
@@ -52,6 +55,7 @@ const { snapshot, requestRemeasure, logSnapshot, copySnapshot, copyMessage } = u
       <span>{{ copyMessage || 'Use Ctrl+Shift+F para abrir este diagnóstico fora da tela cheia.' }}</span>
     </footer>
   </section>
+  </Teleport>
 </template>
 
 <style scoped src="./FullscreenDiagnostics.css"></style>
