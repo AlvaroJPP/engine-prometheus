@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
+import type { LogicRule, ObjectInfo } from '@engine'
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
@@ -24,14 +25,14 @@ function setExternalRef(name: string, element: unknown): void {
             <button v-if="ctx.graphObjectSearch" type="button" title="Limpar busca" @click="ctx.graphObjectSearch = ''">×</button>
           </label>
           <div class="graph-object-picker">
-            <div class="graph-object-section-label"><span>NA CENA</span><span>{{ ctx.objects.filter(object => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase())).length }} itens</span></div>
-            <button v-for="object in ctx.objects.filter(object => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase()))" :key="object.id" class="graph-object-picker-row" :class="{ active: ctx.selectedId === object.id }" :title="object.name" @click="ctx.selectItem(object.id)">
+            <div class="graph-object-section-label"><span>NA CENA</span><span>{{ ctx.objects.filter((object: ObjectInfo) => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase())).length }} itens</span></div>
+            <button v-for="object in ctx.objects.filter((object: ObjectInfo) => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase()))" :key="object.id" class="graph-object-picker-row" :class="{ active: ctx.selectedId === object.id }" :title="object.name" @click="ctx.selectItem(object.id)">
               <span class="object-picker-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 21 7.4 12 12 3 7.4 12 2.8Z"/><path d="M3 7.4v9.2l9 4.6 9-4.6V7.4M12 12v9.2"/></svg></span>
               <span class="object-picker-copy"><span class="object-picker-name">{{ object.name }}</span><span class="object-picker-type">{{ object.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject' }}</span></span>
-              <span class="object-picker-count" :title="ctx.logicRules.filter(rule => ctx.ownerOfRule(rule) === object.id).length + ' eventos'"><span class="object-count-dot"></span>{{ ctx.logicRules.filter(rule => ctx.ownerOfRule(rule) === object.id).length }}</span>
+              <span class="object-picker-count" :title="ctx.logicRules.filter((rule: LogicRule) => ctx.ownerOfRule(rule) === object.id).length + ' eventos'"><span class="object-count-dot"></span>{{ ctx.logicRules.filter((rule: LogicRule) => ctx.ownerOfRule(rule) === object.id).length }}</span>
             </button>
             <div v-if="!ctx.objects.length" class="graph-object-empty"><span>◇</span><strong>Nenhum objeto criado</strong><small>Adicione um objeto à cena para começar.</small></div>
-            <div v-else-if="!ctx.objects.some(object => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase()))" class="graph-object-empty"><strong>Nenhum resultado</strong><small>Tente buscar por outro nome.</small></div>
+            <div v-else-if="!ctx.objects.some((object: ObjectInfo) => object.name.toLowerCase().includes(ctx.graphObjectSearch.trim().toLowerCase()))" class="graph-object-empty"><strong>Nenhum resultado</strong><small>Tente buscar por outro nome.</small></div>
           </div>
           <div class="graph-tip"><strong>Dica</strong><span>Selecione um objeto para focar sua edição. Todos os fluxos continuam visíveis no modo global.</span></div>
         </aside>
@@ -76,7 +77,7 @@ function setExternalRef(name: string, element: unknown): void {
           <template v-if="ctx.selectedGraphRule && ctx.graphSelection">
             <h3>{{ ctx.graphSelection.part === 'trigger' ? 'Evento' : ctx.graphSelection.part === 'condition' ? 'Condição' : 'Ação' }}</h3>
             <label class="field">Nome do fluxo
-              <input :value="ctx.selectedGraphRule.name" spellcheck="false" @change="ctx.updateLogicRule({ ...selectedGraphRule, name: ($event.target as HTMLInputElement).value })" />
+              <input :value="ctx.selectedGraphRule.name" spellcheck="false" @change="ctx.updateLogicRule({ ...ctx.selectedGraphRule, name: ($event.target as HTMLInputElement).value })" />
             </label>
             <label class="checkline"><input type="checkbox" :checked="ctx.selectedGraphRule.enabled" @change="ctx.toggleLogicRule(ctx.selectedGraphRule)" /> Fluxo habilitado</label>
             <template v-if="ctx.graphSelection.part === 'trigger'">
@@ -125,7 +126,7 @@ function setExternalRef(name: string, element: unknown): void {
               </template>
             </template>
             <template v-else-if="ctx.graphSelection.part === 'condition'">
-              <label class="checkline"><input type="checkbox" :checked="ctx.selectedGraphRule.conditions.length > 0" @change="ctx.updateLogicRule({ ...selectedGraphRule, conditions: ($event.target as HTMLInputElement).checked ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [] })" /> Exigir condição</label>
+              <label class="checkline"><input type="checkbox" :checked="ctx.selectedGraphRule.conditions.length > 0" @change="ctx.updateLogicRule({ ...ctx.selectedGraphRule, conditions: ($event.target as HTMLInputElement).checked ? [{ type: 'variable', name: 'has_key', operator: 'equals', value: true }] : [] })" /> Exigir condição</label>
               <template v-if="ctx.selectedGraphRule.conditions.length">
                 <label class="field">Variável exigida
                   <select :value="ctx.selectedGraphRule.conditions[0]?.name ?? ''" @change="ctx.patchSelectedCondition({ name: ($event.target as HTMLSelectElement).value })">
