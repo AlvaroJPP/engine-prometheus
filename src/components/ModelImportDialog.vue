@@ -51,6 +51,10 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
+import {
+  prepareRigAnimationFrames,
+  upsertRigAnimationKeyframe,
+} from '@/lib/animation/RigKeyframeTimeline'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
 import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
 import {
@@ -541,14 +545,8 @@ function recordRigKeyframe() {
   }
   previewAnimationRuntime.controller?.stop()
   const time = Number(rigFrameTime.value.toFixed(3))
-  const pose = captureRigPose(rigBones.value)
-  const existing = rigKeyframes.value.findIndex(frame => Math.abs(frame.time - time) < 0.001)
-  const frame = { time, pose }
-  if (existing >= 0) {
-    rigKeyframes.value = rigKeyframes.value.map((item, index) => index === existing ? frame : item)
-  } else {
-    rigKeyframes.value = [...rigKeyframes.value, frame].sort((a, b) => a.time - b.time)
-  }
+  const frame = { time, pose: captureRigPose(rigBones.value) }
+  rigKeyframes.value = upsertRigAnimationKeyframe(rigKeyframes.value, frame)
   rigDuration.value = Math.max(rigDuration.value, time, 0.1)
   rigMessage.value = `Pose gravada em ${time.toFixed(2)} s (${rigBones.value.length} ossos).`
 }
@@ -577,8 +575,8 @@ function clearRigKeyframesForNewClip() {
 function createRigAnimation() {
   const root = model.value
   if (!root || !rigBones.value.length || props.initialAsset) return
-  const frames = [...rigKeyframes.value].sort((a, b) => a.time - b.time)
-  if (frames.length < 2 || frames[0]!.time === frames[frames.length - 1]!.time) {
+  const clipFrames = prepareRigAnimationFrames(rigKeyframes.value)
+  if (!clipFrames) {
     rigMessage.value = 'Grave pelo menos duas poses em tempos diferentes (por exemplo, 0 s e 1 s).'
     return
   }
@@ -587,7 +585,6 @@ function createRigAnimation() {
     rigMessage.value = 'Digite um nome para a animação.'
     return
   }
-  const clipFrames = frames[0]!.time > 0 ? [{ ...frames[0]!, time: 0 }, ...frames] : frames
   const duration = Math.max(0.1, rigDuration.value, clipFrames[clipFrames.length - 1]!.time)
   const clip = createRigAnimationClip(name, duration, rigBones.value, clipFrames)
   if (!clip) {
