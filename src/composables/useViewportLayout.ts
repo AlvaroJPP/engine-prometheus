@@ -19,10 +19,6 @@ export function useViewportLayout({
   viewportRoot,
   playerHudSettingsOpen,
 }: UseViewportLayoutOptions) {
-type ViewportLayoutId = 'render' | 'fps' | 'axes' | 'tools'
-type ViewportLayoutItem = { x: number; y: number; scale: number }
-type ViewportLayoutSettings = Record<ViewportLayoutId, ViewportLayoutItem>
-
 const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v7'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6 = 'engine-prometheus.viewport-layout.v6'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5 = 'engine-prometheus.viewport-layout.v5'
