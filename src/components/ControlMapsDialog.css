@@ -1,0 +1,224 @@
+.controls-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 8, 12, 0.74);
+}
+.controls-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(780px, calc(100vh - 36px));
+  overflow: hidden;
+  border: 1px solid #303744;
+  border-radius: 9px;
+  background: #151922;
+  color: #e4e8ef;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.5);
+}
+.controls-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #2b313d;
+}
+.eyebrow {
+  color: #de947e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.controls-header h2 {
+  margin: 7px 0 4px;
+  font-size: 21px;
+  font-weight: 650;
+}
+.controls-header p {
+  margin: 0;
+  color: #9aa3b2;
+  font-size: 12px;
+}
+.icon-button {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #333b48;
+  border-radius: 5px;
+  background: #1d222c;
+  color: #d6dbe4;
+  font-size: 21px;
+  cursor: pointer;
+}
+.profile-tools {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 16px 24px 12px;
+}
+.profile-select, .profile-name label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  color: #a5adbb;
+  font-size: 10px;
+  font-weight: 700;
+}
+.profile-select select, .profile-name input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid #343c49;
+  border-radius: 5px;
+  outline: none;
+  background: #10141b;
+  color: #e5e9f0;
+  font: inherit;
+  font-size: 12px;
+}
+.profile-select select:focus, .profile-name input:focus {
+  border-color: #bd705c;
+}
+.profile-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.primary-button, .secondary-button, .danger-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #3a424f;
+  border-radius: 5px;
+  background: #202631;
+  color: #d9dee7;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.primary-button {
+  border-color: #9f5748;
+  background: #8f4b3e;
+  color: #fff2ed;
+}
+.danger-button {
+  border-color: #684047;
+  color: #ffb7b4;
+}
+.primary-button:hover, .secondary-button:hover, .danger-button:hover {
+  filter: brightness(1.12);
+}
+.profile-name {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 0 24px 15px;
+}
+.control-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 0 24px;
+  border-bottom: 1px solid #2b313d;
+}
+.control-tabs button {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9aa3b2;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.control-tabs button.active {
+  border-bottom-color: #d17b64;
+  color: #f1c4b6;
+}
+.bindings-list {
+  min-height: 150px;
+  overflow: auto;
+  padding: 6px 24px;
+}
+.binding-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 50px;
+  border-bottom: 1px solid #262c36;
+}
+.binding-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.binding-label strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+.binding-label small {
+  color: #8590a0;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.key-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 1px solid #404957;
+  border-radius: 5px;
+  background: #202632;
+  color: #f0f2f6;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.key-button span {
+  color: #9ba5b5;
+  font-size: 9px;
+}
+.key-button.capturing {
+  border-color: #d17b64;
+  background: #34231f;
+  color: #ffd0c3;
+}
+.controls-message {
+  min-height: 16px;
+  padding: 8px 24px;
+  color: #dda18e;
+  font-size: 10px;
+}
+.controls-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px 16px;
+  border-top: 1px solid #2b313d;
+}
+.controls-footer span {
+  flex: 1;
+  color: #8e98a7;
+  font-size: 10px;
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .controls-overlay { padding: 8px; }
+  .controls-header, .profile-tools, .profile-name, .bindings-list { padding-left: 14px; padding-right: 14px; }
+  .profile-tools { align-items: stretch; flex-direction: column; }
+  .controls-footer { align-items: stretch; flex-wrap: wrap; padding-left: 14px; padding-right: 14px; }
+  .controls-footer span { flex-basis: 100%; }
+  .control-tabs { padding: 0 14px; }
+  .control-tabs button { padding: 10px 7px; }
+  .key-button { min-width: 120px; }
+}
