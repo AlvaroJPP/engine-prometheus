@@ -1,0 +1,135 @@
+/* Controle de horário do ciclo solar: a trilha e a faixa cromática usam a mesma escala 0–24 h. */
+.day-night-time-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:10px 0 7px;
+  color:#E6E8EC;
+  font:400 13px/1.4 'IBM Plex Sans', Inter, 'Segoe UI', sans-serif;
+}
+.day-night-time-heading label { cursor:pointer; }
+.day-night-time-value {
+  color:#F5A524;
+  font:500 12px/1.2 'IBM Plex Mono', 'JetBrains Mono', Consolas, monospace;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.025em;
+}
+.day-night-time-slider,
+.panel.right .scroll .day-night-time-slider {
+  -webkit-appearance:none;
+  appearance:none;
+  display:block;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:20px;
+  margin:0;
+  padding:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  accent-color:#F5A524;
+  cursor:pointer;
+  touch-action:pan-y;
+}
+.day-night-time-slider::-webkit-slider-runnable-track {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #2C323D;
+  border-radius:999px;
+  background:linear-gradient(
+    90deg,
+    #F5A524 0%,
+    #F5A524 var(--time-progress, 50%),
+    #101319 var(--time-progress, 50%),
+    #101319 100%
+  );
+}
+.day-night-time-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  appearance:none;
+  box-sizing:border-box;
+  width:14px;
+  height:14px;
+  margin-top:-5px;
+  border:2px solid #FFD17C;
+  border-radius:50%;
+  background:#F5A524;
+  box-shadow:0 0 0 2px #F5A52422,0 1px 3px #0008;
+}
+.day-night-time-slider::-moz-range-track {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #2C323D;
+  border-radius:999px;
+  background:linear-gradient(
+    90deg,
+    #F5A524 0%,
+    #F5A524 var(--time-progress, 50%),
+    #101319 var(--time-progress, 50%),
+    #101319 100%
+  );
+}
+.day-night-time-slider::-moz-range-progress {
+  box-sizing:border-box;
+  height:6px;
+  border:1px solid #F5A524;
+  border-radius:999px;
+  background:#F5A524;
+}
+.day-night-time-slider::-moz-range-thumb {
+  box-sizing:border-box;
+  width:14px;
+  height:14px;
+  border:2px solid #FFD17C;
+  border-radius:50%;
+  background:#F5A524;
+  box-shadow:0 0 0 2px #F5A52422,0 1px 3px #0008;
+}
+.day-night-time-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:0 0 0 3px #F5A52433,0 0 0 1px #FFD17C;
+}
+.day-night-time-slider:focus-visible::-moz-range-thumb {
+  box-shadow:0 0 0 3px #F5A52433,0 0 0 1px #FFD17C;
+}
+.day-night-color-band {
+  width:100%;
+  height:6px;
+  margin-top:1px;
+  border:1px solid #2C323D;
+  border-radius:4px;
+  box-sizing:border-box;
+  background:linear-gradient(
+    90deg,
+    #2A3566 0%,
+    #F2A65A 25%,
+    #8CC4F5 50%,
+    #F2A65A 75%,
+    #2A3566 100%
+  );
+  pointer-events:none;
+}
+.day-night-time-ticks {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  width:100%;
+  margin-top:5px;
+  color:#7B8290;
+  font:400 10px/1.25 'IBM Plex Mono', 'JetBrains Mono', Consolas, monospace;
+  font-variant-numeric:tabular-nums;
+  user-select:none;
+}
+.day-night-time-ticks span { min-width:0; }
+.day-night-time-ticks span:first-child { text-align:left; }
+.day-night-time-ticks span:last-child { text-align:right; }
+.day-night-speed-control { min-width:0; }
+.day-night-speed-control.is-disabled { opacity:.5; }
+.day-night-speed-control input:disabled { cursor:not-allowed; }
+@media(max-width:700px) {
+  .day-night-time-heading { margin-top:8px; }
+  .day-night-time-ticks { font-size:10px; }
+}
+
