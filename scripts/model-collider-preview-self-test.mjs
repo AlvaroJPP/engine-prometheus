@@ -49,6 +49,7 @@ const selectedPart = new THREE.Mesh(
 )
 selectedPart.position.set(8, 1, -3)
 root.add(selectedPart)
+root.updateMatrixWorld(true)
 const selectedBox = createModelColliderPreview({
   ...options,
   type: 'box',
