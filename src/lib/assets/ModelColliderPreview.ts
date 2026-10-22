@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { getStaticMeshCollisionData } from '../../../engine/world/StaticMeshCollider.ts'
-import { createStaticColliderPreviewGeometry } from './ColliderPreviewGeometry'
+import { createStaticColliderPreviewGeometry } from './ColliderPreviewGeometry.ts'
 
 export type ModelColliderPreviewType = 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
 
