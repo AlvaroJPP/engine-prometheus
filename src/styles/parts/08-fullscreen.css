@@ -1,0 +1,207 @@
+/* Tela cheia usa as dimensões nativas quando disponíveis. A viewport é
+   posicionada dentro do editor, sem depender de alturas herdadas do WebView. */
+.app.world-fullscreen {
+  position:fixed !important;
+  inset:0 !important;
+  width:auto !important;
+  height:auto !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  z-index:10000 !important;
+  overflow:hidden !important;
+  background:#0e1013 !important;
+}
+.app.world-fullscreen > .topbar,
+.app.world-fullscreen > .toolbar,
+.app.world-fullscreen .panel.left,
+.app.world-fullscreen .panel.right {
+  display:none !important;
+}
+.app.world-fullscreen .main {
+  position:absolute !important;
+  inset:0 !important;
+  width:auto !important;
+  height:auto !important;
+  z-index:10001 !important;
+  display:block !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:hidden !important;
+}
+.app.world-fullscreen .viewport {
+  position:absolute !important;
+  inset:0 !important;
+  width:auto !important;
+  height:auto !important;
+  z-index:10002 !important;
+  display:block !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  border:0 !important;
+  overflow:hidden !important;
+}
+.app.world-fullscreen .viewport > :not(.canvas):not(.player-hud) {
+  display:none !important;
+}
+/* Cohesive warm charcoal / coral theme from the latest toolbar reference. */
+:root {
+  --bg:#14120f;
+  --panel:#191713;
+  --panel-2:#1d1b17;
+  --line:#2e2b25;
+  --text:#f3efe6;
+  --muted:#b5afa2;
+  --accent:#e8572b;
+  --accent-dark:#542517;
+  --green:#8cae78;
+}
+body,.app { background:#14120f !important; color:#f3efe6 !important; }
+.app { font-family:'IBM Plex Sans',sans-serif !important; }
+.main { background:#14120f !important; }
+.panel { background:#191713 !important; color:#f3efe6; }
+.panel.left { border-right-color:#2e2b25 !important; }
+.panel.right { border-left-color:#2e2b25 !important; }
+.panel-head,.inspector-heading { border-color:#2e2b25 !important; background:#191713 !important; }
+.panel-head .h,.inspector-title-copy .h { color:#f3efe6 !important; }
+.panel-head .eyebrow,.inspector-heading .eyebrow { color:#b5afa2 !important; }
+.badge,.inspector-context { border-color:#3b3730 !important; background:#1d1b17 !important; color:#b5afa2 !important; }
+.library-tabs { border-bottom-color:#2e2b25 !important; background:#14120f !important; }
+.library-tabs button { color:#b5afa2 !important; }
+.library-tabs button.active { border-bottom-color:#e8572b !important; background:#1d1b17 !important; color:#f3efe6 !important; }
+.library-tabs button span { color:#e8572b !important; }
+.tree,.component-library { background:#191713 !important; }
+.component-library-intro { border-color:#2e2b25 !important; background:#1d1b17 !important; }
+.component-library-intro strong,.saved-component-copy strong { color:#f3efe6 !important; }
+.component-library-intro p,.saved-component-copy small { color:#b5afa2 !important; }
+.row { color:#d6d0c5 !important; }
+.row.root { background:#1d1b17 !important; }
+.row.active { background:#34241c !important; box-shadow:inset 3px 0 #e8572b !important; color:#ffd4c5 !important; }
+.row.active .name { color:#ffd4c5 !important; }
+.saved-component-place { border-color:#2e2b25 !important; background:#1d1b17 !important; }
+.saved-component-place:hover { border-color:#9a4b30 !important; background:#282019 !important; }
+.saved-component-icon,.inspector-object-icon { border-color:#663623 !important; background:#34241c !important; color:#e8572b !important; }
+.saved-component-add,.saved-component-preview { color:#e8572b !important; }
+.saved-component-edit,.saved-component-preview,.saved-component-delete { border-color:#3b3730 !important; background:#191713 !important; }
+.hierarchy-actions { border-top-color:#2e2b25 !important; }
+.hierarchy-actions button { border-color:#3b3730 !important; background:#1d1b17 !important; color:#f3efe6 !important; }
+.hierarchy-actions button:hover { border-color:#75412e !important; background:#282019 !important; }
+.panel-foot { border-top-color:#2e2b25 !important; background:#14120f !important; color:#b5afa2 !important; }
+.toolbar { border-color:#2e2b25 !important; background:rgba(20,18,15,.96) !important; box-shadow:0 8px 24px #0005 !important; }
+.toolbar .tool { color:#b5afa2 !important; }
+.toolbar .tool:hover { border-color:#3b3730 !important; background:#1d1b17 !important; color:#f3efe6 !important; }
+.toolbar .tool.active,.toolbar .grid-toggle.active { border-color:#783d27 !important; background:#34241c !important; color:#ff997d !important; }
+.toolbar .tool:focus-visible { outline-color:#e8572b !important; }
+.viewport { background:#14120f !important; }
+.chip,.axis { border-color:#2e2b25 !important; background:rgba(20,18,15,.9) !important; color:#b5afa2 !important; }
+.chip.live { color:#f3efe6 !important; }
+.grid-state { color:#ff997d !important; }
+.chips,.axes { left:72px !important; }
+.ax-x { color:#f07870 !important; }
+.ax-y { color:#8cae78 !important; }
+.ax-z { color:#80a9df !important; }
+.viewport-fps {
+  top:104px !important;
+  left:auto !important;
+  right:14px !important;
+  border-color:#2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(20,18,15,.92) !important;
+  color:#b5afa2 !important;
+  box-shadow:0 6px 18px #0003 !important;
+}
+.viewport-fps strong { color:#f3efe6 !important; }
+.viewport-fps .fps-indicator { box-shadow:none !important; }
+.viewport-render-stats { border-top-color:#2e2b25 !important; color:#b5afa2 !important; }
+.viewport-render-stats strong { color:#f3efe6 !important; }
+.model-import-launch {
+  top:58px !important;
+  right:14px !important;
+  border-color:#e8572b !important;
+  border-radius:8px !important;
+  background:#e8572b !important;
+  color:#14120f !important;
+  box-shadow:0 4px 12px #0003 !important;
+}
+.model-import-launch:hover { filter:brightness(1.06); background:#ed6741 !important; }
+.model-import-launch span { color:#14120f !important; }
+.quick-add-wrap { top:58px !important; right:194px !important; }
+.quick-add-trigger {
+  border-color:#3b3730 !important;
+  border-radius:8px !important;
+  background:#1d1b17 !important;
+  color:#f3efe6 !important;
+  box-shadow:none !important;
+}
+.quick-add-trigger:hover,.quick-add-trigger[aria-expanded="true"] {
+  border-color:#75412e !important;
+  background:#282019 !important;
+  color:#f3efe6 !important;
+}
+.quick-add-trigger > span:first-child { color:#e8572b !important; }
+.quick-add-chevron { color:#b5afa2 !important; }
+.quick-add-popover { border-color:#3b3730 !important; border-radius:9px !important; background:#1d1b17 !important; }
+.quick-add-heading { border-bottom-color:#2e2b25 !important; color:#b5afa2 !important; }
+.quick-add-popover > button { color:#f3efe6 !important; }
+.quick-add-popover > button:hover { border-color:#3b3730 !important; background:#34302a !important; }
+.quick-add-icon { border-color:#3b3730 !important; background:#26231e !important; color:#e8572b !important; }
+.quick-add-popover small,.quick-add-popover kbd { color:#b5afa2 !important; }
+.statusbar { border-top-color:#2e2b25 !important; background:rgba(20,18,15,.96) !important; color:#b5afa2 !important; }
+.statusbar .seg { border-right-color:#2e2b25 !important; }
+.inspector-tabs { border-bottom-color:#2e2b25 !important; background:#14120f !important; }
+.inspector-tabs button { color:#b5afa2 !important; }
+.inspector-tabs button.active { border-top-color:#e8572b !important; background:#1d1b17 !important; color:#f3efe6 !important; }
+.inspector-tabs button.active span { color:#ff997d !important; }
+.inspector-description,.selection-empty-hint,.muted,.component-note { color:#b5afa2 !important; }
+.panel.right .scroll section { border-bottom-color:#2e2b25 !important; }
+.panel.right .scroll input:not([type=checkbox]):not([type=range]),
+.panel.right .scroll select,.panel.right .scroll textarea {
+  border-color:#3b3730 !important;
+  border-radius:7px !important;
+  background:#14120f !important;
+  color:#f3efe6 !important;
+}
+.panel.right .scroll input:focus,.panel.right .scroll select:focus,.panel.right .scroll textarea:focus {
+  border-color:#e8572b !important;
+  outline:1px solid #e8572b !important;
+}
+.panel.right .scroll input[type=range],.panel.right .scroll input[type=checkbox] { accent-color:#e8572b !important; }
+.panel.right .scroll button.primary,.panel.right .scroll .primary {
+  border-color:#e8572b !important;
+  background:#e8572b !important;
+  color:#14120f !important;
+  box-shadow:none !important;
+}
+.panel.right .scroll .ghost,
+.panel.right .scroll button:not(.primary):not(.danger):not(.variable-delete) {
+  border-color:#3b3730 !important;
+  background:#1d1b17 !important;
+  color:#f3efe6 !important;
+}
+.panel.right .scroll .ghost:hover,
+.panel.right .scroll button:not(.primary):not(.danger):not(.variable-delete):hover {
+  border-color:#75412e !important;
+  background:#282019 !important;
+}
+.panel.right .scroll .danger { border-color:#74372c !important; background:#271916 !important; color:#ff9d8b !important; }
+.panel.right .scroll .collider-visibility-button.active { border-color:#75412e !important; background:#34241c !important; color:#ff997d !important; }
+.project-io-overlay { background:rgba(12,10,8,.78) !important; }
+.project-io-card { border-color:#3b3730 !important; border-radius:10px !important; background:#1d1b17 !important; color:#f3efe6 !important; }
+.project-io-icon { border-color:#75412e !important; background:#34241c !important; color:#e8572b !important; }
+.project-io-message,.project-io-meta { color:#b5afa2 !important; }
+.project-io-fill { background:#e8572b !important; }
+@media(max-width:1180px) {
+  .quick-add-wrap { right:190px !important; }
+  .model-import-launch { right:12px !important; }
+  .viewport-fps { top:104px !important; }
+}
+@media(max-width:760px) {
+  .quick-add-wrap { right:174px !important; top:58px !important; }
+  .model-import-launch { top:58px !important; right:12px !important; }
+  .viewport-fps { top:104px !important; right:12px !important; }
+  .chips { left:72px !important; }
+}
+
+.app.world-fullscreen { background:#14120f !important; }
