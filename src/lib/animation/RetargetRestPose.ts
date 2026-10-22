@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { applyRigPose, captureRigPose } from './Rigging'
+import { applyRigPose, captureRigPose } from './Rigging.ts'
 
 type RetargetRestPose = ReturnType<typeof captureRigPose>
 
