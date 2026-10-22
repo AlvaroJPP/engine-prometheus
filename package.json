@@ -13,7 +13,8 @@
     "rigging:self-test": "node --experimental-strip-types scripts/rigging-self-test.mjs",
     "model:states:self-test": "node --experimental-strip-types scripts/import-model-states-self-test.mjs",
     "animation:roles:self-test": "node --experimental-strip-types scripts/animation-role-options-self-test.mjs",
-    "behavior:packages:self-test": "node --experimental-strip-types scripts/import-behavior-package-drafts-self-test.mjs"
+    "behavior:packages:self-test": "node --experimental-strip-types scripts/import-behavior-package-drafts-self-test.mjs",
+    "retarget:rest-pose:self-test": "node --experimental-strip-types scripts/retarget-rest-pose-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

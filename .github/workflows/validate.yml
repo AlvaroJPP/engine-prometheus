@@ -33,6 +33,8 @@ jobs:
         run: npm run animation:roles:self-test
       - name: Test import behavior package drafts
         run: npm run behavior:packages:self-test
+      - name: Test retarget rest pose cache
+        run: npm run retarget:rest-pose:self-test
       - name: Type-check and build
         run: npm run build
       - name: Install Tauri Linux dependencies

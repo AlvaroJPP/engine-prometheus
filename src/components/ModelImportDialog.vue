@@ -41,6 +41,11 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
+import {
+  getRetargetRestPose,
+  restoreRetargetRestPose,
+  storeRetargetRestPose,
+} from '@/lib/animation/RetargetRestPose'
 import { cloneRetargetPreviewObject } from '@/lib/animation/RetargetPreviewObjects'
 import {
   createRetargetPreviewStage,
@@ -758,30 +763,6 @@ function clearPreviewAnimationController(): void {
   previewMixer = null
 }
 
-type RetargetRestPose = ReturnType<typeof captureRigPose>
-const retargetRestPoseByModel = new WeakMap<THREE.Object3D, RetargetRestPose>()
-
-function captureRetargetRestPose(root: THREE.Object3D): RetargetRestPose {
-  const bones: THREE.Bone[] = []
-  root.traverse(node => { if (node instanceof THREE.Bone) bones.push(node) })
-  return captureRigPose(bones)
-}
-
-function restoreRetargetRestPose(root: THREE.Object3D, bones?: THREE.Bone[]): boolean {
-  const pose = retargetRestPoseByModel.get(root)
-  if (!pose || Object.keys(pose).length === 0) return false
-  const targetBones = bones ?? (() => {
-    const result: THREE.Bone[] = []
-    root.traverse(node => { if (node instanceof THREE.Bone) result.push(node) })
-    return result
-  })()
-  applyRigPose(targetBones, pose)
-  root.updateWorldMatrix(true, true)
-  root.traverse(node => {
-    if (node instanceof THREE.SkinnedMesh) node.skeleton.update()
-  })
-  return true
-}
 const previewClock = new THREE.Clock()
 
 function disposeModel(object: THREE.Object3D) {
@@ -1422,7 +1403,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   controlBindings.value = normalizeModelControlBindings(loaded.userData.importControlBindings)
   loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
-  retargetRestPoseByModel.set(loaded, captureRetargetRestPose(loaded))
+  storeRetargetRestPose(loaded)
   refreshPreviewParts()
   refreshModelDiagnostics()
   const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
@@ -2118,7 +2099,7 @@ function refreshRetargetTargetPreview() {
   try {
     const previewBones: THREE.Bone[] = []
     previewModel.traverse(node => { if (node instanceof THREE.Bone) previewBones.push(node) })
-    const storedTargetRestPose = retargetRestPoseByModel.get(target)
+    const storedTargetRestPose = getRetargetRestPose(target)
     if (storedTargetRestPose && Object.keys(storedTargetRestPose).length > 0) {
       applyRigPose(previewBones, storedTargetRestPose)
       previewModel.updateMatrixWorld(true)
