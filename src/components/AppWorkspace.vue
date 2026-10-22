@@ -15,13 +15,10 @@ function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
   if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
-function toggleWorldFullscreenFromUi(): void {
-  void context.toggleWorldFullscreen()
-}
 </script>
 
 <template>
-  <div :ref="element => setExternalRef('appRoot', element)" class="app" :style="context.worldFullscreenStyle.value" :class="{ 'is-running': ctx.executionMode === 'running', 'world-fullscreen': context.worldFullscreen.value, 'sidebar-collapsed': ctx.sidebarCollapsed }">
+  <div :ref="element => setExternalRef('appRoot', element)" class="app" :style="ctx.worldFullscreenStyle" :class="{ 'is-running': ctx.executionMode === 'running', 'world-fullscreen': ctx.worldFullscreen, 'sidebar-collapsed': ctx.sidebarCollapsed }">
     <EditorTopBar
       v-model:project-name="ctx.projectName"
       :viewport-layout-style="ctx.viewportLayoutStyle('render')"
@@ -50,7 +47,7 @@ function toggleWorldFullscreenFromUi(): void {
       :wall-occlusion-quality="ctx.wallOcclusionQuality"
       :grass-wind-percent="ctx.grassWindPercent"
       :execution-mode="ctx.executionMode"
-      :world-fullscreen="context.worldFullscreen.value"
+      :world-fullscreen="ctx.worldFullscreen"
       :viewport-layout-config-open="ctx.viewportLayoutConfigOpen"
       :objects="ctx.objects"
       :components="ctx.placeableSavedComponents"
@@ -59,7 +56,7 @@ function toggleWorldFullscreenFromUi(): void {
       @open-model-import="ctx.previewComponentAsset = null; ctx.modelImportOpen = true"
       @run-world="ctx.runWorld"
       @edit-world="ctx.returnToEdit"
-      @toggle-world-fullscreen="toggleWorldFullscreenFromUi"
+      @toggle-world-fullscreen="ctx.toggleWorldFullscreen"
       @toggle-viewport-layout-config="ctx.toggleViewportLayoutConfig"
       @render-distance-change="ctx.setRenderDistance"
       @render-all-change="ctx.setRenderAll"

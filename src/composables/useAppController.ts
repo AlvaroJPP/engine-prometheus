@@ -1904,9 +1904,6 @@ async function toggleWorldFullscreen() {
 
   if (entering) {
     quickAddOpen.value = false
-    // Ative a classe visual imediatamente. Não espere a Promise nativa:
-    // no WebView, o evento de resize pode ser entregue depois da Promise.
-    worldFullscreen.value = true
     try {
       if (isTauri()) {
         // Primeiro maximize a janela nativa; só depois ative as regras de CSS
@@ -1927,6 +1924,7 @@ async function toggleWorldFullscreen() {
       // toda a área da janela por meio do modo CSS.
       console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
     }
+    worldFullscreen.value = true
     await syncFullscreenViewportBounds()
   } else {
     try {

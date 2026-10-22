@@ -26,7 +26,7 @@ function setExternalRef(name: string, element: unknown): void {
           :first-person="ctx.firstPersonMode"
           :settings-open="ctx.playerHudSettingsOpen"
           :editor-preview="ctx.executionMode !== 'running'"
-          :world-fullscreen="context.worldFullscreen.value"
+          :world-fullscreen="ctx.worldFullscreen"
           :bindings="ctx.activeControlMap.bindings"
           :game-variables="ctx.globalLogicVariables"
           @toggle-camera="ctx.handleHudToggleCamera"
@@ -78,7 +78,7 @@ function setExternalRef(name: string, element: unknown): void {
         </div>
 
         <div
-          v-if="ctx.viewportLayoutConfigOpen && ctx.executionMode === 'edit' && !context.worldFullscreen.value"
+          v-if="ctx.viewportLayoutConfigOpen && ctx.executionMode === 'edit' && !ctx.worldFullscreen"
           id="viewport-layout-config-panel"
           class="viewport-layout-config-panel"
           role="dialog"
@@ -140,7 +140,7 @@ function setExternalRef(name: string, element: unknown): void {
           </div>
         </div>
 
-        <div v-if="ctx.viewportLayoutEditMode && ctx.executionMode === 'edit' && !context.worldFullscreen.value" class="viewport-layout-handles" aria-label="Controles para mover e redimensionar menus">
+        <div v-if="ctx.viewportLayoutEditMode && ctx.executionMode === 'edit' && !ctx.worldFullscreen" class="viewport-layout-handles" aria-label="Controles para mover e redimensionar menus">
           <div v-for="item in ctx.selectableViewportLayoutItems" :key="'outline-' + item.id" class="viewport-layout-outline" :style="ctx.viewportLayoutOutlineStyle(item.id)">
             <button type="button" class="viewport-layout-move-handle" :title="'Arrastar para mover: ' + item.label" :aria-label="'Mover ' + item.label" @pointerdown="ctx.beginViewportLayoutDrag($event, item.id, 'move')"><span aria-hidden="true">⠿</span></button>
             <span class="viewport-layout-outline-name" aria-hidden="true">{{ item.label }}</span>
