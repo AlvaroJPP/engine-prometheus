@@ -19,6 +19,8 @@ import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@engine/lib/Bi
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
+import { extractGltfMetadata } from '@/lib/assets/GltfMetadata'
+import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 import { AnimationController, inferAnimationRole } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
@@ -163,12 +165,6 @@ const previewPackageModelNodes = computed(() => {
   return rootPart.meshCount > 0 ? [...result, rootPart] : result
 })
 
-type GltfMetadata = {
-  images: Array<{ index: number; name: string; mimeType: string; uri: string; bufferView: number | null }>
-  textures: Array<{ index: number; name: string; source: number | null }>
-  materials: Array<{ index: number; name: string; baseColorTexture: number | null; normalTexture: number | null; occlusionTexture: number | null; emissiveTexture: number | null; baseColorFactor: number[] | null }>
-  animations: Array<{ index: number; name: string; channels: number }>
-}
 const modelDiagnostics = shallowRef<ModelDiagnostic[]>([])
 const diagnosticSummary = ref<ModelDiagnosticSummary>({ nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 })
 const previewAnimationIndex = ref(0)
@@ -1727,34 +1723,7 @@ async function parseFile(file: File) {
         if (ext === 'glb') gltf.scene.userData.importSourceGlbBytes = buffer.slice(0)
         // Preserve metadata from the original glTF JSON so we can distinguish
         // an embedded image from a texture actually assigned to baseColorTexture.
-        gltf.scene.userData.importGltfMetadata = {
-          images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
-            index,
-            name: image.name ?? '',
-            mimeType: image.mimeType ?? '',
-            uri: image.uri ?? '',
-            bufferView: image.bufferView ?? null,
-          })),
-          textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
-            index,
-            name: texture.name ?? '',
-            source: texture.source ?? null,
-          })),
-          materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
-            index,
-            name: material.name ?? '',
-            baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
-            normalTexture: material.normalTexture?.index ?? null,
-            occlusionTexture: material.occlusionTexture?.index ?? null,
-            emissiveTexture: material.emissiveTexture?.index ?? null,
-            baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
-          })),
-          animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
-            index,
-            name: clip.name ?? '',
-            channels: clip.channels?.length ?? 0,
-          })),
-        }
+        gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
         resolve(gltf.scene)
       }, reject)
     })
@@ -1833,25 +1802,7 @@ async function parseGlbBytes(bytes: ArrayBuffer, manager?: THREE.LoadingManager)
   return await new Promise<THREE.Object3D>((resolve, reject) => {
     loader.parse(bytes, '', (gltf) => {
       gltf.scene.userData.importAnimations = gltf.animations ?? []
-      gltf.scene.userData.importGltfMetadata = {
-        images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
-          index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
-        })),
-        textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
-          index, name: texture.name ?? '', source: texture.source ?? null,
-        })),
-        materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
-          index, name: material.name ?? '',
-          baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
-          normalTexture: material.normalTexture?.index ?? null,
-          occlusionTexture: material.occlusionTexture?.index ?? null,
-          emissiveTexture: material.emissiveTexture?.index ?? null,
-          baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
-        })),
-        animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
-          index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
-        })),
-      }
+      gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
       resolve(gltf.scene)
     }, reject)
   })
@@ -2070,25 +2021,7 @@ async function importBlendZip() {
       loaded = await new Promise<THREE.Object3D>((resolve, reject) => {
         loader.parse(jsonText, '', (gltf) => {
           gltf.scene.userData.importAnimations = gltf.animations ?? []
-          gltf.scene.userData.importGltfMetadata = {
-            images: (gltf.parser.json.images ?? []).map((image: { name?: string; mimeType?: string; uri?: string; bufferView?: number }, index: number) => ({
-              index, name: image.name ?? '', mimeType: image.mimeType ?? '', uri: image.uri ?? '', bufferView: image.bufferView ?? null,
-            })),
-            textures: (gltf.parser.json.textures ?? []).map((texture: { name?: string; source?: number }, index: number) => ({
-              index, name: texture.name ?? '', source: texture.source ?? null,
-            })),
-            materials: (gltf.parser.json.materials ?? []).map((material: { name?: string; pbrMetallicRoughness?: { baseColorTexture?: { index?: number }; baseColorFactor?: number[] }; normalTexture?: { index?: number }; occlusionTexture?: { index?: number }; emissiveTexture?: { index?: number } }, index: number) => ({
-              index, name: material.name ?? '',
-              baseColorTexture: material.pbrMetallicRoughness?.baseColorTexture?.index ?? null,
-              normalTexture: material.normalTexture?.index ?? null,
-              occlusionTexture: material.occlusionTexture?.index ?? null,
-              emissiveTexture: material.emissiveTexture?.index ?? null,
-              baseColorFactor: material.pbrMetallicRoughness?.baseColorFactor ?? null,
-            })),
-            animations: (gltf.parser.json.animations ?? []).map((clip: { name?: string; channels?: unknown[] }, index: number) => ({
-              index, name: clip.name ?? '', channels: clip.channels?.length ?? 0,
-            })),
-          }
+          gltf.scene.userData.importGltfMetadata = extractGltfMetadata(gltf.parser.json)
           resolve(gltf.scene)
         }, reject)
       })
