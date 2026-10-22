@@ -8,6 +8,7 @@
 @import './parts/06-editor-layout-refinements.css';
 @import './parts/07-world-controls.css';
 @import './parts/08-fullscreen.css';
+@import './parts/08-fullscreen-theme.css';
 @import './parts/09-viewport-actions.css';
 @import './parts/10-sidebar-hud.css';
 @import './parts/11-viewport-positioning.css';
