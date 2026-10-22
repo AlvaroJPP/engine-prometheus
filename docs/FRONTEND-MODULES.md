@@ -41,6 +41,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/AnimationRetargeting.ts`: criação e transferência de clipes de animação, poses de repouso e conversão de trilhas entre rigs.
 - `src/lib/animation/RigAnimationClip.ts`: converte os quadros-chave gravados no editor em trilhas de posição, rotação e escala do Three.js, fora do componente de importação.
 - `src/lib/animation/RetargetPreviewObjects.ts`: cria clones isolados para prévias de retargeting e libera suas geometrias/materiais sem descartar texturas compartilhadas com o modelo principal.
+- `src/lib/animation/RetargetPreviewStage.ts`: configura, enquadra, anima, redimensiona e libera as cenas Three.js das prévias de retargeting; o diálogo mantém apenas estado e decisões de origem/destino.
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
 - `src/lib/animation/RetargetAnimationLibrary.ts`: valida e persiste na biblioteca local os assets de animação reutilizáveis, sem acoplar o acesso ao armazenamento ao componente.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
