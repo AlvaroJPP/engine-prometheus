@@ -1,0 +1,167 @@
+/* Keep the viewport controls reachable when the scene is fullscreen.
+   The header becomes a zero-height overlay container; only its viewport toolbar remains. */
+.app.world-fullscreen > .topbar {
+  position:fixed !important;
+  inset:0 0 auto 0 !important;
+  z-index:10004 !important;
+  display:block !important;
+  width:100% !important;
+  height:0 !important;
+  min-height:0 !important;
+  padding:0 !important;
+  overflow:visible !important;
+  border:0 !important;
+  background:transparent !important;
+  pointer-events:none !important;
+}
+.app.world-fullscreen > .topbar > :not(.viewport-tools-overlay) {
+  display:none !important;
+}
+.app.world-fullscreen .viewport-tools-overlay {
+  top:12px !important;
+  right:12px !important;
+  z-index:10005 !important;
+  pointer-events:auto !important;
+}
+/* Clean viewport layout: creation actions left, view controls right, diagnostics at the bottom. */
+.viewport-actions {
+  position:absolute;
+  z-index:16;
+  top:12px;
+  left:72px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:calc(100% - 96px);
+}
+.viewport-actions .quick-add-wrap {
+  position:relative !important;
+  top:auto !important;
+  right:auto !important;
+  left:auto !important;
+  flex:none;
+}
+.viewport-actions .quick-add-trigger {
+  height:36px;
+  min-height:36px;
+  padding:0 12px;
+  border-color:#2e2b25 !important;
+  border-radius:8px;
+  background:rgba(29,27,23,.96) !important;
+  color:#f3efe6 !important;
+  box-shadow:0 4px 14px #0003 !important;
+  font-size:12px;
+  font-weight:500;
+  white-space:nowrap;
+}
+.viewport-actions .quick-add-trigger:hover,
+.viewport-actions .quick-add-trigger[aria-expanded="true"] {
+  border-color:#75412e !important;
+  background:#282019 !important;
+}
+.viewport-actions .quick-add-trigger > span:first-child {
+  color:#e8572b !important;
+  font-size:16px;
+}
+.viewport-actions .quick-add-popover {
+  top:calc(100% + 7px);
+  left:0;
+  right:auto;
+  max-height:min(65vh,560px);
+  overflow:auto;
+  border-color:#3b3730 !important;
+  background:#1d1b17 !important;
+  box-shadow:0 16px 36px #0008;
+}
+.viewport-actions .model-import-launch {
+  position:static !important;
+  top:auto !important;
+  right:auto !important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  flex:none;
+  height:36px;
+  min-height:36px;
+  padding:0 12px !important;
+  border:1px solid #2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(29,27,23,.96) !important;
+  color:#f3efe6 !important;
+  box-shadow:0 4px 14px #0003 !important;
+  font-size:12px;
+  font-weight:500;
+  white-space:nowrap;
+}
+.viewport-actions .model-import-launch:hover {
+  border-color:#75412e !important;
+  background:#282019 !important;
+  color:#f3efe6 !important;
+  filter:none;
+}
+.viewport-actions .model-import-launch > span { color:#e8572b !important; font-size:15px; }
+.viewport-fps {
+  top:auto !important;
+  right:14px !important;
+  bottom:38px !important;
+  left:auto !important;
+  flex-direction:row !important;
+  align-items:center !important;
+  gap:10px !important;
+  width:max-content;
+  max-width:calc(100% - 92px);
+  min-height:30px !important;
+  padding:4px 8px !important;
+  border-color:#2e2b25 !important;
+  border-radius:8px !important;
+  background:rgba(20,18,15,.92) !important;
+  box-shadow:0 4px 14px #0003 !important;
+}
+.viewport-fps-head { gap:6px !important; min-height:20px !important; }
+.viewport-fps .fps-indicator { flex:none; }
+.viewport-fps strong { font-size:12px !important; }
+.viewport-render-stats {
+  display:flex;
+  align-items:center;
+  gap:9px !important;
+  padding:0 0 0 9px !important;
+  border-top:0 !important;
+  border-left:1px solid #2e2b25;
+  font-size:9px !important;
+}
+.viewport-render-stats span { white-space:nowrap; }
+.chips {
+  top:auto !important;
+  bottom:76px !important;
+  left:72px !important;
+  right:auto !important;
+}
+.axes {
+  bottom:38px !important;
+  left:72px !important;
+  right:auto !important;
+}
+@media(max-width:1180px) {
+  .viewport-actions { left:56px; max-width:calc(100% - 72px); }
+}
+@media(max-width:900px) {
+  .viewport-actions { gap:4px; }
+  .viewport-actions .quick-add-trigger,
+  .viewport-actions .model-import-launch { padding-inline:9px !important; font-size:11px; }
+  .viewport-render-stats span:nth-child(n+3) { display:none; }
+  .chips { bottom:72px !important; }
+}
+@media(max-width:760px) {
+  .viewport-actions { left:54px; top:10px; }
+  .viewport-actions .quick-add-trigger { padding-inline:8px; }
+  .viewport-actions .model-import-launch { padding-inline:8px !important; }
+  .viewport-actions .quick-add-trigger { gap:4px; }
+  .viewport-fps { max-width:calc(100% - 90px); right:8px !important; bottom:36px !important; gap:6px !important; }
+  .viewport-render-stats { gap:6px !important; padding-left:6px !important; }
+  .viewport-render-stats span:nth-child(n+2) { display:none; }
+  .chips { left:54px !important; bottom:70px !important; }
+  .axes { left:54px !important; bottom:36px !important; }
+}
+
+
