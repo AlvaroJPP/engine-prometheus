@@ -36,6 +36,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 
 ## Serviços e lógica de domínio
 
+- `engine/lib/BinaryEncoding.ts`: codificação e decodificação Base64 de buffers binários compartilhada entre runtime, projetos, importação de modelos e biblioteca de componentes.
 - `src/lib/animation/AnimationRetargeting.ts`: criação e transferência de clipes de animação, poses de repouso e conversão de trilhas entre rigs.
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
