@@ -6,10 +6,12 @@
  * de diagnóstico possa distinguir um canvas sem tamanho de um WebGL sem quadros.
  */
 export class ViewportDiagnostics {
-  constructor(
-    private readonly canvas: HTMLCanvasElement,
-    private readonly onContextRestored: () => void,
-  ) {
+  private readonly canvas: HTMLCanvasElement
+  private readonly onContextRestored: () => void
+
+  constructor(canvas: HTMLCanvasElement, onContextRestored: () => void) {
+    this.canvas = canvas
+    this.onContextRestored = onContextRestored
     this.canvas.dataset.engineWebglReady = 'initializing'
     this.canvas.dataset.engineContextLost = 'false'
     this.canvas.addEventListener('webglcontextlost', this.handleContextLost)
