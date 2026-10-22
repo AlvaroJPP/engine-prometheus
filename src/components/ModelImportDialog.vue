@@ -14,11 +14,8 @@ import {
   releaseStaticMeshCollider,
 } from '@engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
-import {
-  createZipImportContext,
-  decodeBase64ArrayBuffer,
-  encodeArrayBufferBase64,
-} from '@/lib/assets/ZipModelImport'
+import { createZipImportContext } from '@/lib/assets/ZipModelImport'
+import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@/lib/assets/BinaryEncoding'
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
