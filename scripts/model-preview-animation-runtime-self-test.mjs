@@ -6,12 +6,10 @@ import {
 } from '../src/lib/animation/ModelPreviewAnimationRuntime.ts'
 
 class FakePreviewController {
-  disposed = false
-  readonly states = []
-  readonly updates = []
-  readonly actions
-
   constructor(mixer, actions) {
+    this.disposed = false
+    this.states = []
+    this.updates = []
     this.mixer = mixer
     this.actions = actions
   }
