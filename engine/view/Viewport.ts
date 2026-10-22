@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { ViewportDiagnostics } from './ViewportDiagnostics'
 
 export type PerformancePreset = 'quality' | 'balanced' | 'economy'
 
@@ -28,6 +29,7 @@ export class Viewport {
   readonly renderer: THREE.WebGLRenderer
   private canvas: HTMLCanvasElement
   private observer: ResizeObserver
+  private readonly diagnostics: ViewportDiagnostics
   private onResize: (aspect: number) => void
   private frame = 0
   private performancePreset: PerformancePreset = 'quality'
@@ -60,15 +62,15 @@ export class Viewport {
   constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
     this.canvas = canvas
     this.onResize = onResize
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
-    this.canvas.dataset.engineWebglReady = 'true'
-    this.canvas.addEventListener('webglcontextlost', () => {
-      this.canvas.dataset.engineContextLost = 'true'
-    })
-    this.canvas.addEventListener('webglcontextrestored', () => {
-      this.canvas.dataset.engineContextLost = 'false'
-      this.invalidate()
-    })
+    this.diagnostics = new ViewportDiagnostics(canvas, () => this.invalidate())
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
+      this.diagnostics.markWebglReady()
+    } catch (error) {
+      this.diagnostics.markWebglInitializationError(error)
+      this.diagnostics.dispose()
+      throw error
+    }
     // Alinhe a saída do viewport com o espaço de cor sRGB esperado por glTF.
     // Sem isso, materiais/texturas podem parecer diferentes da prévia de importação.
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -185,15 +187,12 @@ export class Viewport {
     const w = Math.round(rect.width)
     const h = Math.round(rect.height)
     if (!w || !h) {
-      this.canvas.dataset.engineResizeBlocked = `zero-size:${w}x${h}`
+      this.diagnostics.markResizeBlocked(w, h)
       return
     }
-    this.canvas.dataset.engineResizeBlocked = ''
     this.renderer.setSize(w, h, false)
     this.onResize(w / h)
-    this.canvas.dataset.engineClientSize = `${w}x${h}`
-    this.canvas.dataset.engineBufferSize = `${this.canvas.width}x${this.canvas.height}`
-    this.canvas.dataset.engineLastResizeAt = String(Date.now())
+    this.diagnostics.markResized(w, h)
     this.invalidate()
   }
 
@@ -285,10 +284,13 @@ export class Viewport {
     if (this.nextRenderAt !== 0 && now + 0.25 < this.nextRenderAt) return false
 
     const renderStartedAt = performance.now()
-    this.renderer.render(scene, camera)
-    this.canvas.dataset.engineLastRenderAt = String(Date.now())
-    this.canvas.dataset.engineLastRenderSize = `${this.canvas.width}x${this.canvas.height}`
-    this.canvas.dataset.engineRenderCount = String(Number(this.canvas.dataset.engineRenderCount || 0) + 1)
+    try {
+      this.renderer.render(scene, camera)
+      this.diagnostics.markRenderCompleted()
+    } catch (error) {
+      this.diagnostics.markRenderError(error)
+      throw error
+    }
     const renderDuration = performance.now() - renderStartedAt
     this.dirty = false
     this.hasRenderedCamera = true
@@ -370,6 +372,7 @@ export class Viewport {
     document.removeEventListener('visibilitychange', this.invalidateFromInput)
     this.fpsListener = null
     this.renderStatsListener = null
+    this.diagnostics.dispose()
     this.renderer.dispose()
   }
 }
