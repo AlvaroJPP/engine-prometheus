@@ -1902,49 +1902,74 @@ async function toggleWorldFullscreen() {
   fullscreenTransition.value = true
   const entering = !worldFullscreen.value
 
-  if (entering) {
-    quickAddOpen.value = false
-    try {
-      if (isTauri()) {
-        // Primeiro maximize a janela nativa; só depois ative as regras de CSS
-        // da tela cheia, para o canvas nascer com as dimensões finais.
-        await getCurrentWindow().setFullscreen(true)
-      } else if (!document.fullscreenElement) {
-        // O próprio editor vira o elemento de tela cheia. Isso evita que o
-        // canvas dependa da altura herdada do contêiner externo (#app).
-        const fullscreenTarget = appRoot.value
-        if (fullscreenTarget && typeof fullscreenTarget.requestFullscreen === 'function') {
-          await fullscreenTarget.requestFullscreen()
-        } else {
-          await document.documentElement.requestFullscreen()
-        }
-      }
-    } catch (error) {
-      // Mesmo sem a API de tela cheia do host, o viewport continua ocupando
-      // toda a área da janela por meio do modo CSS.
-      console.warn('A tela cheia do host não está disponível; mantendo o viewport expandido.', error)
-    }
-    worldFullscreen.value = true
-    await syncFullscreenViewportBounds()
-  } else {
-    try {
-      // Primeiro restaura a janela nativa/navegador e só depois reaplica
-      // o layout normal. Isso evita calcular larguras de painel usando ainda
-      // as dimensões do monitor inteiro durante a saída da tela cheia.
+  try {
+    if (entering) {
+      quickAddOpen.value = false
+
+      // Ative o modo visual antes de aguardar o host. Assim a viewport não
+      // fica dependente do tempo de resposta da janela nativa.
+      worldFullscreen.value = true
+      fullscreenViewportBounds.value = null
+
       if (isTauri()) {
         const appWindow = getCurrentWindow()
-        if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
+        await nextTick()
+        await appWindow.setFullscreen(true)
+
+        // No Windows/WebView o comando pode concluir antes de a janela
+        // terminar a transição. Confirme o estado e tente uma segunda vez
+        // depois de um frame se o host ainda reportar janela normal.
+        if (!(await appWindow.isFullscreen())) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          await appWindow.setFullscreen(true)
+        }
+        if (!(await appWindow.isFullscreen())) {
+          console.warn('O Tauri não confirmou a tela cheia nativa; mantendo a viewport expandida.')
+        }
+      } else if (!document.fullscreenElement) {
+        // Faça o pedido diretamente na interação do usuário para preservar
+        // a ativação exigida pela Fullscreen API do navegador.
+        const fullscreenTarget = appRoot.value
+        const request = fullscreenTarget && typeof fullscreenTarget.requestFullscreen === 'function'
+          ? fullscreenTarget.requestFullscreen()
+          : document.documentElement.requestFullscreen()
+        await request
+      }
+
+      await syncFullscreenViewportBounds()
+    } else {
+      // Reponha o layout do editor imediatamente enquanto o host restaura
+      // a janela, evitando manter a viewport presa nas dimensões do monitor.
+      worldFullscreen.value = false
+      fullscreenViewportBounds.value = null
+
+      if (isTauri()) {
+        const appWindow = getCurrentWindow()
+        if (await appWindow.isFullscreen()) {
+          await appWindow.setFullscreen(false)
+          if (await appWindow.isFullscreen()) {
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+            await appWindow.setFullscreen(false)
+          }
+        }
       } else if (document.fullscreenElement) {
         await document.exitFullscreen()
       }
-    } catch (error) {
-      console.warn('Não foi possível restaurar o tamanho da janela.', error)
     }
-    worldFullscreen.value = false
-    fullscreenViewportBounds.value = null
+  } catch (error) {
+    console.warn('Não foi possível concluir a transição de tela cheia; mantendo o layout recuperável.', error)
+    if (entering) {
+      // Não abandone o modo de viewport expandida se a API nativa falhar.
+      worldFullscreen.value = true
+      await syncFullscreenViewportBounds()
+    } else {
+      worldFullscreen.value = false
+      fullscreenViewportBounds.value = null
+    }
+  } finally {
+    fullscreenTransition.value = false
   }
 
-  fullscreenTransition.value = false
   await settleViewportAfterFullscreenChange()
 }
 
