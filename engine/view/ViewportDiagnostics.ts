@@ -40,10 +40,14 @@ export class ViewportDiagnostics {
     this.canvas.dataset.engineLastResizeAt = String(Date.now())
   }
 
-  markRenderCompleted(): void {
+  markRenderCompleted(stats: { calls: number; triangles: number; points: number; lines: number }): void {
     this.canvas.dataset.engineLastRenderAt = String(Date.now())
     this.canvas.dataset.engineLastRenderSize = `${this.canvas.width}x${this.canvas.height}`
     this.canvas.dataset.engineRenderCount = String(Number(this.canvas.dataset.engineRenderCount || 0) + 1)
+    this.canvas.dataset.engineDrawCalls = String(stats.calls)
+    this.canvas.dataset.engineTriangles = String(stats.triangles)
+    this.canvas.dataset.enginePoints = String(stats.points)
+    this.canvas.dataset.engineLines = String(stats.lines)
     delete this.canvas.dataset.engineLastRenderError
     delete this.canvas.dataset.engineLastRenderErrorAt
   }
