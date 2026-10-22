@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
 import { MAIN_SCENE_PATH, parseProject, parseScene, parseSceneObject } from '@engine'
+import { encodeArrayBufferBase64 } from '@engine/lib/BinaryEncoding'
 import type { FaceTextureMap, ProjectBundle, SceneFile, SceneObjectData } from '@engine'
 
 export type ProjectProgress = (message: string, percent: number) => void
@@ -33,16 +34,6 @@ async function writeAsset(dir: string, rel: string, base64: string): Promise<voi
 
 async function readAsset(dir: string, rel: string): Promise<string> {
   return invoke<string>('read_project_asset', { dir, rel })
-}
-
-function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  const chunkSize = 0x8000
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
 }
 
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
