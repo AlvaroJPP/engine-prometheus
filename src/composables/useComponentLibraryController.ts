@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, type Ref } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
-import { encodeArrayBufferBase64 } from '@/lib/assets/BinaryEncoding'
+import { encodeArrayBufferBase64 } from '@engine/lib/BinaryEncoding'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
