@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { collectModelOwnedObjectUrls, revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
-import { createStaticColliderPreviewGeometry } from '@/lib/assets/ColliderPreviewGeometry'
+import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/assets/ModelColliderPreview'
 import { calculateImportColliderSize } from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
@@ -645,61 +645,24 @@ let colliderPreview: THREE.LineSegments | null = null
 function updateColliderPreview() {
   colliderPreviewNotice.value = ''
   if (!scene || !model.value) return
-  if (colliderPreview) {
-    scene.remove(colliderPreview)
-    colliderPreview.geometry.dispose()
-    ;(colliderPreview.material as THREE.Material).dispose()
-    colliderPreview = null
-  }
+  disposeModelColliderPreview(scene, colliderPreview)
+  colliderPreview = null
   if (!model.value || colliderType.value === 'none') return
-  if (colliderType.value === 'mesh') {
-    const collisionData = getStaticMeshCollisionData(model.value)
-    if (!collisionData) {
-      colliderPreviewNotice.value = 'Não foi possível preparar a malha estática. Confira se o modelo contém peças estáticas e se não ultrapassa 5 milhões de triângulos. Partes animadas não entram neste colisor.'
-      return
-    }
-    const preview = createStaticColliderPreviewGeometry(collisionData.geometry)
-    colliderPreviewNotice.value = `Malha pronta: ${collisionData.partCount} partes estáticas · ${collisionData.triangleCount.toLocaleString('pt-BR')} triângulos${preview.sampled ? ' · contorno amostrado para manter a prévia fluida' : ''}.`
-    model.value.updateWorldMatrix(true, true)
-    colliderPreview = new THREE.LineSegments(
-      preview.geometry,
-      new THREE.LineBasicMaterial({ color: 0x65e6a0, depthTest: false, transparent: true, opacity: 0.72 }),
-    )
-    colliderPreview.name = 'import-collider-preview'
-    colliderPreview.renderOrder = 1000
-    colliderPreview.matrixAutoUpdate = false
-    colliderPreview.matrix.copy(model.value.matrixWorld)
-    colliderPreview.matrixWorldNeedsUpdate = true
-    scene.add(colliderPreview)
-    return
-  }
-  const [width, height, depth] = colliderSize.value.map(value => Math.max(0.05, value))
-  let geometry: THREE.BufferGeometry
-  if (colliderType.value === 'sphere') {
-    geometry = new THREE.IcosahedronGeometry(Math.max(width, height, depth) / 2, 2)
-  } else if (colliderType.value === 'capsule') {
-    const radius = Math.max(0.025, Math.min(width, depth) / 4)
-    geometry = new THREE.CapsuleGeometry(radius, Math.max(0, height - radius * 2), 4, 8)
-    geometry.scale(width / Math.max(radius * 2, 0.05), 1, depth / Math.max(radius * 2, 0.05))
-  } else {
-    geometry = new THREE.BoxGeometry(width, height, depth)
-  }
-  geometry.translate(...colliderOffset.value)
-  colliderPreview = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry),
-    new THREE.LineBasicMaterial({ color: 0x65e6a0, depthTest: false, transparent: true, opacity: 0.98 }),
-  )
-  colliderPreview.name = 'import-collider-preview'
-  colliderPreview.renderOrder = 1000
+
   const selectedPart = !isEditingSavedComponent.value && selectedPartId.value
     ? findPreviewPart(selectedPartId.value)
     : undefined
-  if (selectedPart) {
-    const partBounds = new THREE.Box3().setFromObject(selectedPart.object)
-    if (!partBounds.isEmpty()) colliderPreview.position.copy(partBounds.getCenter(new THREE.Vector3()))
-  }
+  const result = createModelColliderPreview({
+    model: model.value,
+    type: colliderType.value,
+    size: colliderSize.value,
+    offset: colliderOffset.value,
+    selectedPart: selectedPart?.object,
+  })
+  colliderPreviewNotice.value = result.notice
+  if (!result.preview) return
+  colliderPreview = result.preview
   scene.add(colliderPreview)
-  geometry.dispose()
 }
 
 function changeColliderType(value: 'box' | 'sphere' | 'capsule' | 'mesh' | 'none') {
@@ -1157,7 +1120,7 @@ function clearLoadedModel(preserveRetargetSource = false) {
     disposeModel(model.value)
   }
   model.value = null
-  if (colliderPreview) { scene?.remove(colliderPreview); colliderPreview.geometry.dispose(); (colliderPreview.material as THREE.Material).dispose(); colliderPreview = null }
+  if (colliderPreview) { disposeModelColliderPreview(scene, colliderPreview); colliderPreview = null }
   textureRepairSelections.value = {}
   textureRepairMessage.value = ''
   refreshModelDiagnostics()

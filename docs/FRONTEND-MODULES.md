@@ -57,6 +57,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ColliderPreviewGeometry.ts`: gera a geometria de contorno amostrada para visualizar colisores de malha sem substituir a geometria completa usada pela colisão em runtime.
 - `src/lib/assets/ModelColliderDefaults.ts`: decide, usando a geometria e as dimensões medidas, quando um cenário estático grande deve iniciar com colisor de malha; evita habilitar essa escolha automaticamente para modelos animados.
 - `src/lib/assets/ModelColliderSizing.ts`: calcula dimensões finais dos colisores a partir do tamanho do modelo, da escala e do formato selecionado; centraliza o tamanho mínimo e o diâmetro dos colisores esféricos.
+- `src/lib/assets/ModelColliderPreview.ts`: gera e libera o contorno visual de caixas, esferas, cápsulas e colisores de malha, sem alterar o colisor efetivo usado na simulação.
 - `src/lib/assets/ModelSpatialMeasurements.ts`: mede as dimensões e o centro de modelos Three.js em coordenadas globais, validando geometrias vazias ou inválidas antes da normalização de escala.
 - `src/lib/assets/ModelPreviewParts.ts`: monta a hierarquia selecionável do preview, agrega a quantidade de malhas de baixo para cima e cria caminhos estáveis para partes com nomes repetidos.
 - `src/lib/assets/ModelPreviewSelection.ts`: centraliza relações de ancestrais na hierarquia Three.js, visibilidade isolada de uma parte e restauração da árvore visual do importador.

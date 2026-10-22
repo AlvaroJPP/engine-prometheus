@@ -21,7 +21,8 @@
     "model:texture-repair:self-test": "node --experimental-strip-types scripts/model-color-texture-repair-self-test.mjs",
     "model:spatial-measurements:self-test": "node --experimental-strip-types scripts/model-spatial-measurements-self-test.mjs",
     "model:preview-selection:self-test": "node --experimental-strip-types scripts/model-preview-selection-self-test.mjs",
-    "model:owned-urls:self-test": "node --experimental-strip-types scripts/model-owned-object-urls-self-test.mjs"
+    "model:owned-urls:self-test": "node --experimental-strip-types scripts/model-owned-object-urls-self-test.mjs",
+    "model:collider-preview:self-test": "node --experimental-strip-types scripts/model-collider-preview-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
