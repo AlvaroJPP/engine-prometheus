@@ -37,8 +37,11 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 ## Serviços e lógica de domínio
 
 - `src/lib/animation/AnimationRetargeting.ts`: criação e transferência de clipes de animação, poses de repouso e conversão de trilhas entre rigs.
-- `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts) para compatibilidade.
-- `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls) após concluir ou cancelar a importação.
+- `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
+- `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
+- `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
+- `src/lib/assets/ModelPreviewParts.ts`: monta a hierarquia selecionável do preview e agrega a quantidade de malhas de baixo para cima, separada da seleção visual.
+- `src/lib/assets/ThreeObjectResources.ts`: libera geometrias, materiais e texturas únicos, com modos explícitos para preservar as regras de propriedade do importador, da biblioteca de componentes e das miniaturas.
 - `src/lib/hud/HudImageStorage.ts`: concentra leitura, gravação e remoção dos blobs de imagens personalizadas do HUD no IndexedDB. O componente mantém somente o estado visual e as URLs temporárias.
 
 ## Diagnóstico da tela preta
