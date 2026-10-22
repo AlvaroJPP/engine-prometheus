@@ -16,6 +16,7 @@ import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
 import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
+import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from './lib/BinaryEncoding'
 import { World } from './world/World'
 import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
@@ -82,23 +83,6 @@ function mountModelStatePathMatches(rulePath: string, runtimePath: string): bool
 }
 
 const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
-
-function encodeArrayBufferBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  const chunkSize = 0x8000
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)))
-  }
-  return btoa(binary)
-}
-
-function decodeBase64ArrayBuffer(base64: string): ArrayBuffer {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return bytes.buffer
-}
 
 export class Engine {
   readonly world = new World()
