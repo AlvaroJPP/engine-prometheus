@@ -1,4 +1,3 @@
-
 name: Visual Preview Engine Prometheus
 
 on:
@@ -7,17 +6,19 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   visual-preview:
-    name: Build and capture interface
+    name: Build, capture and publish preview
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -37,13 +38,11 @@ jobs:
       - name: Start production preview
         shell: bash
         run: |
-          npm run preview -- --host 127.0.0.1 --port 4173 \
-            > /tmp/engine-prometheus-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/engine-prometheus-preview.log 2>&1 &
           echo $! > /tmp/engine-prometheus-preview.pid
 
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/ \
-              > /dev/null; then
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
               echo "Preview server is ready."
               exit 0
             fi
@@ -72,15 +71,17 @@ jobs:
             http://127.0.0.1:4173 \
             artifacts/engine-prometheus-1920x1080.png
 
-      - name: Save preview log
+      - name: Save preview metadata and logs
         if: always()
+        shell: bash
         run: |
           mkdir -p artifacts
+          printf 'commit=%s\nrun=%s\ncreated_at=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)" > artifacts/preview-info.txt
           if [ -f /tmp/engine-prometheus-preview.log ]; then
             cp /tmp/engine-prometheus-preview.log artifacts/
           fi
 
-      - name: Upload preview artifacts
+      - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -88,3 +89,56 @@ jobs:
           path: artifacts/
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Publish latest screenshots to visual-preview branch
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          publish_dir="$RUNNER_TEMP/visual-preview-publish"
+          mkdir -p "$publish_dir"
+          cd "$publish_dir"
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git ls-remote --exit-code --heads origin visual-preview >/dev/null 2>&1; then
+            git fetch origin visual-preview
+            git checkout -B visual-preview origin/visual-preview
+          else
+            git checkout --orphan visual-preview
+          fi
+
+          find . -maxdepth 1 -type f -delete
+          cp "$GITHUB_WORKSPACE/artifacts/engine-prometheus-1280x720.png" .
+          cp "$GITHUB_WORKSPACE/artifacts/engine-prometheus-1920x1080.png" .
+          cp "$GITHUB_WORKSPACE/artifacts/preview-info.txt" .
+          cat > index.html <<'HTML'
+          <!doctype html>
+          <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Engine Prometheus — Visual Preview</title>
+            <style>
+              body{font:16px system-ui,sans-serif;background:#17191f;color:#e8eaf0;margin:24px}
+              main{max-width:1400px;margin:auto}
+              img{display:block;width:100%;height:auto;border:1px solid #414652;border-radius:8px;margin:12px 0 32px}
+              a{color:#91c7ff}
+            </style>
+          </head>
+          <body><main>
+            <h1>Engine Prometheus — Visual Preview</h1>
+            <p>Capturas da última execução bem-sucedida do workflow.</p>
+            <p><a href="preview-info.txt">Informações do commit</a></p>
+            <h2>1280 × 720</h2><img src="engine-prometheus-1280x720.png" alt="Captura 1280 por 720">
+            <h2>1920 × 1080</h2><img src="engine-prometheus-1920x1080.png" alt="Captura 1920 por 1080">
+          </main></body></html>
+          HTML
+
+          git add index.html preview-info.txt engine-prometheus-1280x720.png engine-prometheus-1920x1080.png
+          git commit -m "chore: update visual preview for ${GITHUB_SHA}"
+          git push origin HEAD:visual-preview
