@@ -21,6 +21,8 @@ export type FullscreenDiagnosticSnapshot = {
   lastRenderError: string
   resizeBlocked: string
   webglReady: string
+  webglError: string
+  canvasZIndex: string
   contextLost: string
   contextLostAt: string
   fullscreenClass: string
@@ -48,6 +50,8 @@ const initialSnapshot: FullscreenDiagnosticSnapshot = {
   lastRenderError: 'nenhum',
   resizeBlocked: '—',
   webglReady: '—',
+  webglError: 'nenhum',
+  canvasZIndex: '—',
   contextLost: '—',
   contextLostAt: '—',
   fullscreenClass: '—',
@@ -119,6 +123,8 @@ export function useFullscreenDiagnostics() {
         lastRenderError: readData(canvas, 'engineLastRenderError', 'nenhum'),
         resizeBlocked: readData(canvas, 'engineResizeBlocked', 'não'),
         webglReady: readData(canvas, 'engineWebglReady', 'não registrado'),
+        webglError: readData(canvas, 'engineWebglError', 'nenhum'),
+        canvasZIndex: canvasStyle?.zIndex ?? '—',
         contextLost: readData(canvas, 'engineContextLost', 'não registrado'),
         contextLostAt: timestampAge(canvas?.dataset.engineContextLostAt),
         fullscreenClass: root?.classList.contains('world-fullscreen') ? 'ativa' : 'inativa',
