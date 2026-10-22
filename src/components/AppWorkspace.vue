@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useAppController } from '@/composables/useAppController'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
@@ -16,6 +16,21 @@ function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
   if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
+const diagnosticsOpen = ref(false)
+
+function handleDiagnosticsShortcut(event: KeyboardEvent): void {
+  if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.code !== 'KeyF') return
+  event.preventDefault()
+  diagnosticsOpen.value = !diagnosticsOpen.value
+}
+
+function handleDiagnosticsExit(): void {
+  diagnosticsOpen.value = false
+  if (ctx.worldFullscreen) void ctx.toggleWorldFullscreen()
+}
+
+onMounted(() => window.addEventListener('keydown', handleDiagnosticsShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsShortcut))
 </script>
 
 <template>
@@ -214,6 +229,6 @@ function setExternalRef(name: string, element: unknown): void {
       </section>
     </div>
     <ModelImportDialog :open="ctx.modelImportOpen" :initial-asset="ctx.previewComponentAsset" :animation-source-asset="ctx.previewAnimationSourceAsset" :animation-source-options="ctx.savedAnimationSourceOptions" :control-map="ctx.activeControlMap.bindings" :save-model="ctx.handleModelImport" @close="ctx.closeModelImport" @use-player="ctx.handleUsePlayerModel" @save-animation-source="ctx.handleSaveAnimationSource" @load-animation-source="ctx.useSavedAnimationSource" />
-    <FullscreenDiagnostics v-if="ctx.worldFullscreen" @exit="ctx.toggleWorldFullscreen" />
+    <FullscreenDiagnostics v-if="ctx.worldFullscreen || diagnosticsOpen" @exit="handleDiagnosticsExit" />
   </div>
 </template>
