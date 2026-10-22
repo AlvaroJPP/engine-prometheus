@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
+import type { BehaviorPackageSlotDefinition } from '@engine'
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
@@ -186,7 +187,7 @@ function setExternalRef(name: string, element: unknown): void {
                 </select>
               </label>
               <p v-if="!ctx.selectedObjectPackages.length" class="component-note">Instale primeiro um pacote na aba Pacotes deste objeto. O gatilho ficará disponível aqui.</p>
-              <p v-else class="component-note">{{ ctx.selectedRulePackageDefinition?.triggers.find(trigger => trigger.id === ctx.rulePackageEventId)?.description ?? '' }}</p>
+              <p v-else class="component-note">{{ ctx.selectedRulePackageDefinition?.triggers.find((trigger: BehaviorPackageSlotDefinition) => trigger.id === ctx.rulePackageEventId)?.description ?? '' }}</p>
             </template>
             <label class="field">Ação
               <select v-model="ctx.ruleAction"><option value="rotate">Girar +45°</option><option value="move">Mover para X=2</option><option value="set_visible">Ocultar objeto</option><option value="set_variable">Definir variável global/do objeto</option><option value="set_package_variable">Definir variável de pacote</option><option value="javascript">JavaScript livre (colar código)</option><option value="script">Script Prometheus</option></select>
@@ -239,10 +240,10 @@ function setExternalRef(name: string, element: unknown): void {
             <button class="ghost full" @click="ctx.addLogicRule(ctx.ruleAction === 'javascript' ? ctx.sidebarScriptDraft : undefined, ctx.ruleConditionEnabled ? { type: 'variable', name: ctx.conditionVariable, operator: ctx.conditionOperator, value: ctx.ruleValueFromInput(ctx.conditionValue) } : undefined, ctx.newEventName); ctx.newEventName = ''">+ Adicionar evento ao objeto selecionado</button>
             <div v-if="ctx.selectedObjectRules.length" class="rule-list">
               <div v-for="(rule, index) in ctx.selectedObjectRules" :key="rule.id" class="rule-item">
-                <div class="rule-order" :title="'Prioridade ' + (index + 1)">
+                <div class="rule-order" :title="'Prioridade ' + (Number(index) + 1)">
                   <button class="ghost" :disabled="index === 0" title="Subir na hierarquia (maior prioridade)" @click="ctx.moveLogicRule(rule.id, -1)">↑</button>
                   <button class="ghost" :disabled="index === ctx.logicRules.length - 1" title="Descer na hierarquia (menor prioridade)" @click="ctx.moveLogicRule(rule.id, 1)">↓</button>
-                  <span class="muted">{{ index + 1 }}</span>
+                  <span class="muted">{{ Number(index) + 1 }}</span>
                 </div>
                 <label class="checkline"><input type="checkbox" :checked="rule.enabled" @change="ctx.toggleLogicRule(rule)" /><span>{{ rule.name }} · {{ rule.trigger.type === 'object_clicked' ? 'Clique' : rule.trigger.type === 'key_pressed' ? `Tecla ${rule.trigger.key}` : rule.trigger.type === 'package_event' ? `Pacote: ${rule.trigger.eventId}` : 'Entrada na área' }}</span></label>
                 <button class="ghost" title="Editar evento" @click="ctx.graphSelection = { ruleId: rule.id, part: 'trigger' }; ctx.graphOpen = true">Editar</button>
