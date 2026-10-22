@@ -1,6 +1,7 @@
 .fullscreen-diagnostics {
   position: fixed;
-  z-index: 20050;
+  z-index: 2147483647;
+  isolation: isolate;
   top: 12px;
   left: 12px;
   width: min(455px, calc(100vw - 24px));
