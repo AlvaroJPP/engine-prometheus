@@ -62,6 +62,8 @@ import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBo
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
 import { prepareSkinTokensExportRoot } from '@/lib/assets/SkinTokensExportPreparation'
 import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
+import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
+import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
@@ -2313,40 +2315,7 @@ async function useAsPlayerModel() {
 }
 
 function capturePreviewThumbnail(): string | undefined {
-  const source = canvas.value
-  if (!source || !renderer || !scene || !camera || source.width < 1 || source.height < 1) return undefined
-
-  // Não inclua a visualização de colisão nem as linhas de rig na imagem da biblioteca.
-  const helpers: THREE.Object3D[] = []
-  if (colliderPreview) helpers.push(colliderPreview)
-  if (rigHelper) helpers.push(rigHelper)
-  const previousVisibility = helpers.map(item => item.visible)
-  try {
-    helpers.forEach(item => { item.visible = false })
-    renderer.render(scene, camera)
-
-    const size = 160
-    const thumbnail = document.createElement('canvas')
-    thumbnail.width = size
-    thumbnail.height = size
-    const context = thumbnail.getContext('2d')
-    if (!context) return undefined
-    context.fillStyle = '#20232a'
-    context.fillRect(0, 0, size, size)
-
-    const padding = 8
-    const scale = Math.min((size - padding * 2) / source.width, (size - padding * 2) / source.height)
-    const width = Math.max(1, Math.round(source.width * scale))
-    const height = Math.max(1, Math.round(source.height * scale))
-    context.drawImage(source, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height)
-    return thumbnail.toDataURL('image/webp', 0.82)
-  } catch (cause) {
-    console.warn('[ModelImportDialog] Não foi possível gerar a miniatura do modelo.', cause)
-    return undefined
-  } finally {
-    helpers.forEach((item, index) => { item.visible = previousVisibility[index] ?? true })
-    renderer?.render(scene!, camera!)
-  }
+  return captureModelPreviewThumbnail(canvas.value, renderer, scene, camera, [colliderPreview, rigHelper])
 }
 
 async function chooseThumbnailImage(event: Event) {
@@ -2355,45 +2324,8 @@ async function chooseThumbnailImage(event: Event) {
   if (!file) return
   thumbnailImageError.value = ''
 
-  if (!file.type.startsWith('image/')) {
-    thumbnailImageError.value = 'Escolha um arquivo PNG, JPG, WEBP ou SVG.'
-    input.value = ''
-    return
-  }
-  if (file.size > 12 * 1024 * 1024) {
-    thumbnailImageError.value = 'A imagem precisa ter menos de 12 MB.'
-    input.value = ''
-    return
-  }
-
   try {
-    const source = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível ler a imagem.'))
-      reader.onerror = () => reject(reader.error ?? new Error('Não foi possível ler a imagem.'))
-      reader.readAsDataURL(file)
-    })
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image()
-      element.onload = () => resolve(element)
-      element.onerror = () => reject(new Error('O arquivo escolhido não é uma imagem válida.'))
-      element.src = source
-    })
-
-    const size = 256
-    const thumbnailCanvas = document.createElement('canvas')
-    thumbnailCanvas.width = size
-    thumbnailCanvas.height = size
-    const context = thumbnailCanvas.getContext('2d')
-    if (!context) throw new Error('Não foi possível preparar a miniatura.')
-    context.fillStyle = '#20232a'
-    context.fillRect(0, 0, size, size)
-
-    const ratio = Math.min(size / image.naturalWidth, size / image.naturalHeight)
-    const width = Math.max(1, Math.round(image.naturalWidth * ratio))
-    const height = Math.max(1, Math.round(image.naturalHeight * ratio))
-    context.drawImage(image, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height)
-    customThumbnail.value = thumbnailCanvas.toDataURL('image/webp', 0.84)
+    customThumbnail.value = await createCustomModelThumbnail(file)
     customThumbnailFileName.value = file.name
   } catch (cause) {
     thumbnailImageError.value = cause instanceof Error ? cause.message : 'Não foi possível usar essa imagem.'
