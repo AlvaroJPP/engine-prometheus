@@ -56,6 +56,8 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/RetargetAssetFactory.ts`: monta o asset de retargeting a partir de um item salvo na biblioteca ou do clipe e modelo de origem ativos, mantendo nome e papel da animação consistentes.
 - `src/lib/assets/SkinTokensExportPreparation.ts`: clona o modelo esquelético para exportação ao SkinTokens e remove apenas os metadados internos do importador, preservando a árvore e as animações para o exportador GLB.
 - `src/lib/assets/SkinTokensRiggingResult.ts`: prepara o GLB retornado pelo SkinTokens, identifica os ossos, marca metadados apenas para rig recém-gerado e recupera papéis das animações por nome, sem acoplar essas regras ao estado do diálogo.
+- `src/lib/assets/ModelPreviewThumbnail.ts`: captura uma miniatura WebP da prévia 3D, ocultando temporariamente os auxiliares de colisor e rig e restaurando sua visibilidade após a captura.
+- `src/lib/assets/CustomModelThumbnail.ts`: valida imagens fornecidas pelo usuário e converte-as em miniaturas WebP quadradas, mantendo mensagens de validação independentes do componente.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
 - `src/lib/assets/GltfModelParser.ts`: concentra a chamada ao `GLTFLoader` e anexa animações/metadados normalizados à raiz, compartilhado pelos fluxos de arquivo, buffer e ZIP.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
