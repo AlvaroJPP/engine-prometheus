@@ -52,6 +52,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
 - `src/lib/animation/RetargetAnimationLibrary.ts`: valida e persiste na biblioteca local os assets de animação reutilizáveis, sem acoplar o acesso ao armazenamento ao componente.
 - `src/lib/animation/RetargetSourceBones.ts`: seleciona apenas os ossos reais envolvidos no clipe de origem do retargeting, mantendo compatibilidade com entradas antigas da biblioteca de animações.
+- `src/lib/animation/RetargetAssetFactory.ts`: monta o asset de retargeting a partir de um item salvo na biblioteca ou do clipe e modelo de origem ativos, mantendo nome e papel da animação consistentes.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
 - `src/lib/assets/GltfModelParser.ts`: concentra a chamada ao `GLTFLoader` e anexa animações/metadados normalizados à raiz, compartilhado pelos fluxos de arquivo, buffer e ZIP.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
