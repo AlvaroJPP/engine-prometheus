@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { AnimationRole } from '@engine'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 
-export type SkinTokensOperation = 'rig' | 'weights'
+export type SkinTokensOperation = 'rig' | 'skin'
 
 export interface PreparedSkinTokensResult {
   detectedBones: THREE.Bone[]
