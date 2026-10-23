@@ -60,6 +60,7 @@ import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebind
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
+import { prepareSkinTokensExportRoot } from '@/lib/assets/SkinTokensExportPreparation'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
@@ -1326,17 +1327,7 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
       // evita perder extensões, texturas compactadas ou metadados no exportador Three.js.
       inputGlb = originalGlb.slice(0)
     } else {
-      const exportRoot = cloneSkinnedModel(root)
-      exportRoot.userData = { ...exportRoot.userData }
-      for (const key of [
-        'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
-        'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
-        'importAnimationRoles', 'importControlBindings', 'importColliderType',
-        'importColliderSize', 'importColliderOffset', 'importRigPreset',
-        'importRigGenerated', 'importRigBoneNames', 'importSourceGlbBytes',
-        'importNeedsReexport',
-      ]) delete exportRoot.userData[key]
-      exportRoot.updateMatrixWorld(true)
+      const exportRoot = prepareSkinTokensExportRoot(root)
       const exporter = new GLTFExporter()
       const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: sourceClips })
       if (!(exported instanceof ArrayBuffer)) throw new Error('Não foi possível exportar o modelo para GLB.')
