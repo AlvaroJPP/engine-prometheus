@@ -41,7 +41,6 @@ import {
 } from '@engine/world/StaticMeshCollider'
 import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import { createZipImportContext } from '@/lib/assets/ZipModelImport'
-import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from '@engine/lib/BinaryEncoding'
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import { applyRecoveredBaseColorTexture } from '@/lib/assets/ModelColorTextureRepair'
@@ -60,8 +59,8 @@ import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebind
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
-import { prepareSkinTokensExportRoot } from '@/lib/assets/SkinTokensExportPreparation'
 import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
+import { processSkinTokensModel } from '@/lib/assets/SkinTokensModelProcessor'
 import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
 import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
@@ -1323,29 +1322,13 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
     const preservedColliderSize = [...colliderSize.value] as [number, number, number]
     const preservedColliderOffset = [...colliderOffset.value] as [number, number, number]
     const preservedComponentName = componentName.value
-    let inputGlb: ArrayBuffer
-    const originalGlb = root.userData.importSourceGlbBytes
-    if (originalGlb instanceof ArrayBuffer && root.userData.importNeedsReexport !== true) {
-      // Para importações GLB intactas, reutiliza o arquivo binário original e
-      // evita perder extensões, texturas compactadas ou metadados no exportador Three.js.
-      inputGlb = originalGlb.slice(0)
-    } else {
-      const exportRoot = prepareSkinTokensExportRoot(root)
-      const exporter = new GLTFExporter()
-      const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: sourceClips })
-      if (!(exported instanceof ArrayBuffer)) throw new Error('Não foi possível exportar o modelo para GLB.')
-      inputGlb = exported
-    }
-    if (inputGlb.byteLength > 300 * 1024 * 1024) throw new Error('O GLB excede o limite de 300 MB para processamento local.')
-
-    const outputBase64 = await invoke<string>('run_skintokens_glb', {
+    const loaded = await processSkinTokensModel(root, {
       executablePath: skinTokensExecutablePath.value.trim(),
-      glbBase64: encodeArrayBufferBase64(inputGlb),
       operation,
       modelClass: skinTokensResolvedClass.value,
+      sourceClips,
+      parseGlbBytes,
     })
-    const outputBytes = decodeBase64ArrayBuffer(outputBase64)
-    const loaded = await parseGlbBytes(outputBytes)
     const displayName = fileName.value || root.name || 'Modelo com rig de IA'
     const targetHeight = Math.max(0.1, modelHeight.value)
     let detectedBones: THREE.Bone[] = []
