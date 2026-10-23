@@ -41,6 +41,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/AnimationRetargeting.ts`: criação e transferência de clipes de animação, poses de repouso e conversão de trilhas entre rigs.
 - `src/lib/animation/RigAnimationClip.ts`: converte os quadros-chave gravados no editor em trilhas de posição, rotação e escala do Three.js, fora do componente de importação.
 - `src/lib/animation/RigPreviewHelper.ts`: cria e descarta o auxiliar visual de ossos do rig, mantendo a gestão de geometria/material fora do diálogo.
+- `src/lib/animation/SkinTokensRigCompatibility.ts`: verifica se a operação Skin Tokens pode gerar rig ou reparar skinning conforme as malhas presentes, sem depender do estado reativo do diálogo.
 - `src/lib/animation/RigKeyframeTimeline.ts`: insere/substitui quadros-chave na linha do tempo e prepara os quadros ordenados para exportação de animações, incluindo a pose inicial em 0 s.
 - `src/lib/animation/AnimationRoleOptions.ts`: mantém os papéis e vínculos de controle, e resolve papéis persistidos de clipes importados com fallback por inferência e compatibilidade para classificações diagonais antigas.
 - `src/lib/animation/RetargetRestPose.ts`: memoriza poses de repouso por instância de modelo, restaura transformações dos ossos e atualiza os esqueletos durante a transferência de animações.
