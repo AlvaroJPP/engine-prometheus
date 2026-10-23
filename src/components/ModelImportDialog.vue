@@ -58,6 +58,7 @@ import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
+import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
   prepareRigAnimationFrames,
@@ -297,25 +298,11 @@ const retargetSourceClip = computed(() => selectedRetargetLibraryId.value
   ? selectedRetargetLibraryClip.value
   : retargetSourceClips.value[retargetSourceClipIndex.value] ?? null,
 )
-const retargetSourceNodeNames = computed(() => {
-  const asset = retargetLibraryAsset.value
-  if (asset) {
-    // Novos itens guardam quais nós são ossos reais; para itens antigos,
-    // preserva o comportamento porque a biblioteca não armazena o GLB original.
-    const sourceBones = asset.sourceBoneNames ?? asset.sourceNodeNames
-    return sourceBones.filter(name => !!asset.sourcePose[name])
-  }
-  const root = retargetSourceRoot.value
-  const clip = retargetSourceClip.value
-  if (!root || !clip) return []
-  const names = [...new Set(clip.tracks
-    .map(getTransformTrackPath)
-    .filter((path): path is NonNullable<ReturnType<typeof getTransformTrackPath>> => path !== null)
-    .map(path => path.nodeName))]
-  // O destino do retarget é um rig esquelético: wrappers e pivôs de malha
-  // animados não devem inflacionar a taxa de cobertura dos ossos.
-  return names.filter(name => findAnimationNode(root, name) instanceof THREE.Bone)
-})
+const retargetSourceNodeNames = computed(() => collectRetargetSourceBoneNames(
+  retargetLibraryAsset.value,
+  retargetSourceRoot.value,
+  retargetSourceClip.value,
+))
 const retargetTargetBones = computed(() => {
   if (rigBones.value.length) return rigBones.value
   const bones: THREE.Bone[] = []
