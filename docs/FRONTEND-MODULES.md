@@ -64,6 +64,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
 - `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
 - `src/lib/assets/ModelColorTextureRepair.ts`: aplica texturas base-color recuperadas apenas em materiais com mapa ausente ou instalado previamente pela ferramenta, preservando texturas originais e demais mapas.
+- `src/lib/assets/ModelColorTextureRecovery.ts`: valida a imagem incorporada escolhida, carrega a textura com as configurações corretas para glTF e delega a aplicação segura ao reparador de base-color.
 - `src/lib/assets/ColliderPreviewGeometry.ts`: gera a geometria de contorno amostrada para visualizar colisores de malha sem substituir a geometria completa usada pela colisão em runtime.
 - `src/lib/assets/ModelColliderDefaults.ts`: decide, usando a geometria e as dimensões medidas, quando um cenário estático grande deve iniciar com colisor de malha; evita habilitar essa escolha automaticamente para modelos animados.
 - `src/lib/assets/ModelColliderSizing.ts`: calcula dimensões finais e a partir dos limites globais de uma parte Three.js, normaliza tamanho/offset ao trocar o formato e atualiza eixos respeitando limites, diâmetros esféricos e offset zero para colisores de malha.
