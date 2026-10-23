@@ -96,8 +96,6 @@ import {
 import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS, resolveImportedAnimationRoles } from '@/lib/animation/AnimationRoleOptions'
 import {
   createReusableAnimationAsset,
-  findAnimationNode,
-  getTransformTrackPath,
   parseReusableAnimationClip,
   retargetAnimationClip,
   rankTargetBoneCandidates,
