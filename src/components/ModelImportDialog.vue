@@ -16,6 +16,7 @@ import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
+import { fitModelPreviewCamera, resizeModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -1085,17 +1086,7 @@ function disposePreview() {
 }
 
 function fitCamera(object: THREE.Object3D) {
-  if (!scene || !camera || !controls) return
-  const bounds = new THREE.Box3().setFromObject(object)
-  const size = bounds.getSize(new THREE.Vector3())
-  const center = bounds.getCenter(new THREE.Vector3())
-  controls.target.copy(center)
-  const span = Math.max(size.x, size.y, size.z, 0.1)
-  camera.position.set(center.x + span * 1.7, center.y + span * 1.15, center.z + span * 2.1)
-  camera.near = Math.max(0.01, span / 1000)
-  camera.far = Math.max(100, span * 100)
-  camera.updateProjectionMatrix()
-  controls.update()
+  fitModelPreviewCamera(object, camera, controls)
 }
 
 function initPreview() {
@@ -1123,11 +1114,7 @@ function initPreview() {
   controls.enableDamping = true
   resizeObserver = new ResizeObserver(() => {
     if (!canvas.value || !renderer || !camera) return
-    const w = Math.max(1, canvas.value.clientWidth)
-    const h = Math.max(1, canvas.value.clientHeight)
-    renderer.setSize(w, h, false)
-    camera.aspect = w / h
-    camera.updateProjectionMatrix()
+    resizeModelPreviewCamera(renderer, camera, canvas.value.clientWidth, canvas.value.clientHeight)
   })
   resizeObserver.observe(canvas.value)
   const animate = () => {
