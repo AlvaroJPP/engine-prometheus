@@ -17,6 +17,7 @@ import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDef
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import { fitModelPreviewCamera, resizeModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
+import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -1091,27 +1092,11 @@ function fitCamera(object: THREE.Object3D) {
 
 function initPreview() {
   if (!canvas.value || renderer) return
-  scene = new THREE.Scene()
-  scene.background = new THREE.Color('#20232a')
-  camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
-  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, preserveDrawingBuffer: true })
-  renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.NoToneMapping
-  renderer.toneMappingExposure = 1
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false)
-  scene.add(new THREE.HemisphereLight(0xe4edff, 0x55515a, 2))
-  const key = new THREE.DirectionalLight(0xffffff, 2.2)
-  key.position.set(4, 8, 6)
-  scene.add(key)
-  const fill = new THREE.DirectionalLight(0x9dbaff, 0.8)
-  fill.position.set(-5, 3, -4)
-  scene.add(fill)
-  const grid = new THREE.GridHelper(20, 20, 0x858b98, 0x454a55)
-  grid.position.y = -0.002
-  scene.add(grid)
-  controls = new OrbitControls(camera, canvas.value)
-  controls.enableDamping = true
+  const stage = createModelPreviewStage(canvas.value)
+  scene = stage.scene
+  camera = stage.camera
+  renderer = stage.renderer
+  controls = stage.controls
   resizeObserver = new ResizeObserver(() => {
     if (!canvas.value || !renderer || !camera) return
     resizeModelPreviewCamera(renderer, camera, canvas.value.clientWidth, canvas.value.clientHeight)
