@@ -60,6 +60,7 @@ import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebind
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
+import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
   prepareRigAnimationFrames,
@@ -2150,28 +2151,18 @@ async function runAutonomousRetargeting() {
       throw new Error(retargetMessage.value || 'A transferência não gerou nem atualizou um clipe válido.')
     }
 
-    const transferReport = retargetMessage.value
-    const coverage = Math.round((mappedNames.length / Math.max(1, sourceNames.length)) * 100)
-    const uniqueDestinationCount = new Set(Object.values(mapping)).size
-    const destinationUse = Math.round((uniqueDestinationCount / Math.max(1, targetRig.bones.length)) * 100)
-    const destinationIsCapacityLimited = targetRig.bones.length < sourceNames.length &&
-      uniqueDestinationCount >= Math.floor(targetRig.bones.length * 0.9)
-    const qualityLead = coverage < 60 && !destinationIsCapacityLimited
-      ? 'Retargeting concluído com cobertura baixa; revise as associações antes de usar. '
-      : coverage < 80 && !destinationIsCapacityLimited
-        ? 'Retargeting concluído; a cobertura é parcial e precisa de revisão. '
-        : 'Fluxo autônomo concluído. '
-    const capacityNote = destinationIsCapacityLimited
-      ? 'O modelo A tem ' + targetRig.bones.length + ' ossos para ' + sourceNames.length + ' ossos animados na origem; ' + destinationUse + '% dos ossos do destino estão em uso. '
-      : 'Foram utilizados ' + destinationUse + '% dos ossos disponíveis no destino. '
-    const collapseNote = mappingResult.collapsedSourceNames.length
-      ? mappingResult.collapsedSourceNames.length + ' junta(s) da origem foram recolhidas em ossos existentes; as rotações compatíveis foram combinadas. '
-      : ''
-    retargetMessage.value = qualityLead
-      + (generatedRig ? 'A IA local gerou o rig e os pesos do modelo A; ' : 'O rig existente do modelo A foi mantido; ')
-      + mappedNames.length + '/' + sourceNames.length + ' ossos da origem associados (' + coverage + '%: ' + mappingResult.directMappedCount + ' associação(ões) direta(s) e ' + mappingResult.collapsedSourceNames.length + ' recolhida(s)). '
-      + capacityNote + collapseNote + transferReport + ' Confira a prévia antes de confirmar a importação.'
-    retargetPreviewStatus.value = 'Retargeting concluído · ' + mappedNames.length + '/' + sourceNames.length + ' nós da origem associados (' + coverage + '%). Confira a deformação do modelo A.'
+    const report = buildAutonomousRetargetReport({
+      sourceNodeCount: sourceNames.length,
+      mappedNodeCount: mappedNames.length,
+      destinationBoneCount: targetRig.bones.length,
+      mappedDestinationBoneCount: new Set(Object.values(mapping)).size,
+      directMappedCount: mappingResult.directMappedCount,
+      collapsedSourceCount: mappingResult.collapsedSourceNames.length,
+      generatedRig,
+      transferReport: retargetMessage.value,
+    })
+    retargetMessage.value = report.message
+    retargetPreviewStatus.value = report.previewStatus
     retargetTargetPreviewPlaying.value = true
     await nextTick()
     refreshRetargetTargetPreview()
