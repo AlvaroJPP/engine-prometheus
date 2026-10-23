@@ -59,6 +59,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
+import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
   prepareRigAnimationFrames,
@@ -1801,25 +1802,14 @@ function setRetargetBoneMapping(sourceName: string, targetName: string) {
 }
 
 function retargetableAssetForCurrentSource(): ReusableAnimationAsset | null {
-  const libraryAsset = retargetLibraryAsset.value
-  if (libraryAsset) {
-    return {
-      ...libraryAsset,
-      name: retargetClipName.value.trim() || libraryAsset.name,
-      role: rigClipRole.value,
-    }
-  }
-  const root = retargetSourceRoot.value
-  const clip = retargetSourceClip.value
-  if (!root || !clip) return null
-  const asset = createReusableAnimationAsset(
-    root,
-    clip,
-    retargetSourceFileName.value || root.name || 'Modelo de origem',
-    rigClipRole.value,
-  )
-  asset.name = retargetClipName.value.trim() || asset.name
-  return asset
+  return createRetargetAssetForSource({
+    libraryAsset: retargetLibraryAsset.value,
+    root: retargetSourceRoot.value,
+    clip: retargetSourceClip.value,
+    sourceName: retargetSourceFileName.value,
+    clipName: retargetClipName.value,
+    role: rigClipRole.value,
+  })
 }
 
 let retargetSourcePreviewStage: RetargetPreviewStage | null = null
