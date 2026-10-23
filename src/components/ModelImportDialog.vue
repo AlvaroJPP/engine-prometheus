@@ -15,7 +15,7 @@ import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurem
 import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib/assets/ModelImportNormalization'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
-import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
+import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
