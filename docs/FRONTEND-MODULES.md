@@ -60,6 +60,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelColliderSizing.ts`: calcula dimensões finais e a partir dos limites globais de uma parte Three.js, normaliza tamanho/offset ao trocar o formato e atualiza eixos respeitando limites, diâmetros esféricos e offset zero para colisores de malha.
 - `src/lib/assets/ModelColliderPreview.ts`: gera e libera o contorno visual de caixas, esferas, cápsulas e colisores de malha, sem alterar o colisor efetivo usado na simulação.
 - `src/lib/assets/ModelSpatialMeasurements.ts`: mede as dimensões e o centro de modelos Three.js em coordenadas globais, validando geometrias vazias ou inválidas antes da normalização de escala.
+- `src/lib/assets/ModelImportNormalization.ts`: normaliza alturas escolhidas no importador e calcula escala/posição centralizada a partir do centro e altura medidos do modelo.
 - `src/lib/assets/ModelPreviewParts.ts`: monta a hierarquia selecionável do preview, agrega a quantidade de malhas de baixo para cima e cria caminhos estáveis para partes com nomes repetidos.
 - `src/lib/assets/ModelPreviewSelection.ts`: centraliza ancestrais da hierarquia Three.js, visibilidade isolada e seleção de grupos para exportação em lote, mantendo pais/filhos mutuamente exclusivos.
 - `src/lib/assets/ModelControlBindings.ts`: normaliza teclas persistidas e converte códigos de teclado em rótulos legíveis, fora do componente.

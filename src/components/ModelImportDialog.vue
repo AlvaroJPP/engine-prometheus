@@ -12,6 +12,7 @@ import {
   updateImportColliderVector,
 } from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
+import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib/assets/ModelImportNormalization'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
@@ -1204,14 +1205,16 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   partSearch.value = ''
   const height = centerAndMeasure(loaded)
   colliderType.value = shouldDefaultToStaticCityCollider(loaded, dimensions.value) ? 'mesh' : 'box'
-  const safeTargetHeight = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : 2
-  const initialScale = safeTargetHeight / height
-  loaded.scale.setScalar(initialScale)
-  const center = new THREE.Vector3().fromArray(loaded.userData.importCenter as [number, number, number])
-  loaded.position.set(-center.x * initialScale, -center.y * initialScale, -center.z * initialScale)
+  const transform = calculateModelImportTransform(loaded.userData.importCenter as [number, number, number], height, targetHeight)
+  loaded.scale.setScalar(transform.scale)
+  loaded.position.set(...transform.position)
   restoreModelRenderableMeshes(loaded)
-  modelHeight.value = safeTargetHeight
-  colliderSize.value = [Math.max(0.05, dimensions.value[0] * safeTargetHeight / height), safeTargetHeight, Math.max(0.05, dimensions.value[2] * safeTargetHeight / height)]
+  modelHeight.value = transform.height
+  colliderSize.value = [
+    Math.max(0.05, dimensions.value[0] * transform.scale),
+    transform.height,
+    Math.max(0.05, dimensions.value[2] * transform.scale),
+  ]
   controlBindings.value = normalizeModelControlBindings(loaded.userData.importControlBindings)
   loaded.userData.importControlBindings = { ...controlBindings.value }
   model.value = loaded
@@ -2303,23 +2306,17 @@ function togglePreviewAnimationPlayback() {
 }
 
 function setModelHeight(value: number) {
-  if (!model.value || !Number.isFinite(value)) return
-  const normalized = THREE.MathUtils.clamp(value, 0.1, 10000)
-  modelHeight.value = Math.round(normalized * 100) / 100
+  if (model.value) modelHeight.value = normalizeModelImportHeight(value) ?? modelHeight.value
 }
 
 watch(modelHeight, (height, previousHeight) => {
   if (!model.value || !Number.isFinite(height) || height <= 0 || originalHeight.value <= 0) return
-  const targetScale = height / originalHeight.value
-  model.value.scale.setScalar(targetScale)
   const centerData = model.value.userData.importCenter as [number, number, number] | undefined
-  if (centerData && centerData.length === 3) {
-    model.value.position.set(
-      -centerData[0] * targetScale,
-      -centerData[1] * targetScale,
-      -centerData[2] * targetScale,
-    )
-  }
+  const transform = centerData?.length === 3
+    ? calculateModelImportTransform(centerData, originalHeight.value, height)
+    : null
+  model.value.scale.setScalar(transform?.scale ?? height / originalHeight.value)
+  if (transform) model.value.position.set(...transform.position)
   model.value.updateMatrixWorld(true)
   fitCamera(model.value)
   const factor = height / Math.max(0.1, previousHeight)
