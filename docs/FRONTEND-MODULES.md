@@ -42,7 +42,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/RigAnimationClip.ts`: converte os quadros-chave gravados no editor em trilhas de posição, rotação e escala do Three.js, fora do componente de importação.
 - `src/lib/animation/RigPreviewHelper.ts`: cria e descarta o auxiliar visual de ossos do rig, mantendo a gestão de geometria/material fora do diálogo.
 - `src/lib/animation/RigKeyframeTimeline.ts`: insere/substitui quadros-chave na linha do tempo e prepara os quadros ordenados para exportação de animações, incluindo a pose inicial em 0 s.
-- `src/lib/animation/AnimationRoleOptions.ts`: mantém os papéis de animação disponíveis e o mapeamento de cada papel para a tecla do mapa de controles, fora do diálogo de importação.
+- `src/lib/animation/AnimationRoleOptions.ts`: mantém os papéis e vínculos de controle, e resolve papéis persistidos de clipes importados com fallback por inferência e compatibilidade para classificações diagonais antigas.
 - `src/lib/animation/RetargetRestPose.ts`: memoriza poses de repouso por instância de modelo, restaura transformações dos ossos e atualiza os esqueletos durante a transferência de animações.
 - `src/lib/animation/ModelRenderableMeshes.ts`: restaura a visibilidade das malhas e materiais antes da prévia de animação e desativa o frustum culling apenas para malhas esqueléticas.
 - `src/lib/animation/ModelPreviewAnimationRuntime.ts`: gerencia mixer, ações e controlador da prévia por modelo; registra clipes novos sem reiniciar a animação e descarta o runtime ao trocar modelo ou fechar o importador.

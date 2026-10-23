@@ -85,3 +85,42 @@ export const ANIMATION_ROLE_CONTROL_BINDING_KEYS: Partial<Record<AnimationRole, 
   ability_4: 'ability4',
   emote: 'emote',
 }
+
+const DIAGONAL_MOVEMENT_ROLES: ReadonlySet<AnimationRole> = new Set([
+  'walk_diagonal_left',
+  'walk_diagonal_right',
+  'run_diagonal_left',
+  'run_diagonal_right',
+])
+const GENERIC_ROLES_FOR_DIAGONAL_CLIPS: ReadonlySet<AnimationRole> = new Set([
+  'ignore',
+  'walk',
+  'run',
+])
+
+/**
+ * Resolve persisted roles for freshly imported animation clips.
+ * Invalid saved values fall back to inference. Older generic classifications
+ * are re-inferred for diagonal clips, while explicit specific roles are retained.
+ */
+export function resolveImportedAnimationRoles(
+  clips: readonly { name: string }[],
+  savedRoles: Readonly<Record<string, AnimationRole>> | undefined,
+  inferRole: (clipName: string) => AnimationRole,
+): Record<string, AnimationRole> {
+  const recognizedRoles = new Set(ANIMATION_ROLE_BASE_OPTIONS.map(option => option.value))
+  const roles: Record<string, AnimationRole> = {}
+
+  clips.forEach((clip, index) => {
+    const savedRole = savedRoles?.[String(index)]
+    const guessedRole = inferRole(clip.name)
+    const guessedIsDiagonal = DIAGONAL_MOVEMENT_ROLES.has(guessedRole)
+    const canReuseSavedRole = savedRole
+      && recognizedRoles.has(savedRole)
+      && !(guessedIsDiagonal && GENERIC_ROLES_FOR_DIAGONAL_CLIPS.has(savedRole))
+
+    roles[String(index)] = canReuseSavedRole ? savedRole : guessedRole
+  })
+
+  return roles
+}

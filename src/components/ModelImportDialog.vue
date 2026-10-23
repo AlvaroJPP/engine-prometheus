@@ -90,7 +90,7 @@ import {
   resolveImportPackageControlBinding,
   updateImportPackageVector,
 } from '@/lib/assets/ImportBehaviorPackageConfig'
-import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS } from '@/lib/animation/AnimationRoleOptions'
+import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS, resolveImportedAnimationRoles } from '@/lib/animation/AnimationRoleOptions'
 import {
   createReusableAnimationAsset,
   findAnimationNode,
@@ -1228,17 +1228,7 @@ async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targ
   rigDuration.value = 1
   rigMessage.value = ''
   const savedRoles = loaded.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
-  const nextRoles: Record<string, AnimationRole> = {}
-  ;(clips ?? []).forEach((clip, index) => {
-    const savedRole = savedRoles?.[String(index)]
-    const guessed = guessedAnimationRole(clip.name)
-    const guessedIsDiagonal = ['walk_diagonal_left', 'walk_diagonal_right', 'run_diagonal_left', 'run_diagonal_right'].includes(guessed)
-    const recognizedRoles: AnimationRole[] = ANIMATION_ROLE_BASE_OPTIONS.map(option => option.value)
-    // Atualiza classificações automáticas antigas que guardaram um papel genérico.
-    nextRoles[String(index)] = savedRole && recognizedRoles.includes(savedRole) && !(guessedIsDiagonal && ['ignore', 'walk', 'run'].includes(savedRole))
-      ? savedRole
-      : guessed
-  })
+  const nextRoles = resolveImportedAnimationRoles(clips ?? [], savedRoles, guessedAnimationRole)
   animationRoles.value = nextRoles
   loaded.userData.importAnimationRoles = { ...nextRoles }
   previewAnimationIndex.value = 0
