@@ -43,7 +43,7 @@ import { loadAssetFile } from '@/lib/assets/AssetImporter'
 import { createZipImportContext } from '@/lib/assets/ZipModelImport'
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
-import { applyRecoveredBaseColorTexture } from '@/lib/assets/ModelColorTextureRepair'
+import { recoverModelBaseColorTexture } from '@/lib/assets/ModelColorTextureRecovery'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
 import { formatModelControlKey, normalizeModelControlBindings } from '@/lib/assets/ModelControlBindings'
 import { clonePackageJsonRecord } from '@/lib/PackageJson'
@@ -828,23 +828,14 @@ function deletePreviewPart(part: ModelPreviewPart) {
 
 async function applyRecoveredColorTexture(materialIndex: number) {
   const root = model.value
-  const metadata = gltfMetadata.value
-  const materialInfo = metadata?.materials.find(item => item.index === materialIndex)
+  if (!root) return
   const imageIndex = Number(textureRepairSelections.value[String(materialIndex)])
-  const imageInfo = metadata?.images.find(image => image.index === imageIndex)
-  if (!root || !materialInfo || !imageInfo?.uri.startsWith('data:image/')) {
-    textureRepairMessage.value = 'Selecione uma imagem incorporada válida para este material.'
-    return
-  }
   textureRepairBusy.value = true
   textureRepairMessage.value = ''
   try {
-    const texture = await new THREE.TextureLoader().loadAsync(imageInfo.uri)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.flipY = false
-    texture.needsUpdate = true
-    applyRecoveredBaseColorTexture(root, materialInfo.name, materialIndex, imageIndex, texture)
-    textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialInfo.name || materialIndex}. O mapa normal e os demais mapas foram preservados.`
+    await recoverModelBaseColorTexture(root, gltfMetadata.value, materialIndex, imageIndex)
+    const materialName = gltfMetadata.value?.materials.find(item => item.index === materialIndex)?.name
+    textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialName || materialIndex}. O mapa normal e os demais mapas foram preservados.`
     refreshModelDiagnostics()
   } catch (e) {
     textureRepairMessage.value = e instanceof Error ? e.message : String(e)
