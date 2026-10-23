@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-export type SkinTokensOperation = 'rig' | 'repair'
+export type SkinTokensOperation = 'rig' | 'skin'
 
 /** Determines whether the selected Skin Tokens operation can run on a model. */
 export function isSkinTokensRigCompatible(
