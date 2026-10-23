@@ -61,6 +61,7 @@ import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatib
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
 import { prepareSkinTokensExportRoot } from '@/lib/assets/SkinTokensExportPreparation'
+import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
@@ -1350,19 +1351,14 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
       ? 'humanoid'
       : skinTokensResolvedClass.value === 'quadruped' ? 'quadruped' : 'ai'
 
-    if (operation === 'rig') {
-      loaded.userData.importRigGenerated = true
-      loaded.userData.importRigPreset = generatedPreset
-    }
-    loaded.userData.importNeedsReexport = true
-    loaded.traverse(node => {
-      if (!(node instanceof THREE.Bone)) return
-      if (operation === 'rig') {
-        node.userData.generatedRigBone = true
-        node.userData.generatedRigPreset = generatedPreset
-      }
-      detectedBones.push(node)
-    })
+    const preparedResult = prepareSkinTokensRiggingResult(
+      loaded,
+      operation,
+      generatedPreset,
+      sourceRolesByName,
+      guessedAnimationRole,
+    )
+    detectedBones = preparedResult.detectedBones
     if (!detectedBones.length) throw new Error('O resultado da IA não contém ossos reconhecíveis. Confira o relatório/diagnóstico do SkinTokens e tente novamente.')
 
     await showLoadedModel(loaded, displayName, targetHeight, preserveRetargetSource)
@@ -1376,11 +1372,7 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
     loaded.userData.importColliderType = colliderType.value
     loaded.userData.importColliderSize = [...colliderSize.value]
     loaded.userData.importColliderOffset = [...colliderOffset.value]
-    const outputClips = (loaded.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    const outputRoles: Record<string, AnimationRole> = {}
-    outputClips.forEach((clip, index) => {
-      outputRoles[String(index)] = sourceRolesByName.get(clip.name) ?? guessedAnimationRole(clip.name)
-    })
+    const outputRoles = preparedResult.animationRoles
     animationRoles.value = outputRoles
     loaded.userData.importAnimationRoles = { ...outputRoles }
     animationClipRevision.value += 1
