@@ -57,6 +57,7 @@ import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, Mode
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
+import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
   prepareRigAnimationFrames,
@@ -349,17 +350,11 @@ const skinTokensResolvedClass = computed<'humanoid' | 'quadruped' | 'custom'>(()
   const guess = rigInputAnalysis.value?.recommendedPreset
   return guess === 'humanoid' ? 'humanoid' : guess === 'quadruped' ? 'quadruped' : 'custom'
 })
-const skinTokensRigCompatible = computed(() => {
-  const root = model.value
-  if (!root || props.initialAsset) return false
-  let hasStaticMesh = false
-  let hasSkinnedMesh = false
-  root.traverse(node => {
-    if (node instanceof THREE.SkinnedMesh) hasSkinnedMesh = true
-    else if (node instanceof THREE.Mesh && node.geometry.getAttribute('position')?.count) hasStaticMesh = true
-  })
-  return skinTokensOperation.value === 'rig' ? hasStaticMesh && !hasSkinnedMesh : hasSkinnedMesh
-})
+const skinTokensRigCompatible = computed(() => isSkinTokensRigCompatible(
+  model.value,
+  skinTokensOperation.value,
+  Boolean(props.initialAsset),
+))
 const rigPresetOptions: Array<{ value: AutoRigPreset; label: string }> = [
   { value: 'auto', label: 'Detectar automaticamente (recomendado)' },
   { value: 'humanoid', label: 'Humanoide / personagem' },
