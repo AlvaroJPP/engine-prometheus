@@ -16,6 +16,7 @@ import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { collectModelPreviewParts, getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
+import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
   isWithinModelPreviewTree,
@@ -699,22 +700,18 @@ function disposeModel(object: THREE.Object3D) {
 }
 
 function refreshPreviewParts() {
-  const root = model.value
-  if (!root) {
-    previewParts.value = []
-    selectedPartId.value = ''
-    soloPartId.value = ''
-    return
-  }
-
-  // Mantém seleção e estado de lotes válidos após reconstruir a hierarquia.
-  const parts = collectModelPreviewParts(root)
-  previewParts.value = parts
-  const validIds = new Set(parts.map(part => part.id))
-  batchSelectedPartIds.value = batchSelectedPartIds.value.filter(id => validIds.has(id))
-  batchSavedPartIds.value = batchSavedPartIds.value.filter(id => validIds.has(id))
-  if (!parts.some(part => part.id === selectedPartId.value)) selectedPartId.value = ''
-  if (!parts.some(part => part.id === soloPartId.value)) soloPartId.value = ''
+  const state = reconcileModelPreviewPartState(
+    model.value,
+    selectedPartId.value,
+    soloPartId.value,
+    batchSelectedPartIds.value,
+    batchSavedPartIds.value,
+  )
+  previewParts.value = state.parts
+  selectedPartId.value = state.selectedPartId
+  soloPartId.value = state.soloPartId
+  batchSelectedPartIds.value = state.batchSelectedPartIds
+  batchSavedPartIds.value = state.batchSavedPartIds
 }
 
 function findPreviewPart(id: string) {
