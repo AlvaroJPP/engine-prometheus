@@ -19,6 +19,8 @@ import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
 import { fitModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
 import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop'
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
+import { prepareModelImportBatchItems } from '@/lib/assets/ModelImportBatchPreparation'
+import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -116,13 +118,6 @@ import {
   persistRetargetAnimationLibrary as writeRetargetAnimationLibrary,
 } from '@/lib/animation/RetargetAnimationLibrary'
 import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vue'
-
-type ModelImportBatchItem = {
-  partId: string
-  name: string
-  model: THREE.Object3D
-  height: number
-}
 
 type ModelImportPayload = {
   name: string
@@ -2302,79 +2297,15 @@ async function saveSelectedParts() {
   batchNotice.value = ''
   const entries: ModelImportBatchItem[] = []
   try {
-    root.updateMatrixWorld(true)
-    const scaleFactor = modelHeight.value / Math.max(originalHeight.value, 0.05)
-
-    for (const part of parts) {
-      const relativeMatrix = new THREE.Matrix4()
-        .copy(root.matrixWorld)
-        .invert()
-        .multiply(part.object.matrixWorld)
-      const imported = cloneSkinnedModel(part.object)
-      imported.matrix.copy(relativeMatrix)
-      imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
-      imported.matrixAutoUpdate = true
-      imported.name = part.name
-      imported.traverse(node => { node.visible = true })
-      imported.updateMatrixWorld(true)
-
-      const bounds = new THREE.Box3().setFromObject(imported)
-      const size = bounds.getSize(new THREE.Vector3())
-      const center = bounds.getCenter(new THREE.Vector3())
-      if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
-        throw new Error(`Não foi possível calcular as dimensões de "${part.name}".`)
-      }
-
-      imported.position.sub(center)
-      imported.scale.multiplyScalar(scaleFactor)
-      imported.position.multiplyScalar(scaleFactor)
-      imported.updateMatrixWorld(true)
-
-      const scaledSize: [number, number, number] = [
-        Math.max(0.05, size.x * scaleFactor),
-        Math.max(0.05, size.y * scaleFactor),
-        Math.max(0.05, size.z * scaleFactor),
-      ]
-      let partColliderSize = scaledSize
-      if (colliderType.value === 'sphere') {
-        const diameter = Math.max(0.05, Math.min(...scaledSize))
-        partColliderSize = [diameter, diameter, diameter]
-      }
-
-      if (colliderType.value === 'mesh') {
-        const partCollisionData = getStaticMeshCollisionData(imported)
-        if (!partCollisionData) {
-          throw new Error(`A parte "${part.name}" não pode usar malha estática. Ela precisa conter geometria estática e ficar abaixo de 5 milhões de triângulos.`)
-        }
-      }
-      imported.userData.importColliderType = colliderType.value
-      imported.userData.importColliderSize = partColliderSize
-      // Cada parte é centralizada durante a extração, então seu colisor também
-      // começa no centro local próprio, sem herdar o offset do modelo-cidade.
-      imported.userData.importColliderOffset = [0, 0, 0]
-      imported.userData.importAnimations = []
-      imported.userData.importAnimationRoles = {}
-      imported.userData.importControlBindings = { ...controlBindings.value }
-      imported.userData.importBehaviorPackageIds = [...selectedBehaviorPackageIds.value]
-      const behaviorPackageSettings: Record<string, ImportBehaviorPackageDraft> = {}
-      for (const packageId of selectedBehaviorPackageIds.value) {
-        const draft = ensureImportBehaviorPackageDraft(packageId)
-        behaviorPackageSettings[packageId] = {
-          variables: { ...draft.variables },
-          config: clonePackageJsonRecord(draft.config),
-        }
-      }
-      imported.userData.importBehaviorPackageSettings = behaviorPackageSettings
-      imported.userData.sceneKind = 'object'
-      imported.userData.componentLogic = []
-
-      entries.push({
-        partId: part.id,
-        name: part.name,
-        model: imported,
-        height: Math.max(0.05, scaledSize[1]),
-      })
-    }
+    entries.push(...prepareModelImportBatchItems({
+      root,
+      parts,
+      scaleFactor: modelHeight.value / Math.max(originalHeight.value, 0.05),
+      colliderType: colliderType.value,
+      controlBindings: controlBindings.value,
+      behaviorPackageIds: selectedBehaviorPackageIds.value,
+      ensureBehaviorPackageDraft: ensureImportBehaviorPackageDraft,
+    }))
 
     const saved = await props.saveModel({
       name: fileName.value.replace(/\.[^.]+$/, '') || 'Importação em lote',
