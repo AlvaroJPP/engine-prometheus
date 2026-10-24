@@ -74,11 +74,8 @@ import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { formatRetargetAnimationTransferMessage } from '@/lib/animation/RetargetTransferReport'
 import { integrateRetargetedAnimationClip } from '@/lib/animation/RetargetClipIntegration'
-import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
-import {
-  prepareRigAnimationFrames,
-  upsertRigAnimationKeyframe,
-} from '@/lib/animation/RigKeyframeTimeline'
+import { upsertRigAnimationKeyframe } from '@/lib/animation/RigKeyframeTimeline'
+import { buildRigAnimationFromKeyframes } from '@/lib/animation/RigAnimationBuilder'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
 import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
 import {
@@ -570,22 +567,23 @@ function clearRigKeyframesForNewClip() {
 function createRigAnimation() {
   const root = model.value
   if (!root || !rigBones.value.length || props.initialAsset) return
-  const clipFrames = prepareRigAnimationFrames(rigKeyframes.value)
-  if (!clipFrames) {
-    rigMessage.value = 'Grave pelo menos duas poses em tempos diferentes (por exemplo, 0 s e 1 s).'
+
+  const built = buildRigAnimationFromKeyframes({
+    rawName: rigClipName.value,
+    requestedDuration: rigDuration.value,
+    bones: rigBones.value,
+    keyframes: rigKeyframes.value,
+  })
+  if (!built.ok) {
+    rigMessage.value = built.reason === 'insufficient-keyframes'
+      ? 'Grave pelo menos duas poses em tempos diferentes (por exemplo, 0 s e 1 s).'
+      : built.reason === 'missing-name'
+        ? 'Digite um nome para a animação.'
+        : 'Não existem trilhas válidas para exportar. Confira o rig e grave as poses novamente.'
     return
   }
-  const name = rigClipName.value.trim()
-  if (!name) {
-    rigMessage.value = 'Digite um nome para a animação.'
-    return
-  }
-  const duration = Math.max(0.1, rigDuration.value, clipFrames[clipFrames.length - 1]!.time)
-  const clip = createRigAnimationClip(name, duration, rigBones.value, clipFrames)
-  if (!clip) {
-    rigMessage.value = 'Não existem trilhas válidas para exportar. Confira o rig e grave as poses novamente.'
-    return
-  }
+
+  const { clip, name } = built
   const clips = [...previewAnimations.value, clip]
   const newIndex = clips.length - 1
   const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
@@ -600,7 +598,6 @@ function createRigAnimation() {
   selectPreviewAnimation(newIndex)
   rigMessage.value = `Animação "${name}" criada com ${clip.tracks.length / 3} trilhas e associada ao papel "${ANIMATION_ROLE_BASE_OPTIONS.find(option => option.value === rigClipRole.value)?.label ?? rigClipRole.value}". Ela será exportada junto com o modelo.`
 }
-
 function setRigTime(value: number) {
   rigFrameTime.value = Math.max(0, Number.isFinite(value) ? value : 0)
 }
