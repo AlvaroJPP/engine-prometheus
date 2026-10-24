@@ -1063,14 +1063,12 @@ function centerAndMeasure(object: THREE.Object3D) {
 }
 
 const {
-  parseFile,
   showLoadedModel,
   parseGlbBytes,
   importBlendZip,
   loadCatalogAsset,
   chooseFile,
 } = createModelImportLoadingController({
-  canvas,
   fileInput,
   loading,
   error,
