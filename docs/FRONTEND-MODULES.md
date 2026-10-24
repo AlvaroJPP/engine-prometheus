@@ -72,6 +72,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ZipPrimaryModelLoader.ts`: seleciona o parser do arquivo principal dentro do ZIP (GLB, glTF ou outro formato compatível) e usa o `LoadingManager` do pacote para resolver recursos relativos.
 - `src/lib/assets/GltfModelParser.ts`: concentra a chamada ao `GLTFLoader` e anexa animações/metadados normalizados à raiz, compartilhado pelos fluxos de arquivo, buffer e ZIP.
 - `src/lib/assets/ModelImportFileParser.ts`: encaminha arquivos GLB/glTF ao parser com metadados e os demais formatos ao importador compartilhado, deixando a propriedade das URLs Blob temporárias com o diálogo de importação.
+- `src/lib/assets/ModelImportLoadingController.ts`: concentra o parser de arquivos, o carregamento GLB/glTF e ZIP, a abertura de modelos iniciais e a aplicação de transformação, animações e metadados quando um modelo entra na prévia.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
 - `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
 - `src/lib/assets/ModelColorTextureRepair.ts`: aplica texturas base-color recuperadas apenas em materiais com mapa ausente ou instalado previamente pela ferramenta, preservando texturas originais e demais mapas.
