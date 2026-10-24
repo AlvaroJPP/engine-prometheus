@@ -2442,7 +2442,7 @@ const rightPanelBindings = new Proxy(rightPanelBindingSources, {
     }
     return Reflect.set(target, property, nextValue, receiver)
   },
-})
+}) as Record<string, any>
 </script>
 
 <template>
