@@ -77,6 +77,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelImportLoadingController.ts`: concentra o parser de arquivos, o carregamento GLB/glTF e ZIP, a abertura de modelos iniciais e a aplicação de transformação, animações e metadados quando um modelo entra na prévia.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
 - `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
+- `src/lib/assets/ModelImportDiagnosticsController.ts`: reúne as verificações técnicas usadas na prévia e a recuperação de textura base-color, mantendo o estado reativo de mensagens e seleções separado do diálogo.
 - `src/lib/assets/ModelColorTextureRepair.ts`: aplica texturas base-color recuperadas apenas em materiais com mapa ausente ou instalado previamente pela ferramenta, preservando texturas originais e demais mapas.
 - `src/lib/assets/ModelColorTextureRecovery.ts`: valida a imagem incorporada escolhida, carrega a textura com as configurações corretas para glTF e delega a aplicação segura ao reparador de base-color.
 - `src/lib/assets/ColliderPreviewGeometry.ts`: gera a geometria de contorno amostrada para visualizar colisores de malha sem substituir a geometria completa usada pela colisão em runtime.
