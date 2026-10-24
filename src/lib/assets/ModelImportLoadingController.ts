@@ -12,13 +12,12 @@ import { normalizeModelControlBindings } from './ModelControlBindings'
 import { resolveImportedAnimationRoles } from '../animation/AnimationRoleOptions'
 import { storeRetargetRestPose } from '../animation/RetargetRestPose'
 import { revokeOwnedObjectUrls } from './ModelOwnedObjectUrls'
-import { previewAnimationRoleForClip, type ModelPreviewAnimationRuntime } from '../animation/ModelPreviewAnimationRuntime'
+import { previewAnimationRoleForClip } from '../animation/ModelPreviewAnimationRuntime'
 import type { ModelControlBindings, AnimationRole } from '@engine'
 
 type WritableValue<T> = { value: T }
 type ReadonlyValue<T> = { readonly value: T }
 type ModelImportLoadingContext = {
-  canvas: ReadonlyValue<HTMLCanvasElement | null>
   fileInput: ReadonlyValue<HTMLInputElement | null>
   loading: WritableValue<boolean>
   error: WritableValue<string>
@@ -49,7 +48,9 @@ type ModelImportLoadingContext = {
   animationRoles: WritableValue<Record<string, AnimationRole>>
   previewAnimationIndex: WritableValue<number>
   previewPlaying: WritableValue<boolean>
-  previewAnimationRuntime: ModelPreviewAnimationRuntime
+  previewAnimationRuntime: {
+    ensure: (root: THREE.Object3D, clips: THREE.AnimationClip[]) => { setState: (role: AnimationRole) => void }
+  }
   previewClock: THREE.Clock
   clearLoadedModel: (preserveRetargetSource?: boolean) => void
   centerAndMeasure: (object: THREE.Object3D) => number
@@ -75,7 +76,6 @@ type StarterAssetCatalogPayload = {
 
 export function createModelImportLoadingController(context: ModelImportLoadingContext) {
   const {
-    canvas,
     fileInput,
     loading,
     error,
@@ -123,7 +123,7 @@ export function createModelImportLoadingController(context: ModelImportLoadingCo
 
 async function parseFile(file: File) {
   return parseModelImportFile(file, url => {
-    currentObjectUrl = url
+    setCurrentObjectUrl(url)
   })
 }
 
@@ -233,15 +233,7 @@ async function importBlendZip() {
     loading.value = false
   }
 }
-async function loadCatalogAsset(asset: {
-  name: string
-  bytes: ArrayBuffer
-  role: 'player' | 'enemy' | 'loot' | 'object'
-  height: number
-  itemId?: string
-  aiProfile?: string
-  sourceName?: string
-}) {
+async function loadCatalogAsset(asset: StarterAssetCatalogPayload) {
   starterAssetCatalogOpen.value = false
   loading.value = true
   error.value = ''
@@ -290,7 +282,6 @@ async function chooseFile(event: Event) {
 
 
   return {
-    parseFile,
     showLoadedModel,
     parseGlbBytes,
     importBlendZip,
