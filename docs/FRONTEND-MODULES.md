@@ -73,6 +73,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelImportNormalization.ts`: normaliza alturas escolhidas no importador e calcula escala/posição centralizada a partir do centro e altura medidos do modelo.
 - `src/lib/assets/ModelPreviewParts.ts`: monta a hierarquia selecionável do preview, agrega a quantidade de malhas de baixo para cima e cria caminhos estáveis para partes com nomes repetidos.
 - `src/lib/assets/ModelImportBatchPreparation.ts`: clona as partes selecionadas para salvamento em lote, preserva transformações relativas à raiz, normaliza escala e centralização e prepara colisores, controles e configurações de pacotes por componente.
+- `src/lib/assets/ModelPlayerExport.ts`: gera os bytes GLB para usar um modelo como jogador, preservando os bytes originais de ativos já salvos e removendo metadados transitórios de um clone esquelético nos demais casos.
 - `src/lib/assets/ModelPreviewPartState.ts`: reconstrói as partes selecionáveis da prévia e reconcilia seleção individual, modo isolado e lotes salvos/selecionados com os IDs ainda existentes após alterações na hierarquia.
 - `src/lib/assets/ModelPreviewCamera.ts`: centraliza o enquadramento orbital da prévia, os limites de clipping para diferentes escalas e o redimensionamento sincronizado entre renderer e câmera.
 - `src/lib/assets/ModelPreviewStage.ts`: configura a cena 3D da prévia de importação, câmera, renderer, controles orbitais, iluminação e grade; o diálogo mantém o loop de renderização, redimensionamento e ciclo de vida.
