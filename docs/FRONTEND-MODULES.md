@@ -8,6 +8,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/App.vue`: ponto de entrada visual; carrega a folha agregadora e o workspace.
 - `src/components/AppWorkspace.vue`: compõe barra superior, hierarquia, viewport, inspetor, Visual Script, importador e diagnóstico.
 - `src/components/EditorViewport.vue`: marca o elemento `.viewport` e o canvas Three.js; os refs são ligados ao controlador.
+- `src/components/ModelImportRightPanel.vue`: reúne os painéis de controles, animações, rigging/retargeting, pacotes de comportamento, miniatura, transformação, colisores e diagnóstico; o diálogo pai fornece os bindings reativos e mantém o ciclo de vida das cenas Three.js.
 
 ## Composables
 
