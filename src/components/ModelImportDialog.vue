@@ -16,7 +16,8 @@ import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
-import { fitModelPreviewCamera, resizeModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
+import { fitModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
+import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop'
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
@@ -690,8 +691,7 @@ let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
-let frame = 0
-let resizeObserver: ResizeObserver | null = null
+let stopPreviewRenderLoop: (() => void) | null = null
 let currentObjectUrl = ''
 const previewAnimationRuntime = new ModelPreviewAnimationRuntime(AnimationController)
 
@@ -1074,9 +1074,8 @@ function clearLoadedModel(preserveRetargetSource = false) {
 }
 
 function disposePreview() {
-  cancelAnimationFrame(frame)
-  resizeObserver?.disconnect()
-  resizeObserver = null
+  stopPreviewRenderLoop?.()
+  stopPreviewRenderLoop = null
   controls?.dispose()
   controls = null
   clearLoadedModel()
@@ -1097,18 +1096,17 @@ function initPreview() {
   camera = stage.camera
   renderer = stage.renderer
   controls = stage.controls
-  resizeObserver = new ResizeObserver(() => {
-    if (!canvas.value || !renderer || !camera) return
-    resizeModelPreviewCamera(renderer, camera, canvas.value.clientWidth, canvas.value.clientHeight)
+  stopPreviewRenderLoop = startModelPreviewRenderLoop({
+    canvasElement: canvas.value,
+    getCanvas: () => canvas.value,
+    getScene: () => scene,
+    getCamera: () => camera,
+    getRenderer: () => renderer,
+    getControls: () => controls,
+    clock: previewClock,
+    isAnimationPlaying: () => previewPlaying.value,
+    updateAnimation: deltaSeconds => previewAnimationRuntime.controller?.update(deltaSeconds),
   })
-  resizeObserver.observe(canvas.value)
-  const animate = () => {
-    frame = requestAnimationFrame(animate)
-    controls?.update()
-    if (previewPlaying.value) previewAnimationRuntime.controller?.update(Math.min(previewClock.getDelta(), 0.1))
-    if (scene && camera && renderer) renderer.render(scene, camera)
-  }
-  animate()
   if (model.value) {
     scene.add(model.value)
     fitCamera(model.value)
