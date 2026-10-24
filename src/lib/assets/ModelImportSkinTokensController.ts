@@ -20,7 +20,7 @@ type ModelImportSkinTokensContext = {
   skinTokensResolvedClass: ReadonlyValue<SkinTokensResolvedClass>
   skinTokensRigCompatible: ReadonlyValue<boolean>
   animationRoles: WritableValue<Record<string, AnimationRole>>
-  controlBindings: ReadonlyValue<ModelControlBindings>
+  controlBindings: WritableValue<ModelControlBindings>
   colliderType: WritableValue<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>
   colliderSize: WritableValue<[number, number, number]>
   colliderOffset: WritableValue<[number, number, number]>
