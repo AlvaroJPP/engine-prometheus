@@ -75,6 +75,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelPreviewPartState.ts`: reconstrói as partes selecionáveis da prévia e reconcilia seleção individual, modo isolado e lotes salvos/selecionados com os IDs ainda existentes após alterações na hierarquia.
 - `src/lib/assets/ModelPreviewCamera.ts`: centraliza o enquadramento orbital da prévia, os limites de clipping para diferentes escalas e o redimensionamento sincronizado entre renderer e câmera.
 - `src/lib/assets/ModelPreviewStage.ts`: configura a cena 3D da prévia de importação, câmera, renderer, controles orbitais, iluminação e grade; o diálogo mantém o loop de renderização, redimensionamento e ciclo de vida.
+- `src/lib/assets/ModelPreviewRenderLoop.ts`: executa o loop de renderização da prévia, atualiza os controles e as animações, observa mudanças de tamanho do canvas e oferece encerramento para o descarte seguro no diálogo.
 - `src/lib/assets/ModelPreviewSelection.ts`: centraliza ancestrais da hierarquia Three.js, visibilidade isolada e seleção de grupos para exportação em lote, mantendo pais/filhos mutuamente exclusivos.
 - `src/lib/assets/ModelControlBindings.ts`: normaliza teclas persistidas e converte códigos de teclado em rótulos legíveis, fora do componente.
 - `src/lib/assets/ImportModelStates.ts`: valida estados visuais persistidos de partes do modelo, cria novos estados e serializa/normaliza seus valores sem acoplar a transformação ao diálogo.
