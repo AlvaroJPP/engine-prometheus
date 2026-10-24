@@ -1,7 +1,8 @@
 import { computed } from 'vue'
 import * as THREE from 'three'
 import { analyzeModelDiagnostics } from './ModelDiagnostics'
-import type { ModelDiagnostic, ModelDiagnosticSummary, GltfMetadata } from './ModelDiagnostics'
+import type { ModelDiagnostic, ModelDiagnosticSummary } from './ModelDiagnostics'
+import type { GltfMetadata } from './GltfMetadata'
 import { recoverModelBaseColorTexture } from './ModelColorTextureRecovery'
 
 type WritableValue<T> = { value: T }
