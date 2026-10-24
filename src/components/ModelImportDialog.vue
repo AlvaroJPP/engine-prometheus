@@ -22,6 +22,7 @@ import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { prepareModelImportBatchItems } from '@/lib/assets/ModelImportBatchPreparation'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
+import { parseModelImportFile } from '@/lib/assets/ModelImportFileParser'
 import { prepareModelImportSelectedPart } from '@/lib/assets/ModelImportSelectedPart'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
@@ -1119,19 +1120,9 @@ function centerAndMeasure(object: THREE.Object3D) {
 }
 
 async function parseFile(file: File) {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext !== 'glb' && ext !== 'gltf') {
-    return await loadAssetFile(file)
-  }
-  const buffer = await file.arrayBuffer()
-  if (ext === 'glb' || ext === 'gltf') {
-    const url = URL.createObjectURL(file)
+  return parseModelImportFile(file, url => {
     currentObjectUrl = url
-    const loaded = await parseGltfModel(buffer, url.substring(0, url.lastIndexOf('/') + 1))
-    if (ext === 'glb') loaded.userData.importSourceGlbBytes = buffer.slice(0)
-    return loaded
-  }
-  throw new Error('Não foi possível interpretar o arquivo GLB/glTF.')
+  })
 }
 
 async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targetHeight = 2, preserveRetargetSource = false) {
