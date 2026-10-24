@@ -6,7 +6,6 @@ import { revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
 import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/assets/ModelColliderPreview'
 import { disposeImportedModelResources } from '@/lib/assets/ModelImportResourceCleanup'
 import {
-  calculateImportColliderSize,
   normalizeImportColliderForType,
   updateImportColliderVector,
 } from '@/lib/assets/ModelColliderSizing'
@@ -443,6 +442,47 @@ let stopPreviewRenderLoop: (() => void) | null = null
 let currentObjectUrl = ''
 const previewAnimationRuntime = new ModelPreviewAnimationRuntime(AnimationController)
 
+
+
+const previewClock = new THREE.Clock()
+
+function disposeModel(object: THREE.Object3D) {
+  disposeThreeObjectResources(object, 'renderables')
+}
+
+const {
+  refreshPreviewParts,
+  findPreviewPart,
+  toggleBatchPartSelection,
+  clearBatchSelection,
+  selectPreviewPart,
+  togglePreviewPart,
+  showOnlyPreviewPart,
+  selectWholeModel,
+  restorePreviewVisibility,
+  restoreModelRenderableMeshes,
+  deletePreviewPart,
+} = createModelImportHierarchyController({
+  props,
+  model,
+  previewParts,
+  selectedPartId,
+  soloPartId,
+  batchSelectedPartIds,
+  batchSavedPartIds,
+  componentName,
+  colliderType,
+  colliderSize,
+  colliderOffset,
+  modelHeight,
+  originalHeight,
+  dimensions,
+  fileName,
+  fitCamera,
+  updateColliderPreview,
+  refreshModelDiagnostics,
+})
+
 const {
   createRig,
   applySelectedBoneTransform,
@@ -481,46 +521,6 @@ const {
   refreshPreviewParts,
   refreshModelDiagnostics,
   selectPreviewAnimation,
-})
-
-const previewClock = new THREE.Clock()
-
-function disposeModel(object: THREE.Object3D) {
-  disposeThreeObjectResources(object, 'renderables')
-}
-
-const {
-  refreshPreviewParts,
-  findPreviewPart,
-  toggleBatchPartSelection,
-  clearBatchSelection,
-  setColliderFromPreviewPart,
-  selectPreviewPart,
-  togglePreviewPart,
-  showOnlyPreviewPart,
-  selectWholeModel,
-  restorePreviewVisibility,
-  restoreModelRenderableMeshes,
-  deletePreviewPart,
-} = createModelImportHierarchyController({
-  props,
-  model,
-  previewParts,
-  selectedPartId,
-  soloPartId,
-  batchSelectedPartIds,
-  batchSavedPartIds,
-  componentName,
-  colliderType,
-  colliderSize,
-  colliderOffset,
-  modelHeight,
-  originalHeight,
-  dimensions,
-  fileName,
-  fitCamera,
-  updateColliderPreview,
-  refreshModelDiagnostics,
 })
 
 async function applyRecoveredColorTexture(materialIndex: number) {
