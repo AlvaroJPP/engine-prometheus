@@ -64,6 +64,7 @@ import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, Mode
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
+import { prepareRigRootContainer } from '@/lib/animation/RigRootPreparation'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { inspectRetargetTargetRig } from '@/lib/animation/RetargetTargetRigInspection'
@@ -416,27 +417,9 @@ function refreshRigHelper() {
 
 function ensureGroupRootForRig(): THREE.Object3D | null {
   const current = model.value
-  if (!current || !(current instanceof THREE.Mesh) || current instanceof THREE.SkinnedMesh) return current
-  const host = current.parent ?? scene
-  if (!host) return current
-
-  // Formatos como STL/PLY podem chegar como Mesh raiz, sem um nó Group.
-  // Um wrapper permite inserir Bones como irmãos da malha sem perder os transforms.
-  const wrapper = new THREE.Group()
-  wrapper.name = current.name || 'RigRoot'
-  wrapper.userData = { ...current.userData }
-  wrapper.position.copy(current.position)
-  wrapper.quaternion.copy(current.quaternion)
-  wrapper.scale.copy(current.scale)
-  host.add(wrapper)
-  wrapper.add(current)
-  current.position.set(0, 0, 0)
-  current.quaternion.identity()
-  current.scale.set(1, 1, 1)
-  current.updateMatrix()
-  wrapper.updateWorldMatrix(true, true)
-  model.value = wrapper
-  return wrapper
+  const preparedRoot = prepareRigRootContainer(current, scene)
+  if (preparedRoot && preparedRoot !== current) model.value = preparedRoot
+  return preparedRoot
 }
 
 function createRig() {
