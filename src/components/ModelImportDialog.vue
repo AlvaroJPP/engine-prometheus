@@ -24,12 +24,9 @@ import { isWithinModelPreviewTree } from '@/lib/assets/ModelPreviewSelection'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 import { releaseStaticMeshCollider } from '@engine/world/StaticMeshCollider'
-import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
-import { recoverModelBaseColorTexture } from '@/lib/assets/ModelColorTextureRecovery'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
 import { formatModelControlKey } from '@/lib/assets/ModelControlBindings'
 
-import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 import { AnimationController, inferAnimationRole } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, ControlMapBindings, ModelControlBindings } from '@engine'
@@ -42,6 +39,7 @@ import { createModelImportRiggingController } from '@/lib/animation/ModelImportR
 import { createModelImportSkinTokensController } from '@/lib/assets/ModelImportSkinTokensController'
 import { createModelImportBehaviorPackageController } from '@/lib/assets/ModelImportBehaviorPackageController'
 import { createModelImportHierarchyController } from '@/lib/assets/ModelImportHierarchyController'
+import { createModelImportDiagnosticsController } from '@/lib/assets/ModelImportDiagnosticsController'
 import { createModelImportLoadingController } from '@/lib/assets/ModelImportLoadingController'
 import { createModelImportSaveController } from '@/lib/assets/ModelImportSaveController'
 import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
@@ -384,7 +382,19 @@ function resetControlBindings() {
 const textureRepairSelections = ref<Record<string, string>>({})
 const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
-const gltfMetadata = computed(() => model.value?.userData.importGltfMetadata as GltfMetadata | undefined)
+const {
+  recoverableColorImages,
+  materialsMissingColorTexture,
+  applyRecoveredColorTexture,
+  refreshModelDiagnostics,
+} = createModelImportDiagnosticsController({
+  model,
+  textureRepairSelections,
+  textureRepairBusy,
+  textureRepairMessage,
+  modelDiagnostics,
+  diagnosticSummary,
+})
 const colliderType = ref<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>('box')
 const colliderPreviewNotice = ref('')
 const colliderSize = ref<[number, number, number]>([1, 1, 1])
@@ -431,8 +441,7 @@ function setColliderVector(field: 'colliderSize' | 'colliderOffset', axis: 0 | 1
   updateColliderPreview()
 }
 
-const recoverableColorImages = computed(() => (gltfMetadata.value?.images ?? []).filter(image => image.uri.startsWith('data:image/')))
-const materialsMissingColorTexture = computed(() => (gltfMetadata.value?.materials ?? []).filter(material => material.baseColorTexture === null))
+
 
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
@@ -523,36 +532,7 @@ const {
   selectPreviewAnimation,
 })
 
-async function applyRecoveredColorTexture(materialIndex: number) {
-  const root = model.value
-  if (!root) return
-  const imageIndex = Number(textureRepairSelections.value[String(materialIndex)])
-  textureRepairBusy.value = true
-  textureRepairMessage.value = ''
-  try {
-    await recoverModelBaseColorTexture(root, gltfMetadata.value, materialIndex, imageIndex)
-    const materialName = gltfMetadata.value?.materials.find(item => item.index === materialIndex)?.name
-    textureRepairMessage.value = `Imagem ${imageIndex} aplicada ao material ${materialName || materialIndex}. O mapa normal e os demais mapas foram preservados.`
-    refreshModelDiagnostics()
-  } catch (e) {
-    textureRepairMessage.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    textureRepairBusy.value = false
-  }
-}
 
-function refreshModelDiagnostics() {
-  const root = model.value
-  if (!root) {
-    modelDiagnostics.value = []
-    diagnosticSummary.value = { nodes: 0, meshes: 0, skinned: 0, materials: 0, textures: 0, clips: 0 }
-    return
-  }
-
-  const result = analyzeModelDiagnostics(root)
-  modelDiagnostics.value = result.rows
-  diagnosticSummary.value = result.summary
-}
 
 const importPackageControlBindingFields: Array<{ key: keyof ModelControlBindings; label: string }> = [
   { key: 'forward', label: 'Mover para frente' },
