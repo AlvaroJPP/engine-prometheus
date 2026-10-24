@@ -22,6 +22,7 @@ import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { prepareModelImportBatchItems } from '@/lib/assets/ModelImportBatchPreparation'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
+import { prepareModelImportSelectedPart } from '@/lib/assets/ModelImportSelectedPart'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -2324,26 +2325,9 @@ async function confirmImport() {
     let importedHeight = modelHeight.value
 
     if (chosenPart && chosenPart.object !== root) {
-      root.updateMatrixWorld(true)
-      const relativeMatrix = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(chosenPart.object.matrixWorld)
-      imported = chosenPart.object.clone(true)
-      imported.matrix.copy(relativeMatrix)
-      imported.matrix.decompose(imported.position, imported.quaternion, imported.scale)
-      imported.matrixAutoUpdate = true
-      imported.name = chosenPart.name
-      const bounds = new THREE.Box3().setFromObject(imported)
-      const size = bounds.getSize(new THREE.Vector3())
-      const center = bounds.getCenter(new THREE.Vector3())
-      if (bounds.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) {
-        throw new Error('Não foi possível calcular o tamanho da parte selecionada.')
-      }
-      imported.position.sub(center)
-      const scale = modelHeight.value / size.y
-      imported.scale.multiplyScalar(scale)
-      imported.position.multiplyScalar(scale)
-      imported.userData.importAnimations = root.userData.importAnimations ?? []
-      imported.userData.importGltfMetadata = root.userData.importGltfMetadata
-      importedHeight = modelHeight.value
+      const preparedPart = prepareModelImportSelectedPart(root, chosenPart, modelHeight.value)
+      imported = preparedPart.model
+      importedHeight = preparedPart.height
     } else {
       imported = root
     }
