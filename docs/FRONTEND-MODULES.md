@@ -60,6 +60,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelPreviewThumbnail.ts`: captura uma miniatura WebP da prévia 3D, ocultando temporariamente os auxiliares de colisor e rig e restaurando sua visibilidade após a captura.
 - `src/lib/assets/CustomModelThumbnail.ts`: valida imagens fornecidas pelo usuário e converte-as em miniaturas WebP quadradas, mantendo mensagens de validação independentes do componente.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
+- `src/lib/assets/ZipPrimaryModelLoader.ts`: seleciona o parser do arquivo principal dentro do ZIP (GLB, glTF ou outro formato compatível) e usa o `LoadingManager` do pacote para resolver recursos relativos.
 - `src/lib/assets/GltfModelParser.ts`: concentra a chamada ao `GLTFLoader` e anexa animações/metadados normalizados à raiz, compartilhado pelos fluxos de arquivo, buffer e ZIP.
 - `src/lib/assets/ModelImportFileParser.ts`: encaminha arquivos GLB/glTF ao parser com metadados e os demais formatos ao importador compartilhado, deixando a propriedade das URLs Blob temporárias com o diálogo de importação.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
