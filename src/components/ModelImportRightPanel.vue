@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { ref, toRefs } from 'vue'
-import type { AnimationRole } from '@engine'
+import * as THREE from 'three'
+import type { AnimationRole, ModelControlBindings } from '@engine'
 import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 
-const props = defineProps<{ bindings: Record<string, any> }>()
+type AnimationOption = { value: string; label: string }
+type ControlBindingField = { key: keyof ModelControlBindings; label: string; description: string }
+type ModelImportRightPanelBindings = Record<string, any> & {
+  ANIMATION_ROLE_BASE_OPTIONS: AnimationOption[]
+  animationRoleOptions: AnimationOption[]
+  controlBindingFields: ControlBindingField[]
+  previewAnimations: THREE.AnimationClip[]
+  retargetSourceClips: THREE.AnimationClip[]
+  animationSourceOptions?: Array<{ id: string; name: string; height?: number; thumbnail?: string }>
+}
+
+const props = defineProps<{ bindings: ModelImportRightPanelBindings }>()
 const {
   ANIMATION_ROLE_BASE_OPTIONS,
   BEHAVIOR_PACKAGE_DEFINITIONS,
@@ -33,7 +45,6 @@ const {
   componentName,
   controlBindingFields,
   controlBindings,
-  controls,
   createRig,
   createRigAnimation,
   customThumbnail,
@@ -41,7 +52,6 @@ const {
   deleteRetargetLibraryAsset,
   diagnosticSummary,
   dialogProps,
-  dimensions,
   error,
   fileName,
   formatModelControlKey,
@@ -151,6 +161,15 @@ const {
   updateImportPackageVariable
 } = toRefs(props.bindings)
 
+async function handleChooseRetargetAnimationSource(event: Event) {
+  const input = event.target instanceof HTMLInputElement ? event.target : retargetFileInput.value
+  try {
+    await chooseRetargetAnimationSource(event)
+  } finally {
+    if (input) input.value = ''
+  }
+}
+
 // These inputs belong to this panel; the preview canvases are callback refs because
 // their Three.js stages remain lifecycle-managed by the parent dialog.
 const retargetFileInput = ref<HTMLInputElement | null>(null)
@@ -215,7 +234,7 @@ const thumbnailFileInput = ref<HTMLInputElement | null>(null)
             <div class="model-retarget-panel">
               <div class="model-rigging-subtitle">CAPTURAR E REUTILIZAR ANIMAÇÕES</div>
               <p class="model-panel-hint">Carregue um GLB animado de outro modelo, guarde o movimento na biblioteca e transfira as rotações para os ossos do rig atual. O arquivo original pode ser fechado depois de salvar na biblioteca.</p>
-              <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="chooseRetargetAnimationSource" />
+              <input ref="retargetFileInput" class="model-file-input" type="file" accept=".glb,model/gltf-binary" @change="handleChooseRetargetAnimationSource" />
               <button type="button" class="model-rigging-secondary" :disabled="retargetLoading || loading || retargetAutonomousLoading" @click="retargetFileInput?.click()">＋ Carregar GLB com animação</button>
               <button v-if="retargetSourceRoot && retargetSourceBytes" type="button" class="model-rigging-secondary model-retarget-save-source" :disabled="retargetLoading || retargetAutonomousLoading" @click="saveRetargetSourceToLibrary">▣ Salvar modelo B na biblioteca de importados</button>
               <label class="model-rigging-field">Fontes de animação importadas
