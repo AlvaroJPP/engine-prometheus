@@ -10,7 +10,6 @@ import {
   updateImportColliderVector,
 } from '@/lib/assets/ModelColliderSizing'
 import { measureModelImportSpatialData } from '@/lib/assets/ModelSpatialMeasurements'
-import { calculateModelImportTransform, normalizeModelImportHeight } from '@/lib/assets/ModelImportNormalization'
 import { shouldDefaultToStaticCityCollider } from '@/lib/assets/ModelColliderDefaults'
 import { createRigPreviewHelper, disposeRigPreviewHelper } from '@/lib/animation/RigPreviewHelper'
 import { getModelPreviewNodePath } from '@/lib/assets/ModelPreviewParts'
@@ -18,7 +17,6 @@ import { fitModelPreviewCamera } from '@/lib/assets/ModelPreviewCamera'
 import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop'
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
-import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import { isWithinModelPreviewTree } from '@/lib/assets/ModelPreviewSelection'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -40,10 +38,10 @@ import { createModelImportSkinTokensController } from '@/lib/assets/ModelImportS
 import { createModelImportBehaviorPackageController } from '@/lib/assets/ModelImportBehaviorPackageController'
 import { createModelImportHierarchyController } from '@/lib/assets/ModelImportHierarchyController'
 import { createModelImportDiagnosticsController } from '@/lib/assets/ModelImportDiagnosticsController'
+import { createModelImportAssetActionsController } from '@/lib/assets/ModelImportAssetActionsController'
 import { createModelImportLoadingController } from '@/lib/assets/ModelImportLoadingController'
 import { createModelImportSaveController } from '@/lib/assets/ModelImportSaveController'
 import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
-import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
@@ -912,70 +910,31 @@ function togglePreviewAnimationPlayback() {
   if (previewPlaying.value) previewClock.start()
 }
 
-function setModelHeight(value: number) {
-  if (model.value) modelHeight.value = normalizeModelImportHeight(value) ?? modelHeight.value
-}
-
-watch(modelHeight, (height, previousHeight) => {
-  if (!model.value || !Number.isFinite(height) || height <= 0 || originalHeight.value <= 0) return
-  const centerData = model.value.userData.importCenter as [number, number, number] | undefined
-  const transform = centerData?.length === 3
-    ? calculateModelImportTransform(centerData, originalHeight.value, height)
-    : null
-  model.value.scale.setScalar(transform?.scale ?? height / originalHeight.value)
-  if (transform) model.value.position.set(...transform.position)
-  model.value.updateMatrixWorld(true)
-  fitCamera(model.value)
-  const factor = height / Math.max(0.1, previousHeight)
-  colliderSize.value = colliderSize.value.map(value => Math.max(0.05, value * factor)) as [number, number, number]
-  updateColliderPreview()
+const {
+  setModelHeight,
+  useAsPlayerModel,
+  chooseThumbnailImage,
+  clearCustomThumbnail,
+} = createModelImportAssetActionsController({
+  props,
+  emit,
+  model,
+  modelHeight,
+  originalHeight,
+  colliderSize,
+  loading,
+  error,
+  fileName,
+  animationRoles,
+  customThumbnail,
+  customThumbnailFileName,
+  thumbnailImageError,
+  updateColliderPreview,
+  fitCamera,
+  capturePreviewThumbnail,
 })
-
-async function useAsPlayerModel() {
-  const root = model.value
-  if (!root || loading.value) return
-  loading.value = true
-  error.value = ''
-  try {
-    // Ativos já salvos usam o GLB original; modelos importados são exportados em um clone esquelético.
-    const bytes = await createPlayerModelBytes(root, props.initialAsset?.bytes)
-
-    const name = props.initialAsset?.name || fileName.value || root.name || 'Jogador'
-    emit('use-player', { name, bytes, animationRoles: { ...animationRoles.value }, height: modelHeight.value })
-    emit('close')
-  } catch (cause) {
-    error.value = cause instanceof Error
-      ? `Não foi possível usar este ativo como jogador: ${cause.message}`
-      : 'Não foi possível exportar o modelo para o jogador.'
-  } finally {
-    loading.value = false
-  }
-}
-
 function capturePreviewThumbnail(): string | undefined {
   return captureModelPreviewThumbnail(canvas.value, renderer, scene, camera, [colliderPreview, rigHelper])
-}
-
-async function chooseThumbnailImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  thumbnailImageError.value = ''
-
-  try {
-    customThumbnail.value = await createCustomModelThumbnail(file)
-    customThumbnailFileName.value = file.name
-  } catch (cause) {
-    thumbnailImageError.value = cause instanceof Error ? cause.message : 'Não foi possível usar essa imagem.'
-  } finally {
-    input.value = ''
-  }
-}
-
-function clearCustomThumbnail() {
-  customThumbnail.value = null
-  customThumbnailFileName.value = ''
-  thumbnailImageError.value = ''
 }
 
 const { saveSelectedParts, confirmImport } = createModelImportSaveController({
