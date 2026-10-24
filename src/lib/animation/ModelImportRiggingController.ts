@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { AnimationRole } from '@engine'
-import { ANIMATION_ROLE_BASE_OPTIONS } from '@engine'
+import { ANIMATION_ROLE_BASE_OPTIONS } from './AnimationRoleOptions'
 import { autoRigModel, applyRigPose, captureRigPose } from './Rigging'
 import { prepareRigRootContainer } from './RigRootPreparation'
 import { applyRigBoneTransformDraft } from './RigBoneTransformEditor'
