@@ -233,6 +233,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       </section>
     </div>
     <ModelImportDialog :open="ctx.modelImportOpen" :initial-asset="ctx.previewComponentAsset" :animation-source-asset="ctx.previewAnimationSourceAsset" :animation-source-options="ctx.savedAnimationSourceOptions" :control-map="ctx.activeControlMap.bindings" :save-model="ctx.handleModelImport" @close="ctx.closeModelImport" @use-player="ctx.handleUsePlayerModel" @save-animation-source="ctx.handleSaveAnimationSource" @load-animation-source="ctx.useSavedAnimationSource" />
-    <FullscreenDiagnostics v-if="ctx.worldFullscreen || diagnosticsOpen" @exit="handleDiagnosticsExit" />
+    <FullscreenDiagnostics v-if="diagnosticsOpen" @exit="handleDiagnosticsExit" />
   </div>
 </template>
