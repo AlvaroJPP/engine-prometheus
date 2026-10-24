@@ -112,9 +112,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     getScene,
     setCurrentObjectUrl,
     updateRigHelper,
-    getScene,
-    setCurrentObjectUrl,
-    updateRigHelper,
   } = context
 
   const diagnostics = createModelImportDiagnosticsController({
