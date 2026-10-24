@@ -67,6 +67,7 @@ import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebind
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { inspectRetargetTargetRig } from '@/lib/animation/RetargetTargetRigInspection'
+import { buildRetargetTargetPreview } from '@/lib/animation/RetargetTargetPreviewBuilder'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
 import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
 import { processSkinTokensModel } from '@/lib/assets/SkinTokensModelProcessor'
@@ -1755,43 +1756,19 @@ function refreshRetargetTargetPreview() {
 
   const previewModel = cloneRetargetPreviewObject(target)
   try {
-    const previewBones: THREE.Bone[] = []
-    previewModel.traverse(node => { if (node instanceof THREE.Bone) previewBones.push(node) })
-    const storedTargetRestPose = getRetargetRestPose(target)
-    if (storedTargetRestPose && Object.keys(storedTargetRestPose).length > 0) {
-      applyRigPose(previewBones, storedTargetRestPose)
-      previewModel.updateMatrixWorld(true)
-    } else if (Object.keys(rigRestPose.value).length > 0) {
-      applyRigPose(previewBones, rigRestPose.value)
-    }
-    if (!sourceClip) {
-      setRetargetPreviewObject(stage, previewModel)
-      retargetPreviewStatus.value = 'Selecione uma animação de origem.'
-      return
-    }
-    const asset = retargetableAssetForCurrentSource()
-    if (!asset) {
-      setRetargetPreviewObject(stage, previewModel)
-      retargetPreviewStatus.value = 'Não foi possível ler a animação de origem.'
-      return
-    }
-    const bounds = new THREE.Box3().setFromObject(previewModel)
-    const measuredHeight = bounds.isEmpty() ? 0 : bounds.getSize(new THREE.Vector3()).y
-    const targetHeight = originalHeight.value > 1e-5 ? originalHeight.value : Math.max(0.1, measuredHeight)
-    const clipName = retargetClipName.value.trim() || asset.name || sourceClip.name || 'Prévia retargetada'
-    const result = retargetAnimationClip(
-      asset,
-      previewBones,
-      retargetBoneMap.value,
-      clipName,
-      targetHeight,
-      retargetCollapsedSourceNames.value,
+    const preview = buildRetargetTargetPreview({
+      target,
       previewModel,
-    )
-    setRetargetPreviewObject(stage, previewModel, result.clip)
-    retargetPreviewStatus.value = 'Prévia no destino: ' + result.mappedTracks + ' trilha(s) transferida(s)' +
-      (result.rootMotionTracks ? '; deslocamento global do corpo preservado' : '; nenhum canal de deslocamento global detectado') +
-      (result.skippedTracks.length ? '; ' + result.skippedTracks.length + ' ignorada(s).' : '.')
+      sourceClip,
+      asset: sourceClip ? retargetableAssetForCurrentSource() : null,
+      boneMap: retargetBoneMap.value,
+      collapsedSourceNames: retargetCollapsedSourceNames.value,
+      originalHeight: originalHeight.value,
+      clipName: retargetClipName.value,
+      fallbackRestPose: rigRestPose.value,
+    })
+    setRetargetPreviewObject(stage, previewModel, preview.clip)
+    retargetPreviewStatus.value = preview.status
   } catch (cause) {
     setRetargetPreviewObject(stage, previewModel)
     retargetPreviewStatus.value = cause instanceof Error
