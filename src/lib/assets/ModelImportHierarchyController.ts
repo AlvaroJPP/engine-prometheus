@@ -188,7 +188,6 @@ function deletePreviewPart(part: ModelPreviewPart) {
     findPreviewPart,
     toggleBatchPartSelection,
     clearBatchSelection,
-    setColliderFromPreviewPart,
     selectPreviewPart,
     togglePreviewPart,
     showOnlyPreviewPart,
