@@ -46,7 +46,7 @@ import {
   invalidateStaticMeshCollider,
   releaseStaticMeshCollider,
 } from '@engine/world/StaticMeshCollider'
-import { loadAssetFile } from '@/lib/assets/AssetImporter'
+import { loadZipPrimaryModel } from '@/lib/assets/ZipPrimaryModelLoader'
 import { createZipImportContext } from '@/lib/assets/ZipModelImport'
 import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
@@ -1354,17 +1354,7 @@ async function importBlendZip() {
     const packageData = createZipImportContext(bundle)
     zipContext = packageData.context
     const primaryFile = packageData.primaryFile
-    const extension = primaryFile.name.split('.').pop()?.toLowerCase()
-    let loaded: THREE.Object3D
-
-    if (extension === 'glb') {
-      loaded = await parseGlbBytes(await primaryFile.arrayBuffer(), zipContext.manager)
-    } else if (extension === 'gltf') {
-      const jsonText = await primaryFile.text()
-      loaded = await parseGltfModel(jsonText, '', zipContext.manager)
-    } else {
-      loaded = await loadAssetFile(primaryFile, zipContext)
-    }
+    const loaded = await loadZipPrimaryModel(primaryFile, zipContext)
 
     await showLoadedModel(
       loaded,
