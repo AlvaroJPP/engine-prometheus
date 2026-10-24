@@ -53,6 +53,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/animation/BoneMapping.ts`: análise de nomes anatômicos, hierarquia e posição dos ossos; pontuação de candidatos e mapeamento autônomo. Mantém reexportações públicas em `AnimationRetargeting.ts` para compatibilidade.
 - `src/lib/animation/RetargetAnimationLibrary.ts`: valida e persiste na biblioteca local os assets de animação reutilizáveis, sem acoplar o acesso ao armazenamento ao componente.
 - `src/lib/animation/RetargetSourceBones.ts`: seleciona apenas os ossos reais envolvidos no clipe de origem do retargeting, mantendo compatibilidade com entradas antigas da biblioteca de animações.
+- `src/lib/animation/RetargetTargetRigInspection.ts`: inspeciona a hierarquia do modelo de destino e recolhe os ossos e a presença de malhas esqueléticas usados para validar o rig antes do retargeting autônomo.
 - `src/lib/animation/RetargetAutonomousReport.ts`: transforma os resultados numéricos do retargeting autônomo em um relatório de cobertura, capacidade do rig e juntas recolhidas, sem acoplar as mensagens ao estado reativo do diálogo.
 - `src/lib/animation/RetargetTransferReport.ts`: converte os resultados do retargeting em uma mensagem detalhada, incluindo trilhas sem correspondência, conflitos, canais inseguros, rotações combinadas e movimento global.
 - `src/lib/animation/RetargetClipIntegration.ts`: insere ou substitui clipes transferidos pelo nome normalizado e sincroniza os metadados do modelo, os papéis das animações e a marca de reexportação.
