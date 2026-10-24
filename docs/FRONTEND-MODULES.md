@@ -61,6 +61,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/CustomModelThumbnail.ts`: valida imagens fornecidas pelo usuário e converte-as em miniaturas WebP quadradas, mantendo mensagens de validação independentes do componente.
 - `src/lib/assets/ZipModelImport.ts`: converte o retorno do importador nativo de ZIP em arquivos de navegador, preserva caminhos relativos e resolve referências a texturas/buffers com um `THREE.LoadingManager`. O chamador deve revogar as URLs de `context.objectUrls` após concluir ou cancelar a importação.
 - `src/lib/assets/GltfModelParser.ts`: concentra a chamada ao `GLTFLoader` e anexa animações/metadados normalizados à raiz, compartilhado pelos fluxos de arquivo, buffer e ZIP.
+- `src/lib/assets/ModelImportFileParser.ts`: encaminha arquivos GLB/glTF ao parser com metadados e os demais formatos ao importador compartilhado, deixando a propriedade das URLs Blob temporárias com o diálogo de importação.
 - `src/lib/assets/GltfMetadata.ts`: normaliza metadados do JSON glTF de forma reutilizável nos fluxos GLB, glTF e importação por ZIP.
 - `src/lib/assets/ModelDiagnostics.ts`: calcula a hierarquia técnica de um modelo, as contagens de geometria/materiais/texturas/animações e as verificações de skinning, independentemente do estado reativo do diálogo.
 - `src/lib/assets/ModelColorTextureRepair.ts`: aplica texturas base-color recuperadas apenas em materiais com mapa ausente ou instalado previamente pela ferramenta, preservando texturas originais e demais mapas.
