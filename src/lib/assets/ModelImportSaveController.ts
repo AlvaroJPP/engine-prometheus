@@ -44,7 +44,7 @@ type ModelImportSaveContext = {
   componentName: ReadonlyValue<string>
   selectedPartId: ReadonlyValue<string>
   customThumbnail: ReadonlyValue<string | null>
-  capturePreviewThumbnail: () => string
+  capturePreviewThumbnail: () => string | undefined
   getScene: () => THREE.Scene | null
   previewAnimationRuntime: { clear: () => void }
 }
@@ -205,7 +205,7 @@ async function confirmImport() {
     }
 
     previewAnimationRuntime.clear()
-    scene?.remove(root)
+    getScene()?.remove(root)
     if (imported === root) model.value = null
     emit('close')
   } catch (cause) {
