@@ -21,6 +21,7 @@ import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { prepareModelImportBatchItems } from '@/lib/assets/ModelImportBatchPreparation'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
+import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -38,8 +39,6 @@ import {
 import type { ImportModelStateDraft } from '@/lib/assets/ImportModelStates'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
-import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import {
   getStaticMeshCollisionData,
   invalidateStaticMeshCollider,
@@ -2212,31 +2211,8 @@ async function useAsPlayerModel() {
   loading.value = true
   error.value = ''
   try {
-    let bytes: ArrayBuffer
-    if (props.initialAsset) {
-      // Prévia de componente salvo: reutiliza o GLB exato, sem reexportar o ativo.
-      bytes = props.initialAsset.bytes.slice(0)
-    } else {
-      // Exporta o modelo inteiro com as animações e os papéis configurados no workspace.
-      // SkeletonUtils mantém os bones ligados corretamente durante a exportação.
-      const exportRoot = cloneSkinnedModel(root)
-      exportRoot.userData = { ...exportRoot.userData }
-      for (const key of [
-        'importAnimations', 'importGltfMetadata', 'importRecoveredTextures',
-        'importRecoveredColorTextures', 'importCenter', 'importOwnedObjectUrl',
-        'importAnimationRoles', 'importControlBindings',
-        'importRigPreset', 'importRigGenerated', 'importRigBoneNames',
-        'importSourceGlbBytes', 'importNeedsReexport',
-      ]) {
-        delete exportRoot.userData[key]
-      }
-      exportRoot.updateMatrixWorld(true)
-      const exporter = new GLTFExporter()
-      const clips = (root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-      const exported = await exporter.parseAsync(exportRoot, { binary: true, animations: clips })
-      if (!(exported instanceof ArrayBuffer)) throw new Error('O exportador não gerou um arquivo GLB válido.')
-      bytes = exported
-    }
+    // Ativos já salvos usam o GLB original; modelos importados são exportados em um clone esquelético.
+    const bytes = await createPlayerModelBytes(root, props.initialAsset?.bytes)
 
     const name = props.initialAsset?.name || fileName.value || root.name || 'Jogador'
     emit('use-player', { name, bytes, animationRoles: { ...animationRoles.value }, height: modelHeight.value })
