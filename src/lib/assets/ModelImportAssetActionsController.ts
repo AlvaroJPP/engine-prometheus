@@ -1,4 +1,4 @@
-import { watch } from 'vue'
+import { watch, type Ref } from 'vue'
 import * as THREE from 'three'
 import type { AnimationRole } from '@engine'
 import { calculateModelImportTransform, normalizeModelImportHeight } from './ModelImportNormalization'
@@ -14,7 +14,7 @@ type ModelImportAssetActionsContext = {
     (event: 'close'): void
   }
   model: ReadonlyValue<THREE.Object3D | null>
-  modelHeight: WritableValue<number>
+  modelHeight: Ref<number>
   originalHeight: ReadonlyValue<number>
   colliderSize: WritableValue<[number, number, number]>
   loading: WritableValue<boolean>
@@ -26,7 +26,6 @@ type ModelImportAssetActionsContext = {
   thumbnailImageError: WritableValue<string>
   updateColliderPreview: () => void
   fitCamera: (object: THREE.Object3D) => void
-  capturePreviewThumbnail: () => string | undefined
 }
 
 export function createModelImportAssetActionsController(context: ModelImportAssetActionsContext) {
@@ -46,7 +45,6 @@ export function createModelImportAssetActionsController(context: ModelImportAsse
     thumbnailImageError,
     updateColliderPreview,
     fitCamera,
-    capturePreviewThumbnail,
   } = context
 
 function setModelHeight(value: number) {
