@@ -45,7 +45,10 @@ type ModelImportRetargetingProps = {
 }
 type ModelImportRetargetingContext = {
   props: ModelImportRetargetingProps
-  emit: (event: 'save-animation-source', payload: { name: string; bytes: ArrayBuffer; height: number }) => void
+  emit: {
+    (event: 'save-animation-source', payload: { name: string; bytes: ArrayBuffer; height: number }): void
+    (event: 'load-animation-source', id: string): void
+  }
   activeSetupTab: WritableValue<SetupTab>
   animationClipRevision: WritableValue<number>
   animationRoles: WritableValue<Record<string, AnimationRole>>
@@ -58,11 +61,13 @@ type ModelImportRetargetingContext = {
   model: ReadonlyValue<THREE.Object3D | null>
   originalHeight: ReadonlyValue<number>
   parseGlbBytes: (bytes: ArrayBuffer) => Promise<THREE.Object3D>
+  disposeModel: (root: THREE.Object3D) => void
   performSkinTokensRigging: (preserveRetargetSource: boolean) => Promise<void>
   previewAnimationIndex: WritableValue<number>
   previewAnimationRuntime: { controller?: { stop: () => void } | null }
   previewAnimations: ReadonlyValue<THREE.AnimationClip[]>
   refreshModelDiagnostics: () => void
+  selectPreviewAnimation: (index: number) => void
   restoreModelRenderableMeshes: (root: THREE.Object3D) => void
   restorePreviewVisibility: () => void
   retargetAutonomousLoading: WritableValue<boolean>
@@ -78,7 +83,6 @@ type ModelImportRetargetingContext = {
   retargetSourceBytes: WritableValue<ArrayBuffer | null>
   retargetSourceClip: ReadonlyValue<THREE.AnimationClip | null>
   retargetSourceClipIndex: WritableValue<number>
-  retargetSourceClips: ReadonlyValue<THREE.AnimationClip[]>
   retargetSourceFileName: WritableValue<string>
   retargetSourceNodeNames: ReadonlyValue<string[]>
   retargetSourcePreviewCanvas: ReadonlyValue<HTMLCanvasElement | null>
@@ -117,11 +121,13 @@ export function createModelImportRetargetingController(context: ModelImportRetar
     model,
     originalHeight,
     parseGlbBytes,
+    disposeModel,
     performSkinTokensRigging,
     previewAnimationIndex,
     previewAnimationRuntime,
     previewAnimations,
     refreshModelDiagnostics,
+    selectPreviewAnimation,
     restoreModelRenderableMeshes,
     restorePreviewVisibility,
     retargetAutonomousLoading,
@@ -137,7 +143,6 @@ export function createModelImportRetargetingController(context: ModelImportRetar
     retargetSourceBytes,
     retargetSourceClip,
     retargetSourceClipIndex,
-    retargetSourceClips,
     retargetSourceFileName,
     retargetSourceNodeNames,
     retargetSourcePreviewCanvas,
