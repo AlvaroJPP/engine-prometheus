@@ -72,6 +72,7 @@ import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail
 import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { buildAutonomousRetargetReport } from '@/lib/animation/RetargetAutonomousReport'
 import { formatRetargetAnimationTransferMessage } from '@/lib/animation/RetargetTransferReport'
+import { integrateRetargetedAnimationClip } from '@/lib/animation/RetargetClipIntegration'
 import { createRigAnimationClip } from '@/lib/animation/RigAnimationClip'
 import {
   prepareRigAnimationFrames,
@@ -1900,26 +1901,20 @@ function applyRetargetedAnimation() {
       retargetCollapsedSourceNames.value,
       root,
     )
-    const currentClips = [...((root.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? previewAnimations.value)]
-    const normalizedClipName = result.clip.name.trim().toLocaleLowerCase()
-    const existingClipIndex = normalizedClipName
-      ? currentClips.findIndex(existing => existing.name.trim().toLocaleLowerCase() === normalizedClipName)
-      : -1
-    const newIndex = existingClipIndex >= 0 ? existingClipIndex : currentClips.length
-    if (existingClipIndex >= 0) currentClips[existingClipIndex] = result.clip
-    else currentClips.push(result.clip)
-    const nextRoles = { ...animationRoles.value, [String(newIndex)]: rigClipRole.value }
-    root.userData.importNeedsReexport = true
-    root.userData.importHasModifiedAnimations = true
-    root.userData.importAnimations = currentClips
+    const integratedClip = integrateRetargetedAnimationClip(
+      root,
+      result.clip,
+      previewAnimations.value,
+      animationRoles.value,
+      rigClipRole.value,
+    )
     // A transferência muda ossos, não deve ocultar as malhas ligadas ao rig.
     restoreModelRenderableMeshes(root)
-    root.userData.importAnimationRoles = nextRoles
-    animationRoles.value = nextRoles
+    animationRoles.value = integratedClip.roles
     animationClipRevision.value += 1
-    previewAnimationIndex.value = newIndex
+    previewAnimationIndex.value = integratedClip.index
     refreshModelDiagnostics()
-    selectPreviewAnimation(newIndex)
+    selectPreviewAnimation(integratedClip.index)
     retargetMessage.value = formatRetargetAnimationTransferMessage(result)
   } catch (cause) {
     retargetMessage.value = cause instanceof Error ? cause.message : 'Não foi possível transferir a animação.'
