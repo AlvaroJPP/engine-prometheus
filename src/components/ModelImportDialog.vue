@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, isReadonly, isRef, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
@@ -32,17 +32,9 @@ import { isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput } from '@/lib/animation/Rigging'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
-import { createModelImportRetargetingController } from '@/lib/animation/ModelImportRetargetingController'
-import { createModelImportRiggingController } from '@/lib/animation/ModelImportRiggingController'
-import { createModelImportSkinTokensController } from '@/lib/assets/ModelImportSkinTokensController'
-import { createModelImportBehaviorPackageController } from '@/lib/assets/ModelImportBehaviorPackageController'
-import { createModelImportHierarchyController } from '@/lib/assets/ModelImportHierarchyController'
-import { createModelImportDiagnosticsController } from '@/lib/assets/ModelImportDiagnosticsController'
-import { createModelImportAssetActionsController } from '@/lib/assets/ModelImportAssetActionsController'
-import { createModelImportLoadingController } from '@/lib/assets/ModelImportLoadingController'
-import { createModelImportSaveController } from '@/lib/assets/ModelImportSaveController'
 import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
+import { createModelImportDialogControllers } from '@/lib/assets/ModelImportDialogControllerBundle'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import { cloneImportBehaviorPackageSettings } from '@/lib/assets/ImportBehaviorPackageDrafts'
@@ -380,19 +372,7 @@ function resetControlBindings() {
 const textureRepairSelections = ref<Record<string, string>>({})
 const textureRepairBusy = ref(false)
 const textureRepairMessage = ref('')
-const {
-  recoverableColorImages,
-  materialsMissingColorTexture,
-  applyRecoveredColorTexture,
-  refreshModelDiagnostics,
-} = createModelImportDiagnosticsController({
-  model,
-  textureRepairSelections,
-  textureRepairBusy,
-  textureRepairMessage,
-  modelDiagnostics,
-  diagnosticSummary,
-})
+
 const colliderType = ref<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>('box')
 const colliderPreviewNotice = ref('')
 const colliderSize = ref<[number, number, number]>([1, 1, 1])
@@ -457,78 +437,9 @@ function disposeModel(object: THREE.Object3D) {
   disposeThreeObjectResources(object, 'renderables')
 }
 
-const {
-  refreshPreviewParts,
-  findPreviewPart,
-  toggleBatchPartSelection,
-  clearBatchSelection,
-  selectPreviewPart,
-  togglePreviewPart,
-  showOnlyPreviewPart,
-  selectWholeModel,
-  restorePreviewVisibility,
-  restoreModelRenderableMeshes,
-  deletePreviewPart,
-} = createModelImportHierarchyController({
-  props,
-  model,
-  previewParts,
-  selectedPartId,
-  soloPartId,
-  batchSelectedPartIds,
-  batchSavedPartIds,
-  componentName,
-  colliderType,
-  colliderSize,
-  colliderOffset,
-  modelHeight,
-  originalHeight,
-  dimensions,
-  fileName,
-  fitCamera,
-  updateColliderPreview,
-  refreshModelDiagnostics,
-})
 
-const {
-  createRig,
-  applySelectedBoneTransform,
-  resetRigPose,
-  recordRigKeyframe,
-  applyRigFrame,
-  clearRigKeyframesForNewClip,
-  createRigAnimation,
-  setRigTime,
-} = createModelImportRiggingController({
-  props,
-  model,
-  loading,
-  error,
-  getScene: () => scene,
-  rigPreset,
-  rigBones,
-  selectedRigBoneName,
-  rigRestPose,
-  rigKeyframes,
-  rigFrameTime,
-  rigDuration,
-  rigMessage,
-  rigClipName,
-  rigClipRole,
-  boneRotationDraft,
-  bonePositionDraft,
-  selectedRigBone,
-  previewAnimationRuntime,
-  previewAnimations,
-  animationRoles,
-  animationClipRevision,
-  previewAnimationIndex,
-  refreshRigHelper,
-  updateRigHelper: () => rigHelper?.updateMatrixWorld(true),
-  refreshPreviewParts,
-  refreshModelDiagnostics,
-  selectPreviewAnimation,
-})
+
+
 
 
 
@@ -542,30 +453,7 @@ const importPackageControlBindingFields: Array<{ key: keyof ModelControlBindings
   { key: 'interact', label: 'Interagir / montar' },
 ]
 
-const {
-  ensureImportBehaviorPackageDraft,
-  toggleImportBehaviorPackage,
-  importPackageVariableValue,
-  updateImportPackageVariable,
-  importPackageConfigValue,
-  updateImportPackageConfigScalar,
-  setImportPackageInteractionKey,
-  importPackageVectorValue,
-  setImportPackageVector,
-  importPackageControlBindingValue,
-  setImportPackageControlBinding,
-  importPackageModelStates,
-  addImportPackageModelState,
-  updateImportPackageModelState,
-  onImportPackageModelStateValueChange,
-  removeImportPackageModelState,
-} = createModelImportBehaviorPackageController({
-  controlBindings,
-  selectedBehaviorPackageIds,
-  selectedBehaviorPackageSettings,
-  isReadOnlyPreview,
-  previewPackageModelNodes,
-})
+
 
 function clearLoadedModel(preserveRetargetSource = false) {
   if (!preserveRetargetSource) clearRetargetSource()
@@ -664,92 +552,8 @@ function centerAndMeasure(object: THREE.Object3D) {
   return measurement.height
 }
 
-const {
-  showLoadedModel,
-  parseGlbBytes,
-  importBlendZip,
-  loadCatalogAsset,
-  chooseFile,
-} = createModelImportLoadingController({
-  fileInput,
-  loading,
-  error,
-  fileName,
-  componentName,
-  model,
-  modelHeight,
-  dimensions,
-  colliderType,
-  colliderSize,
-  colliderOffset,
-  controlBindings,
-  partSearch,
-  selectedBehaviorPackageIds,
-  selectedBehaviorPackageSettings,
-  activeSetupTab,
-  starterAssetCatalogOpen,
-  selectedRetargetLibraryId,
-  retargetSourceRoot,
-  animationClipRevision,
-  rigBones,
-  rigRestPose,
-  selectedRigBoneName,
-  rigKeyframes,
-  rigFrameTime,
-  rigDuration,
-  rigMessage,
-  animationRoles,
-  previewAnimationIndex,
-  previewPlaying,
-  previewAnimationRuntime,
-  previewClock,
-  clearLoadedModel,
-  centerAndMeasure,
-  fitCamera,
-  initPreview,
-  refreshPreviewParts,
-  refreshModelDiagnostics,
-  updateColliderPreview,
-  restoreModelRenderableMeshes,
-  guessedAnimationRole,
-  getScene: () => scene,
-  setCurrentObjectUrl: (url: string) => { currentObjectUrl = url },
-})
-const {
-  chooseSkinTokensExecutable,
-  testSkinTokensBackend,
-  runSkinTokensRigging,
-  performSkinTokensRigging,
-} = createModelImportSkinTokensController({
-  model,
-  skinTokensExecutablePath,
-  skinTokensOperation,
-  skinTokensLoading,
-  skinTokensMessage,
-  skinTokensResolvedClass,
-  skinTokensRigCompatible,
-  animationRoles,
-  controlBindings,
-  colliderType,
-  colliderSize,
-  colliderOffset,
-  componentName,
-  fileName,
-  modelHeight,
-  animationClipRevision,
-  rigBones,
-  selectedRigBoneName,
-  rigRestPose,
-  rigKeyframes,
-  rigFrameTime,
-  rigDuration,
-  rigPreset,
-  rigMessage,
-  parseGlbBytes,
-  showLoadedModel,
-  guessedAnimationRole,
-  refreshRigHelper,
-})
+
+
 watch(() => props.open, async (open) => {
   if (open) {
     loadRetargetAnimationLibrary()
@@ -818,81 +622,7 @@ watch(() => props.open, async (open) => {
   }
 })
 
-const {
-  loadRetargetAnimationLibrary,
-  clearRetargetSource,
-  chooseRetargetAnimationSource,
-  selectSavedAnimationSource,
-  saveRetargetSourceToLibrary,
-  onRetargetSourceClipChanged,
-  selectRetargetLibraryAsset,
-  setRetargetBoneMapping,
-  disposeRetargetPreviews,
-  toggleRetargetSourcePreviewPlayback,
-  toggleRetargetTargetPreviewPlayback,
-  saveRetargetAnimationToLibrary,
-  deleteRetargetLibraryAsset,
-  applyRetargetedAnimation,
-  runAutonomousRetargeting,
-  autoMapRetargetBones,
-} = createModelImportRetargetingController({
-  props,
-  emit,
-  activeSetupTab,
-  animationClipRevision,
-  animationRoles,
-  error,
-  fitCamera,
-  getScene: () => scene,
-  guessedAnimationRole,
-  isReadOnlyPreview,
-  loading,
-  model,
-  originalHeight,
-  parseGlbBytes,
-  disposeModel,
-  performSkinTokensRigging,
-  previewAnimationIndex,
-  selectPreviewAnimation,
-  previewAnimationRuntime,
-  previewAnimations,
-  refreshModelDiagnostics,
-  restoreModelRenderableMeshes,
-  restorePreviewVisibility,
-  retargetAutonomousLoading,
-  retargetAutonomousStage,
-  retargetBoneMap,
-  retargetClipName,
-  retargetCollapsedSourceNames,
-  retargetLibrary,
-  retargetLibraryAsset,
-  retargetLoading,
-  retargetMessage,
-  retargetPreviewStatus,
-  retargetSourceBytes,
-  retargetSourceClip,
-  retargetSourceClipIndex,
-  retargetSourceFileName,
-  retargetSourceNodeNames,
-  retargetSourcePreviewCanvas,
-  retargetSourcePreviewPlaying,
-  retargetSourceRoot,
-  retargetTargetBones,
-  retargetTargetPreviewCanvas,
-  retargetTargetPreviewPlaying,
-  rigBones,
-  rigClipRole,
-  rigRestPose,
-  selectedRetargetLibraryClip,
-  selectedRetargetLibraryId,
-  selectedSavedAnimationSourceId,
-  skinTokensExecutablePath,
-  skinTokensLoading,
-  skinTokensMessage,
-  skinTokensOperation,
-  skinTokensRigCompatible,
-  updateColliderPreview,
-})
+
 function selectPreviewAnimation(index: number) {
   previewAnimationIndex.value = index
   const root = model.value
@@ -910,59 +640,117 @@ function togglePreviewAnimationPlayback() {
   if (previewPlaying.value) previewClock.start()
 }
 
-const {
-  setModelHeight,
-  useAsPlayerModel,
-  chooseThumbnailImage,
-  clearCustomThumbnail,
-} = createModelImportAssetActionsController({
-  props,
-  emit,
-  model,
-  modelHeight,
-  originalHeight,
-  colliderSize,
-  loading,
-  error,
-  fileName,
-  animationRoles,
-  customThumbnail,
-  customThumbnailFileName,
-  thumbnailImageError,
-  updateColliderPreview,
-  fitCamera,
 
-})
 function capturePreviewThumbnail(): string | undefined {
   return captureModelPreviewThumbnail(canvas.value, renderer, scene, camera, [colliderPreview, rigHelper])
 }
 
-const { saveSelectedParts, confirmImport } = createModelImportSaveController({
-  props,
-  emit,
-  model,
-  loading,
-  error,
-  batchSelectedPartIds,
-  batchSavedPartIds,
-  batchNotice,
-  modelHeight,
-  originalHeight,
-  colliderType,
-  colliderSize,
-  colliderOffset,
-  controlBindings,
-  animationRoles,
-  selectedBehaviorPackageIds,
-  ensureImportBehaviorPackageDraft,
-  findPreviewPart,
-  fileName,
-  componentName,
-  selectedPartId,
-  customThumbnail,
-  capturePreviewThumbnail,
+
+
+const {
+  recoverableColorImages, materialsMissingColorTexture,
+  applyRecoveredColorTexture, refreshModelDiagnostics,
+  refreshPreviewParts, findPreviewPart,
+  toggleBatchPartSelection, clearBatchSelection,
+  selectPreviewPart, togglePreviewPart,
+  showOnlyPreviewPart, selectWholeModel,
+  restorePreviewVisibility, restoreModelRenderableMeshes,
+  deletePreviewPart, createRig,
+  applySelectedBoneTransform, resetRigPose,
+  recordRigKeyframe, applyRigFrame,
+  clearRigKeyframesForNewClip, createRigAnimation,
+  setRigTime, ensureImportBehaviorPackageDraft,
+  toggleImportBehaviorPackage, importPackageVariableValue,
+  updateImportPackageVariable, importPackageConfigValue,
+  updateImportPackageConfigScalar, setImportPackageInteractionKey,
+  importPackageVectorValue, setImportPackageVector,
+  importPackageControlBindingValue, setImportPackageControlBinding,
+  importPackageModelStates, addImportPackageModelState,
+  updateImportPackageModelState, onImportPackageModelStateValueChange,
+  removeImportPackageModelState, showLoadedModel,
+  parseGlbBytes, importBlendZip,
+  loadCatalogAsset, chooseFile,
+  chooseSkinTokensExecutable, testSkinTokensBackend,
+  runSkinTokensRigging, performSkinTokensRigging,
+  loadRetargetAnimationLibrary, clearRetargetSource,
+  chooseRetargetAnimationSource, selectSavedAnimationSource,
+  saveRetargetSourceToLibrary, onRetargetSourceClipChanged,
+  selectRetargetLibraryAsset, setRetargetBoneMapping,
+  disposeRetargetPreviews, toggleRetargetSourcePreviewPlayback,
+  toggleRetargetTargetPreviewPlayback, saveRetargetAnimationToLibrary,
+  deleteRetargetLibraryAsset, applyRetargetedAnimation,
+  runAutonomousRetargeting, autoMapRetargetBones,
+  setModelHeight, useAsPlayerModel,
+  chooseThumbnailImage, clearCustomThumbnail,
+  saveSelectedParts, confirmImport,
+  rightPanelBindings,
+} = createModelImportDialogControllers({
+    ANIMATION_ROLE_BASE_OPTIONS, BEHAVIOR_PACKAGE_DEFINITIONS,
+    DEFAULT_MODEL_CONTROL_BINDINGS, activeSetupTab,
+    animationClipRevision, animationRoleOptions,
+    animationRoles, batchNotice,
+    batchSavedPartIds, batchSelectedPartIds,
+    bonePositionDraft, boneRotationDraft,
+    capturePreviewThumbnail, centerAndMeasure,
+    changeColliderType, clearLoadedModel,
+    colliderOffset, colliderPreviewNotice,
+    colliderSize, colliderType,
+    componentName, controlBindingFields,
+    controlBindings, customThumbnail,
+    customThumbnailFileName, diagnosticSummary,
+    dimensions, disposeModel,
+    emit, error,
+    fileInput, fileName,
+    fitCamera, formatModelControlKey,
+    formatPackageConfigLabel, guessedAnimationRole,
+    hasRetargetMapping, importPackageControlBindingFields,
+    initPreview, isEditingSavedComponent,
+    isReadOnlyPreview, isSimplePackageConfigValue,
+    isTauri, listeningForBinding,
+    loading, model,
+    modelDiagnostics, modelHeight,
+    originalHeight, partSearch,
+    previewAnimationIndex, previewAnimationRuntime,
+    previewAnimations, previewClock,
+    previewComponentDimensions, previewPackageModelNodes,
+    previewParts, previewPlaying,
+    props, refreshRigHelper,
+    resetControlBindings, retargetAutonomousLoading,
+    retargetAutonomousStage, retargetBoneMap,
+    retargetClipName, retargetCollapsedSourceNames,
+    retargetLibrary, retargetLibraryAsset,
+    retargetLoading, retargetMappedBoneCount,
+    retargetMessage, retargetOtherBonesFor,
+    retargetPreviewStatus, retargetSourceBytes,
+    retargetSourceClip, retargetSourceClipIndex,
+    retargetSourceClips, retargetSourceFileName,
+    retargetSourceNodeNames, retargetSourcePreviewCanvas,
+    retargetSourcePreviewPlaying, retargetSourceRoot,
+    retargetSuggestedBonesFor, retargetTargetBones,
+    retargetTargetPreviewCanvas, retargetTargetPreviewPlaying,
+    rigBones, rigClipName,
+    rigClipRole, rigDuration,
+    rigFrameTime, rigInputAnalysis,
+    rigKeyframes, rigMessage,
+    rigPreset, rigPresetOptions,
+    rigRestPose, selectPreviewAnimation,
+    selectedBehaviorPackageDefinitions, selectedBehaviorPackageIds,
+    selectedBehaviorPackageSettings, selectedPartId,
+    selectedRetargetLibraryClip, selectedRetargetLibraryId,
+    selectedRigBone, selectedRigBoneName,
+    selectedSavedAnimationSourceId, setAnimationRole,
+    setColliderVector, skinTokensClassChoice,
+    skinTokensClassOptions, skinTokensExecutablePath,
+    skinTokensLoading, skinTokensMessage,
+    skinTokensOperation, skinTokensResolvedClass,
+    skinTokensRigCompatible, soloPartId,
+    startControlBindingCapture, starterAssetCatalogOpen,
+    textureRepairBusy, textureRepairMessage,
+    textureRepairSelections, thumbnailImageError,
+    updateColliderPreview,
   getScene: () => scene,
-  previewAnimationRuntime,
+  setCurrentObjectUrl: (url: string) => { currentObjectUrl = url },
+  updateRigHelper: () => rigHelper?.updateMatrixWorld(true),
 })
 
 onBeforeUnmount(() => {
@@ -971,172 +759,7 @@ onBeforeUnmount(() => {
   disposePreview()
 })
 
-const rightPanelBindingSources = {
-  ANIMATION_ROLE_BASE_OPTIONS,
-  BEHAVIOR_PACKAGE_DEFINITIONS,
-  DEFAULT_MODEL_CONTROL_BINDINGS,
-  activeSetupTab,
-  addImportPackageModelState,
-  animationRoleOptions,
-  animationRoles,
-  applyRecoveredColorTexture,
-  applyRetargetedAnimation,
-  applyRigFrame,
-  applySelectedBoneTransform,
-  autoMapRetargetBones,
-  bonePositionDraft,
-  boneRotationDraft,
-  changeColliderType,
-  chooseRetargetAnimationSource,
-  chooseSkinTokensExecutable,
-  chooseThumbnailImage,
-  clearCustomThumbnail,
-  clearRigKeyframesForNewClip,
-  colliderOffset,
-  colliderPreviewNotice,
-  colliderSize,
-  colliderType,
-  componentName,
-  controlBindingFields,
-  controlBindings,
-  createRig,
-  createRigAnimation,
-  customThumbnail,
-  customThumbnailFileName,
-  deleteRetargetLibraryAsset,
-  diagnosticSummary,
-  error,
-  fileName,
-  formatModelControlKey,
-  formatPackageConfigLabel,
-  hasRetargetMapping,
-  importPackageConfigValue,
-  importPackageControlBindingFields,
-  importPackageControlBindingValue,
-  importPackageModelStates,
-  importPackageVariableValue,
-  importPackageVectorValue,
-  isEditingSavedComponent,
-  isReadOnlyPreview,
-  isSimplePackageConfigValue,
-  isTauri,
-  listeningForBinding,
-  loading,
-  materialsMissingColorTexture,
-  model,
-  modelDiagnostics,
-  modelHeight,
-  onImportPackageModelStateValueChange,
-  onRetargetSourceClipChanged,
-  previewAnimationIndex,
-  previewAnimations,
-  previewComponentDimensions,
-  previewPackageModelNodes,
-  recordRigKeyframe,
-  recoverableColorImages,
-  removeImportPackageModelState,
-  resetControlBindings,
-  resetRigPose,
-  retargetAutonomousLoading,
-  retargetAutonomousStage,
-  retargetBoneMap,
-  retargetClipName,
-  retargetCollapsedSourceNames,
-  retargetLibrary,
-  retargetLoading,
-  retargetMappedBoneCount,
-  retargetMessage,
-  retargetOtherBonesFor,
-  retargetPreviewStatus,
-  retargetSourceBytes,
-  retargetSourceClip,
-  retargetSourceClipIndex,
-  retargetSourceClips,
-  retargetSourceFileName,
-  retargetSourceNodeNames,
-  retargetSourcePreviewPlaying,
-  retargetSourceRoot,
-  retargetSuggestedBonesFor,
-  retargetTargetBones,
-  retargetTargetPreviewPlaying,
-  rigBones,
-  rigClipName,
-  rigClipRole,
-  rigDuration,
-  rigFrameTime,
-  rigInputAnalysis,
-  rigKeyframes,
-  rigMessage,
-  rigPreset,
-  rigPresetOptions,
-  runAutonomousRetargeting,
-  runSkinTokensRigging,
-  saveRetargetAnimationToLibrary,
-  saveRetargetSourceToLibrary,
-  selectPreviewAnimation,
-  selectRetargetLibraryAsset,
-  selectSavedAnimationSource,
-  selectedBehaviorPackageDefinitions,
-  selectedBehaviorPackageIds,
-  selectedRetargetLibraryId,
-  selectedRigBone,
-  selectedRigBoneName,
-  selectedSavedAnimationSourceId,
-  setAnimationRole,
-  setColliderVector,
-  setImportPackageControlBinding,
-  setImportPackageInteractionKey,
-  setImportPackageVector,
-  setModelHeight,
-  setRetargetBoneMapping,
-  setRigTime,
-  skinTokensClassChoice,
-  skinTokensClassOptions,
-  skinTokensExecutablePath,
-  skinTokensLoading,
-  skinTokensMessage,
-  skinTokensOperation,
-  skinTokensResolvedClass,
-  skinTokensRigCompatible,
-  startControlBindingCapture,
-  testSkinTokensBackend,
-  textureRepairBusy,
-  textureRepairMessage,
-  textureRepairSelections,
-  thumbnailImageError,
-  toggleImportBehaviorPackage,
-  toggleRetargetSourcePreviewPlayback,
-  toggleRetargetTargetPreviewPlayback,
-  updateImportPackageConfigScalar,
-  updateImportPackageModelState,
-  updateImportPackageVariable,
-  dialogProps: props,
-  animationSourceOptions: props.animationSourceOptions,
-  setRetargetSourcePreviewCanvas: (element: unknown) => {
-    retargetSourcePreviewCanvas.value = typeof HTMLCanvasElement !== 'undefined' && element instanceof HTMLCanvasElement
-      ? element
-      : null
-  },
-  setRetargetTargetPreviewCanvas: (element: unknown) => {
-    retargetTargetPreviewCanvas.value = typeof HTMLCanvasElement !== 'undefined' && element instanceof HTMLCanvasElement
-      ? element
-      : null
-  },
-}
-const rightPanelBindings = new Proxy(rightPanelBindingSources, {
-  get(target, property, receiver) {
-    const value = Reflect.get(target, property, receiver)
-    return isRef(value) ? value.value : value
-  },
-  set(target, property, nextValue, receiver) {
-    const source = Reflect.get(target, property, receiver)
-    if (isRef(source)) {
-      if (!isReadonly(source)) source.value = nextValue
-      return true
-    }
-    return Reflect.set(target, property, nextValue, receiver)
-  },
-}) as any
+
 </script>
 
 <template>
