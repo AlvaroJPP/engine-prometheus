@@ -21,8 +21,6 @@ import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
-import { prepareStarterCatalogBehaviorPreset } from '@/lib/assets/StarterCatalogBehaviorPreset'
-import { parseModelImportFile } from '@/lib/assets/ModelImportFileParser'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
 import {
@@ -44,16 +42,12 @@ import {
   invalidateStaticMeshCollider,
   releaseStaticMeshCollider,
 } from '@engine/world/StaticMeshCollider'
-import { loadZipPrimaryModel } from '@/lib/assets/ZipPrimaryModelLoader'
-import { createZipImportContext } from '@/lib/assets/ZipModelImport'
-import type { ZipImportContext, ZipModelBundle } from '@/lib/assets/ZipModelImport'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import { recoverModelBaseColorTexture } from '@/lib/assets/ModelColorTextureRecovery'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
-import { formatModelControlKey, normalizeModelControlBindings } from '@/lib/assets/ModelControlBindings'
+import { formatModelControlKey } from '@/lib/assets/ModelControlBindings'
 
 import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
-import { parseGltfModel } from '@/lib/assets/GltfModelParser'
 import { AnimationController, inferAnimationRole } from '@engine/world/AnimationController'
 import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTROL_BINDINGS } from '@engine'
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
@@ -65,6 +59,7 @@ import { applyRigBoneTransformDraft } from '@/lib/animation/RigBoneTransformEdit
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { createModelImportRetargetingController } from '@/lib/animation/ModelImportRetargetingController'
+import { createModelImportLoadingController } from '@/lib/assets/ModelImportLoadingController'
 import { createModelImportSaveController } from '@/lib/assets/ModelImportSaveController'
 import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
 import { processSkinTokensModel } from '@/lib/assets/SkinTokensModelProcessor'
@@ -74,7 +69,6 @@ import { upsertRigAnimationKeyframe } from '@/lib/animation/RigKeyframeTimeline'
 import { buildRigAnimationFromKeyframes } from '@/lib/animation/RigAnimationBuilder'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
 import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
-import { storeRetargetRestPose } from '@/lib/animation/RetargetRestPose'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import {
@@ -90,7 +84,7 @@ import {
   resolveImportPackageControlBinding,
   updateImportPackageVector,
 } from '@/lib/assets/ImportBehaviorPackageConfig'
-import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS, resolveImportedAnimationRoles } from '@/lib/animation/AnimationRoleOptions'
+import { ANIMATION_ROLE_BASE_OPTIONS, ANIMATION_ROLE_CONTROL_BINDING_KEYS } from '@/lib/animation/AnimationRoleOptions'
 import { rankTargetBoneCandidates } from '@/lib/animation/AnimationRetargeting'
 import type { ReusableAnimationAsset } from '@/lib/animation/AnimationRetargeting'
 import StarterAssetCatalogDialog from '@/components/StarterAssetCatalogDialog.vue'
@@ -1068,74 +1062,59 @@ function centerAndMeasure(object: THREE.Object3D) {
   return measurement.height
 }
 
-async function parseFile(file: File) {
-  return parseModelImportFile(file, url => {
-    currentObjectUrl = url
-  })
-}
-
-async function showLoadedModel(loaded: THREE.Object3D, displayName: string, targetHeight = 2, preserveRetargetSource = false) {
-  clearLoadedModel(preserveRetargetSource)
-  colliderType.value = 'box'
-  colliderOffset.value = [0, 0, 0]
-  loaded.name = displayName.replace(/\.[^.]+$/, '') || 'Modelo importado'
-  componentName.value = loaded.name
-  partSearch.value = ''
-  const height = centerAndMeasure(loaded)
-  colliderType.value = shouldDefaultToStaticCityCollider(loaded, dimensions.value) ? 'mesh' : 'box'
-  const transform = calculateModelImportTransform(loaded.userData.importCenter as [number, number, number], height, targetHeight)
-  loaded.scale.setScalar(transform.scale)
-  loaded.position.set(...transform.position)
-  restoreModelRenderableMeshes(loaded)
-  modelHeight.value = transform.height
-  colliderSize.value = [
-    Math.max(0.05, dimensions.value[0] * transform.scale),
-    transform.height,
-    Math.max(0.05, dimensions.value[2] * transform.scale),
-  ]
-  controlBindings.value = normalizeModelControlBindings(loaded.userData.importControlBindings)
-  loaded.userData.importControlBindings = { ...controlBindings.value }
-  model.value = loaded
-  storeRetargetRestPose(loaded)
-  refreshPreviewParts()
-  refreshModelDiagnostics()
-  const clips = loaded.userData.importAnimations as THREE.AnimationClip[] | undefined
-  animationClipRevision.value += 1
-  rigBones.value = []
-  rigRestPose.value = {}
-  selectedRigBoneName.value = ''
-  rigKeyframes.value = []
-  rigFrameTime.value = 0
-  rigDuration.value = 1
-  rigMessage.value = ''
-  const savedRoles = loaded.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
-  const nextRoles = resolveImportedAnimationRoles(clips ?? [], savedRoles, guessedAnimationRole)
-  animationRoles.value = nextRoles
-  loaded.userData.importAnimationRoles = { ...nextRoles }
-  previewAnimationIndex.value = 0
-  previewPlaying.value = true
-  if (clips?.length) {
-    const controller = previewAnimationRuntime.ensure(loaded, clips)
-    controller.setState(previewAnimationRoleForClip(clips[0]!))
-    previewClock.start()
-  }
-  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-  initPreview()
-  if (!scene) throw new Error('Não foi possível iniciar a pré-visualização 3D.')
-  scene.add(loaded)
-  fitCamera(loaded)
-  updateColliderPreview()
-  // Se o modelo B foi escolhido primeiro, importar o modelo A não deve apagar
-  // a origem salva. Leva o usuário de volta ao painel de retargeting após carregar A.
-  if (preserveRetargetSource && (retargetSourceRoot.value || selectedRetargetLibraryId.value)) {
-    activeSetupTab.value = 'rigging'
-  }
-}
-
-async function parseGlbBytes(bytes: ArrayBuffer, manager?: THREE.LoadingManager): Promise<THREE.Object3D> {
-  return parseGltfModel(bytes, '', manager)
-}
-
+const {
+  parseFile,
+  showLoadedModel,
+  parseGlbBytes,
+  importBlendZip,
+  loadCatalogAsset,
+  chooseFile,
+} = createModelImportLoadingController({
+  canvas,
+  fileInput,
+  loading,
+  error,
+  fileName,
+  componentName,
+  model,
+  modelHeight,
+  dimensions,
+  colliderType,
+  colliderSize,
+  colliderOffset,
+  controlBindings,
+  partSearch,
+  selectedBehaviorPackageIds,
+  selectedBehaviorPackageSettings,
+  activeSetupTab,
+  starterAssetCatalogOpen,
+  selectedRetargetLibraryId,
+  retargetSourceRoot,
+  animationClipRevision,
+  rigBones,
+  rigRestPose,
+  selectedRigBoneName,
+  rigKeyframes,
+  rigFrameTime,
+  rigDuration,
+  rigMessage,
+  animationRoles,
+  previewAnimationIndex,
+  previewPlaying,
+  previewAnimationRuntime,
+  previewClock,
+  clearLoadedModel,
+  centerAndMeasure,
+  fitCamera,
+  initPreview,
+  refreshPreviewParts,
+  refreshModelDiagnostics,
+  updateColliderPreview,
+  restoreModelRenderableMeshes,
+  guessedAnimationRole,
+  getScene: () => scene,
+  setCurrentObjectUrl: (url: string) => { currentObjectUrl = url },
+})
 async function chooseSkinTokensExecutable() {
   if (!isTauri()) {
     skinTokensMessage.value = 'O backend local exige o aplicativo desktop Tauri; não pode ser executado na prévia do navegador.'
@@ -1276,104 +1255,6 @@ async function performSkinTokensRigging(preserveRetargetSource: boolean) {
     skinTokensMessage.value = cause instanceof Error ? cause.message : 'O processamento de IA local falhou.'
   } finally {
     skinTokensLoading.value = false
-  }
-}
-
-async function importBlendZip() {
-  loading.value = true
-  error.value = ''
-  let zipContext: ZipImportContext | null = null
-  let importedSuccessfully = false
-  try {
-    // A seleção nativa e a leitura segura do ZIP são fornecidas pelo app desktop Tauri.
-    if (!isTauri()) {
-      error.value = 'A importação por ZIP requer o aplicativo desktop Tauri. Execute `npm run tauri dev` e abra o Engine Prometheus pela janela do aplicativo.'
-      return
-    }
-    const selected = await openNativeDialog({
-      multiple: false,
-      directory: false,
-      title: 'Selecionar pacote ZIP com modelo 3D, materiais e texturas',
-      filters: [{ name: 'Pacote de modelo 3D', extensions: ['zip'] }],
-    })
-    if (!selected || Array.isArray(selected)) return
-    fileName.value = selected.split(/[\\/]/).pop() || 'Modelo 3D.zip'
-
-    const bundle = await invoke<ZipModelBundle>('load_model_zip', { zipPath: selected })
-    const packageData = createZipImportContext(bundle)
-    zipContext = packageData.context
-    const primaryFile = packageData.primaryFile
-    const loaded = await loadZipPrimaryModel(primaryFile, zipContext)
-
-    await showLoadedModel(
-      loaded,
-      bundle.primary_path.replace(/\\/g, '/').split('/').pop() || primaryFile.name,
-      2,
-      Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value),
-    )
-    loaded.userData.importOwnedObjectUrls = zipContext.objectUrls
-    importedSuccessfully = true
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause || 'Falha ao importar o modelo do ZIP.')
-    fileName.value = ''
-    clearLoadedModel()
-  } finally {
-    if (!importedSuccessfully && zipContext) revokeOwnedObjectUrls(zipContext.objectUrls)
-    loading.value = false
-  }
-}
-async function loadCatalogAsset(asset: {
-  name: string
-  bytes: ArrayBuffer
-  role: 'player' | 'enemy' | 'loot' | 'object'
-  height: number
-  itemId?: string
-  aiProfile?: string
-  sourceName?: string
-}) {
-  starterAssetCatalogOpen.value = false
-  loading.value = true
-  error.value = ''
-  const chosenFileName = asset.name.replace(/\.glb$/i, '') + '.glb'
-  fileName.value = chosenFileName
-  try {
-    const sourceBytes = asset.bytes.slice(0)
-    const loaded = await parseGlbBytes(sourceBytes)
-    loaded.userData.importSourceGlbBytes = sourceBytes.slice(0)
-    loaded.userData.importAttribution = asset.sourceName ?? 'Modelo procedural criado pelo Engine Prometheus.'
-    await showLoadedModel(loaded, chosenFileName, asset.height)
-    fileName.value = chosenFileName
-    componentName.value = asset.name
-    const behaviorPreset = prepareStarterCatalogBehaviorPreset(asset, controlBindings.value)
-    selectedBehaviorPackageIds.value = behaviorPreset.packageIds
-    selectedBehaviorPackageSettings.value = behaviorPreset.packageSettings
-
-    activeSetupTab.value = 'model'
-  } catch (cause) {
-    error.value = 'Não foi possível carregar o modelo inicial: ' + (cause instanceof Error ? cause.message : String(cause || 'erro desconhecido'))
-    fileName.value = ''
-    clearLoadedModel()
-  } finally {
-    loading.value = false
-  }
-}
-
-async function chooseFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  loading.value = true
-  error.value = ''
-  fileName.value = file.name
-  try {
-    const loaded = await parseFile(file)
-    await showLoadedModel(loaded, file.name, 2, Boolean(retargetSourceRoot.value || selectedRetargetLibraryId.value))
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Falha ao ler o modelo.'
-    fileName.value = ''
-    clearLoadedModel()
-  } finally {
-    loading.value = false
-    if (fileInput.value) fileInput.value.value = ''
   }
 }
 
