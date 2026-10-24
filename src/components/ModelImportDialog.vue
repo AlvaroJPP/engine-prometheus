@@ -22,6 +22,7 @@ import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import { prepareModelImportBatchItems } from '@/lib/assets/ModelImportBatchPreparation'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
+import { prepareStarterCatalogBehaviorPreset } from '@/lib/assets/StarterCatalogBehaviorPreset'
 import { parseModelImportFile } from '@/lib/assets/ModelImportFileParser'
 import { prepareModelImportSelectedPart } from '@/lib/assets/ModelImportSelectedPart'
 import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
@@ -1397,30 +1398,9 @@ async function loadCatalogAsset(asset: {
     await showLoadedModel(loaded, chosenFileName, asset.height)
     fileName.value = chosenFileName
     componentName.value = asset.name
-    selectedBehaviorPackageIds.value = []
-    selectedBehaviorPackageSettings.value = {}
-
-    if (asset.role === 'enemy' || asset.role === 'loot') {
-      selectedBehaviorPackageIds.value = ['veilborne_rpg']
-      const draft = ensureImportBehaviorPackageDraft('veilborne_rpg')
-      draft.variables.entity_role = asset.role === 'enemy' ? 'combatant' : 'loot'
-      draft.variables.faction = asset.role === 'enemy' ? 'hostile' : 'neutral'
-      draft.variables.ai_enabled = asset.role === 'enemy'
-      draft.variables.ai_custom_stats = false
-      if (asset.role === 'enemy') {
-        draft.variables.ai_profile = asset.aiProfile ?? 'melee'
-      } else {
-        draft.variables.loot_item_id = asset.itemId ?? 'lesser_vitality_vial'
-        draft.variables.loot_quantity = 1
-      }
-      selectedBehaviorPackageSettings.value = {
-        ...selectedBehaviorPackageSettings.value,
-        veilborne_rpg: {
-          variables: { ...draft.variables },
-          config: clonePackageJsonRecord(draft.config),
-        },
-      }
-    }
+    const behaviorPreset = prepareStarterCatalogBehaviorPreset(asset, controlBindings.value)
+    selectedBehaviorPackageIds.value = behaviorPreset.packageIds
+    selectedBehaviorPackageSettings.value = behaviorPreset.packageSettings
 
     activeSetupTab.value = 'model'
   } catch (cause) {
