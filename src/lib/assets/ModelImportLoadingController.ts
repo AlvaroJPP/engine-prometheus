@@ -49,7 +49,7 @@ type ModelImportLoadingContext = {
   previewAnimationIndex: WritableValue<number>
   previewPlaying: WritableValue<boolean>
   previewAnimationRuntime: {
-    ensure: (root: THREE.Object3D, clips: THREE.AnimationClip[]) => { setState: (role: AnimationRole) => void }
+    ensure: (root: THREE.Object3D, clips: THREE.AnimationClip[]) => { setState: (role: string) => void }
   }
   previewClock: THREE.Clock
   clearLoadedModel: (preserveRetargetSource?: boolean) => void
