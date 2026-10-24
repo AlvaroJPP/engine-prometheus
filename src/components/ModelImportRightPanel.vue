@@ -7,11 +7,11 @@ import type { GltfMetadata } from '@/lib/assets/GltfMetadata'
 type AnimationOption = { value: string; label: string }
 type ControlBindingField = { key: keyof ModelControlBindings; label: string; description: string }
 type ModelImportRightPanelBindings = Record<string, any> & {
-  ANIMATION_ROLE_BASE_OPTIONS: AnimationOption[]
-  animationRoleOptions: AnimationOption[]
-  controlBindingFields: ControlBindingField[]
-  previewAnimations: THREE.AnimationClip[]
-  retargetSourceClips: THREE.AnimationClip[]
+  ANIMATION_ROLE_BASE_OPTIONS: ReadonlyArray<AnimationOption>
+  animationRoleOptions: ReadonlyArray<AnimationOption>
+  controlBindingFields: ReadonlyArray<ControlBindingField>
+  previewAnimations: readonly THREE.AnimationClip[]
+  retargetSourceClips: readonly THREE.AnimationClip[]
   animationSourceOptions?: Array<{ id: string; name: string; height?: number; thumbnail?: string }>
 }
 
