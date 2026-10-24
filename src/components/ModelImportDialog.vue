@@ -7,7 +7,6 @@ import { createModelColliderPreview, disposeModelColliderPreview } from '@/lib/a
 import { disposeImportedModelResources } from '@/lib/assets/ModelImportResourceCleanup'
 import {
   calculateImportColliderSize,
-  calculateImportColliderSizeFromObjectBounds,
   normalizeImportColliderForType,
   updateImportColliderVector,
 } from '@/lib/assets/ModelColliderSizing'
@@ -21,20 +20,11 @@ import { startModelPreviewRenderLoop } from '@/lib/assets/ModelPreviewRenderLoop
 import { createModelPreviewStage } from '@/lib/assets/ModelPreviewStage'
 import type { ModelImportBatchItem } from '@/lib/assets/ModelImportBatchPreparation'
 import { createPlayerModelBytes } from '@/lib/assets/ModelPlayerExport'
-import { reconcileModelPreviewPartState } from '@/lib/assets/ModelPreviewPartState'
 import type { ModelPreviewPart } from '@/lib/assets/ModelPreviewParts'
-import {
-  isWithinModelPreviewTree,
-  restoreModelPreviewVisibility,
-  setModelPreviewSoloVisibility,
-  toggleModelPreviewBatchSelection,
-} from '@/lib/assets/ModelPreviewSelection'
+import { isWithinModelPreviewTree } from '@/lib/assets/ModelPreviewSelection'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
-import {
-  invalidateStaticMeshCollider,
-  releaseStaticMeshCollider,
-} from '@engine/world/StaticMeshCollider'
+import { releaseStaticMeshCollider } from '@engine/world/StaticMeshCollider'
 import { analyzeModelDiagnostics } from '@/lib/assets/ModelDiagnostics'
 import { recoverModelBaseColorTexture } from '@/lib/assets/ModelColorTextureRecovery'
 import type { ModelDiagnostic, ModelDiagnosticSummary } from '@/lib/assets/ModelDiagnostics'
@@ -52,12 +42,12 @@ import { createModelImportRetargetingController } from '@/lib/animation/ModelImp
 import { createModelImportRiggingController } from '@/lib/animation/ModelImportRiggingController'
 import { createModelImportSkinTokensController } from '@/lib/assets/ModelImportSkinTokensController'
 import { createModelImportBehaviorPackageController } from '@/lib/assets/ModelImportBehaviorPackageController'
+import { createModelImportHierarchyController } from '@/lib/assets/ModelImportHierarchyController'
 import { createModelImportLoadingController } from '@/lib/assets/ModelImportLoadingController'
 import { createModelImportSaveController } from '@/lib/assets/ModelImportSaveController'
 import { captureModelPreviewThumbnail } from '@/lib/assets/ModelPreviewThumbnail'
 import { createCustomModelThumbnail } from '@/lib/assets/CustomModelThumbnail'
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
-import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
 import type { RigAnimationKeyframe as RigKeyframe, RigAnimationPose as RigPose } from '@/lib/animation/RigAnimationClip'
 import type { AutoRigPreset } from '@/lib/animation/Rigging'
 import { cloneImportBehaviorPackageSettings } from '@/lib/assets/ImportBehaviorPackageDrafts'
@@ -499,129 +489,39 @@ function disposeModel(object: THREE.Object3D) {
   disposeThreeObjectResources(object, 'renderables')
 }
 
-function refreshPreviewParts() {
-  const state = reconcileModelPreviewPartState(
-    model.value,
-    selectedPartId.value,
-    soloPartId.value,
-    batchSelectedPartIds.value,
-    batchSavedPartIds.value,
-  )
-  previewParts.value = state.parts
-  selectedPartId.value = state.selectedPartId
-  soloPartId.value = state.soloPartId
-  batchSelectedPartIds.value = state.batchSelectedPartIds
-  batchSavedPartIds.value = state.batchSavedPartIds
-}
-
-function findPreviewPart(id: string) {
-  return previewParts.value.find(part => part.id === id)
-}
-
-function toggleBatchPartSelection(
-  part: ModelPreviewPart,
-  checked: boolean,
-) {
-  batchSelectedPartIds.value = toggleModelPreviewBatchSelection(
-    batchSelectedPartIds.value,
-    previewParts.value,
-    part,
-    checked,
-  )
-}
-
-function clearBatchSelection() {
-  batchSelectedPartIds.value = []
-}
-
-function setColliderFromPreviewPart(part: ModelPreviewPart) {
-  const size = calculateImportColliderSizeFromObjectBounds(
-    part.object,
-    modelHeight.value,
-    colliderType.value,
-  )
-  if (!size) return
-  colliderSize.value = size
-  colliderOffset.value = [0, 0, 0]
-}
-
-function selectPreviewPart(part: ModelPreviewPart) {
-  if (soloPartId.value) restorePreviewVisibility()
-  selectedPartId.value = part.id
-  if (!props.initialAsset) {
-    componentName.value = part.name
-    setColliderFromPreviewPart(part)
-  }
-  fitCamera(part.object)
-  updateColliderPreview()
-}
-
-function togglePreviewPart(part: ModelPreviewPart) {
-  if (soloPartId.value) restorePreviewVisibility()
-  part.object.visible = !part.object.visible
-  if (model.value) invalidateStaticMeshCollider(model.value)
-  updateColliderPreview()
-}
-
-function showOnlyPreviewPart(part: ModelPreviewPart) {
-  const root = model.value
-  if (!root) return
-  if (soloPartId.value === part.id) {
-    restorePreviewVisibility()
-  } else {
-    // Os ancestrais precisam permanecer visíveis: no Three.js, esconder um pai
-    // também esconde todos os seus descendentes, mesmo que o filho esteja visible=true.
-    invalidateStaticMeshCollider(root)
-    setModelPreviewSoloVisibility(root, part.object)
-    soloPartId.value = part.id
-    selectedPartId.value = part.id
-    if (!props.initialAsset) {
-      componentName.value = part.name
-      setColliderFromPreviewPart(part)
-    }
-    fitCamera(part.object)
-    updateColliderPreview()
-  }
-}
-
-function selectWholeModel() {
-  const root = model.value
-  if (!root) return
-  restorePreviewVisibility()
-  selectedPartId.value = ''
-  componentName.value = root.name.trim() || fileName.value.replace(/\.[^.]+$/, '') || 'Modelo 3D'
-  const scale = originalHeight.value > 0 ? modelHeight.value / originalHeight.value : 1
-  colliderSize.value = calculateImportColliderSize(dimensions.value, scale, colliderType.value)
-  colliderOffset.value = [0, 0, 0]
-  fitCamera(root)
-  updateColliderPreview()
-}
-
-function restorePreviewVisibility() {
-  const root = model.value
-  if (root) restoreModelPreviewVisibility(root)
-  if (root) invalidateStaticMeshCollider(root)
-  soloPartId.value = ''
-}
-
-/** Restaura a renderização de malhas importadas antes de avaliar uma animação. */
-function restoreModelRenderableMeshes(root: THREE.Object3D) {
-  restoreRenderableMeshes(root)
-  invalidateStaticMeshCollider(root)
-}
-
-function deletePreviewPart(part: ModelPreviewPart) {
-  if (!model.value || !part.object.parent) return
-  invalidateStaticMeshCollider(model.value)
-  part.object.removeFromParent()
-  model.value.userData.importNeedsReexport = true
-  model.value.updateMatrixWorld(true)
-  refreshPreviewParts()
-  refreshModelDiagnostics()
-  updateColliderPreview()
-  if (model.value) fitCamera(model.value)
-}
-
+const {
+  refreshPreviewParts,
+  findPreviewPart,
+  toggleBatchPartSelection,
+  clearBatchSelection,
+  setColliderFromPreviewPart,
+  selectPreviewPart,
+  togglePreviewPart,
+  showOnlyPreviewPart,
+  selectWholeModel,
+  restorePreviewVisibility,
+  restoreModelRenderableMeshes,
+  deletePreviewPart,
+} = createModelImportHierarchyController({
+  props,
+  model,
+  previewParts,
+  selectedPartId,
+  soloPartId,
+  batchSelectedPartIds,
+  batchSavedPartIds,
+  componentName,
+  colliderType,
+  colliderSize,
+  colliderOffset,
+  modelHeight,
+  originalHeight,
+  dimensions,
+  fileName,
+  fitCamera,
+  updateColliderPreview,
+  refreshModelDiagnostics,
+})
 
 async function applyRecoveredColorTexture(materialIndex: number) {
   const root = model.value
