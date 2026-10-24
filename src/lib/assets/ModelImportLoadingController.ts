@@ -12,7 +12,6 @@ import { normalizeModelControlBindings } from './ModelControlBindings'
 import { resolveImportedAnimationRoles } from '../animation/AnimationRoleOptions'
 import { storeRetargetRestPose } from '../animation/RetargetRestPose'
 import { revokeOwnedObjectUrls } from './ModelOwnedObjectUrls'
-import { restoreRenderableMeshes } from '../animation/ModelRenderableMeshes'
 import { previewAnimationRoleForClip, type ModelPreviewAnimationRuntime } from '../animation/ModelPreviewAnimationRuntime'
 import type { ModelPreviewPart } from './ModelPreviewParts'
 import type { ModelDiagnosticSummary } from './ModelDiagnostics'
@@ -29,7 +28,6 @@ type ModelImportLoadingContext = {
   componentName: WritableValue<string>
   model: WritableValue<THREE.Object3D | null>
   modelHeight: WritableValue<number>
-  originalHeight: ReadonlyValue<number>
   dimensions: WritableValue<[number, number, number]>
   colliderType: WritableValue<'box' | 'sphere' | 'capsule' | 'mesh' | 'none'>
   colliderSize: WritableValue<[number, number, number]>
@@ -87,7 +85,6 @@ export function createModelImportLoadingController(context: ModelImportLoadingCo
     componentName,
     model,
     modelHeight,
-    originalHeight,
     dimensions,
     colliderType,
     colliderSize,
