@@ -931,7 +931,7 @@ const {
   thumbnailImageError,
   updateColliderPreview,
   fitCamera,
-  capturePreviewThumbnail,
+
 })
 function capturePreviewThumbnail(): string | undefined {
   return captureModelPreviewThumbnail(canvas.value, renderer, scene, camera, [colliderPreview, rigHelper])
