@@ -13,12 +13,8 @@ type ControllerContext = Record<string, any>
 
 export function createModelImportDialogControllers(context: ControllerContext) {
   const {
-    ANIMATION_ROLE_BASE_OPTIONS,
-    BEHAVIOR_PACKAGE_DEFINITIONS,
-    DEFAULT_MODEL_CONTROL_BINDINGS,
     activeSetupTab,
     animationClipRevision,
-    animationRoleOptions,
     animationRoles,
     batchNotice,
     batchSavedPartIds,
@@ -27,14 +23,11 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     boneRotationDraft,
     capturePreviewThumbnail,
     centerAndMeasure,
-    changeColliderType,
     clearLoadedModel,
     colliderOffset,
-    colliderPreviewNotice,
     colliderSize,
     colliderType,
     componentName,
-    controlBindingFields,
     controlBindings,
     customThumbnail,
     customThumbnailFileName,
@@ -46,17 +39,9 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     fileInput,
     fileName,
     fitCamera,
-    formatModelControlKey,
-    formatPackageConfigLabel,
     guessedAnimationRole,
-    hasRetargetMapping,
-    importPackageControlBindingFields,
     initPreview,
-    isEditingSavedComponent,
     isReadOnlyPreview,
-    isSimplePackageConfigValue,
-    isTauri,
-    listeningForBinding,
     loading,
     model,
     modelDiagnostics,
@@ -67,13 +52,11 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     previewAnimationRuntime,
     previewAnimations,
     previewClock,
-    previewComponentDimensions,
     previewPackageModelNodes,
     previewParts,
     previewPlaying,
     props,
     refreshRigHelper,
-    resetControlBindings,
     retargetAutonomousLoading,
     retargetAutonomousStage,
     retargetBoneMap,
@@ -82,20 +65,16 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     retargetLibrary,
     retargetLibraryAsset,
     retargetLoading,
-    retargetMappedBoneCount,
     retargetMessage,
-    retargetOtherBonesFor,
     retargetPreviewStatus,
     retargetSourceBytes,
     retargetSourceClip,
     retargetSourceClipIndex,
-    retargetSourceClips,
     retargetSourceFileName,
     retargetSourceNodeNames,
     retargetSourcePreviewCanvas,
     retargetSourcePreviewPlaying,
     retargetSourceRoot,
-    retargetSuggestedBonesFor,
     retargetTargetBones,
     retargetTargetPreviewCanvas,
     retargetTargetPreviewPlaying,
@@ -104,14 +83,11 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     rigClipRole,
     rigDuration,
     rigFrameTime,
-    rigInputAnalysis,
     rigKeyframes,
     rigMessage,
     rigPreset,
-    rigPresetOptions,
     rigRestPose,
     selectPreviewAnimation,
-    selectedBehaviorPackageDefinitions,
     selectedBehaviorPackageIds,
     selectedBehaviorPackageSettings,
     selectedPartId,
@@ -120,10 +96,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     selectedRigBone,
     selectedRigBoneName,
     selectedSavedAnimationSourceId,
-    setAnimationRole,
-    setColliderVector,
-    skinTokensClassChoice,
-    skinTokensClassOptions,
     skinTokensExecutablePath,
     skinTokensLoading,
     skinTokensMessage,
@@ -131,13 +103,15 @@ export function createModelImportDialogControllers(context: ControllerContext) {
     skinTokensResolvedClass,
     skinTokensRigCompatible,
     soloPartId,
-    startControlBindingCapture,
     starterAssetCatalogOpen,
     textureRepairBusy,
     textureRepairMessage,
     textureRepairSelections,
     thumbnailImageError,
     updateColliderPreview,
+    getScene,
+    setCurrentObjectUrl,
+    updateRigHelper,
     getScene,
     setCurrentObjectUrl,
     updateRigHelper,
@@ -151,12 +125,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   modelDiagnostics,
   diagnosticSummary,
   })
-  const {
-    recoverableColorImages,
-    materialsMissingColorTexture,
-    applyRecoveredColorTexture,
-    refreshModelDiagnostics,
-  } = diagnostics
 
   const hierarchy = createModelImportHierarchyController({
   props,
@@ -176,21 +144,8 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   fileName,
   fitCamera,
   updateColliderPreview,
-  refreshModelDiagnostics,
+  refreshModelDiagnostics: diagnostics.refreshModelDiagnostics,
   })
-  const {
-    refreshPreviewParts,
-    findPreviewPart,
-    toggleBatchPartSelection,
-    clearBatchSelection,
-    selectPreviewPart,
-    togglePreviewPart,
-    showOnlyPreviewPart,
-    selectWholeModel,
-    restorePreviewVisibility,
-    restoreModelRenderableMeshes,
-    deletePreviewPart,
-  } = hierarchy
 
   const rigging = createModelImportRiggingController({
   props,
@@ -218,20 +173,10 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   previewAnimationIndex,
   refreshRigHelper,
   updateRigHelper,
-  refreshPreviewParts,
-  refreshModelDiagnostics,
+  refreshPreviewParts: hierarchy.refreshPreviewParts,
+  refreshModelDiagnostics: diagnostics.refreshModelDiagnostics,
   selectPreviewAnimation,
   })
-  const {
-    createRig,
-    applySelectedBoneTransform,
-    resetRigPose,
-    recordRigKeyframe,
-    applyRigFrame,
-    clearRigKeyframesForNewClip,
-    createRigAnimation,
-    setRigTime,
-  } = rigging
 
   const behaviorPackages = createModelImportBehaviorPackageController({
   controlBindings,
@@ -240,24 +185,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   isReadOnlyPreview,
   previewPackageModelNodes,
   })
-  const {
-    ensureImportBehaviorPackageDraft,
-    toggleImportBehaviorPackage,
-    importPackageVariableValue,
-    updateImportPackageVariable,
-    importPackageConfigValue,
-    updateImportPackageConfigScalar,
-    setImportPackageInteractionKey,
-    importPackageVectorValue,
-    setImportPackageVector,
-    importPackageControlBindingValue,
-    setImportPackageControlBinding,
-    importPackageModelStates,
-    addImportPackageModelState,
-    updateImportPackageModelState,
-    onImportPackageModelStateValueChange,
-    removeImportPackageModelState,
-  } = behaviorPackages
 
   const loadingController = createModelImportLoadingController({
   fileInput,
@@ -296,21 +223,14 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   centerAndMeasure,
   fitCamera,
   initPreview,
-  refreshPreviewParts,
-  refreshModelDiagnostics,
+  refreshPreviewParts: hierarchy.refreshPreviewParts,
+  refreshModelDiagnostics: diagnostics.refreshModelDiagnostics,
   updateColliderPreview,
-  restoreModelRenderableMeshes,
+  restoreModelRenderableMeshes: hierarchy.restoreModelRenderableMeshes,
   guessedAnimationRole,
   getScene,
   setCurrentObjectUrl,
   })
-  const {
-    showLoadedModel,
-    parseGlbBytes,
-    importBlendZip,
-    loadCatalogAsset,
-    chooseFile,
-  } = loadingController
 
   const skinTokens = createModelImportSkinTokensController({
   model,
@@ -337,17 +257,11 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   rigDuration,
   rigPreset,
   rigMessage,
-  parseGlbBytes,
-  showLoadedModel,
+  parseGlbBytes: loadingController.parseGlbBytes,
+  showLoadedModel: loadingController.showLoadedModel,
   guessedAnimationRole,
   refreshRigHelper,
   })
-  const {
-    chooseSkinTokensExecutable,
-    testSkinTokensBackend,
-    runSkinTokensRigging,
-    performSkinTokensRigging,
-  } = skinTokens
 
   const retargeting = createModelImportRetargetingController({
   props,
@@ -363,16 +277,16 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   loading,
   model,
   originalHeight,
-  parseGlbBytes,
+  parseGlbBytes: loadingController.parseGlbBytes,
   disposeModel,
-  performSkinTokensRigging,
+  performSkinTokensRigging: skinTokens.performSkinTokensRigging,
   previewAnimationIndex,
   selectPreviewAnimation,
   previewAnimationRuntime,
   previewAnimations,
-  refreshModelDiagnostics,
-  restoreModelRenderableMeshes,
-  restorePreviewVisibility,
+  refreshModelDiagnostics: diagnostics.refreshModelDiagnostics,
+  restoreModelRenderableMeshes: hierarchy.restoreModelRenderableMeshes,
+  restorePreviewVisibility: hierarchy.restorePreviewVisibility,
   retargetAutonomousLoading,
   retargetAutonomousStage,
   retargetBoneMap,
@@ -407,24 +321,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   skinTokensRigCompatible,
   updateColliderPreview,
   })
-  const {
-    loadRetargetAnimationLibrary,
-    clearRetargetSource,
-    chooseRetargetAnimationSource,
-    selectSavedAnimationSource,
-    saveRetargetSourceToLibrary,
-    onRetargetSourceClipChanged,
-    selectRetargetLibraryAsset,
-    setRetargetBoneMapping,
-    disposeRetargetPreviews,
-    toggleRetargetSourcePreviewPlayback,
-    toggleRetargetTargetPreviewPlayback,
-    saveRetargetAnimationToLibrary,
-    deleteRetargetLibraryAsset,
-    applyRetargetedAnimation,
-    runAutonomousRetargeting,
-    autoMapRetargetBones,
-  } = retargeting
 
   const assetActions = createModelImportAssetActionsController({
   props,
@@ -443,12 +339,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   updateColliderPreview,
   fitCamera,
   })
-  const {
-    setModelHeight,
-    useAsPlayerModel,
-    chooseThumbnailImage,
-    clearCustomThumbnail,
-  } = assetActions
 
   const saving = createModelImportSaveController({
   props,
@@ -467,8 +357,8 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   controlBindings,
   animationRoles,
   selectedBehaviorPackageIds,
-  ensureImportBehaviorPackageDraft,
-  findPreviewPart,
+  ensureImportBehaviorPackageDraft: behaviorPackages.ensureImportBehaviorPackageDraft,
+  findPreviewPart: hierarchy.findPreviewPart,
   fileName,
   componentName,
   selectedPartId,
@@ -477,10 +367,6 @@ export function createModelImportDialogControllers(context: ControllerContext) {
   getScene,
   previewAnimationRuntime,
   })
-  const {
-    saveSelectedParts,
-    confirmImport,
-  } = saving
 
   const controllers = {
     ...diagnostics,
