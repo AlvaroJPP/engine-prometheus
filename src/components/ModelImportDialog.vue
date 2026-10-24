@@ -63,8 +63,9 @@ import { BEHAVIOR_PACKAGE_DEFINITIONS, DEFAULT_CONTROL_MAPS, DEFAULT_MODEL_CONTR
 import type { AnimationRole, BehaviorPackageDefinition, ControlMapBindings, ModelControlBindings, PackageJsonValue, PackageScalar } from '@engine'
 import { open as openNativeDialog } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
+import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose } from '@/lib/animation/Rigging'
 import { prepareRigRootContainer } from '@/lib/animation/RigRootPreparation'
+import { applyRigBoneTransformDraft } from '@/lib/animation/RigBoneTransformEditor'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
 import { inspectRetargetTargetRig } from '@/lib/animation/RetargetTargetRigInspection'
@@ -460,18 +461,19 @@ function applySelectedBoneTransform() {
   previewAnimationRuntime.controller?.stop()
   const root = model.value
   if (root) root.userData.importNeedsReexport = true
-  const positionChanged = Math.abs(bone.position.x - bonePositionDraft.value.x) > 1e-5 ||
-    Math.abs(bone.position.y - bonePositionDraft.value.y) > 1e-5 ||
-    Math.abs(bone.position.z - bonePositionDraft.value.z) > 1e-5
 
-  if (root?.userData.importRigGenerated === true && positionChanged) {
-    // Reposicionar um pivô redefine o repouso do rig. Quadros antigos são
-    // descartados porque dependiam da posição anterior do osso.
-    applyRigPose(rigBones.value, rigRestPose.value)
-    bone.position.set(bonePositionDraft.value.x, bonePositionDraft.value.y, bonePositionDraft.value.z)
-    root.updateWorldMatrix(true, true)
-    rebindRigModel(root)
-    rigRestPose.value = captureRigPose(rigBones.value)
+  const result = applyRigBoneTransformDraft({
+    bone,
+    root,
+    bones: rigBones.value,
+    restPose: rigRestPose.value,
+    position: bonePositionDraft.value,
+    rotationDegrees: boneRotationDraft.value,
+    generatedRig: root?.userData.importRigGenerated === true,
+  })
+  if (result.pivotChanged) {
+    rigRestPose.value = result.restPose ?? rigRestPose.value
+    // Reposicionar um pivô redefine o repouso; quadros antigos dependiam da posição anterior.
     rigKeyframes.value = []
     rigFrameTime.value = 0
     rigDuration.value = 1
@@ -481,16 +483,7 @@ function applySelectedBoneTransform() {
       z: THREE.MathUtils.radToDeg(bone.rotation.z),
     }
     rigMessage.value = 'Pivô ajustado e pose de repouso atualizada. Grave novamente os quadros-chave.'
-  } else {
-    bone.rotation.set(
-      THREE.MathUtils.degToRad(boneRotationDraft.value.x),
-      THREE.MathUtils.degToRad(boneRotationDraft.value.y),
-      THREE.MathUtils.degToRad(boneRotationDraft.value.z),
-      bone.rotation.order,
-    )
   }
-  bone.updateMatrixWorld(true)
-  root?.updateWorldMatrix(true, true)
   rigHelper?.updateMatrixWorld(true)
 }
 
