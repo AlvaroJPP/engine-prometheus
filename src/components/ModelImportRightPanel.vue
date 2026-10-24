@@ -164,7 +164,7 @@ const {
 async function handleChooseRetargetAnimationSource(event: Event) {
   const input = event.target instanceof HTMLInputElement ? event.target : retargetFileInput.value
   try {
-    await chooseRetargetAnimationSource(event)
+    await chooseRetargetAnimationSource.value(event)
   } finally {
     if (input) input.value = ''
   }
