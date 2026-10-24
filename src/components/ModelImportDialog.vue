@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, isReadonly, isRef, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, isReadonly, isRef, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import * as THREE from 'three'
 import { disposeThreeObjectResources } from '@/lib/assets/ThreeObjectResources'
 import { revokeOwnedObjectUrls } from '@/lib/assets/ModelOwnedObjectUrls'
@@ -1480,8 +1480,10 @@ const {
   model,
   originalHeight,
   parseGlbBytes,
+  disposeModel,
   performSkinTokensRigging,
   previewAnimationIndex,
+  selectPreviewAnimation,
   previewAnimationRuntime,
   previewAnimations,
   refreshModelDiagnostics,
@@ -1500,7 +1502,6 @@ const {
   retargetSourceBytes,
   retargetSourceClip,
   retargetSourceClipIndex,
-  retargetSourceClips,
   retargetSourceFileName,
   retargetSourceNodeNames,
   retargetSourcePreviewCanvas,
