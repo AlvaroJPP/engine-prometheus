@@ -66,6 +66,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { analyzeRiggingInput, applyRigPose, autoRigModel, captureRigPose, rebindRigModel } from '@/lib/animation/Rigging'
 import { isSkinTokensRigCompatible } from '@/lib/animation/SkinTokensRigCompatibility'
 import { collectRetargetSourceBoneNames } from '@/lib/animation/RetargetSourceBones'
+import { inspectRetargetTargetRig } from '@/lib/animation/RetargetTargetRigInspection'
 import { createRetargetAssetForSource } from '@/lib/animation/RetargetAssetFactory'
 import { prepareSkinTokensRiggingResult } from '@/lib/assets/SkinTokensRiggingResult'
 import { processSkinTokensModel } from '@/lib/assets/SkinTokensModelProcessor'
@@ -1938,17 +1939,7 @@ async function runAutonomousRetargeting() {
     let targetRoot = model.value
     if (!targetRoot) throw new Error('O modelo A deixou de estar disponível.')
 
-    const inspectRig = (root: THREE.Object3D) => {
-      const bones: THREE.Bone[] = []
-      let hasSkinnedMesh = false
-      root.traverse(node => {
-        if (node instanceof THREE.Bone) bones.push(node)
-        if (node instanceof THREE.SkinnedMesh) hasSkinnedMesh = true
-      })
-      return { bones, hasSkinnedMesh }
-    }
-
-    let targetRig = inspectRig(targetRoot)
+    let targetRig = inspectRetargetTargetRig(targetRoot)
     if (targetRig.bones.length === 0 || !targetRig.hasSkinnedMesh) {
       if (!isTauri()) {
         throw new Error('Para fazer o fluxo autônomo completo, abra o aplicativo desktop Tauri e configure o SkinTokens local. O destino ainda não tem um rig esquelético utilizável.')
@@ -1969,7 +1960,7 @@ async function runAutonomousRetargeting() {
       }
       targetRoot = model.value
       if (!targetRoot) throw new Error('A IA terminou, mas o modelo A não foi carregado novamente.')
-      targetRig = inspectRig(targetRoot)
+      targetRig = inspectRetargetTargetRig(targetRoot)
       if (targetRig.bones.length === 0 || !targetRig.hasSkinnedMesh) {
         throw new Error('A IA não produziu um rig esquelético com malha deformável. O modelo não foi retargetado.')
       }
