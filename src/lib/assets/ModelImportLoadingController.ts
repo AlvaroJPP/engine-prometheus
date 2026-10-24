@@ -13,8 +13,6 @@ import { resolveImportedAnimationRoles } from '../animation/AnimationRoleOptions
 import { storeRetargetRestPose } from '../animation/RetargetRestPose'
 import { revokeOwnedObjectUrls } from './ModelOwnedObjectUrls'
 import { previewAnimationRoleForClip, type ModelPreviewAnimationRuntime } from '../animation/ModelPreviewAnimationRuntime'
-import type { ModelPreviewPart } from './ModelPreviewParts'
-import type { ModelDiagnosticSummary } from './ModelDiagnostics'
 import type { ModelControlBindings, AnimationRole } from '@engine'
 
 type WritableValue<T> = { value: T }
