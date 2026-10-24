@@ -81,7 +81,6 @@ import { buildRigAnimationFromKeyframes } from '@/lib/animation/RigAnimationBuil
 import { ModelPreviewAnimationRuntime, previewAnimationRoleForClip } from '@/lib/animation/ModelPreviewAnimationRuntime'
 import { restoreRenderableMeshes } from '@/lib/animation/ModelRenderableMeshes'
 import {
-  getRetargetRestPose,
   restoreRetargetRestPose,
   storeRetargetRestPose,
 } from '@/lib/animation/RetargetRestPose'
