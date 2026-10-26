@@ -230,6 +230,7 @@ export class Engine {
       spawnEffect: (position, color, scale, durationSeconds) =>
         this.veilborneVisualEffects.spawnEffect(position, color, scale, durationSeconds),
       invalidate: () => this.viewport.invalidate(),
+      setLootNoticeDuration: seconds => { this.veilborneLootNoticeRemainingSeconds = seconds },
     })
     this.veilborneTargetLock = new VeilborneTargetLockController({
       scene: this.world.scene,
