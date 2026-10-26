@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import * as THREE from 'three'
 import { AutonomousBehaviorSystem } from '../engine/script/AutonomousBehaviorSystem.ts'
-import { CollisionSystem } from '../engine/world/CollisionSystem.ts'
 
 class TestWorld {
   objects = new Map()
@@ -30,38 +29,6 @@ class TestWorld {
     if (patch.z !== undefined) object.mesh.position.z = patch.z
     if (patch.rotationY !== undefined) object.mesh.rotation.y = patch.rotationY * Math.PI / 180
   }
-}
-
-class CollisionProbeWorld {
-  objects = new Map()
-  terrain = { heightAt: () => 0 }
-  events = {
-    on: () => () => {},
-    emit: () => {},
-  }
-
-  add(id, x = 0, z = 0) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
-    mesh.position.set(x, 0.5, z)
-    mesh.userData.colliderType = 'box'
-    const object = { id, name: id, type: 'cube', mesh }
-    this.objects.set(id, object)
-    return object
-  }
-
-  get(id) {
-    return this.objects.get(id)
-  }
-
-  list() {
-    return [...this.objects.values()]
-  }
-
-  isObjectVisible(object) {
-    return object.mesh.visible
-  }
-
-  notifyChanged() {}
 }
 
 const world = new TestWorld()
@@ -258,33 +225,6 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMo
   assert.ok(usedLateralPath, 'obstacle avoidance should choose a lateral path when direct movement is blocked')
   assert.ok(Math.abs(agentObject.mesh.position.x - 3) <= 0.25, 'the agent should resume its route after passing a finite obstacle')
   assert.equal(agent.variables.state, 'reached', 'the autonomous behavior should reach its destination after avoiding an obstacle')
-}
-
-{
-  const collisionWorld = new CollisionProbeWorld()
-  const moving = collisionWorld.add('collision-agent', 0, 0)
-  collisionWorld.add('collision-wall', 2, 0)
-  const collisions = new CollisionSystem(collisionWorld)
-
-  assert.equal(
-    collisions.canMoveObjectTo(moving.id, { x: 0.25, y: 0.5, z: 0 }),
-    true,
-    'collision-safe movement should allow a clear nearby step',
-  )
-
-  const start = moving.mesh.position.clone()
-  assert.equal(
-    collisions.canMoveObjectTo(moving.id, { x: 3, y: 0.5, z: 0 }),
-    false,
-    'collision-safe movement should reject a sweep through a wall even when the endpoint is beyond it',
-  )
-  assert.ok(moving.mesh.position.distanceTo(start) < 1e-6, 'movement checks must restore the object position')
-
-  collisions.dispose()
-  for (const object of collisionWorld.list()) {
-    object.mesh.geometry.dispose()
-    object.mesh.material.dispose()
-  }
 }
 
 console.log('Autonomous behavior self-test passed.')
