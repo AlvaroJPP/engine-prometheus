@@ -160,7 +160,7 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
   agentObject.mesh.position.set(0, 0.5, 0)
   agentObject.mesh.rotation.y = 0
   const agent = makeAgent('look-agent', 'agent', 'look_at_player')
-  const transitions = tick(system, [agent], 0.1, { x: 0, y: 0, z: 10 })
+  const transitions = tick(system, [agent], 0.1, { x: 10, y: 0, z: 0 })
   assert.equal(agent.variables.state, 'watching')
   assert.ok(Math.abs(agentObject.mesh.rotation.y) > 0.1, 'look_at_player should rotate the object toward the player')
   assert.ok(transitions.some(item => item.events.includes('target_detected')), 'observing the player should emit target_detected')
@@ -178,7 +178,9 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
 
 {
   const system = new AutonomousBehaviorSystem()
-  const agent = makeAgent('runtime-stop-agent', 'agent', 'wander', { state: 'wandering' })
+  const agent = makeAgent('runtime-stop-agent', 'agent', 'wander', { state: 'idle' })
+  tick(system, [agent], 0.1)
+  assert.equal(system.hasRuntimeState(), true, 'running an autonomous behavior should create runtime state')
   const transitions = system.update({
     dt: 0.1,
     runtimeEnabled: false,
