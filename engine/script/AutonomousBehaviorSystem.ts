@@ -35,10 +35,12 @@ interface AgentRuntimeState {
   randomSeed: number
   signature: string
   reached: boolean
+  avoidanceSide: -1 | 0 | 1
 }
 
 type AutonomousWorld = Pick<World, 'get' | 'update' | 'terrain' | 'isObjectVisible'>
 type AutonomousObject = NonNullable<ReturnType<World['get']>>
+type MovementSafetyCheck = (objectId: string, target: Position3) => boolean
 
 const TRACKING_MODES = new Set<AutonomousBehaviorMode>([
   'follow_player',
@@ -102,6 +104,7 @@ export class AutonomousBehaviorSystem {
     world: AutonomousWorld
     packages: BehaviorPackageInstance[]
     playerPosition: Position3
+    canMoveTo?: MovementSafetyCheck
   }): AutonomousBehaviorTransition[] {
     const transitions: AutonomousBehaviorTransition[] = []
     const agents = input.packages.filter(instance => instance.packageId === AUTONOMOUS_BEHAVIOR_PACKAGE_ID)
@@ -162,6 +165,7 @@ export class AutonomousBehaviorSystem {
           randomSeed: seedFrom(instance.id + ':' + instance.ownerObjectId),
           signature,
           reached: false,
+          avoidanceSide: 0,
         }
         this.runtime.set(instance.id, runtime)
       }
@@ -188,7 +192,7 @@ export class AutonomousBehaviorSystem {
             nextState = 'waiting'
             break
           }
-          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt)
+          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo)
           if (result.reached) {
             runtime.destination = null
             runtime.waitRemaining = idleDuration
@@ -216,7 +220,7 @@ export class AutonomousBehaviorSystem {
             nextState = 'waiting'
             break
           }
-          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt)
+          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo)
           if (result.reached) {
             runtime.destination = null
             runtime.patrolDirection = runtime.patrolDirection === 1 ? -1 : 1
@@ -238,7 +242,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, input.playerPosition, speed, stoppingDistance, dt)
+            const result = this.moveTowards(input.world, object, input.playerPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo)
             nextState = result.moving ? 'following' : 'watching'
           }
           break
@@ -251,8 +255,9 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime)
-            nextState = 'fleeing'
+            nextState = this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime, input.canMoveTo)
+              ? 'fleeing'
+              : 'waiting'
           }
           break
         }
@@ -275,7 +280,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, targetPosition, speed, stoppingDistance, dt)
+            const result = this.moveTowards(input.world, object, targetPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo)
             nextState = result.moving ? 'following' : 'watching'
           }
           break
@@ -293,7 +298,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, target, speed, stoppingDistance, dt)
+            const result = this.moveTowards(input.world, object, target, speed, stoppingDistance, dt, runtime, input.canMoveTo)
             if (result.reached) {
               runtime.reached = true
               nextState = 'reached'
@@ -379,6 +384,8 @@ export class AutonomousBehaviorSystem {
     speed: number,
     stoppingDistance: number,
     dt: number,
+    runtime: AgentRuntimeState,
+    canMoveTo?: MovementSafetyCheck,
   ): { moving: boolean; reached: boolean } {
     const position = object.mesh.position
     const dx = target.x - position.x
@@ -394,11 +401,19 @@ export class AutonomousBehaviorSystem {
     const bounds = new THREE.Box3().setFromObject(object.mesh)
     const bottomOffset = bounds.isEmpty() ? 0 : position.y - bounds.min.y
     const y = world.terrain.heightAt(x, z) + bottomOffset
-    world.update(object.id, { x, y, z, rotationY })
+    const moving = this.applyMovement(
+      world,
+      object,
+      { x, y, z },
+      rotationY,
+      runtime,
+      canMoveTo,
+    )
 
+    const after = object.mesh.position
     return {
-      moving: step > 1e-6,
-      reached: distance - step <= stoppingDistance + 1e-4,
+      moving,
+      reached: planarDistance({ x: after.x, y: after.y, z: after.z }, target) <= stoppingDistance + 1e-4,
     }
   }
 
@@ -409,7 +424,8 @@ export class AutonomousBehaviorSystem {
     speed: number,
     dt: number,
     runtime: AgentRuntimeState,
-  ): void {
+    canMoveTo?: MovementSafetyCheck,
+  ): boolean {
     const position = object.mesh.position
     let dx = position.x - target.x
     let dz = position.z - target.z
@@ -427,7 +443,96 @@ export class AutonomousBehaviorSystem {
     const bounds = new THREE.Box3().setFromObject(object.mesh)
     const bottomOffset = bounds.isEmpty() ? 0 : position.y - bounds.min.y
     const y = world.terrain.heightAt(x, z) + bottomOffset
-    world.update(object.id, { x, y, z, rotationY })
+
+    return this.applyMovement(
+      world,
+      object,
+      { x, y, z },
+      rotationY,
+      runtime,
+      canMoveTo,
+    )
+  }
+
+  /**
+   * Tenta o deslocamento solicitado; se houver bloqueio, desliza por um eixo
+   * ou contorna o obstáculo por uma pequena tangente consistente.
+   */
+  private applyMovement(
+    world: AutonomousWorld,
+    object: AutonomousObject,
+    desired: Position3,
+    rotationY: number,
+    runtime: AgentRuntimeState,
+    canMoveTo?: MovementSafetyCheck,
+  ): boolean {
+    const current = object.mesh.position
+    const origin = { x: current.x, y: current.y, z: current.z }
+    const direct = {
+      x: clampWorldCoordinate(desired.x),
+      y: desired.y,
+      z: clampWorldCoordinate(desired.z),
+    }
+    const movedDistance = (candidate: Position3): number =>
+      Math.hypot(candidate.x - origin.x, candidate.z - origin.z)
+    const makeCandidate = (x: number, z: number): Position3 => {
+      const clampedX = clampWorldCoordinate(x)
+      const clampedZ = clampWorldCoordinate(z)
+      const bounds = new THREE.Box3().setFromObject(object.mesh)
+      const bottomOffset = bounds.isEmpty() ? 0 : current.y - bounds.min.y
+      return {
+        x: clampedX,
+        y: world.terrain.heightAt(clampedX, clampedZ) + bottomOffset,
+        z: clampedZ,
+      }
+    }
+    const isSafe = (candidate: Position3): boolean =>
+      !canMoveTo || canMoveTo(object.id, candidate)
+
+    if (movedDistance(direct) <= 1e-6) return false
+    if (isSafe(direct)) {
+      runtime.avoidanceSide = 0
+      world.update(object.id, { x: direct.x, y: direct.y, z: direct.z, rotationY })
+      return true
+    }
+
+    const dx = direct.x - origin.x
+    const dz = direct.z - origin.z
+    const axisCandidates = [
+      makeCandidate(direct.x, origin.z),
+      makeCandidate(origin.x, direct.z),
+    ].filter(candidate => movedDistance(candidate) > 1e-6 && isSafe(candidate))
+
+    if (axisCandidates.length > 0) {
+      const length = Math.hypot(dx, dz) || 1
+      axisCandidates.sort((a, b) => {
+        const progressA = ((a.x - origin.x) * dx + (a.z - origin.z) * dz) / length
+        const progressB = ((b.x - origin.x) * dx + (b.z - origin.z) * dz) / length
+        return progressB - progressA
+      })
+      const candidate = axisCandidates[0]!
+      runtime.avoidanceSide = 0
+      world.update(object.id, { x: candidate.x, y: candidate.y, z: candidate.z, rotationY })
+      return true
+    }
+
+    const intendedDistance = Math.hypot(dx, dz)
+    if (intendedDistance <= 1e-6) return false
+    const lateralX = -dz / intendedDistance
+    const lateralZ = dx / intendedDistance
+    const preferredSide = runtime.avoidanceSide === 0 ? 1 : runtime.avoidanceSide
+    for (const side of [preferredSide, preferredSide === 1 ? -1 : 1] as const) {
+      const candidate = makeCandidate(
+        origin.x + lateralX * intendedDistance * side,
+        origin.z + lateralZ * intendedDistance * side,
+      )
+      if (movedDistance(candidate) <= 1e-6 || !isSafe(candidate)) continue
+      runtime.avoidanceSide = side
+      world.update(object.id, { x: candidate.x, y: candidate.y, z: candidate.z, rotationY })
+      return true
+    }
+
+    return false
   }
 
   private faceTowards(world: AutonomousWorld, object: AutonomousObject, target: Position3): void {
