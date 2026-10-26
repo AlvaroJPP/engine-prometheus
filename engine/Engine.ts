@@ -28,6 +28,7 @@ import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
 import { VeilborneVisualEffects } from './script/VeilborneVisualEffects'
+import { VeilborneHealthBarSystem } from './script/VeilborneHealthBarSystem'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -113,7 +114,7 @@ export class Engine {
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
   private readonly veilborneCooldowns = new Map<string, number>()
-  private readonly veilborneHealthBars = new Map<string, { sprite: THREE.Sprite; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; texture: THREE.CanvasTexture; vitality: number; maximum: number }>()
+  private readonly veilborneHealthBars: VeilborneHealthBarSystem
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -155,6 +156,7 @@ export class Engine {
       this.world.scene,
       () => this.viewport.invalidate(),
     )
+    this.veilborneHealthBars = new VeilborneHealthBarSystem(this.world.scene)
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
     })
@@ -1241,73 +1243,11 @@ export class Engine {
   }
 
   private updateVeilborneHealthBars(): void {
-    const hostiles = this.getVeilborneHostilePackages()
-    const activeIds = new Set<string>()
-    for (const { instance, object } of hostiles) {
-      activeIds.add(object.id)
-      const vitality = Math.max(0, Number(instance.variables.vida ?? 100))
-      const maximum = Math.max(1, Number(instance.variables.vida_max ?? 100))
-      let entry = this.veilborneHealthBars.get(object.id)
-      if (!entry) {
-        const canvas = document.createElement('canvas')
-        canvas.width = 256
-        canvas.height = 48
-        const context = canvas.getContext('2d')
-        if (!context) continue
-        const texture = new THREE.CanvasTexture(canvas)
-        texture.colorSpace = THREE.SRGBColorSpace
-        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
-        const sprite = new THREE.Sprite(material)
-        sprite.scale.set(1.15, 0.22, 1)
-        sprite.renderOrder = 25
-        this.world.scene.add(sprite)
-        entry = { sprite, canvas, context, texture, vitality: Number.NaN, maximum: Number.NaN }
-        this.veilborneHealthBars.set(object.id, entry)
-      }
-      const worldPosition = object.mesh.getWorldPosition(new THREE.Vector3())
-      entry.sprite.position.set(worldPosition.x, worldPosition.y + 2.15, worldPosition.z)
-      entry.sprite.visible = object.mesh.visible
-      if (entry.vitality !== vitality || entry.maximum !== maximum) {
-        const { context, canvas } = entry
-        context.clearRect(0, 0, canvas.width, canvas.height)
-        context.fillStyle = 'rgba(12, 8, 14, 0.88)'
-        context.fillRect(5, 5, 246, 38)
-        context.strokeStyle = 'rgba(231, 207, 215, 0.8)'
-        context.lineWidth = 3
-        context.strokeRect(5, 5, 246, 38)
-        context.fillStyle = '#45212d'
-        context.fillRect(12, 12, 232, 24)
-        context.fillStyle = vitality / maximum <= 0.25 ? '#ff4c55' : '#c9344e'
-        context.fillRect(12, 12, 232 * Math.min(1, vitality / maximum), 24)
-        context.fillStyle = '#fff4f5'
-        context.font = 'bold 17px Arial'
-        context.textAlign = 'center'
-        context.textBaseline = 'middle'
-        context.shadowColor = '#10070b'
-        context.shadowBlur = 4
-        context.fillText(`${Math.ceil(vitality)} / ${Math.ceil(maximum)}`, 128, 24)
-        context.shadowBlur = 0
-        entry.texture.needsUpdate = true
-        entry.vitality = vitality
-        entry.maximum = maximum
-      }
-    }
-    for (const [id, entry] of this.veilborneHealthBars) {
-      if (activeIds.has(id)) continue
-      this.world.scene.remove(entry.sprite)
-      entry.sprite.material.map?.dispose()
-      entry.sprite.material.dispose()
-      this.veilborneHealthBars.delete(id)
-    }
+    this.veilborneHealthBars.update(this.getVeilborneHostilePackages())
   }
 
   private clearVeilborneEffects(): void {
     this.veilborneVisualEffects.clear()
-    for (const entry of this.veilborneHealthBars.values()) {
-      this.world.scene.remove(entry.sprite)
-      entry.texture.dispose()
-      entry.sprite.material.dispose()
-    }
     this.veilborneHealthBars.clear()
   }
 
