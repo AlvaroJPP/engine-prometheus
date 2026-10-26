@@ -218,6 +218,8 @@ export class Engine {
       logic: this.logic,
       avatar: this.avatar,
       collisions: this.collisions,
+      getControlBindings: () => ({ ...this.playerControlBindings }),
+      setCameraTarget: (x, y, z) => this.orbit.target.set(x, y, z),
       isRuntimeActive: () => this.runtimeModeActive,
       invalidate: () => this.viewport.invalidate(),
     }

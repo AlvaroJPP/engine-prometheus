@@ -656,10 +656,10 @@ export class HumanoidAvatar {
       this.slideRequested = false
       this.rollRequested = false
     }
-    const stunned = this.actionLockRemaining > 0
+    const actionLocked = this.actionLockRemaining > 0
     const bindings = this.controlBindings()
-    const forwardInput = stunned ? 0 : Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
-    const sideInput = stunned ? 0 : Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
+    const forwardInput = actionLocked ? 0 : Number(this.pressed.has(bindings.forward)) - Number(this.pressed.has(bindings.backward))
+    const sideInput = actionLocked ? 0 : Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
     const length = Math.hypot(forwardInput, sideInput)
     const running = this.pressed.has(bindings.run) || this.sprintToggled
     let speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)

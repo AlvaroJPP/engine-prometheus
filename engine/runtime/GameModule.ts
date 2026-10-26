@@ -1,3 +1,4 @@
+import type { ControlMapBindings } from '../input/ControlMaps'
 import type { CollisionSystem } from '../world/CollisionSystem'
 import type { HumanoidAvatar } from '../world/HumanoidAvatar'
 import type { World } from '../world/World'
@@ -9,6 +10,10 @@ export interface GameModuleContext {
   readonly logic: RuleEngine
   readonly avatar: HumanoidAvatar
   readonly collisions: CollisionSystem
+  /** Devolve uma cópia do mapa de controles atual, sem expor estado mutável do núcleo. */
+  getControlBindings(): ControlMapBindings
+  /** Ajusta o alvo de câmera por uma interface neutra para qualquer tipo de jogo. */
+  setCameraTarget(x: number, y: number, z: number): void
   isRuntimeActive(): boolean
   invalidate(): void
 }
