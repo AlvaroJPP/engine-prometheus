@@ -248,13 +248,16 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMo
     stopping_distance: 0.2,
   })
   const canMoveTo = (_id, target) =>
-    !(target.x > 0.75 && Math.abs(target.z) < 0.2)
+    !(target.x > 0.75 && target.x < 1.5 && Math.abs(target.z) < 0.2)
+  let usedLateralPath = false
 
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 30; index += 1) {
     tick(system, [agent], 0.1, playerPosition, canMoveTo)
+    usedLateralPath ||= Math.abs(agentObject.mesh.position.z) > 0.2
   }
-  assert.ok(agentObject.mesh.position.x > 1, 'obstacle avoidance should continue progressing past a blocked direct route')
-  assert.ok(agentObject.mesh.position.z > 0.2, 'obstacle avoidance should choose a lateral path when direct movement is blocked')
+  assert.ok(usedLateralPath, 'obstacle avoidance should choose a lateral path when direct movement is blocked')
+  assert.ok(Math.abs(agentObject.mesh.position.x - 3) <= 0.25, 'the agent should resume its route after passing a finite obstacle')
+  assert.equal(agent.variables.state, 'reached', 'the autonomous behavior should reach its destination after avoiding an obstacle')
 }
 
 {
