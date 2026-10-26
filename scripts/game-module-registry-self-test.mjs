@@ -8,6 +8,9 @@ const module = {
   id: 'test-game',
   onAttach: () => calls.push('attach'),
   onRuntimeStart: () => calls.push('start'),
+  onKeyDown: (event) => { calls.push(`keydown:${event.code}`); return true },
+  onKeyUp: (event) => calls.push(`keyup:${event.code}`),
+  onInputBlur: () => calls.push('blur'),
   update: (dt) => calls.push(`update:${dt}`),
   onRuntimeStop: () => calls.push('stop'),
   onDispose: () => calls.push('dispose'),
@@ -17,12 +20,15 @@ const unregister = registry.register(module)
 registry.attach(context)
 registry.update(0.016)
 registry.start()
+assert.equal(registry.dispatchKeyDown({ code: 'Space' }), true)
+registry.dispatchKeyUp({ code: 'Space' })
+registry.dispatchInputBlur()
 registry.update(0.016)
 registry.stop()
 registry.update(0.016)
-assert.deepEqual(calls, ['attach', 'start', 'update:0.016', 'stop'])
+assert.deepEqual(calls, ['attach', 'start', 'keydown:Space', 'keyup:Space', 'blur', 'update:0.016', 'stop'])
 unregister()
-assert.deepEqual(calls, ['attach', 'start', 'update:0.016', 'stop', 'dispose'])
+assert.deepEqual(calls, ['attach', 'start', 'keydown:Space', 'keyup:Space', 'blur', 'update:0.016', 'stop', 'dispose'])
 registry.dispose()
 
 const faultyRegistry = new GameModuleRegistry()
