@@ -745,13 +745,13 @@ export class Engine {
   }
 
   private dispatchMouseBinding(code: string, type: 'keydown' | 'keyup'): void {
-    // Usa a mesma rota do teclado para movimento, animações, combate e Visual Script.
+    // Usa a mesma rota do teclado para controles, animações e Visual Script.
     window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }))
   }
 
   private isInteractiveRuntimeTarget(target: EventTarget | null): boolean {
     return target instanceof Element && !!target.closest(
-      'button, input, select, textarea, a, [role="dialog"], .hud-settings-panel, .hud-custom-image, [data-no-game-attack]',
+      'button, input, select, textarea, a, [role="dialog"], .hud-settings-panel, .hud-custom-image',
     )
   }
 
