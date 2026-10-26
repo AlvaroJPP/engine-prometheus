@@ -32,6 +32,7 @@ import { VeilborneHealthBarSystem } from './script/VeilborneHealthBarSystem'
 import { MountModelStateController } from './script/MountModelStateController'
 import { createVeilborneSigilVisual, createVeilborneWardMesh, disposeVeilborneVisual } from './script/VeilborneSigilVisuals'
 import { VeilborneTargetLockController } from './script/VeilborneTargetLockController'
+import { VeilborneInventorySystem } from './script/VeilborneInventorySystem'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -101,6 +102,7 @@ export class Engine {
   private readonly veilborneCooldowns = new Map<string, number>()
   private readonly veilborneHealthBars: VeilborneHealthBarSystem
   private readonly veilborneTargetLock: VeilborneTargetLockController
+  private readonly veilborneInventory: VeilborneInventorySystem
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -139,6 +141,13 @@ export class Engine {
     this.veilborneVisualEffects = new VeilborneVisualEffects(
       this.world.scene,
       () => this.viewport.invalidate(),
+    )
+    this.veilborneInventory = new VeilborneInventorySystem(
+      this.logic,
+      (message, durationSeconds) => {
+        this.logic.setVariable('loot_notice', message)
+        this.veilborneLootNoticeRemainingSeconds = durationSeconds
+      },
     )
     this.mountModelStateController = new MountModelStateController(
       this.world,
@@ -622,50 +631,6 @@ export class Engine {
 
 
 
-  private readVeilborneInventory(): Array<{ id: string; quantity: number }> {
-    const raw = this.logic.getVariable('inventario_json')
-    if (typeof raw !== 'string' || !raw.trim()) return []
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      if (!Array.isArray(parsed)) return []
-      const merged = new Map<string, number>()
-      for (const entry of parsed) {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
-        const record = entry as Record<string, unknown>
-        if (typeof record.id !== 'string' || !Object.prototype.hasOwnProperty.call(VEILBORNE_RUNTIME_ITEMS, record.id)) continue
-        const quantity = typeof record.quantity === 'number' && Number.isFinite(record.quantity)
-          ? Math.max(0, Math.min(999, Math.floor(record.quantity)))
-          : 0
-        if (quantity > 0) merged.set(record.id, Math.min(999, (merged.get(record.id) ?? 0) + quantity))
-      }
-      return [...merged.entries()].map(([id, quantity]) => ({ id, quantity }))
-    } catch {
-      return []
-    }
-  }
-
-  private writeVeilborneInventory(items: Array<{ id: string; quantity: number }>): void {
-    const sanitized = items
-      .filter(item => Object.prototype.hasOwnProperty.call(VEILBORNE_RUNTIME_ITEMS, item.id) && Number.isFinite(item.quantity) && item.quantity > 0)
-      .map(item => ({ id: item.id, quantity: Math.min(999, Math.floor(item.quantity)) }))
-    this.logic.setVariable('inventario_json', JSON.stringify(sanitized))
-  }
-
-  private grantVeilborneItem(itemId: string, quantity: number): boolean {
-    if (!Object.prototype.hasOwnProperty.call(VEILBORNE_RUNTIME_ITEMS, itemId)) return false
-    const amount = Math.max(1, Math.min(99, Math.floor(Number.isFinite(quantity) ? quantity : 1)))
-    const items = this.readVeilborneInventory()
-    const existing = items.find(item => item.id === itemId)
-    if (existing) existing.quantity = Math.min(999, existing.quantity + amount)
-    else items.push({ id: itemId, quantity: amount })
-    this.writeVeilborneInventory(items)
-    const definition = VEILBORNE_RUNTIME_ITEMS[itemId]!
-    this.logic.setVariable('loot_notice', `Obtido: ${definition.name} ×${amount}`)
-    this.veilborneLootNoticeRemainingSeconds = 2.4
-    return true
-  }
-
-
   private tryActivateVeilborneCheckpoint(): boolean {
     if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return false
     const position = this.avatar.mesh.position
@@ -934,7 +899,7 @@ export class Engine {
     if (!pickup) return false
     const itemId = pickup.instance.variables.loot_item_id
     const quantity = pickup.instance.variables.loot_quantity
-    if (typeof itemId !== 'string' || !this.grantVeilborneItem(
+    if (typeof itemId !== 'string' || !this.veilborneInventory.grant(
       itemId,
       typeof quantity === 'number' ? quantity : 1,
     )) return false
@@ -1019,7 +984,7 @@ export class Engine {
     if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return
     const item = VEILBORNE_RUNTIME_ITEMS[request]
     if (!item) return
-    const inventory = this.readVeilborneInventory()
+    const inventory = this.veilborneInventory.read()
     const stack = inventory.find(entry => entry.id === request)
     if (!stack || stack.quantity <= 0) return
     const player = this.getVeilbornePlayerCombatant()
@@ -1074,7 +1039,7 @@ export class Engine {
       return
     }
     stack.quantity -= 1
-    this.writeVeilborneInventory(inventory.filter(entry => entry.quantity > 0))
+    this.veilborneInventory.write(inventory.filter(entry => entry.quantity > 0))
     this.logic.setVariable('loot_notice', `Usado: ${item.name}`)
     this.veilborneLootNoticeRemainingSeconds = 2
     this.veilborneVisualEffects.spawnEffect(
