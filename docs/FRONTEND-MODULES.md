@@ -93,7 +93,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelPlayerExport.ts`: gera os bytes GLB para usar um modelo como jogador, preservando os bytes originais de ativos já salvos e removendo metadados transitórios de um clone esquelético nos demais casos.
 - `src/lib/assets/ModelImportAssetActionsController.ts`: agrupa ajuste da altura, exportação para uso como jogador e seleção/limpeza de miniatura personalizada, mantendo os eventos de interface no diálogo.
 - `src/lib/assets/ModelImportDialogControllerBundle.ts`: compõe os controladores de diagnóstico, hierarquia, rigging, pacotes, carregamento, SkinTokens, retargeting, ações do ativo e salvamento; também monta os bindings reativos enviados ao painel lateral para manter o diálogo principal abaixo de mil linhas.
-- `src/lib/assets/StarterCatalogBehaviorPreset.ts`: traduz a função de um ativo do catálogo em configurações iniciais do pacote Veilborne RPG para inimigos e itens de loot, incluindo facção, IA, perfil e quantidade.
+- `src/lib/assets/StarterCatalogBehaviorPreset.ts`: aplica predefinições opcionais de comportamento a ativos do catálogo somente quando o pacote correspondente está registrado pelo host.
 - `src/lib/assets/ModelPreviewPartState.ts`: reconstrói as partes selecionáveis da prévia e reconcilia seleção individual, modo isolado e lotes salvos/selecionados com os IDs ainda existentes após alterações na hierarquia.
 - `src/lib/assets/ModelImportHierarchyController.ts`: controla seleção de partes, lotes, visibilidade isolada, restauração de malhas e atualização da prévia/colisor ao alterar a hierarquia do modelo.
 - `src/lib/assets/ModelPreviewCamera.ts`: centraliza o enquadramento orbital da prévia, os limites de clipping para diferentes escalas e o redimensionamento sincronizado entre renderer e câmera.
@@ -113,7 +113,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 ## Sistema de comportamentos
 
 - `engine/script/AutonomousBehaviorSystem.ts`: executa comportamentos autônomos genéricos em GameObjects e entidades durante Run: vagar, patrulhar, seguir/fugir de alvos, observar o jogador e navegar até coordenadas. Mantém estado por instância e dispara eventos para o Visual Script. A movimentação inicial usa direção direta no plano XZ, sem pathfinding/navmesh.
-- O pacote `autonomous_agent` é configurável pelo inspetor e pelo importador de modelos; suas variáveis são persistidas com os pacotes do projeto. A implementação de domínio de `veilborne_rpg` fica em `packages/veilborne/runtime/`; a migração do orquestrador para a interface genérica `EngineGameModule` ainda está em andamento.
+- O pacote `autonomous_agent` é configurável pelo inspetor e pelo importador de modelos; suas variáveis são persistidas com os pacotes do projeto. Sistemas específicos de jogo devem ficar em pacotes externos e integrar-se por `EngineGameModule`, sem adicionar regras de domínio a `engine/Engine.ts`.
 
 ## Diagnóstico da tela preta
 
