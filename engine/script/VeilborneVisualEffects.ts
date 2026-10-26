@@ -22,11 +22,13 @@ export class VeilborneVisualEffects {
   private readonly effects = new Map<THREE.Mesh, TimedVisual>()
   private readonly damageNumbers = new Map<THREE.Sprite, TimedDamageNumber>()
   private readonly projectiles = new Map<THREE.Group, TimedProjectile>()
+  private readonly scene: THREE.Scene
+  private readonly invalidate: () => void
 
-  constructor(
-    private readonly scene: THREE.Scene,
-    private readonly invalidate: () => void,
-  ) {}
+  constructor(scene: THREE.Scene, invalidate: () => void) {
+    this.scene = scene
+    this.invalidate = invalidate
+  }
 
   spawnProjectile(start: THREE.Vector3, end: THREE.Vector3, color: number, duration: number): void {
     const projectile = new THREE.Group()
