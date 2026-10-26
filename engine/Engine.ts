@@ -1301,6 +1301,16 @@ export class Engine {
     }
   }
 
+  private clearVeilborneEffects(): void {
+    this.veilborneVisualEffects.clear()
+    for (const entry of this.veilborneHealthBars.values()) {
+      this.world.scene.remove(entry.sprite)
+      entry.texture.dispose()
+      entry.sprite.material.dispose()
+    }
+    this.veilborneHealthBars.clear()
+  }
+
   private admitVeilborneManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
     if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return true
     const player = this.getVeilbornePlayerCombatant()
@@ -2531,7 +2541,7 @@ export class Engine {
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
     // A falha ao liberar um efeito visual não pode impedir o retorno ao editor.
-    try { this.veilborneVisualEffects.clear() } catch (error) { console.warn('Falha ao limpar efeitos VEILBORNE:', error) }
+    try { this.clearVeilborneEffects() } catch (error) { console.warn('Falha ao limpar efeitos VEILBORNE:', error) }
     try { this.clearActiveVeilborneSigils() } catch (error) { console.warn('Falha ao limpar sigilos VEILBORNE:', error) }
     try { this.clearVeilborneWard() } catch (error) { console.warn('Falha ao limpar proteção VEILBORNE:', error) }
     this.input.setRuntimeMode(false)
@@ -3701,7 +3711,7 @@ export class Engine {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     window.removeEventListener('keyup', this.onVeilborneKeyUp)
     window.removeEventListener('blur', this.onVeilborneBlur)
-    this.veilborneVisualEffects.clear()
+    this.clearVeilborneEffects()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
     this.clearVeilborneTargetLock()
