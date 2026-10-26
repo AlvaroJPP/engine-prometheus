@@ -450,7 +450,7 @@ export class PointerController {
       document.elementFromPoint(e.clientX, e.clientY),
     ]
     const overUi = elements.some(element => element?.closest(
-      '.veilborne-loadout-panel, .hud-settings-panel, [data-no-camera-zoom], [role="dialog"], .scroll, .sidebar, .inspector, input, textarea, select, button, a, [contenteditable="true"]',
+      '.hud-settings-panel, [data-no-camera-zoom], [role="dialog"], .scroll, .sidebar, .inspector, input, textarea, select, button, a, [contenteditable="true"]',
     ))
     if (overUi) return
 
