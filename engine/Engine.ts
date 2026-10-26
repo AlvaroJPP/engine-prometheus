@@ -62,6 +62,8 @@ import type { VeilborneCombatant, VeilborneDamageType, VeilborneStatusId } from 
 import type { VeilborneRuntimeSigil } from './script/VeilborneCombat'
 import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
+import { GameModuleRegistry } from './runtime/GameModuleRegistry'
+import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
 const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
 
@@ -76,6 +78,11 @@ function isPackageJsonValue(value: unknown, depth = 0): value is PackageJsonValu
 }
 
 const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
+
+export interface EngineOptions {
+  /** Módulos de jogos fornecidos pela aplicação que hospeda a engine. */
+  gameModules?: readonly EngineGameModule[]
+}
 
 export class Engine {
   readonly world = new World()
@@ -140,8 +147,10 @@ export class Engine {
     impactPosition: THREE.Vector3
   } | null = null
   private readonly viewportInvalidationOffs: Array<() => void> = []
+  private readonly gameModules = new GameModuleRegistry()
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options: EngineOptions = {}) {
+    for (const module of options.gameModules ?? []) this.gameModules.register(module)
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
     this.veilborneVisualEffects = new VeilborneVisualEffects(
       this.world.scene,
@@ -381,6 +390,15 @@ export class Engine {
     this.events.on('objectChanged', ({ id }) => {
       if (this.world.getSelectedId() === id) this.transformControls.getHelper().updateMatrixWorld()
     })
+    const moduleContext: GameModuleContext = {
+      world: this.world,
+      logic: this.logic,
+      avatar: this.avatar,
+      collisions: this.collisions,
+      isRuntimeActive: () => this.runtimeModeActive,
+      invalidate: () => this.viewport.invalidate(),
+    }
+    this.gameModules.attach(moduleContext)
     this.viewport.start((dt) => {
       const frameStartedAt = performance.now()
       this.input.update(dt)
@@ -407,6 +425,7 @@ export class Engine {
       }
       this.avatar.update(dt)
       this.updateAutonomousBehaviors(dt)
+      this.gameModules.update(dt)
       this.updateVeilborneRuntime(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
       const mountedMovementState = this.avatar.getMountedMovementState()
@@ -449,6 +468,11 @@ export class Engine {
       this.viewport.recordUpdateDuration(performance.now() - frameStartedAt)
       this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
+  }
+
+  /** Registra um módulo de jogo sem acoplar o núcleo às regras desse jogo. */
+  registerGameModule(module: EngineGameModule): () => void {
+    return this.gameModules.register(module)
   }
 
   get events() {
@@ -1979,12 +2003,14 @@ export class Engine {
         }
       }
       this.input.setRuntimeMode(true)
+      this.gameModules.start()
       this.transformControls.detach()
       this.transformControls.enabled = false
       this.viewport.invalidate()
       return
     }
 
+    this.gameModules.stop()
     this.runtimeModeActive = false
     for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
     this.pressedMouseBindings.clear()
@@ -2914,6 +2940,7 @@ export class Engine {
 
   // ---- projeto ----
   newProject(name = 'Novo Mundo'): void {
+    this.gameModules.stop()
     this.runtimeModeActive = false
     resetIds()
     this.meta = { id: uuid(), name }
@@ -2956,6 +2983,7 @@ export class Engine {
     bundle: ProjectBundle,
     onProgress?: (message: string, percent: number) => void,
   ): Promise<void> {
+    this.gameModules.stop()
     this.runtimeModeActive = false
     // Os IDs dos pacotes são persistidos. Limpe a assinatura em cache antes de
     // recarregar um projeto para não confundir o estado visual da cena anterior.
@@ -3094,6 +3122,7 @@ export class Engine {
   }
 
   dispose(): void {
+    this.gameModules.dispose()
     window.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.removeEventListener('pointerup', this.onRuntimePointerUp, true)
     window.removeEventListener('keydown', this.onRuleKeyDown)
