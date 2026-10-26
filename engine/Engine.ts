@@ -813,9 +813,6 @@ export class Engine {
     const actionKeys = [
       this.playerControlBindings.primaryAction,
       this.playerControlBindings.secondaryAction,
-      this.playerControlBindings.block,
-      this.playerControlBindings.parry,
-      this.playerControlBindings.targetLock,
       this.playerControlBindings.inventory,
       this.playerControlBindings.useItem,
       this.playerControlBindings.reload,

@@ -1,9 +1,8 @@
 import type { ModelControlBindings } from '../script/packages'
 
 /**
- * Mapa completo de comandos do jogador.
- * Os comandos adicionais de ação também podem ser usados como gatilhos
- * key_pressed no sistema visual de eventos do projeto.
+ * Mapa de controles genéricos do jogador e gatilhos de ação configuráveis.
+ * As ações adicionais também podem disparar eventos do Visual Script.
  */
 export interface ControlMapBindings extends ModelControlBindings {
   sprintToggle: string
@@ -13,9 +12,6 @@ export interface ControlMapBindings extends ModelControlBindings {
   dodge: string
   slide: string
   roll: string
-  block: string
-  parry: string
-  targetLock: string
   primaryAction: string
   secondaryAction: string
   inventory: string
@@ -82,9 +78,6 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: COMMON_ACTIONS.dodge,
       slide: COMMON_ACTIONS.slide,
       roll: COMMON_ACTIONS.roll,
-      block: 'KeyR',
-      parry: 'KeyY',
-      targetLock: 'KeyO',
       interact: 'KeyE',
       primaryAction: COMMON_ACTIONS.primaryAction,
       secondaryAction: COMMON_ACTIONS.secondaryAction,
@@ -119,9 +112,6 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
-      block: 'KeyR',
-      parry: 'KeyY',
-      targetLock: 'KeyO',
       interact: 'KeyE',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
@@ -156,9 +146,6 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
-      block: 'KeyP',
-      parry: 'KeyO',
-      targetLock: 'KeyP',
       interact: 'KeyA',
       primaryAction: 'KeyR',
       secondaryAction: 'KeyT',
@@ -193,9 +180,6 @@ export const DEFAULT_CONTROL_MAPS: ControlMapProfile[] = [
       dodge: 'KeyV',
       slide: 'KeyX',
       roll: 'KeyB',
-      block: 'KeyR',
-      parry: 'KeyY',
-      targetLock: 'KeyM',
       interact: 'KeyU',
       primaryAction: 'KeyF',
       secondaryAction: 'KeyG',
