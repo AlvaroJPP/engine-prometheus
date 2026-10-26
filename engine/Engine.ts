@@ -29,6 +29,7 @@ import { RuleEngine } from './script/RuleEngine'
 import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
 import { VeilborneVisualEffects } from './script/VeilborneVisualEffects'
 import { VeilborneHealthBarSystem } from './script/VeilborneHealthBarSystem'
+import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -67,24 +68,6 @@ function isPackageJsonValue(value: unknown, depth = 0): value is PackageJsonValu
   return false
 }
 
-// Caminhos v2 omitem o rótulo variável da raiz do GLB. Caminhos antigos
-// incluíam esse rótulo; continuamos aceitando-os para componentes já salvos.
-function mountModelStatePathMatches(rulePath: string, runtimePath: string): boolean {
-  if (rulePath === runtimePath) return true
-  const runtimeParts = runtimePath.split('/').filter(Boolean)
-  if (runtimeParts[0] !== 'ImportedVisualPivot') return false
-
-  if (rulePath.startsWith('@v2/')) {
-    const ruleParts = rulePath.slice(4).split('/').filter(Boolean)
-    if (ruleParts[0] !== 'ImportedVisualPivot') return false
-    return ruleParts.slice(1).join('/') === runtimeParts.slice(2).join('/')
-  }
-
-  const legacyParts = rulePath.split('/').filter(Boolean)
-  if (legacyParts[0] !== 'ImportedVisualPivot') return false
-  return legacyParts.slice(2).join('/') === runtimeParts.slice(2).join('/')
-}
-
 const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
 
 export class Engine {
@@ -112,7 +95,7 @@ export class Engine {
   private readonly pressedMouseBindings = new Map<string, string>()
   private activeMountPackageId: string | null = null
   private lastMountMovementState: string | null = null
-  private readonly mountModelStateSignatures = new Map<string, string>()
+  private readonly mountModelStateController: MountModelStateController
   private readonly veilborneCooldowns = new Map<string, number>()
   private readonly veilborneHealthBars: VeilborneHealthBarSystem
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
@@ -155,6 +138,12 @@ export class Engine {
     this.veilborneVisualEffects = new VeilborneVisualEffects(
       this.world.scene,
       () => this.viewport.invalidate(),
+    )
+    this.mountModelStateController = new MountModelStateController(
+      this.world,
+      this.logic,
+      this.modelOcclusion,
+      this.collisions,
     )
     this.veilborneHealthBars = new VeilborneHealthBarSystem(this.world.scene)
     this.modelLod = new ModelLodSystem(() => {
@@ -2294,7 +2283,7 @@ export class Engine {
     if (instance?.packageId === 'mount') this.applyMountModelStates(instance, true, false)
     if (this.activeMountPackageId === id) this.dismountActiveMount()
     this.logic.removePackage(id)
-    this.mountModelStateSignatures.delete(id)
+    this.mountModelStateController.forget(id)
   }
   upsertRule(rule: LogicRule): void { this.logic.upsert(rule) }
   removeRule(id: string): void { this.logic.remove(id) }
@@ -3336,93 +3325,19 @@ export class Engine {
   listObjects(): ObjectInfo[] {
     return this.world.info()
   }
-  /** Lista nós do GLB que contêm malhas e podem receber regras de estado visual. */
+  /** Lista os nós do modelo importado que podem receber regras de estado visual. */
   listImportedModelNodes(objectId: string): Array<{ path: string; name: string; meshCount: number }> {
-    const root = this.world.get(objectId)?.mesh
-    if (!root || root.children.length === 0) return []
-    const result: Array<{ path: string; name: string; meshCount: number }> = []
-    const countMeshes = (node: THREE.Object3D): number => {
-      let count = 0
-      node.traverse(child => {
-        if (child instanceof THREE.Mesh && child.userData.editorOverlay !== true && child.name !== 'collider-debug-wireframe') count += 1
-      })
-      return count
-    }
-    root.traverse(node => {
-      if (
-        node === root
-        || node.userData.editorOverlay === true
-        || node.userData.generatedOcclusionCluster === true
-        || node.name === 'collider-debug-wireframe'
-      ) return
-      const meshCount = countMeshes(node)
-      if (meshCount === 0) return
-      result.push({
-        path: this.importedModelNodePath(root, node),
-        name: node.name.trim() || node.type,
-        meshCount,
-      })
-    })
-    return result
+    return this.mountModelStateController.listImportedModelNodes(objectId)
   }
 
-  private importedModelNodePath(root: THREE.Object3D, node: THREE.Object3D): string {
-    const segments: string[] = []
-    let current: THREE.Object3D | null = node
-    while (current && current !== root) {
-      const label = current.name.trim() || current.type
-      const parentNode: THREE.Object3D | null = current.parent
-      const siblings: THREE.Object3D[] = parentNode?.children.filter(
-        (sibling: THREE.Object3D) => (sibling.name.trim() || sibling.type) === label,
-      ) ?? []
-      const duplicateIndex = siblings.length > 1 ? siblings.indexOf(current) + 1 : 0
-      segments.unshift(duplicateIndex > 0 ? label + '#' + duplicateIndex : label)
-      current = parentNode
-    }
-    return segments.join('/')
-  }
-
-  /** Aplica estados visuais do pacote sem remover nós do GLB; ao desativar uma regra, restaura a visibilidade base. */
+  /** Aplica as regras visuais configuradas no pacote de montaria. */
   private applyMountModelStates(
     instance: BehaviorPackageInstance,
     force = false,
     enabled = instance.enabled,
   ): void {
-    const root = this.world.get(instance.ownerObjectId)?.mesh
-    if (!root) return
-    const rules = enabled ? getMountPackageSettings(instance).modelStates : []
-    const evaluated = rules.map(rule => {
-      const actual = Object.prototype.hasOwnProperty.call(instance.variables, rule.variable)
-        ? instance.variables[rule.variable]
-        : this.logic.getVariable(rule.variable, instance.ownerObjectId)
-      const matched = actual !== undefined && (rule.operator === 'not_equals' ? actual !== rule.value : actual === rule.value)
-      return { rule, matched, actual }
-    })
-    const signature = JSON.stringify(evaluated.map(({ rule, matched, actual }) => ({ rule, matched, actual })))
-    if (!force && this.mountModelStateSignatures.get(instance.id) === signature) return
-    this.modelOcclusion.restoreObjectVisibility(root)
-    this.mountModelStateSignatures.set(instance.id, signature)
-    root.traverse(node => {
-      if (
-        node === root
-        || node.userData.editorOverlay === true
-        || node.userData.generatedOcclusionCluster === true
-        || node.name === 'collider-debug-wireframe'
-      ) return
-      const path = this.importedModelNodePath(root, node)
-      const state = evaluated.find(item => mountModelStatePathMatches(item.rule.nodePath, path))
-      const baseVisible = node.userData.mountModelStateBaseVisible
-      if (state) {
-        if (typeof baseVisible !== 'boolean') node.userData.mountModelStateBaseVisible = node.visible
-        node.visible = state.matched === state.rule.visibleWhenMatched
-      } else if (typeof baseVisible === 'boolean') {
-        node.visible = baseVisible
-      }
-    })
-    root.updateMatrixWorld(true)
-    this.collisions.invalidateObject(instance.ownerObjectId)
+    this.mountModelStateController.apply(instance, force, enabled)
   }
-
 
   // ---- terreno ----
   terrainInfo(): TerrainInfo {
@@ -3511,7 +3426,7 @@ export class Engine {
     this.runtimeModeActive = false
     // Os IDs dos pacotes são persistidos. Limpe a assinatura em cache antes de
     // recarregar um projeto para não confundir o estado visual da cena anterior.
-    this.mountModelStateSignatures.clear()
+    this.mountModelStateController.clear()
     const report = (message: string, percent: number) => onProgress?.(message, Math.max(0, Math.min(100, percent)))
     const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0))
 
