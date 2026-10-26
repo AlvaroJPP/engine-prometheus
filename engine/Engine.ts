@@ -35,6 +35,7 @@ import { VeilborneTargetLockController } from './script/VeilborneTargetLockContr
 import { VeilborneInventorySystem } from './script/VeilborneInventorySystem'
 import { VeilborneItemUseSystem } from './script/VeilborneItemUseSystem'
 import { VeilborneProgressionSystem } from './script/VeilborneProgressionSystem'
+import { VeilborneLootSystem } from './script/VeilborneLootSystem'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -107,6 +108,7 @@ export class Engine {
   private readonly veilborneInventory: VeilborneInventorySystem
   private readonly veilborneItemUseSystem: VeilborneItemUseSystem
   private readonly veilborneProgression: VeilborneProgressionSystem
+  private readonly veilborneLootSystem: VeilborneLootSystem
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -125,8 +127,6 @@ export class Engine {
   private readonly veilborneParryWindowSeconds = 0.2
   private veilbornePlayerStaggerRemainingSeconds = 0
   private veilborneHeavyChargeStartedAt: number | null = null
-  private readonly veilborneSpawnedLootIds = new Set<string>()
-  private readonly veilborneCollectedLootVisibility = new Map<string, boolean>()
   private veilborneLootNoticeRemainingSeconds = 0
   private veilborneDefaultSpawnPosition: THREE.Vector3 | null = null
   private veilbornePlayerRespawnRemainingSeconds = 0
@@ -163,6 +163,24 @@ export class Engine {
       this.viewport.invalidate()
     })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
+    this.veilborneLootSystem = new VeilborneLootSystem({
+      world: this.world,
+      logic: this.logic,
+      avatar: this.avatar.mesh,
+      inventory: this.veilborneInventory,
+      isEnabled: () => this.isVeilborneEnabled(),
+      isRuntimeModeActive: () => this.runtimeModeActive,
+      installBehaviorPackage: (ownerObjectId, packageId) => this.installBehaviorPackage(ownerObjectId, packageId),
+      notifyBehaviorPackageChanged: ownerObjectId => this.notifyBehaviorPackageChanged(ownerObjectId),
+      removeObject: id => this.removeObject(id),
+      clearNotice: () => {
+        if (this.logic.getVariable('loot_notice') !== undefined) this.logic.setVariable('loot_notice', '')
+        this.veilborneLootNoticeRemainingSeconds = 0
+      },
+      spawnEffect: (position, color, scale, durationSeconds) =>
+        this.veilborneVisualEffects.spawnEffect(position, color, scale, durationSeconds),
+      invalidate: () => this.viewport.invalidate(),
+    })
     this.veilborneProgression = new VeilborneProgressionSystem({
       world: this.world,
       logic: this.logic,
@@ -177,8 +195,8 @@ export class Engine {
       triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
         this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
       removeObject: id => this.removeObject(id),
-      registerSpawnedLoot: id => this.veilborneSpawnedLootIds.add(id),
-      forgetSpawnedLoot: id => this.veilborneSpawnedLootIds.delete(id),
+      registerSpawnedLoot: id => this.veilborneLootSystem.registerSpawnedLoot(id),
+      forgetSpawnedLoot: id => this.veilborneLootSystem.forgetSpawnedLoot(id),
       spawnEffect: (position, color, scale, durationSeconds) =>
         this.veilborneVisualEffects.spawnEffect(position, color, scale, durationSeconds),
       showNotice: (message, durationSeconds) => {
@@ -785,106 +803,11 @@ export class Engine {
   }
 
   private tryPickupVeilborneLoot(): boolean {
-    if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return false
-    const position = this.avatar.mesh.position
-    const candidates = this.logic.listPackages()
-      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg' &&
-        instance.variables.entity_role === 'loot' && instance.variables.loot_collected !== true)
-      .map(instance => ({ instance, object: this.world.get(instance.ownerObjectId) }))
-      .filter((entry): entry is { instance: BehaviorPackageInstance; object: NonNullable<ReturnType<World['get']>> } =>
-        !!entry.object && this.world.isObjectVisible(entry.object),
-      )
-      .map(entry => ({
-        ...entry,
-        distance: Math.hypot(
-          entry.object.mesh.position.x - position.x,
-          entry.object.mesh.position.z - position.z,
-        ),
-        verticalDistance: Math.abs(entry.object.mesh.position.y - position.y),
-      }))
-      .filter(entry => entry.distance <= 2.4 && entry.verticalDistance <= 3)
-      .sort((a, b) => a.distance - b.distance)
-
-    const pickup = candidates[0]
-    if (!pickup) return false
-    const itemId = pickup.instance.variables.loot_item_id
-    const quantity = pickup.instance.variables.loot_quantity
-    if (typeof itemId !== 'string' || !this.veilborneInventory.grant(
-      itemId,
-      typeof quantity === 'number' ? quantity : 1,
-    )) return false
-
-    if (this.veilborneSpawnedLootIds.has(pickup.object.id)) {
-      this.veilborneSpawnedLootIds.delete(pickup.object.id)
-      this.removeObject(pickup.object.id)
-    } else {
-      this.veilborneCollectedLootVisibility.set(
-        pickup.object.id,
-        pickup.object.mesh.visible !== false,
-      )
-      this.logic.setPackageVariable(pickup.instance.id, 'loot_collected', true)
-      this.world.update(pickup.object.id, { visible: false })
-      this.notifyBehaviorPackageChanged(pickup.object.id)
-    }
-    this.veilborneVisualEffects.spawnEffect(
-      position.clone().add(new THREE.Vector3(0, 0.8, 0)),
-      VEILBORNE_RUNTIME_ITEMS[itemId]!.visualColor,
-      0.38,
-      0.28,
-    )
-    this.viewport.invalidate()
-    return true
+    return this.veilborneLootSystem.pickup()
   }
 
   private spawnVeilborneLootDrop(instance: BehaviorPackageInstance): void {
-    const itemId = instance.variables.drop_item_id
-    if (typeof itemId !== 'string' || !itemId.trim() ||
-        !Object.prototype.hasOwnProperty.call(VEILBORNE_RUNTIME_ITEMS, itemId)) return
-    const source = this.world.get(instance.ownerObjectId)
-    if (!source) return
-    const rawChance = instance.variables.drop_chance
-    const chance = typeof rawChance === 'number' && Number.isFinite(rawChance)
-      ? Math.max(0, Math.min(1, rawChance))
-      : 0.35
-    if (chance <= 0 || Math.random() > chance) return
-
-    const rawQuantity = instance.variables.drop_quantity
-    const quantity = typeof rawQuantity === 'number' && Number.isFinite(rawQuantity)
-      ? Math.max(1, Math.min(99, Math.floor(rawQuantity)))
-      : 1
-    const definition = VEILBORNE_RUNTIME_ITEMS[itemId]!
-    const material = new THREE.MeshStandardMaterial({
-      color: definition.visualColor,
-      emissive: definition.visualColor,
-      emissiveIntensity: 0.6,
-      metalness: 0.15,
-      roughness: 0.32,
-    })
-    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 1), material)
-    mesh.name = 'VEILBORNE_DROP_' + itemId
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.position.copy(source.mesh.position)
-    mesh.position.y += 0.38
-    mesh.scale.setScalar(0.92)
-    const id = 'veilborne-loot-' + uuid()
-    const object = this.world.add({
-      id,
-      name: definition.name,
-      type: 'sphere' as ObjectType,
-      mesh,
-    })
-    this.veilborneSpawnedLootIds.add(object.id)
-    const installed = this.installBehaviorPackage(object.id, 'veilborne_rpg')
-    this.logic.setPackageVariable(installed.id, 'entity_role', 'loot')
-    this.logic.setPackageVariable(installed.id, 'faction', 'neutral')
-    this.logic.setPackageVariable(installed.id, 'loot_item_id', itemId)
-    this.logic.setPackageVariable(installed.id, 'loot_quantity', quantity)
-    this.logic.setPackageVariable(installed.id, 'loot_collected', false)
-    this.logic.setPackageVariable(installed.id, 'ai_enabled', false)
-    this.logic.setPackageVariable(installed.id, 'drop_item_id', '')
-    this.notifyBehaviorPackageChanged(object.id)
-    this.viewport.invalidate()
+    this.veilborneLootSystem.spawnDrop(instance)
   }
 
   private processVeilborneItemUseRequest(): void {
@@ -898,22 +821,8 @@ export class Engine {
   }
 
   private resetVeilborneLootForEditor(): void {
-    for (const id of this.veilborneSpawnedLootIds) {
-      if (this.world.get(id)) this.removeObject(id)
-    }
-    this.veilborneSpawnedLootIds.clear()
+    this.veilborneLootSystem.resetForEditor()
     this.veilborneProgression.clearEchoCacheReference()
-    for (const [id, wasVisible] of this.veilborneCollectedLootVisibility) {
-      if (!this.world.get(id)) continue
-      this.world.update(id, { visible: wasVisible })
-      const instance = this.logic.listPackages(id).find(item => item.packageId === 'veilborne_rpg')
-      if (instance) this.logic.setPackageVariable(instance.id, 'loot_collected', false)
-      this.notifyBehaviorPackageChanged(id)
-    }
-    this.veilborneCollectedLootVisibility.clear()
-    if (this.logic.getVariable('item_use_request') !== undefined) this.logic.setVariable('item_use_request', '')
-    if (this.logic.getVariable('loot_notice') !== undefined) this.logic.setVariable('loot_notice', '')
-    this.veilborneLootNoticeRemainingSeconds = 0
   }
 
   private awardVeilborneKillReward(instance: BehaviorPackageInstance): void {
