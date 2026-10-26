@@ -6,10 +6,10 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 
 - `veilborne.json`: manifesto das mecânicas e estado de integração.
 - `content.json`: 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 perfis iniciais de inimigos/chefes e regras de progressão.
-- `engine/script/packages.ts`: registro do componente **VEILBORNE — RPG Sombrio** no editor.
-- `packages/veilborne/runtime/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
-- `packages/veilborne/runtime/`: auxiliares do jogo para efeitos visuais, barras de vida, inventário, uso de itens, progressão, loot, morte/renascimento, travamento de alvo e sigilos.
-- `engine/Engine.ts`: ainda coordena parte do combate e da IA do jogo; a migração desse orquestrador para um módulo de jogo injetável é a próxima etapa da separação.
+- `runtime/behaviorPackageDefinition.ts`: definição do pacote de comportamento, registrada explicitamente pelo host que decidir carregar VEILBORNE.
+- `runtime/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
+- `runtime/`: sistemas específicos do jogo para efeitos visuais, barras de vida, inventário, uso de itens, progressão, loot, morte/renascimento, travamento de alvo e sigilos.
+- O núcleo do Engine Prometheus não contém as regras de combate, progressão ou morte de VEILBORNE; o jogo deve conectá-las pela interface genérica de módulos.
 - `engine/input/ControlMaps.ts` e `src/components/ControlMapsDialog.vue`: teclas de bloqueio e aparo configuráveis.
 
 ## Catálogo de modelos iniciais
@@ -53,7 +53,7 @@ As teclas são remapeáveis em **Configurações → Mapas de controles**. O run
 - **Loot e consumíveis:** inimigos podem ter `drop_item_id`, `drop_chance` e `drop_quantity` definidos no componente VEILBORNE; o drop aparece como cristal no mundo, pode ser coletado próximo com a tecla de interação e adicionado a `inventario_json`. Objetos da cena também podem virar coletáveis configurando `entity_role=loot`, `loot_item_id` e `loot_quantity`. O inventário permite usar Frasco de Vitalidade, Frasco de Éter, Tônico de Vigor, Bomba de Brasa e Fragmento de Ecos.
 - **Santuários e morte:** configure um objeto com o componente VEILBORNE e `entity_role=checkpoint`. Interagir perto dele registra o último santuário e restaura recursos (se `checkpoint_restore_resources` estiver ativo). Se o jogador morrer, ele renasce após uma breve pausa no santuário ou na posição inicial; os Ecos carregados caem em um cristal recuperável no local da morte. Uma segunda morte antes da recuperação elimina os Ecos antigos. O progresso de checkpoints/Ecos é mantido em variáveis do projeto, mas ainda não existe um arquivo de save independente.
 - **Recursos e HUD:** variáveis globais incluem `vida`, `vida_max`, `eter`, `eter_max`, `vigor`, `vigor_max`, `postura`, atributos, resistências, `alvo_travado`, `carregando_ataque` e `carga_ataque`, além dos estados de combate. Podem alimentar o HUD e o Visual Script.
-- **Dano recebido:** `Engine.applyVeilborneIncomingDamage(amount, type, postureDamage, attackerObjectId?)` resolve resistência elemental, escudo, bloqueio, aparo e morte; a IA inicial já usa essa entrada.
+- **Dano recebido:** o contrato público do jogo ainda precisa ser conectado ao adaptador `EngineGameModule`; o núcleo genérico não fornece uma API de dano específica para VEILBORNE.
 
 ## Limitações atuais
 
