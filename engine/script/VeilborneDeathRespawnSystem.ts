@@ -20,6 +20,7 @@ export interface VeilborneDeathRespawnDependencies {
   clearTargetLock: () => void
   spawnEffect: (position: THREE.Vector3, color: number, scale: number, durationSeconds: number) => void
   invalidate: () => void
+  setLootNoticeDuration: (seconds: number) => void
 }
 
 /** Encapsula a lógica de morte, perda de Ecos e retorno ao santuário. */
@@ -51,6 +52,7 @@ export class VeilborneDeathRespawnSystem {
     } else {
       d.logic.setVariable('loot_notice', 'Você morreu. Retorno ao último santuário...')
     }
+    d.setLootNoticeDuration(2.4)
     d.spawnEffect(deathPosition.add(new THREE.Vector3(0, 0.8, 0)), 0xb65269, 0.9, 0.6)
   }
 
@@ -115,6 +117,7 @@ export class VeilborneDeathRespawnSystem {
     d.avatar.setCombatStagger(0)
     d.clearTargetLock()
     d.logic.setVariable('loot_notice', 'Você retornou ao santuário.')
+    d.setLootNoticeDuration(2.2)
     d.spawnEffect(spawnPosition.clone().add(new THREE.Vector3(0, 1, 0)), 0xe9bf75, 0.95, 0.65)
     d.invalidate()
   }
