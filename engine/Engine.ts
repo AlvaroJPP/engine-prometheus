@@ -27,6 +27,7 @@ import { AnimationController, createAnimationActionMap, getAnimationControllerFr
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
+import { VeilborneVisualEffects } from './script/VeilborneVisualEffects'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -93,6 +94,7 @@ export class Engine {
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private readonly autonomousBehaviorSystem = new AutonomousBehaviorSystem()
+  private readonly veilborneVisualEffects: VeilborneVisualEffects
   private orbit = new OrbitCamera()
   private viewport: Viewport
   private input: PointerController
@@ -111,10 +113,7 @@ export class Engine {
   private lastMountMovementState: string | null = null
   private readonly mountModelStateSignatures = new Map<string, string>()
   private readonly veilborneCooldowns = new Map<string, number>()
-  private readonly veilborneEffects = new Map<THREE.Mesh, { remaining: number; duration: number }>()
-  private readonly veilborneDamageNumbers = new Map<THREE.Sprite, { remaining: number; duration: number; rise: number }>()
   private readonly veilborneHealthBars = new Map<string, { sprite: THREE.Sprite; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; texture: THREE.CanvasTexture; vitality: number; maximum: number }>()
-  private readonly veilborneProjectiles = new Map<THREE.Group, { remaining: number; duration: number; start: THREE.Vector3; end: THREE.Vector3 }>()
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -152,6 +151,10 @@ export class Engine {
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas, (aspect) => this.orbit.resize(aspect))
+    this.veilborneVisualEffects = new VeilborneVisualEffects(
+      this.world.scene,
+      () => this.viewport.invalidate(),
+    )
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
     })
@@ -713,7 +716,7 @@ export class Engine {
     this.logic.setVariable('loot_notice', 'Santuário ativado: ' + name)
     this.veilborneLootNoticeRemainingSeconds = 2.4
     this.triggerBehaviorPackageEvent(checkpoint.object.id, 'veilborne_rpg', 'checkpoint_used')
-    this.spawnVeilborneEffect(
+    this.veilborneVisualEffects.spawnEffect(
       checkpoint.object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)),
       0xe9bf75,
       0.7,
@@ -757,7 +760,7 @@ export class Engine {
     this.removeObject(cache.object.id)
     this.logic.setVariable('loot_notice', 'Ecos recuperados: ' + recovered)
     this.veilborneLootNoticeRemainingSeconds = 2.6
-    this.spawnVeilborneEffect(
+    this.veilborneVisualEffects.spawnEffect(
       position.clone().add(new THREE.Vector3(0, 0.9, 0)),
       0xe9bf75,
       0.62,
@@ -836,7 +839,7 @@ export class Engine {
       this.logic.setVariable('loot_notice', 'Você morreu. Retorno ao último santuário...')
     }
     this.veilborneLootNoticeRemainingSeconds = 2.4
-    this.spawnVeilborneEffect(deathPosition.add(new THREE.Vector3(0, 0.8, 0)), 0xb65269, 0.9, 0.6)
+    this.veilborneVisualEffects.spawnEffect(deathPosition.add(new THREE.Vector3(0, 0.8, 0)), 0xb65269, 0.9, 0.6)
   }
 
   private updateVeilborneRespawn(dt: number, player: VeilborneCombatant): void {
@@ -898,7 +901,7 @@ export class Engine {
     this.clearVeilborneTargetLock()
     this.logic.setVariable('loot_notice', 'Você retornou ao santuário.')
     this.veilborneLootNoticeRemainingSeconds = 2.2
-    this.spawnVeilborneEffect(spawnPosition.clone().add(new THREE.Vector3(0, 1, 0)), 0xe9bf75, 0.95, 0.65)
+    this.veilborneVisualEffects.spawnEffect(spawnPosition.clone().add(new THREE.Vector3(0, 1, 0)), 0xe9bf75, 0.95, 0.65)
     this.viewport.invalidate()
   }
 
@@ -944,7 +947,7 @@ export class Engine {
       this.world.update(pickup.object.id, { visible: false })
       this.notifyBehaviorPackageChanged(pickup.object.id)
     }
-    this.spawnVeilborneEffect(
+    this.veilborneVisualEffects.spawnEffect(
       position.clone().add(new THREE.Vector3(0, 0.8, 0)),
       VEILBORNE_RUNTIME_ITEMS[itemId]!.visualColor,
       0.38,
@@ -1044,7 +1047,7 @@ export class Engine {
         ? target.object.mesh.position.clone()
         : this.avatar.mesh.position.clone().addScaledVector(forward, Math.min(item.range ?? 4, 3.5))
       center.y += 0.6
-      this.spawnVeilborneEffect(center, item.visualColor, item.radius ?? 2, 0.5)
+      this.veilborneVisualEffects.spawnEffect(center, item.visualColor, item.radius ?? 2, 0.5)
       const radius = item.radius ?? 3
       const affected = this.getVeilborneHostilePackages().filter(candidate =>
         Math.hypot(candidate.object.mesh.position.x - center.x, candidate.object.mesh.position.z - center.z) <= radius,
@@ -1070,7 +1073,7 @@ export class Engine {
     this.writeVeilborneInventory(inventory.filter(entry => entry.quantity > 0))
     this.logic.setVariable('loot_notice', `Usado: ${item.name}`)
     this.veilborneLootNoticeRemainingSeconds = 2
-    this.spawnVeilborneEffect(
+    this.veilborneVisualEffects.spawnEffect(
       this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
       item.visualColor,
       0.34,
@@ -1150,7 +1153,7 @@ export class Engine {
 
     if (levelsGained > 0) {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'level_up')
-      this.spawnVeilborneEffect(
+      this.veilborneVisualEffects.spawnEffect(
         this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)),
         0xe9bf75,
         1.2,
@@ -1194,8 +1197,8 @@ export class Engine {
     const hitObject = this.world.get(instance.ownerObjectId)
     if (result.vitalityDamage > 0 && hitObject) {
       const hitPoint = this.getVeilborneWorldPoint(instance.ownerObjectId) ?? hitObject.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0))
-      this.spawnVeilborneDamageNumber(hitPoint, result.vitalityDamage, result.killed)
-      this.spawnVeilborneEffect(hitPoint, result.killed ? 0xffd7a0 : 0xff4358, result.killed ? 0.72 : 0.46, 0.34)
+      this.veilborneVisualEffects.spawnDamageNumber(hitPoint, result.vitalityDamage, result.killed)
+      this.veilborneVisualEffects.spawnEffect(hitPoint, result.killed ? 0xffd7a0 : 0xff4358, result.killed ? 0.72 : 0.46, 0.34)
     }
     if (result.postureBroken && !result.killed) {
       this.triggerBehaviorPackageEvent(instance.ownerObjectId, 'veilborne_rpg', 'posture_broken')
@@ -1298,151 +1301,6 @@ export class Engine {
     }
   }
 
-  private spawnVeilborneProjectile(start: THREE.Vector3, end: THREE.Vector3, color: number, duration: number): void {
-    const projectile = new THREE.Group()
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 12, 10),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 10, 8),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    projectile.add(halo, core)
-    projectile.position.copy(start)
-    projectile.renderOrder = 24
-    this.world.scene.add(projectile)
-    this.veilborneProjectiles.set(projectile, { remaining: Math.max(0.05, duration), duration: Math.max(0.05, duration), start: start.clone(), end: end.clone() })
-    this.viewport.invalidate()
-  }
-
-  private spawnVeilborneEffect(position: THREE.Vector3, color: number, scale: number, duration = 0.32, slash = false): void {
-    const geometry = slash
-      ? new THREE.TorusGeometry(Math.max(0.2, scale), 0.045, 5, 20, Math.PI * 1.35)
-      : new THREE.SphereGeometry(Math.max(0.06, scale), 12, 10)
-    const material = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.82,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    })
-    const effect = new THREE.Mesh(geometry, material)
-    effect.position.copy(position)
-    effect.rotation.x = slash ? Math.PI / 2 : 0
-    effect.renderOrder = 20
-    this.world.scene.add(effect)
-    this.veilborneEffects.set(effect, { remaining: duration, duration })
-  }
-
-  private spawnVeilborneDamageNumber(position: THREE.Vector3, amount: number, killed = false): void {
-    const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 128
-    const context = canvas.getContext('2d')
-    if (!context) return
-    context.font = `bold ${killed ? 58 : 52}px Arial`
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    context.lineWidth = 10
-    context.strokeStyle = 'rgba(25, 5, 10, 0.9)'
-    context.strokeText(String(Math.round(amount)), 128, 64)
-    context.fillStyle = killed ? '#ffd58b' : '#ff596b'
-    context.fillText(String(Math.round(amount)), 128, 64)
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
-    const sprite = new THREE.Sprite(material)
-    sprite.position.copy(position).add(new THREE.Vector3(0, 0.5, 0))
-    sprite.scale.set(killed ? 1.25 : 0.95, killed ? 0.62 : 0.48, 1)
-    sprite.renderOrder = 30
-    this.world.scene.add(sprite)
-    this.veilborneDamageNumbers.set(sprite, { remaining: 1.05, duration: 1.05, rise: 0.9 })
-  }
-
-  private clearVeilborneEffects(): void {
-    for (const [projectile] of this.veilborneProjectiles) {
-      this.world.scene.remove(projectile)
-      projectile.traverse(node => {
-        const mesh = node as THREE.Mesh
-        if (!mesh.isMesh) return
-        mesh.geometry.dispose()
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-        materials.forEach(material => material.dispose())
-      })
-    }
-    this.veilborneProjectiles.clear()
-    for (const entry of this.veilborneHealthBars.values()) {
-      this.world.scene.remove(entry.sprite)
-      entry.texture.dispose()
-      entry.sprite.material.dispose()
-    }
-    this.veilborneHealthBars.clear()
-    for (const [sprite] of this.veilborneDamageNumbers) {
-      this.world.scene.remove(sprite)
-      sprite.material.map?.dispose()
-      sprite.material.dispose()
-    }
-    this.veilborneDamageNumbers.clear()
-    for (const [effect] of this.veilborneEffects) {
-      this.world.scene.remove(effect)
-      effect.geometry.dispose()
-      const material = effect.material
-      if (Array.isArray(material)) material.forEach(item => item.dispose())
-      else material.dispose()
-    }
-    this.veilborneEffects.clear()
-  }
-
-  private tickVeilborneEffects(dt: number): void {
-    for (const [projectile, state] of this.veilborneProjectiles) {
-      state.remaining -= Math.max(0, dt)
-      const progress = THREE.MathUtils.clamp(1 - state.remaining / state.duration, 0, 1)
-      projectile.position.lerpVectors(state.start, state.end, progress)
-      projectile.rotation.y += Math.max(0, dt) * 12
-      projectile.scale.setScalar(0.9 + Math.sin(progress * Math.PI) * 0.3)
-      if (state.remaining <= 0) {
-        this.world.scene.remove(projectile)
-        projectile.traverse(node => {
-          const mesh = node as THREE.Mesh
-          if (!mesh.isMesh) return
-          mesh.geometry.dispose()
-          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-          materials.forEach(material => material.dispose())
-        })
-        this.veilborneProjectiles.delete(projectile)
-      }
-    }
-    for (const [sprite, state] of this.veilborneDamageNumbers) {
-      state.remaining -= Math.max(0, dt)
-      const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
-      sprite.position.y += Math.max(0, dt) * state.rise
-      sprite.material.opacity = Math.max(0, 1 - progress * progress)
-      if (state.remaining <= 0) {
-        this.world.scene.remove(sprite)
-        sprite.material.map?.dispose()
-        sprite.material.dispose()
-        this.veilborneDamageNumbers.delete(sprite)
-      }
-    }
-    for (const [effect, state] of this.veilborneEffects) {
-      state.remaining -= Math.max(0, dt)
-      const progress = Math.min(1, Math.max(0, 1 - state.remaining / state.duration))
-      const material = effect.material
-      if (!Array.isArray(material) && material instanceof THREE.MeshBasicMaterial) {
-        material.opacity = 0.82 * (1 - progress)
-      }
-      effect.scale.setScalar(1 + progress * 1.25)
-      if (state.remaining <= 0) {
-        this.world.scene.remove(effect)
-        effect.geometry.dispose()
-        if (Array.isArray(material)) material.forEach(item => item.dispose())
-        else material.dispose()
-        this.veilborneEffects.delete(effect)
-      }
-    }
-  }
-
   private admitVeilborneManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
     if (!this.runtimeModeActive || !this.isVeilborneEnabled()) return true
     const player = this.getVeilbornePlayerCombatant()
@@ -1494,7 +1352,7 @@ export class Engine {
     this.syncVeilbornePlayerCombatant(player)
     this.veilborneParryStartedAt = performance.now() / 1000
     this.logic.setVariable('aparo_sucesso', false)
-    this.spawnVeilborneEffect(
+    this.veilborneVisualEffects.spawnEffect(
       this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
       0xb0d9ff,
       0.35,
@@ -1533,7 +1391,7 @@ export class Engine {
         this.triggerBehaviorPackageEvent(attackerObjectId, 'veilborne_rpg', 'parry_success')
       }
       const effectPoint = this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0))
-      this.spawnVeilborneEffect(effectPoint, 0xe3f5ff, 1.05, 0.42)
+      this.veilborneVisualEffects.spawnEffect(effectPoint, 0xe3f5ff, 1.05, 0.42)
       this.viewport.invalidate()
       return { damage: 0, absorbedByWard: 0, blocked: false, parried: true, killed: false }
     }
@@ -1547,7 +1405,7 @@ export class Engine {
       this.veilborneWardAbsorption = Math.max(0, this.veilborneWardAbsorption - absorbedByWard)
       remainingDamage -= absorbedByWard
       this.logic.setVariable('ward_absorption', this.veilborneWardAbsorption)
-      this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x9b80ff, 0.42, 0.24)
+      this.veilborneVisualEffects.spawnEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0x9b80ff, 0.42, 0.24)
       if (this.veilborneWardAbsorption <= 0) this.clearVeilborneWard()
     }
 
@@ -1577,14 +1435,14 @@ export class Engine {
       this.veilbornePlayerStaggerRemainingSeconds = Math.max(this.veilbornePlayerStaggerRemainingSeconds, 0.85)
       this.avatar.setCombatStagger(this.veilbornePlayerStaggerRemainingSeconds)
       this.logic.setVariable('jogador_atordoado', true)
-      this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffb26b, 0.9, 0.4)
+      this.veilborneVisualEffects.spawnEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), 0xffb26b, 0.9, 0.4)
     }
     const appliedDamage = before - player.resources.vitality
     this.syncVeilbornePlayerCombatant(player)
     if (!player.alive) {
       this.handleVeilbornePlayerDeath()
     }
-    if (blocked) this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xb0d9ff, 0.55, 0.25)
+    if (blocked) this.veilborneVisualEffects.spawnEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xb0d9ff, 0.55, 0.25)
     this.viewport.invalidate()
     return { damage: appliedDamage, absorbedByWard, blocked, parried: false, killed: !player.alive }
   }
@@ -1669,11 +1527,11 @@ export class Engine {
     const effectPosition = target
       ? this.getVeilborneWorldPoint(target.object.id) ?? target.object.mesh.position.clone()
       : this.avatar.mesh.position.clone().add(new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0.9, Math.cos(this.avatar.mesh.rotation.y)).multiplyScalar(Math.min(weapon.range * 0.7, 1.8)))
-    this.spawnVeilborneEffect(effectPosition, weapon.damageType === 'arcane' ? 0x9c77ff : 0xd3d8e8, heavy ? 0.95 : 0.7, 0.24, true)
+    this.veilborneVisualEffects.spawnEffect(effectPosition, weapon.damageType === 'arcane' ? 0x9c77ff : 0xd3d8e8, heavy ? 0.95 : 0.7, 0.24, true)
 
     if (target) {
       const hit = this.applyVeilborneHit(target.instance, damage, weapon.damageType, weapon.postureDamage * (heavy ? 1.6 + (chargeScale - 1) * 0.35 : 1))
-      if (hit.damage > 0) this.spawnVeilborneEffect(effectPosition, 0xffd09a, 0.35 + Math.min(0.5, hit.damage / 100), 0.28)
+      if (hit.damage > 0) this.veilborneVisualEffects.spawnEffect(effectPosition, 0xffd09a, 0.35 + Math.min(0.5, hit.damage / 100), 0.28)
     }
     this.viewport.invalidate()
   }
@@ -1717,8 +1575,8 @@ export class Engine {
     }
     this.veilborneCooldowns.set(cooldownKey, spell.cooldownSeconds)
     this.syncVeilbornePlayerCombatant(player)
-    if (spell.targeting === 'projectile') this.spawnVeilborneProjectile(origin, impactPosition, spell.visualColor, projectileDuration)
-    else this.spawnVeilborneEffect(origin, spell.visualColor, 0.32, Math.max(0.2, spell.castTimeSeconds + 0.08))
+    if (spell.targeting === 'projectile') this.veilborneVisualEffects.spawnProjectile(origin, impactPosition, spell.visualColor, projectileDuration)
+    else this.veilborneVisualEffects.spawnEffect(origin, spell.visualColor, 0.32, Math.max(0.2, spell.castTimeSeconds + 0.08))
     if (projectileDuration <= 0) this.resolveVeilborneSpellCast()
   }
 
@@ -1742,8 +1600,8 @@ export class Engine {
       if (travel > 0.4) {
         this.avatar.mesh.position.addScaledVector(forward, travel)
         this.avatar.resetVerticalState()
-        this.spawnVeilborneEffect(origin.add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.48, 0.38)
-        this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.62, 0.42)
+        this.veilborneVisualEffects.spawnEffect(origin.add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.48, 0.38)
+        this.veilborneVisualEffects.spawnEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.65, 0)), spell.visualColor, 0.62, 0.42)
       }
       this.viewport.invalidate()
       return
@@ -1755,7 +1613,7 @@ export class Engine {
     const center = target
       ? target.object.mesh.position.clone()
       : pending.impactPosition.clone()
-    this.spawnVeilborneEffect(center.clone().add(new THREE.Vector3(0, 0.55, 0)), spell.visualColor, spell.radius > 0 ? Math.max(0.45, spell.radius * 0.45) : 0.45, 0.42)
+    this.veilborneVisualEffects.spawnEffect(center.clone().add(new THREE.Vector3(0, 0.55, 0)), spell.visualColor, spell.radius > 0 ? Math.max(0.45, spell.radius * 0.45) : 0.45, 0.42)
     const candidates = spell.targeting === 'area' && spell.radius > 0
       ? this.getVeilborneHostilePackages().filter(candidate =>
         Math.hypot(candidate.object.mesh.position.x - center.x, candidate.object.mesh.position.z - center.z) <= spell.radius,
@@ -1776,7 +1634,7 @@ export class Engine {
       )
       totalDamage += hit.damage
       const point = this.getVeilborneWorldPoint(candidate.object.id)
-      if (point) this.spawnVeilborneEffect(point, spell.visualColor, 0.34, 0.3)
+      if (point) this.veilborneVisualEffects.spawnEffect(point, spell.visualColor, 0.34, 0.3)
     }
     if (spell.id === 'blood_siphon' && totalDamage > 0) {
       restoreVeilborneResource(player, 'vitality', totalDamage * 0.55)
@@ -1794,7 +1652,7 @@ export class Engine {
     const selected = this.readVeilborneString('sigilo_' + next, 'ward')
     this.logic.setVariable('sigilo_selecionado', next)
     this.logic.setVariable('sigilo_ativo', selected)
-    this.spawnVeilborneEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x9b80ff, 0.22, 0.18)
+    this.veilborneVisualEffects.spawnEffect(this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x9b80ff, 0.22, 0.18)
     this.viewport.invalidate()
   }
 
@@ -1845,7 +1703,7 @@ export class Engine {
       })
       this.syncVeilborneTarget(target.instance, state)
       const point = this.getVeilborneWorldPoint(target.object.id)
-      if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.75, 0.52)
+      if (point) this.veilborneVisualEffects.spawnEffect(point, sigil.visualColor, 0.75, 0.52)
       this.viewport.invalidate()
       return
     }
@@ -1928,7 +1786,7 @@ export class Engine {
 
       if (entrants.length > 0 && sigil.trigger === 'enemy_enter') {
         if (sigil.effect === 'blast') {
-          this.spawnVeilborneEffect(active.position.clone().add(new THREE.Vector3(0, 0.6, 0)), sigil.visualColor, Math.max(0.7, sigil.radius * 0.8), 0.5)
+          this.veilborneVisualEffects.spawnEffect(active.position.clone().add(new THREE.Vector3(0, 0.6, 0)), sigil.visualColor, Math.max(0.7, sigil.radius * 0.8), 0.5)
           for (const candidate of inside) {
             this.applyVeilborneHit(
               candidate.instance,
@@ -1937,7 +1795,7 @@ export class Engine {
               sigil.postureDamage ?? 28,
             )
             const point = this.getVeilborneWorldPoint(candidate.object.id)
-            if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.35, 0.3)
+            if (point) this.veilborneVisualEffects.spawnEffect(point, sigil.visualColor, 0.35, 0.3)
           }
           this.removeActiveVeilborneSigil(instanceId, active.visual)
           continue
@@ -1953,7 +1811,7 @@ export class Engine {
             })
             this.syncVeilborneTarget(candidate.instance, target)
             const point = this.getVeilborneWorldPoint(candidate.object.id)
-            if (point) this.spawnVeilborneEffect(point, sigil.visualColor, 0.28, 0.25)
+            if (point) this.veilborneVisualEffects.spawnEffect(point, sigil.visualColor, 0.28, 0.25)
           }
         }
       }
@@ -2039,7 +1897,7 @@ export class Engine {
     this.veilborneLockMarker.renderOrder = 24
     this.world.scene.add(this.veilborneLockMarker)
     const point = this.getVeilborneWorldPoint(target.object.id)
-    if (point) this.spawnVeilborneEffect(point, 0xff526e, 0.58, 0.35)
+    if (point) this.veilborneVisualEffects.spawnEffect(point, 0xff526e, 0.58, 0.35)
     this.updateVeilborneTargetLock(this.getVeilbornePlayerCombatant())
     this.viewport.invalidate()
   }
@@ -2250,9 +2108,9 @@ export class Engine {
               blood: 0xd82e55, shadow: 0x8b6ee8, spirit: 0x8bf7d1, arcane: 0x8c7cff,
             }
             const source = object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0))
-            this.spawnVeilborneEffect(source, colorByType[attackType], 0.35, 0.28)
+            this.veilborneVisualEffects.spawnEffect(source, colorByType[attackType], 0.35, 0.28)
             if (result.damage > 0 || result.absorbedByWard > 0) {
-              this.spawnVeilborneEffect(
+              this.veilborneVisualEffects.spawnEffect(
                 this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
                 colorByType[attackType],
                 result.blocked ? 0.38 : 0.52,
@@ -2264,7 +2122,7 @@ export class Engine {
               const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
               const counterDamage = Math.round(calculateVeilborneWeaponDamage(weapon, player.attributes) * 0.8)
               this.applyVeilborneHit(instance, counterDamage, weapon.damageType, weapon.postureDamage * 1.5)
-              this.spawnVeilborneEffect(
+              this.veilborneVisualEffects.spawnEffect(
                 this.getVeilborneWorldPoint(object.id) ?? object.mesh.position.clone(),
                 0xe3f5ff,
                 0.8,
@@ -2288,7 +2146,7 @@ export class Engine {
   }
 
   private updateVeilborneRuntime(dt: number): void {
-    this.tickVeilborneEffects(dt)
+    this.veilborneVisualEffects.update(dt)
     for (const [key, remaining] of this.veilborneCooldowns) {
       const next = Math.max(0, remaining - Math.max(0, dt))
       if (next <= 0) this.veilborneCooldowns.delete(key)
@@ -2673,7 +2531,7 @@ export class Engine {
     if (this.logic.getVariable('bloqueando') !== undefined) this.logic.setVariable('bloqueando', false)
     if (this.logic.getVariable('aparo_sucesso') !== undefined) this.logic.setVariable('aparo_sucesso', false)
     // A falha ao liberar um efeito visual não pode impedir o retorno ao editor.
-    try { this.clearVeilborneEffects() } catch (error) { console.warn('Falha ao limpar efeitos VEILBORNE:', error) }
+    try { this.veilborneVisualEffects.clear() } catch (error) { console.warn('Falha ao limpar efeitos VEILBORNE:', error) }
     try { this.clearActiveVeilborneSigils() } catch (error) { console.warn('Falha ao limpar sigilos VEILBORNE:', error) }
     try { this.clearVeilborneWard() } catch (error) { console.warn('Falha ao limpar proteção VEILBORNE:', error) }
     this.input.setRuntimeMode(false)
@@ -3843,7 +3701,7 @@ export class Engine {
     window.removeEventListener('keydown', this.onRuleKeyDown)
     window.removeEventListener('keyup', this.onVeilborneKeyUp)
     window.removeEventListener('blur', this.onVeilborneBlur)
-    this.clearVeilborneEffects()
+    this.veilborneVisualEffects.clear()
     this.clearActiveVeilborneSigils()
     this.clearVeilborneWard()
     this.clearVeilborneTargetLock()
