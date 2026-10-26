@@ -1,0 +1,78 @@
+.veilborne-loadout-trigger {
+  position:absolute; right:clamp(8px,2%,20px); top:clamp(12px,10%,118px); z-index:36;
+  display:flex; align-items:center; gap:10px; max-width:calc(100% - 16px); min-width:0; flex-wrap:wrap; padding:9px 12px; border:1px solid #a36f8a80;
+  border-radius:7px; color:#f5eaf0; background:#17131ceb; box-shadow:0 10px 24px #0004;
+  text-align:left; pointer-events:auto; cursor:pointer;
+}
+.veilborne-loadout-trigger.active { border-color:#d9a4be; background:#2a1828f5; }
+.veilborne-loadout-trigger small,.veilborne-loadout-trigger strong { display:block; }
+.veilborne-loadout-trigger small { color:#d6a7bd; font-size:9px; letter-spacing:.13em; }
+.veilborne-loadout-trigger strong { font-size:12px; }
+.veilborne-trigger-mark {
+  display:grid; place-items:center; width:29px; height:29px; border:1px solid #bd819c;
+  border-radius:50%; color:#f7c8df; font-family:Georgia,serif; font-size:17px;
+}
+.veilborne-loadout-trigger kbd { margin-left:5px; border:1px solid #ffffff24; border-radius:4px; padding:3px 5px; color:#e5d2dd; font-size:10px; }
+.veilborne-loadout-panel {
+  position:absolute; top:clamp(8px,16%,164px); right:clamp(8px,2%,20px); z-index:1000;
+  display:block; box-sizing:border-box; min-width:0; width:min(390px,calc(100% - 16px));
+  max-height:calc(100% - clamp(8px,16%,164px) - 16px); overflow-x:hidden; overflow-y:auto;
+  overscroll-behavior:contain; scrollbar-gutter:stable; -webkit-overflow-scrolling:touch;
+  padding:16px; border:1px solid #9a647d7a; border-radius:8px;
+  color:#f4edf0; background:linear-gradient(145deg,#17131df7,#10141bf4);
+  box-shadow:0 20px 70px #0009; backdrop-filter:blur(18px); pointer-events:auto;
+}
+.veilborne-loadout-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:13px; border-bottom:1px solid #ffffff18; cursor:grab; touch-action:none; user-select:none; }
+.veilborne-loadout-heading .hud-eyebrow { display:block; color:#cd9ab0; font-size:9px; letter-spacing:.16em; }
+.veilborne-loadout-heading strong { display:block; margin-top:4px; font-family:Georgia,serif; font-size:20px; font-weight:600; letter-spacing:.02em; }
+.veilborne-loadout-close { width:28px; height:28px; border:1px solid #ffffff25; border-radius:5px; color:#e9d6e0; background:#ffffff08; font-size:20px; cursor:pointer; }
+.veilborne-loadout-resources { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; padding:12px 0; }
+.veilborne-loadout-resources > div { min-width:0; border:1px solid #ffffff12; border-radius:5px; padding:8px; background:#ffffff04; }
+.veilborne-loadout-resources small,.veilborne-loadout-resources strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.veilborne-loadout-resources small { color:#ad9da8; font-size:9px; letter-spacing:.1em; }
+.veilborne-loadout-resources strong { margin-top:3px; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-archetype-block { margin:10px 0 3px; padding:10px; border:1px solid #ffffff16; border-radius:6px; background:#ffffff04; }
+.veilborne-archetype-description { margin:3px 0 8px; color:#9d8f99; font-size:10px; line-height:1.4; }
+.veilborne-archetype-apply { width:100%; padding:8px 10px; border:1px solid #bb7895; border-radius:5px; color:#f8dfeb; background:#7b3d5d35; font-size:11px; font-weight:700; cursor:pointer; }
+.veilborne-archetype-apply:disabled { opacity:.35; cursor:not-allowed; }
+.veilborne-loadout-field { display:grid; grid-template-columns:minmax(76px,100px) 1fr; align-items:center; gap:10px; margin:7px 0; font-size:11px; color:#d8cbd2; }
+.veilborne-loadout-field select { width:100%; min-width:0; border:1px solid #ffffff1f; border-radius:5px; padding:7px 8px; outline:none; color:#f1e6ed; background:#201a26; font:inherit; }
+.veilborne-loadout-field select:focus { border-color:#ce8fab; box-shadow:0 0 0 2px #ce8fab25; }
+.veilborne-loadout-section { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
+.veilborne-loadout-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
+.veilborne-loadout-section-heading small { color:#9d8f99; font-size:9px; font-weight:400; letter-spacing:0; }
+.veilborne-loot-toast {
+  position:absolute; left:50%; bottom:clamp(8px,14%,120px); z-index:44; transform:translateX(-50%);
+  max-width:min(82%,430px); padding:10px 16px; border:1px solid #d8a56d80; border-radius:5px;
+  color:#f6e5cb; background:#17131df0; box-shadow:0 9px 25px #0006; font-size:12px;
+  text-align:center; pointer-events:none;
+}
+.veilborne-inventory-list { display:grid; gap:6px; }
+.veilborne-inventory-item { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; padding:8px; border:1px solid #ffffff12; border-radius:5px; background:#ffffff04; }
+.veilborne-inventory-copy { display:grid; min-width:0; gap:3px; }
+.veilborne-inventory-copy strong { overflow:hidden; color:#f0e5eb; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.veilborne-inventory-copy small { color:#998c96; font-size:9px; line-height:1.3; }
+.veilborne-inventory-quantity { color:#dfc1d0; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-item-use { padding:5px 8px; border:1px solid #ce8fab70; border-radius:4px; color:#f3c4d7; background:#8a45651f; font-size:10px; cursor:pointer; }
+.veilborne-inventory-empty { margin:6px 0 0; color:#a99ba5; font-size:10px; line-height:1.5; }
+.veilborne-progression-card { padding:10px; border:1px solid #ffffff18; border-radius:6px; background:#ffffff05; }
+.veilborne-progression-top,.veilborne-progression-bottom { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.veilborne-progression-top strong { color:#f0cad9; font-size:11px; letter-spacing:.08em; }
+.veilborne-progression-top span { color:#b9a8b3; font-size:10px; font-variant-numeric:tabular-nums; }
+.veilborne-xp-track { height:6px; margin:9px 0; overflow:hidden; border:1px solid #e7bdd025; border-radius:999px; background:#090b10; }
+.veilborne-xp-track > div { height:100%; border-radius:inherit; background:linear-gradient(90deg,#7e426b,#df9cb8); transition:width .15s linear; }
+.veilborne-progression-bottom { color:#a99ba5; font-size:9px; letter-spacing:.08em; }
+.veilborne-progression-bottom strong { margin-left:4px; color:#f1e6ed; font-size:11px; font-variant-numeric:tabular-nums; }
+.veilborne-loadout-stats { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff15; }
+.veilborne-loadout-stats > span { color:#e7bdd0; font-size:9px; font-weight:700; letter-spacing:.1em; }
+.veilborne-loadout-stats > div { display:flex; justify-content:space-between; gap:14px; padding:6px 0; border-bottom:1px solid #ffffff0b; font-size:11px; }
+.veilborne-loadout-stats small { color:#9d8f99; }
+.veilborne-stat-value { display:flex; align-items:center; gap:9px; }
+.veilborne-stat-add { width:22px; height:22px; border:1px solid #ce8fab70; border-radius:4px; color:#f3c4d7; background:#8a45651f; line-height:1; cursor:pointer; }
+.veilborne-stat-add:disabled { opacity:.28; cursor:not-allowed; }
+.veilborne-loadout-stats strong { font-variant-numeric:tabular-nums; }
+.veilborne-loadout-note { margin:12px 0 0; color:#a99ba5; font-size:10px; line-height:1.45; }
+
+.veilborne-game-overlay { position:absolute; inset:0; z-index:36; pointer-events:none; }
+.veilborne-game-overlay.editor-preview .veilborne-loadout-trigger,
+.veilborne-game-overlay.editor-preview .veilborne-loadout-panel { pointer-events:none; }

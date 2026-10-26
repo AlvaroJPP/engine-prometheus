@@ -9,7 +9,7 @@ interface UseViewportLayoutOptions {
   worldFullscreen: Ref<boolean>
   sidebarCollapsed: Ref<boolean>
   viewportRoot: Ref<HTMLElement | null>
-  playerHudSettingsOpen: Ref<boolean>
+  runtimeHudSettingsOpen: Ref<boolean>
 }
 
 export function useViewportLayout({
@@ -17,7 +17,7 @@ export function useViewportLayout({
   worldFullscreen,
   sidebarCollapsed,
   viewportRoot,
-  playerHudSettingsOpen,
+  runtimeHudSettingsOpen,
 }: UseViewportLayoutOptions) {
 const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v7'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6 = 'engine-prometheus.viewport-layout.v6'
@@ -290,8 +290,8 @@ function resetAllViewportLayout(): void {
     persistViewportLayout()
   })
 }
-function openHudSettingsFromViewportLayout(): void {
-  playerHudSettingsOpen.value = true
+function openRuntimeHudSettingsFromViewportLayout(): void {
+  runtimeHudSettingsOpen.value = true
   viewportLayoutConfigOpen.value = false
   viewportLayoutEditMode.value = false
 }
@@ -404,7 +404,7 @@ onBeforeUnmount(() => {
   return {
     activeViewportLayoutItem,
     beginViewportLayoutDrag,
-    openHudSettingsFromViewportLayout,
+    openRuntimeHudSettingsFromViewportLayout,
     persistViewportLayout,
     refreshViewportLayoutBounds,
     resetAllViewportLayout,

@@ -17,12 +17,12 @@ const sidebarCollapsed = ref(false)
 const inspectorTab = ref<'transform' | 'color' | 'variables' | 'nodes' | 'packages'>('transform')
 const executionMode = ref<'edit' | 'running'>('edit')
 const worldFullscreen = ref(false)
-const playerHudSettingsOpen = ref(false)
+const runtimeHudSettingsOpen = ref(false)
 
 const {
   activeViewportLayoutItem,
   beginViewportLayoutDrag,
-  openHudSettingsFromViewportLayout,
+  openRuntimeHudSettingsFromViewportLayout,
   persistViewportLayout,
   refreshViewportLayoutBounds,
   resetAllViewportLayout,
@@ -42,13 +42,13 @@ const {
   worldFullscreen,
   sidebarCollapsed,
   viewportRoot,
-  playerHudSettingsOpen,
+  runtimeHudSettingsOpen,
 })
 
 
 watch(executionMode, (mode) => {
   // A configuração da HUD pertence ao modo de edição; ao iniciar o jogo, feche-a.
-  if (mode !== 'edit') playerHudSettingsOpen.value = false
+  if (mode !== 'edit') runtimeHudSettingsOpen.value = false
 })
 const controlMapsOpen = ref(false)
 const controlMapSettings = ref<ControlMapSettings>(loadControlMapSettings())
@@ -348,12 +348,6 @@ function handleHudToggleCamera() {
 }
 function handleHudExitRuntime() {
   if (executionMode.value === 'running') returnToEdit()
-}
-function handleHudGlobalVariable(name: string, value: string | number | boolean) {
-  if (executionMode.value !== 'running') return
-  // Equipamentos, arquétipos e espaços de habilidade escrevem diretamente
-  // no runtime para que a seleção afete imediatamente a lógica de combate.
-  setRuntimeGlobalVariable(name, value)
 }
 function runWorld() {
   graphOpen.value = false
@@ -691,8 +685,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     groupSelectedObjects,
     groupSelection,
     handleHudExitRuntime,
-    handleHudGlobalVariable,
-    handleHudToggleCamera,
+      handleHudToggleCamera,
     handleModelImport,
     handleSaveAnimationSource,
     handleTimeOfDayKeydown,
@@ -736,7 +729,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     onSkyTextureSelected,
     onTexture,
     onTextureRepeat,
-    openHudSettingsFromViewportLayout,
+    openRuntimeHudSettingsFromViewportLayout,
     openObjectRule,
     openProject,
     ownerOfRule,
@@ -747,7 +740,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     persistViewportLayout,
     placeSavedComponent,
     placeableSavedComponents,
-    playerHudSettingsOpen,
+    runtimeHudSettingsOpen,
     playerModelCustom,
     playerModelFileInput,
     playerModelHeight,

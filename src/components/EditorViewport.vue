@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
-import PlayerHUD from '@/components/PlayerHUD.vue'
+import RuntimeHUD from '@/components/RuntimeHUD.vue'
 
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
@@ -17,22 +17,21 @@ function setExternalRef(name: string, element: unknown): void {
 <template>
 <main :ref="element => setExternalRef('viewportRoot', element)" class="viewport">
         <canvas :ref="element => setExternalRef('canvas', element)" class="canvas" :class="['tool-' + ctx.tool, ctx.viewportCursorClass]" />
-        <PlayerHUD
-          v-if="ctx.executionMode === 'running' || ctx.playerHudSettingsOpen"
+        <RuntimeHUD
+          v-if="ctx.executionMode === 'running' || ctx.runtimeHudSettingsOpen"
           :player-name="ctx.playerModelName"
           :camera-mode="ctx.firstPersonMode ? 'Primeira pessoa' : ctx.CAMERA_LABELS[ctx.cameraPreset]"
           :fps="ctx.fps"
           :control-map-name="ctx.activeControlMap.name"
           :first-person="ctx.firstPersonMode"
-          :settings-open="ctx.playerHudSettingsOpen"
+          :settings-open="ctx.runtimeHudSettingsOpen"
           :editor-preview="ctx.executionMode !== 'running'"
           :world-fullscreen="ctx.worldFullscreen"
           :bindings="ctx.activeControlMap.bindings"
           :game-variables="ctx.globalLogicVariables"
           @toggle-camera="ctx.handleHudToggleCamera"
           @exit-runtime="ctx.handleHudExitRuntime"
-          @settings-open-change="ctx.playerHudSettingsOpen = $event"
-          @set-global-variable="ctx.handleHudGlobalVariable"
+          @settings-open-change="ctx.runtimeHudSettingsOpen = $event"
         />
         <div class="viewport-actions" aria-label="Ações rápidas da cena">
           <div class="quick-add-wrap">
