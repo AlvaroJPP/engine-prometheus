@@ -20,7 +20,7 @@ interface VeilborneLootDependencies {
   notifyBehaviorPackageChanged(ownerObjectId: string): void
   removeObject(id: string): void
   spawnEffect(position: THREE.Vector3, color: number, scale: number, durationSeconds?: number): void
-  showNotice(message: string, durationSeconds: number): void
+  clearNotice(): void
   invalidate(): void
 }
 
@@ -131,16 +131,6 @@ export class VeilborneLootSystem {
     d.invalidate()
   }
 
-  updateNotice(dt: number): void {
-    const d = this.d
-    const remaining = d.logic.getVariable('loot_notice_remaining')
-    const current = typeof remaining === 'number' && Number.isFinite(remaining) ? remaining : 0
-    if (current <= 0) return
-    const next = Math.max(0, current - dt)
-    d.logic.setVariable('loot_notice_remaining', next)
-    if (next <= 0) d.logic.setVariable('loot_notice', '')
-  }
-
   resetForEditor(): void {
     const d = this.d
     for (const id of this.spawnedIds) if (d.world.get(id)) d.removeObject(id)
@@ -154,7 +144,6 @@ export class VeilborneLootSystem {
     }
     this.collectedVisibility.clear()
     if (d.logic.getVariable('item_use_request') !== undefined) d.logic.setVariable('item_use_request', '')
-    if (d.logic.getVariable('loot_notice') !== undefined) d.logic.setVariable('loot_notice', '')
-    d.logic.setVariable('loot_notice_remaining', 0)
+    d.clearNotice()
   }
 }
