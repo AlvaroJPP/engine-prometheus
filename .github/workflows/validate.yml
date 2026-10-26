@@ -57,6 +57,8 @@ jobs:
         run: npm run model:resource-cleanup:self-test
       - name: Test import behavior package config
         run: npm run behavior:package-config:self-test
+      - name: Test autonomous behavior system
+        run: npm run behavior:autonomous:self-test
       - name: Test rig keyframe timeline
         run: npm run animation:keyframe-timeline:self-test
       - name: Type-check and build
