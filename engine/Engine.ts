@@ -2376,6 +2376,7 @@ export class Engine {
       world: this.world,
       packages: this.logic.listPackages(),
       playerPosition: this.avatar.mesh.position,
+      canMoveTo: (objectId, target) => this.collisions.canMoveObjectTo(objectId, target),
     })
 
     for (const transition of transitions) {
