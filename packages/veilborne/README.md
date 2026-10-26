@@ -9,6 +9,7 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 - `runtime/behaviorPackageDefinition.ts`: definição do pacote de comportamento, registrada explicitamente pelo host que decidir carregar VEILBORNE.
 - `runtime/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
 - `runtime/`: sistemas específicos do jogo para efeitos visuais, barras de vida, inventário, uso de itens, progressão, loot, morte/renascimento, travamento de alvo e sigilos.
+- `ui/VeilborneHUD.vue`: overlay opcional de Arsenal, inventário e progressão, separado do HUD genérico do editor.
 - O núcleo do Engine Prometheus não contém as regras de combate, progressão ou morte de VEILBORNE; o jogo deve conectá-las pela interface genérica de módulos.
 - `engine/input/ControlMaps.ts` e `src/components/ControlMapsDialog.vue`: teclas de bloqueio e aparo configuráveis.
 

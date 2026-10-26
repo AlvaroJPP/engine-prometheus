@@ -749,7 +749,7 @@ onBeforeUnmount(() => {
 
       <div class="model-import-toolbar">
         <div class="model-import-toolbar-group">
-          <button class="model-toolbar-button" :disabled="loading || !!props.initialAsset" title="Abre modelos animados de exemplo e itens preparados para VEILBORNE." @click="starterAssetCatalogOpen = true"><span>✦</span> Modelos iniciais</button>
+          <button class="model-toolbar-button" :disabled="loading || !!props.initialAsset" title="Abre modelos de exemplo para testar animações, props e componentes." @click="starterAssetCatalogOpen = true"><span>✦</span> Modelos iniciais</button>
           <button class="model-toolbar-button model-toolbar-primary" :disabled="loading" title="Abre um arquivo para visualizar, inspecionar e importar um modelo ou textura." @click="fileInput?.click()"><span>＋</span> Abrir arquivo</button>
           <button class="model-toolbar-button" :disabled="loading" title="Importa um ZIP com GLB, glTF, FBX, OBJ/MTL, STL, PLY, DAE ou 3DS e resolve recursos auxiliares incluídos." @click="importBlendZip"><span>▤</span> Importar pacote ZIP</button>
           <input ref="fileInput" class="model-file-input" type="file" accept=".glb,.gltf,.fbx,.obj,.stl,.ply,.dae,.3ds,.png,.jpg,.jpeg,.webp,.svg" @change="chooseFile" />

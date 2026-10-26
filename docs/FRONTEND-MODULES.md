@@ -33,7 +33,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/styles/app.css`: agregador dos estilos refinados em `src/styles/parts/`.
 - `src/styles/parts/08-fullscreen.css`: somente geometria do modo tela cheia.
 - `src/styles/parts/08-fullscreen-theme.css`: acabamento visual/tema que antes estava misturado às regras estruturais de tela cheia.
-- Estilos locais de `ModelImportDialog`, `PlayerHUD`, `SceneHierarchy` e `ControlMapsDialog` ficam em folhas CSS próprias ao lado dos componentes.
+- Estilos locais de `ModelImportDialog`, `RuntimeHUD`, `SceneHierarchy` e `ControlMapsDialog` ficam em folhas CSS próprias ao lado dos componentes.
 
 ## Serviços e lógica de domínio
 
@@ -93,7 +93,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ModelPlayerExport.ts`: gera os bytes GLB para usar um modelo como jogador, preservando os bytes originais de ativos já salvos e removendo metadados transitórios de um clone esquelético nos demais casos.
 - `src/lib/assets/ModelImportAssetActionsController.ts`: agrupa ajuste da altura, exportação para uso como jogador e seleção/limpeza de miniatura personalizada, mantendo os eventos de interface no diálogo.
 - `src/lib/assets/ModelImportDialogControllerBundle.ts`: compõe os controladores de diagnóstico, hierarquia, rigging, pacotes, carregamento, SkinTokens, retargeting, ações do ativo e salvamento; também monta os bindings reativos enviados ao painel lateral para manter o diálogo principal abaixo de mil linhas.
-- `src/lib/assets/StarterCatalogBehaviorPreset.ts`: aplica predefinições opcionais de comportamento a ativos do catálogo somente quando o pacote correspondente está registrado pelo host.
+- `src/components/StarterAssetCatalogDialog.vue`: exemplos genéricos de personagens animados e props; pacotes de jogo fornecem predefinições próprias sem acoplar o catálogo ao núcleo.
 - `src/lib/assets/ModelPreviewPartState.ts`: reconstrói as partes selecionáveis da prévia e reconcilia seleção individual, modo isolado e lotes salvos/selecionados com os IDs ainda existentes após alterações na hierarquia.
 - `src/lib/assets/ModelImportHierarchyController.ts`: controla seleção de partes, lotes, visibilidade isolada, restauração de malhas e atualização da prévia/colisor ao alterar a hierarquia do modelo.
 - `src/lib/assets/ModelPreviewCamera.ts`: centraliza o enquadramento orbital da prévia, os limites de clipping para diferentes escalas e o redimensionamento sincronizado entre renderer e câmera.

@@ -3,19 +3,15 @@ import { computed, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 
-type StarterRole = 'player' | 'enemy' | 'loot' | 'object'
 type StarterAsset = {
   id: string
   name: string
   description: string
-  category: 'characters' | 'enemies' | 'items'
+  category: 'characters' | 'objects'
   kind: 'remote' | 'procedural'
-  role: StarterRole
   height: number
   sourceUrl?: string
   sourceName?: string
-  itemId?: string
-  aiProfile?: string
   badge: string
   credit: string
 }
@@ -26,10 +22,7 @@ const emit = defineEmits<{
   'load-model': [asset: {
     name: string
     bytes: ArrayBuffer
-    role: StarterRole
     height: number
-    itemId?: string
-    aiProfile?: string
     sourceName?: string
   }]
 }>()
@@ -41,7 +34,6 @@ const assets: StarterAsset[] = [
     description: 'Personagem de teste com vários clipes, incluindo Idle, Walking, Running, Jump, Death, Punch e Wave.',
     category: 'characters',
     kind: 'remote',
-    role: 'player',
     height: 1.8,
     sourceUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
     sourceName: 'RobotExpressive — Three.js / Tomás Laulhé, modificado por Don McCurdy (CC0 1.0)',
@@ -49,118 +41,40 @@ const assets: StarterAsset[] = [
     credit: 'Tomás Laulhé; modificações de Don McCurdy · CC0 1.0',
   },
   {
-    id: 'robot-expressive-enemy',
-    name: 'Autômato Hostil',
-    description: 'A mesma malha animada, já preparada como inimigo hostil do VEILBORNE com IA de perseguição corpo a corpo.',
-    category: 'enemies',
+    id: 'fox-animation-sample',
+    name: 'Raposa Animada',
+    description: 'Personagem animado com clipes Survey, Walk e Run para testar importação, rigs e retargeting.',
+    category: 'characters',
     kind: 'remote',
-    role: 'enemy',
-    height: 1.8,
-    sourceUrl: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
-    sourceName: 'RobotExpressive — Three.js / Tomás Laulhé, modificado por Don McCurdy (CC0 1.0)',
-    aiProfile: 'melee',
-    badge: 'INIMIGO · MELEE',
-    credit: 'Tomás Laulhé; modificações de Don McCurdy · CC0 1.0',
-  },
-  {
-    id: 'fox-enemy',
-    name: 'Raposa Errante',
-    description: 'Criatura animada com clipes Survey, Walk e Run. O pacote de comportamento é configurado como inimigo.',
-    category: 'enemies',
-    kind: 'remote',
-    role: 'enemy',
     height: 0.9,
     sourceUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb',
     sourceName: 'Fox — Khronos glTF Sample Assets; modelo de PixelMannen, rig/animação de tomkranis',
-    aiProfile: 'flanker',
-    badge: 'INIMIGO · FLANQUEADOR',
+    badge: 'PERSONAGEM · ANIMADO',
     credit: 'Modelo: PixelMannen (CC0); rig/animação: tomkranis (CC BY 4.0). Consulte os créditos.',
   },
   {
-    id: 'vitality-vial',
-    name: 'Frasco de Vitalidade',
-    description: 'Coletável preparado para conceder um Frasco de Vitalidade ao pressionar E perto dele.',
-    category: 'items',
+    id: 'decorative-blade',
+    name: 'Lâmina Decorativa',
+    description: 'Prop 3D para testar escala, materiais, transformações e salvamento como componente.',
+    category: 'objects',
     kind: 'procedural',
-    role: 'loot',
-    height: 0.58,
-    itemId: 'lesser_vitality_vial',
-    badge: 'COLETÁVEL · VIDA',
-    credit: 'Modelo procedural criado pelo Engine Prometheus.',
-  },
-  {
-    id: 'ether-vial',
-    name: 'Frasco de Éter',
-    description: 'Coletável VEILBORNE: adiciona um Frasco de Éter ao inventário.',
-    category: 'items',
-    kind: 'procedural',
-    role: 'loot',
-    height: 0.58,
-    itemId: 'ether_vial',
-    badge: 'COLETÁVEL · ÉTER',
-    credit: 'Modelo procedural criado pelo Engine Prometheus.',
-  },
-  {
-    id: 'echo-fragment',
-    name: 'Fragmento de Ecos',
-    description: 'Cristal de Ecos coletável. Integra-se ao inventário; para recuperar Ecos perdidos, use o cristal criado ao morrer.',
-    category: 'items',
-    kind: 'procedural',
-    role: 'loot',
-    height: 0.44,
-    itemId: 'echo_fragment',
-    badge: 'COLETÁVEL · ECOS',
-    credit: 'Modelo procedural criado pelo Engine Prometheus.',
-  },
-  {
-    id: 'ember-bomb',
-    name: 'Bomba de Brasa',
-    description: 'Coletável que adiciona uma Bomba de Brasa ao inventário VEILBORNE.',
-    category: 'items',
-    kind: 'procedural',
-    role: 'loot',
-    height: 0.48,
-    itemId: 'ember_bomb',
-    badge: 'COLETÁVEL · FOGO',
-    credit: 'Modelo procedural criado pelo Engine Prometheus.',
-  },
-  {
-    id: 'vigor-vial',
-    name: 'Tônico de Vigor',
-    description: 'Coletável que adiciona um Tônico de Vigor ao inventário VEILBORNE.',
-    category: 'items',
-    kind: 'procedural',
-    role: 'loot',
-    height: 0.58,
-    itemId: 'vigor_vial',
-    badge: 'COLETÁVEL · VIGOR',
-    credit: 'Modelo procedural criado pelo Engine Prometheus.',
-  },
-  {
-    id: 'veil-sword',
-    name: 'Lâmina do Véu',
-    description: 'Espada estilizada para decoração ou protótipo visual. Para equipar armas, use o Arsenal do Véu.',
-    category: 'items',
-    kind: 'procedural',
-    role: 'object',
     height: 1.12,
-    badge: 'OBJETO · ARMA',
-    credit: 'Modelo procedural criado pelo Engine Prometheus; não é um item equipável do inventário.',
+    badge: 'OBJETO · PROP',
+    credit: 'Modelo procedural de exemplo criado pelo Engine Prometheus.',
   },
   {
-    id: 'soul-chest',
-    name: 'Baú de Relíquias',
-    description: 'Baú decorativo para construir encontros, esconderijos e áreas de saque.',
+    id: 'decorative-chest',
+    name: 'Baú Decorativo',
+    description: 'Prop 3D para praticar posicionamento, colisores e criação de componentes.',
     category: 'items',
     kind: 'procedural',
-    role: 'object',
     height: 0.72,
     badge: 'OBJETO · DECORAÇÃO',
     credit: 'Modelo procedural criado pelo Engine Prometheus.',
   },
 ]
 
-const category = ref<'all' | 'characters' | 'enemies' | 'items'>('all')
+const category = ref<'all' | 'characters' | 'objects'>('all')
 const busyId = ref('')
 const message = ref('')
 const error = ref('')
@@ -188,50 +102,9 @@ function addMesh(root: THREE.Group, geometry: THREE.BufferGeometry, material: TH
   return mesh
 }
 
-function potionModel(color: number) {
-  const root = new THREE.Group()
-  root.name = 'VeilbornePotion'
-  const glass = new THREE.MeshPhysicalMaterial({ color: 0xd5deeb, transparent: true, opacity: 0.48, roughness: 0.16, metalness: 0, transmission: 0.12, thickness: 0.15 })
-  const liquid = mat(color, 0.08, 0.25, color)
-  const cork = mat(0x69452c, 0, 0.82)
-  const gold = mat(0xc8a65c, 0.72, 0.32)
-  const profile = [
-    new THREE.Vector2(0, 0.05), new THREE.Vector2(0.15, 0.05), new THREE.Vector2(0.2, 0.1),
-    new THREE.Vector2(0.21, 0.22), new THREE.Vector2(0.16, 0.33), new THREE.Vector2(0.09, 0.39),
-    new THREE.Vector2(0.075, 0.47), new THREE.Vector2(0.09, 0.5), new THREE.Vector2(0.085, 0.54),
-    new THREE.Vector2(0.065, 0.56), new THREE.Vector2(0, 0.56),
-  ]
-  addMesh(root, new THREE.LatheGeometry(profile, 16), glass, 'GlassBottle', [0, 0, 0])
-  addMesh(root, new THREE.CylinderGeometry(0.155, 0.185, 0.19, 16), liquid, 'PotionLiquid', [0, 0.16, 0])
-  addMesh(root, new THREE.CylinderGeometry(0.092, 0.09, 0.025, 16), gold, 'NeckRing', [0, 0.49, 0])
-  addMesh(root, new THREE.CylinderGeometry(0.058, 0.065, 0.07, 10), cork, 'Cork', [0, 0.535, 0])
-  const rune = addMesh(root, new THREE.TorusGeometry(0.09, 0.012, 5, 16), gold, 'BottleRune', [0, 0.24, 0], [Math.PI / 2, 0, 0])
-  rune.scale.set(1, 0.72, 1)
-  return root
-}
-
-function echoModel() {
-  const root = new THREE.Group()
-  root.name = 'EchoFragment'
-  addMesh(root, new THREE.IcosahedronGeometry(0.19, 1), mat(0x9b68fa, 0.28, 0.22, 0x5c1ac4), 'EchoCore', [0, 0.22, 0])
-  addMesh(root, new THREE.OctahedronGeometry(0.27, 0), mat(0x6b38c9, 0.45, 0.22, 0x45117c), 'EchoShard', [0, 0.22, 0], [0.15, 0.3, 0.2])
-  addMesh(root, new THREE.OctahedronGeometry(0.09, 0), mat(0xdccaff, 0.2, 0.2, 0x9773ff), 'EchoSpark', [0.2, 0.35, 0.03], [0.3, 0.5, 0.25])
-  return root
-}
-
-function emberBombModel() {
-  const root = new THREE.Group()
-  root.name = 'EmberBomb'
-  addMesh(root, new THREE.SphereGeometry(0.19, 12, 10), mat(0x45252a, 0.15, 0.62), 'BombBody', [0, 0.2, 0])
-  addMesh(root, new THREE.TorusGeometry(0.19, 0.022, 6, 18), mat(0xc76a36, 0.35, 0.36, 0x6e1604), 'CopperBand', [0, 0.2, 0], [Math.PI / 2, 0, 0])
-  addMesh(root, new THREE.CylinderGeometry(0.025, 0.03, 0.12, 8), mat(0x5d3b29), 'Fuse', [0, 0.39, 0.02], [0.2, 0, 0])
-  addMesh(root, new THREE.SphereGeometry(0.045, 8, 6), mat(0xff8a32, 0, 0.25, 0xf04409), 'BurningFuse', [0, 0.46, 0.02])
-  return root
-}
-
 function swordModel() {
   const root = new THREE.Group()
-  root.name = 'VeilSword'
+  root.name = 'DecorativeBlade'
   const bladeShape = new THREE.Shape()
   bladeShape.moveTo(-0.065, 0)
   bladeShape.lineTo(0.065, 0)
@@ -244,14 +117,14 @@ function swordModel() {
   addMesh(root, new THREE.BoxGeometry(0.29, 0.045, 0.06), mat(0xd0a34c, 0.75, 0.3), 'Guard', [0, 0.13, 0])
   addMesh(root, new THREE.CylinderGeometry(0.037, 0.03, 0.24, 8), mat(0x312630, 0.12, 0.62), 'Grip', [0, 0.01, 0], [0, 0, 0])
   addMesh(root, new THREE.SphereGeometry(0.055, 10, 8), mat(0x9a4c83, 0.35, 0.3, 0x501c42), 'Pommel', [0, -0.12, 0])
-  const rune = addMesh(root, new THREE.BoxGeometry(0.016, 0.42, 0.006), mat(0x8d63e8, 0.4, 0.25, 0x5a22c9), 'ArcaneRune', [0, 0.51, 0.022])
+  const rune = addMesh(root, new THREE.BoxGeometry(0.016, 0.42, 0.006), mat(0x8d8fa1, 0.35, 0.3), 'BladeInlay', [0, 0.51, 0.022])
   rune.position.z = 0.025
   return root
 }
 
 function chestModel() {
   const root = new THREE.Group()
-  root.name = 'RelicChest'
+  root.name = 'DecorativeChest'
   const wood = mat(0x4f3023, 0.05, 0.82)
   const darkWood = mat(0x2f1d18, 0.05, 0.78)
   const gold = mat(0xcaa65a, 0.68, 0.32)
@@ -268,14 +141,9 @@ function chestModel() {
 
 function createProceduralModel(asset: StarterAsset): THREE.Group {
   switch (asset.id) {
-    case 'vitality-vial': return potionModel(0xba243b)
-    case 'ether-vial': return potionModel(0x3389db)
-    case 'vigor-vial': return potionModel(0x3eaa68)
-    case 'echo-fragment': return echoModel()
-    case 'ember-bomb': return emberBombModel()
-    case 'veil-sword': return swordModel()
-    case 'soul-chest': return chestModel()
-    default: throw new Error('Este item não tem um modelo procedural definido.')
+    case 'decorative-blade': return swordModel()
+    case 'decorative-chest': return chestModel()
+    default: throw new Error('Este ativo não tem um modelo procedural definido.')
   }
 }
 
@@ -312,10 +180,7 @@ async function loadAsset(asset: StarterAsset) {
     emit('load-model', {
       name: asset.name,
       bytes,
-      role: asset.role,
       height: asset.height,
-      itemId: asset.itemId,
-      aiProfile: asset.aiProfile,
       sourceName: asset.sourceName,
     })
     message.value = 'Modelo enviado ao Workspace. Configure a função e salve o componente para reutilizá-lo.'
@@ -336,18 +201,17 @@ function openExternal(url: string) {
     <section class="starter-catalog" role="dialog" aria-modal="true" aria-labelledby="starter-catalog-title">
       <header class="starter-catalog-header">
         <div>
-          <div class="starter-catalog-kicker">ENGINE PROMETHEUS / VEILBORNE</div>
+          <div class="starter-catalog-kicker">ENGINE PROMETHEUS</div>
           <h2 id="starter-catalog-title">Catálogo de modelos iniciais</h2>
-          <p>Carregue personagens animados e itens prontos para salvar na biblioteca.</p>
+          <p>Carregue personagens animados e objetos de exemplo para testar importação, animações e componentes.</p>
         </div>
         <button type="button" class="starter-close" aria-label="Fechar catálogo" @click="emit('close')">×</button>
       </header>
 
       <nav class="starter-catalog-tabs" aria-label="Filtrar modelos">
         <button type="button" :class="{ active: category === 'all' }" @click="category = 'all'">Todos</button>
-        <button type="button" :class="{ active: category === 'characters' }" @click="category = 'characters'">Jogador</button>
-        <button type="button" :class="{ active: category === 'enemies' }" @click="category = 'enemies'">Inimigos</button>
-        <button type="button" :class="{ active: category === 'items' }" @click="category = 'items'">Itens e objetos</button>
+        <button type="button" :class="{ active: category === 'characters' }" @click="category = 'characters'">Personagens</button>
+        <button type="button" :class="{ active: category === 'objects' }" @click="category = 'objects'">Objetos</button>
       </nav>
 
       <div class="starter-catalog-content">
@@ -358,8 +222,7 @@ function openExternal(url: string) {
           <article v-for="asset in visibleAssets" :key="asset.id" class="starter-asset-card">
             <div class="starter-art" :class="'art-' + asset.category">
               <span v-if="asset.category === 'characters'" class="starter-art-glyph">♙</span>
-              <span v-else-if="asset.category === 'enemies'" class="starter-art-glyph">☠</span>
-              <span v-else class="starter-art-glyph">{{ asset.id.includes('vial') ? '⚗' : asset.id === 'echo-fragment' ? '✧' : asset.id === 'veil-sword' ? '⚔' : asset.id === 'soul-chest' ? '▣' : '✹' }}</span>
+              <span v-else class="starter-art-glyph">{{ asset.id === 'decorative-blade' ? '⚔' : asset.id === 'decorative-chest' ? '▣' : '✹' }}</span>
             </div>
             <div class="starter-asset-content">
               <div class="starter-asset-badge">{{ asset.badge }}</div>
@@ -376,8 +239,8 @@ function openExternal(url: string) {
         <section class="starter-pack-section">
           <div>
             <div class="starter-catalog-kicker">PACOTES DE FANTASIA</div>
-            <h3>Mais personagens, monstros e itens</h3>
-            <p>Os pacotes oficiais são downloads separados. Depois de baixar, volte ao Workspace e use <strong>Importar pacote ZIP</strong>.</p>
+            <h3>Mais modelos 3D</h3>
+            <p>Os pacotes oficiais de modelos e animações são downloads separados. Depois de baixar, use <strong>Importar pacote ZIP</strong> no Workspace.</p>
           </div>
           <div class="starter-pack-links">
             <button type="button" @click="openExternal('https://quaternius.com/packs/rpgcharacters.html')">
@@ -394,10 +257,10 @@ function openExternal(url: string) {
             </button>
           </div>
         </section>
-        <p class="starter-footnote">Os modelos online precisam de conexão com a internet na primeira carga. O Fox usa rig/animação sob CC BY 4.0; mantenha os créditos em distribuições. Os itens gerados aqui são protótipos 3D leves, criados localmente.</p>
+        <p class="starter-footnote">Os modelos online precisam de conexão com a internet na primeira carga. Preserve os créditos indicados ao redistribuir modelos externos. Os objetos procedurais são protótipos leves gerados localmente.</p>
       </div>
       <footer class="starter-catalog-footer">
-        <span>Depois de carregar: use “Usar como jogador” ou “Salvar componente”. Inimigos e coletáveis recebem o pacote VEILBORNE automaticamente.</span>
+        <span>Depois de carregar, use “Usar como jogador” ou “Salvar componente”. Configure os comportamentos e componentes de que seu projeto precisa no inspetor.</span>
         <button type="button" class="starter-done" @click="emit('close')">Concluir</button>
       </footer>
     </section>
@@ -422,11 +285,9 @@ function openExternal(url: string) {
 .starter-asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .starter-asset-card{display:flex;min-height:178px;overflow:hidden;border:1px solid #303641;border-radius:5px;background:#1a1e25}
 .starter-art{display:grid;place-items:center;flex:none;width:110px;min-height:100%;background:radial-gradient(ellipse at center,#393044 0,#22212b 55%,#171a20 100%);border-right:1px solid #333743}
-.starter-art-enemies{background:radial-gradient(ellipse at center,#3e2c30 0,#292126 57%,#171a20 100%)}
-.starter-art-items{background:radial-gradient(ellipse at center,#31364a 0,#222530 57%,#171a20 100%)}
+.starter-art-objects{background:radial-gradient(ellipse at center,#31364a 0,#222530 57%,#171a20 100%}
 .starter-art-glyph{font-size:47px;color:#c4a2f8;text-shadow:0 0 24px #7f4fba8a}
-.art-enemies .starter-art-glyph{color:#e09a91}
-.art-items .starter-art-glyph{color:#e2bc78}
+.art-objects .starter-art-glyph{color:#e2bc78}
 .starter-asset-content{display:flex;flex-direction:column;align-items:flex-start;padding:12px 13px;min-width:0;flex:1}
 .starter-asset-badge{font-size:8px;letter-spacing:.09em;font-weight:800;color:#c7a075}
 .starter-asset-content h3{font-size:13px;margin:5px 0;color:#e9ebef}

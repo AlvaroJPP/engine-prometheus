@@ -5,7 +5,6 @@ import { parseModelImportFile } from './ModelImportFileParser'
 import { parseGltfModel } from './GltfModelParser'
 import { loadZipPrimaryModel } from './ZipPrimaryModelLoader'
 import { createZipImportContext, type ZipImportContext, type ZipModelBundle } from './ZipModelImport'
-import { prepareStarterCatalogBehaviorPreset } from './StarterCatalogBehaviorPreset'
 import { shouldDefaultToStaticCityCollider } from './ModelColliderDefaults'
 import { calculateModelImportTransform } from './ModelImportNormalization'
 import { normalizeModelControlBindings } from './ModelControlBindings'
@@ -67,10 +66,7 @@ type ModelImportLoadingContext = {
 type StarterAssetCatalogPayload = {
   name: string
   bytes: ArrayBuffer
-  role: 'player' | 'enemy' | 'loot' | 'object'
   height: number
-  itemId?: string
-  aiProfile?: string
   sourceName?: string
 }
 
@@ -247,9 +243,9 @@ async function loadCatalogAsset(asset: StarterAssetCatalogPayload) {
     await showLoadedModel(loaded, chosenFileName, asset.height)
     fileName.value = chosenFileName
     componentName.value = asset.name
-    const behaviorPreset = prepareStarterCatalogBehaviorPreset(asset, controlBindings.value)
-    selectedBehaviorPackageIds.value = behaviorPreset.packageIds
-    selectedBehaviorPackageSettings.value = behaviorPreset.packageSettings
+    // Ativos do catálogo são genéricos; não herdam pacotes de jogo automaticamente.
+    selectedBehaviorPackageIds.value = []
+    selectedBehaviorPackageSettings.value = {}
 
     activeSetupTab.value = 'model'
   } catch (cause) {
