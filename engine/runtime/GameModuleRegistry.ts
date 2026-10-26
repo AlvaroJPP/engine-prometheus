@@ -21,7 +21,15 @@ export class GameModuleRegistry {
     if (this.modules.has(id)) throw new Error(`Já existe um módulo de jogo registrado com o identificador "${id}".`)
     const record: RegisteredModule = { module, attached: false, active: false, faulted: false }
     this.modules.set(id, record)
-    if (this.context) this.attachOne(record)
+    if (this.context) {
+      this.attachOne(record)
+      // Registros dinâmicos feitos durante o jogo entram no ciclo atual sem esperar outra execução.
+      if (this.runtimeActive && record.attached && !record.faulted) {
+        if (this.invoke(record, 'iniciar runtime', () => module.onRuntimeStart?.(this.context!))) {
+          record.active = true
+        }
+      }
+    }
     return () => this.unregister(id, module)
   }
 
