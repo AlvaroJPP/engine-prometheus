@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { GameModuleRegistry } from '../engine/runtime/GameModuleRegistry.ts'
 
-const calls: string[] = []
+const calls = []
 const context = {}
 const registry = new GameModuleRegistry()
-const module: EngineGameModule = {
+const module = {
   id: 'test-game',
   onAttach: () => calls.push('attach'),
   onRuntimeStart: () => calls.push('start'),
