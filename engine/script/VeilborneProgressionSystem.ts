@@ -131,7 +131,10 @@ export class VeilborneProgressionSystem {
 
     d.logic.setVariable('ecos', Math.max(0, d.readNumber('ecos', 0)) + recovered)
     d.logic.setVariable('ecos_perdidos', 0)
-    this.removeEchoCache()
+    // O cache pode ter vindo de um projeto salvo, sem um ID registrado neste controlador.
+    d.forgetSpawnedLoot(cache.object.id)
+    if (this.cacheObjectId === cache.object.id) this.cacheObjectId = null
+    d.removeObject(cache.object.id)
     d.showNotice('Ecos recuperados: ' + recovered, 2.6)
     d.spawnEffect(position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xe9bf75, 0.62, 0.4)
     d.invalidate()
