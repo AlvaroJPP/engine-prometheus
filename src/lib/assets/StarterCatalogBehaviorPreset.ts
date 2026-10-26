@@ -31,9 +31,10 @@ export function prepareStarterCatalogBehaviorPreset(
 
   const packageId = 'veilborne_rpg'
   const definition = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === packageId)
-  const draft = definition
-    ? mergeImportBehaviorPackageDraft(definition, controlBindings)
-    : { variables: {}, config: {} } as ImportBehaviorPackageDraft
+  // O catálogo do editor continua funcional mesmo quando o pacote VEILBORNE
+  // não foi carregado pelo host. Um pacote ausente não deve ser instalado por ID.
+  if (!definition) return { packageIds: [], packageSettings: {} }
+  const draft = mergeImportBehaviorPackageDraft(definition, controlBindings)
 
   draft.variables.entity_role = asset.role === 'enemy' ? 'combatant' : 'loot'
   draft.variables.faction = asset.role === 'enemy' ? 'hostile' : 'neutral'
