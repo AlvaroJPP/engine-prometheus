@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import type { HumanoidAvatar } from '../world/HumanoidAvatar'
-import type { World } from '../world/World'
-import type { RuleEngine } from './RuleEngine'
+import type { HumanoidAvatar } from '../../../engine/world/HumanoidAvatar'
+import type { World } from '../../../engine/world/World'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import type { VeilborneCombatant } from './VeilborneCombat'
 import type { VeilborneProgressionSystem } from './VeilborneProgressionSystem'
 

@@ -1,11 +1,11 @@
 import * as THREE from 'three'
-import { uuid } from '../lib/id'
-import type { ObjectType } from '../project/format'
-import type { World } from '../world/World'
-import type { RuleEngine } from './RuleEngine'
+import { uuid } from '../../../engine/lib/id'
+import type { ObjectType } from '../../../engine/project/format'
+import type { World } from '../../../engine/world/World'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import type { VeilborneInventorySystem } from './VeilborneInventorySystem'
 import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat'
-import type { BehaviorPackageInstance } from './packages'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 
 type WorldObject = NonNullable<ReturnType<World['get']>>
 

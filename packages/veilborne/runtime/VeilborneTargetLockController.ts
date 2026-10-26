@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import type { World } from '../world/World'
-import type { RuleEngine } from './RuleEngine'
-import type { BehaviorPackageInstance } from './packages'
+import type { World } from '../../../engine/world/World'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 
 type HostileCandidate = {
   instance: BehaviorPackageInstance

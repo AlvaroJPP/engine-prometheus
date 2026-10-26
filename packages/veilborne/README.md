@@ -7,8 +7,9 @@ Pacote modular de RPG medieval sombrio para o Engine Prometheus, onde magos guer
 - `veilborne.json`: manifesto das mecânicas e estado de integração.
 - `content.json`: 4 armas, 6 feitiços, 5 sigilos, 4 arquétipos, 4 perfis iniciais de inimigos/chefes e regras de progressão.
 - `engine/script/packages.ts`: registro do componente **VEILBORNE — RPG Sombrio** no editor.
-- `engine/script/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
-- `engine/Engine.ts`: combate, sigilos, aparo/bloqueio, pipeline de dano recebido e primeira IA hostil.
+- `packages/veilborne/runtime/VeilborneCombat.ts`: regras puras de dano, recursos, resistências, postura, efeitos de estado e perfis de armas/magias/sigilos.
+- `packages/veilborne/runtime/`: auxiliares do jogo para efeitos visuais, barras de vida, inventário, uso de itens, progressão, loot, morte/renascimento, travamento de alvo e sigilos.
+- `engine/Engine.ts`: ainda coordena parte do combate e da IA do jogo; a migração desse orquestrador para um módulo de jogo injetável é a próxima etapa da separação.
 - `engine/input/ControlMaps.ts` e `src/components/ControlMapsDialog.vue`: teclas de bloqueio e aparo configuráveis.
 
 ## Catálogo de modelos iniciais

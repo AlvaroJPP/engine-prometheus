@@ -1,4 +1,4 @@
-import type { RuleEngine } from './RuleEngine'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat'
 
 export interface VeilborneInventoryItem {

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { World } from '../world/World'
-import type { BehaviorPackageInstance } from './packages'
+import type { World } from '../../../engine/world/World'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 
 interface HealthBarEntry {
   sprite: THREE.Sprite

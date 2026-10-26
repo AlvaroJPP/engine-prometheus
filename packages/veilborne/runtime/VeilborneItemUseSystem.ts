@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import type { GameObject } from '../model/object/GameObject'
-import type { RuleEngine } from './RuleEngine'
-import type { BehaviorPackageInstance } from './packages'
+import type { GameObject } from '../../../engine/model/object/GameObject'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import {
   restoreVeilborneResource,
   VEILBORNE_RUNTIME_ITEMS,

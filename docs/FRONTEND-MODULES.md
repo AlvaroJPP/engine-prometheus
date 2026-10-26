@@ -113,7 +113,7 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 ## Sistema de comportamentos
 
 - `engine/script/AutonomousBehaviorSystem.ts`: executa comportamentos autônomos genéricos em GameObjects e entidades durante Run: vagar, patrulhar, seguir/fugir de alvos, observar o jogador e navegar até coordenadas. Mantém estado por instância e dispara eventos para o Visual Script. A movimentação inicial usa direção direta no plano XZ, sem pathfinding/navmesh.
-- O pacote `autonomous_agent` é configurável pelo inspetor e pelo importador de modelos; suas variáveis são persistidas com os pacotes do projeto. A IA de combate de `veilborne_rpg` permanece independente.
+- O pacote `autonomous_agent` é configurável pelo inspetor e pelo importador de modelos; suas variáveis são persistidas com os pacotes do projeto. A implementação de domínio de `veilborne_rpg` fica em `packages/veilborne/runtime/`; a migração do orquestrador para a interface genérica `EngineGameModule` ainda está em andamento.
 
 ## Diagnóstico da tela preta
 

@@ -1,9 +1,9 @@
 import * as THREE from 'three'
-import { uuid } from '../lib/id'
-import type { ObjectType } from '../project/format'
-import type { World } from '../world/World'
-import type { RuleEngine } from './RuleEngine'
-import type { BehaviorPackageInstance } from './packages'
+import { uuid } from '../../../engine/lib/id'
+import type { ObjectType } from '../../../engine/project/format'
+import type { World } from '../../../engine/world/World'
+import type { RuleEngine } from '../../../engine/script/RuleEngine'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatant } from './VeilborneCombat'
 
 type WorldObject = NonNullable<ReturnType<World['get']>>
