@@ -1,4 +1,7 @@
 export { Engine } from './Engine'
+export type { EngineOptions } from './Engine'
+export type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
+export { GameModuleRegistry } from './runtime/GameModuleRegistry'
 export { DEFAULT_CONTROL_MAPS, createDefaultControlMapSettings } from './input/ControlMaps'
 export type { ControlMapBindings, ControlMapProfile, ControlMapSettings } from './input/ControlMaps'
 export { parseProject, parseScene, parseSceneObject, ProjectFormatError } from './project/validate'
