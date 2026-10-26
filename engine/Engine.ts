@@ -33,6 +33,7 @@ import { MountModelStateController } from './script/MountModelStateController'
 import { createVeilborneSigilVisual, createVeilborneWardMesh, disposeVeilborneVisual } from './script/VeilborneSigilVisuals'
 import { VeilborneTargetLockController } from './script/VeilborneTargetLockController'
 import { VeilborneInventorySystem } from './script/VeilborneInventorySystem'
+import { VeilborneItemUseSystem } from './script/VeilborneItemUseSystem'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -103,6 +104,7 @@ export class Engine {
   private readonly veilborneHealthBars: VeilborneHealthBarSystem
   private readonly veilborneTargetLock: VeilborneTargetLockController
   private readonly veilborneInventory: VeilborneInventorySystem
+  private readonly veilborneItemUseSystem: VeilborneItemUseSystem
   private readonly veilborneTargetStates = new Map<string, VeilborneCombatant>()
   private readonly veilborneStatusTickTimers = new Map<string, number>()
   private readonly activeVeilborneSigils = new Map<string, {
@@ -170,6 +172,27 @@ export class Engine {
       isPlayerAlive: () => this.getVeilbornePlayerCombatant().alive,
       spawnEffect: (position, color, radius, durationSeconds) =>
         this.veilborneVisualEffects.spawnEffect(position, color, radius, durationSeconds),
+      invalidate: () => this.viewport.invalidate(),
+    })
+    this.veilborneItemUseSystem = new VeilborneItemUseSystem({
+      logic: this.logic,
+      inventory: this.veilborneInventory,
+      isEnabled: () => this.isVeilborneEnabled(),
+      isRuntimeModeActive: () => this.runtimeModeActive,
+      getPlayer: () => this.getVeilbornePlayerCombatant(),
+      syncPlayer: player => this.syncVeilbornePlayerCombatant(player),
+      readEchoes: () => this.readVeilborneNumber('ecos', 0),
+      findTarget: maxRange => this.findVeilborneTarget(maxRange),
+      getHostiles: () => this.getVeilborneHostilePackages(),
+      getAvatarMesh: () => this.avatar.mesh,
+      spawnEffect: (position, color, scale, durationSeconds) =>
+        this.veilborneVisualEffects.spawnEffect(position, color, scale, durationSeconds),
+      applyHit: (instance, amount, damageType, postureDamage, status) =>
+        this.applyVeilborneHit(instance, amount, damageType, postureDamage, status),
+      showNotice: (message, durationSeconds) => {
+        this.logic.setVariable('loot_notice', message)
+        this.veilborneLootNoticeRemainingSeconds = durationSeconds
+      },
       invalidate: () => this.viewport.invalidate(),
     })
     this.avatar.setManeuverAdmission(kind => this.admitVeilborneManeuver(kind))
@@ -978,77 +1001,7 @@ export class Engine {
   }
 
   private processVeilborneItemUseRequest(): void {
-    const request = this.logic.getVariable('item_use_request')
-    if (typeof request !== 'string' || !request.trim()) return
-    this.logic.setVariable('item_use_request', '')
-    if (!this.isVeilborneEnabled() || !this.runtimeModeActive) return
-    const item = VEILBORNE_RUNTIME_ITEMS[request]
-    if (!item) return
-    const inventory = this.veilborneInventory.read()
-    const stack = inventory.find(entry => entry.id === request)
-    if (!stack || stack.quantity <= 0) return
-    const player = this.getVeilbornePlayerCombatant()
-    if (!player.alive) return
-
-    let consumed = false
-    if (item.effect === 'restore_vitality') {
-      if (player.resources.vitality < player.resources.maxVitality) {
-        consumed = restoreVeilborneResource(player, 'vitality', item.amount) > 0
-        if (consumed) this.syncVeilbornePlayerCombatant(player)
-      }
-    } else if (item.effect === 'restore_ether') {
-      if (player.resources.ether < player.resources.maxEther) {
-        consumed = restoreVeilborneResource(player, 'ether', item.amount) > 0
-        if (consumed) this.syncVeilbornePlayerCombatant(player)
-      }
-    } else if (item.effect === 'restore_stamina') {
-      if (player.resources.stamina < player.resources.maxStamina) {
-        consumed = restoreVeilborneResource(player, 'stamina', item.amount) > 0
-        if (consumed) this.syncVeilbornePlayerCombatant(player)
-      }
-    } else if (item.effect === 'add_echoes') {
-      this.logic.setVariable('ecos', Math.max(0, this.readVeilborneNumber('ecos', 0)) + item.amount)
-      consumed = true
-    } else if (item.effect === 'area_damage') {
-      const target = this.findVeilborneTarget(item.range ?? 8)
-      const forward = new THREE.Vector3(Math.sin(this.avatar.mesh.rotation.y), 0, Math.cos(this.avatar.mesh.rotation.y)).normalize()
-      const center = target
-        ? target.object.mesh.position.clone()
-        : this.avatar.mesh.position.clone().addScaledVector(forward, Math.min(item.range ?? 4, 3.5))
-      center.y += 0.6
-      this.veilborneVisualEffects.spawnEffect(center, item.visualColor, item.radius ?? 2, 0.5)
-      const radius = item.radius ?? 3
-      const affected = this.getVeilborneHostilePackages().filter(candidate =>
-        Math.hypot(candidate.object.mesh.position.x - center.x, candidate.object.mesh.position.z - center.z) <= radius,
-      )
-      for (const candidate of affected) {
-        this.applyVeilborneHit(
-          candidate.instance,
-          item.amount,
-          item.damageType ?? 'fire',
-          item.postureDamage ?? 10,
-          { id: 'burn', potency: 2, durationSeconds: 3 },
-        )
-      }
-      consumed = true
-    }
-
-    if (!consumed) {
-      this.logic.setVariable('loot_notice', 'Não é possível usar este item agora.')
-      this.veilborneLootNoticeRemainingSeconds = 1.8
-      return
-    }
-    stack.quantity -= 1
-    this.veilborneInventory.write(inventory.filter(entry => entry.quantity > 0))
-    this.logic.setVariable('loot_notice', `Usado: ${item.name}`)
-    this.veilborneLootNoticeRemainingSeconds = 2
-    this.veilborneVisualEffects.spawnEffect(
-      this.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
-      item.visualColor,
-      0.34,
-      0.32,
-    )
-    this.viewport.invalidate()
+    this.veilborneItemUseSystem.processRequest()
   }
 
   private updateVeilborneLootNotice(dt: number): void {
