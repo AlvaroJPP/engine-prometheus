@@ -131,6 +131,8 @@ export class Engine {
     window.addEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.addEventListener('pointerup', this.onRuntimePointerUp, true)
     window.addEventListener('keydown', this.onRuleKeyDown)
+    window.addEventListener('keyup', this.onGameModuleKeyUp)
+    window.addEventListener('blur', this.onGameModuleBlur)
     // Gizmo 3D nativo do Three.js: eixos de mover, anéis de rotação e alças de escala.
     this.transformControls = new TransformControls(this.orbit.camera, canvas)
     this.world.scene.add(this.transformControls.getHelper())
@@ -787,6 +789,16 @@ export class Engine {
     this.dispatchMouseBinding(dispatchedCode, 'keyup')
   }
 
+  private onGameModuleKeyUp = (event: KeyboardEvent): void => {
+    this.gameModules.dispatchKeyUp(event)
+  }
+
+  private onGameModuleBlur = (): void => {
+    for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
+    this.pressedMouseBindings.clear()
+    this.gameModules.dispatchInputBlur()
+  }
+
   private onRuleKeyDown = (event: KeyboardEvent): void => {
     if (!this.cameraStateBeforeRun || event.repeat || event.metaKey) return
 
@@ -880,9 +892,10 @@ export class Engine {
       }
     }
 
-    // Mantém o sistema de eventos existente funcionando para as outras teclas.
+    // Módulos de jogo processam suas ações; o Visual Script genérico recebe a tecla também.
+    const moduleHandled = this.gameModules.dispatchKeyDown(event)
     const executed = this.logic.triggerKeyPressed(event.code)
-    if (executed) event.preventDefault()
+    if (executed || moduleHandled) event.preventDefault()
   }
 
   /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
@@ -1718,6 +1731,8 @@ export class Engine {
     window.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.removeEventListener('pointerup', this.onRuntimePointerUp, true)
     window.removeEventListener('keydown', this.onRuleKeyDown)
+    window.removeEventListener('keyup', this.onGameModuleKeyUp)
+    window.removeEventListener('blur', this.onGameModuleBlur)
     this.input.dispose()
     this.avatar.dispose()
     this.collisions.dispose()
