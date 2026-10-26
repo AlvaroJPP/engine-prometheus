@@ -85,6 +85,111 @@ export class CollisionSystem {
     this.shapeCache.delete(id)
   }
 
+
+  /**
+   * Verifica se um deslocamento pode ser aplicado sem atravessar outro colisor.
+   * A posição do objeto é restaurada antes do retorno; o método não emite eventos.
+   */
+  canMoveObjectTo(id: string, target: { x: number; y: number; z: number }): boolean {
+    const moving = this.world.get(id)
+    if (!moving || ![target.x, target.y, target.z].every(Number.isFinite)) return false
+    if (moving.mesh.userData.locked === true || moving.mesh.userData.mountCollisionManaged === true) return false
+    if (this.colliderType(moving) === 'none') return true
+
+    const origin = moving.mesh.position.clone()
+    const destination = new THREE.Vector3(target.x, target.y, target.z)
+    const distance = origin.distanceTo(destination)
+    if (distance < 1e-5) return true
+
+    const initialShape = this.buildShape(moving)
+    if (!initialShape) return true
+    const initialBounds = this.getShapeBounds(moving, initialShape).clone()
+    const size = initialBounds.getSize(new THREE.Vector3())
+    const smallestExtent = Math.max(0.05, Math.min(size.x || Infinity, size.y || Infinity, size.z || Infinity))
+    const halfSize = size.multiplyScalar(0.5)
+    const centerOffset = initialBounds.getCenter(new THREE.Vector3()).sub(origin)
+    const sweptBounds = new THREE.Box3().setFromPoints([
+      origin.clone().add(centerOffset),
+      destination.clone().add(centerOffset),
+    ]).expandByVector(halfSize)
+
+    const obstacles = this.world.list().filter(object =>
+      object.id !== id
+      && this.world.isObjectVisible(object)
+      && this.colliderType(object) !== 'none'
+      && !this.isPlatformPair(moving, object)
+      && sweptBounds.intersectsBox(this.getBroadphaseWorldBounds(object)),
+    )
+
+    if (obstacles.length === 0) return true
+
+    const relevant: Array<{
+      object: GameObject
+      shape: ConvexShape
+      bounds: THREE.Box3
+      initialDepth: number
+    }> = []
+
+    for (const obstacle of obstacles) {
+      const shape = this.buildShape(obstacle)
+      if (!shape) continue
+      const bounds = this.getShapeBounds(obstacle, shape).clone()
+      if (!sweptBounds.intersectsBox(bounds)) continue
+      const initialContact = initialBounds.intersectsBox(bounds)
+        ? this.intersectObjects(moving, obstacle, initialShape, shape)
+        : null
+      relevant.push({
+        object: obstacle,
+        shape,
+        bounds,
+        initialDepth: initialContact?.depth ?? 0,
+      })
+    }
+
+    if (relevant.length === 0) return true
+
+    const steps = THREE.MathUtils.clamp(
+      Math.ceil(distance / (smallestExtent * CCD_FRACTION)),
+      CCD_MIN_STEPS,
+      CCD_MAX_STEPS,
+    )
+    let clear = true
+
+    try {
+      for (let step = 1; step <= steps; step += 1) {
+        moving.mesh.position.copy(origin).lerp(destination, step / steps)
+        moving.mesh.updateMatrixWorld(true)
+        const candidateShape = this.buildShape(moving)
+        if (!candidateShape) {
+          clear = false
+          break
+        }
+        const candidateBounds = this.getShapeBounds(moving, candidateShape)
+
+        for (const obstacle of relevant) {
+          if (!candidateBounds.intersectsBox(obstacle.bounds)) continue
+          const contact = this.intersectObjects(moving, obstacle.object, candidateShape, obstacle.shape)
+          if (!contact) continue
+
+          // Permite sair de uma interseção já existente sem aprofundá-la.
+          const existingOverlap = obstacle.initialDepth
+          if (existingOverlap <= 0.01 || contact.depth > existingOverlap + 0.01) {
+            clear = false
+            break
+          }
+        }
+
+        if (!clear) break
+      }
+    } finally {
+      moving.mesh.position.copy(origin)
+      moving.mesh.updateMatrixWorld(true)
+      this.invalidateObject(id)
+    }
+
+    return clear
+  }
+
   private releaseObject(id: string): void {
     this.invalidateObject(id)
     const collider = this.colliderGeometries.get(id)
