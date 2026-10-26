@@ -24,6 +24,7 @@
     "model:owned-urls:self-test": "node --experimental-strip-types scripts/model-owned-object-urls-self-test.mjs",
     "model:collider-preview:self-test": "node --experimental-strip-types scripts/model-collider-preview-self-test.mjs",
     "model:resource-cleanup:self-test": "node --experimental-strip-types scripts/model-import-resource-cleanup-self-test.mjs",
+    "behavior:autonomous:self-test": "node --experimental-strip-types scripts/autonomous-behavior-self-test.mjs",
     "behavior:package-config:self-test": "node --experimental-strip-types scripts/import-behavior-package-config-self-test.mjs",
     "animation:keyframe-timeline:self-test": "node --experimental-strip-types scripts/rig-keyframe-timeline-self-test.mjs",
     "model:import-normalization:self-test": "node --experimental-strip-types scripts/model-import-normalization-self-test.mjs"

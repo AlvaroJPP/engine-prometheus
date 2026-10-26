@@ -110,6 +110,11 @@ O front-end está organizado por responsabilidade. A ordem dos estilos é explí
 - `src/lib/assets/ImportBehaviorPackageConfig.ts`: reúne as regras puras para rótulos, valores escalares, vetores e teclas de controle da configuração de pacotes de comportamento no importador.
 - `src/lib/hud/HudImageStorage.ts`: concentra leitura, gravação e remoção dos blobs de imagens personalizadas do HUD no IndexedDB. O componente mantém somente o estado visual e as URLs temporárias.
 
+## Sistema de comportamentos
+
+- `engine/script/AutonomousBehaviorSystem.ts`: executa comportamentos autônomos genéricos em GameObjects e entidades durante Run: vagar, patrulhar, seguir/fugir de alvos, observar o jogador e navegar até coordenadas. Mantém estado por instância e dispara eventos para o Visual Script. A movimentação inicial usa direção direta no plano XZ, sem pathfinding/navmesh.
+- O pacote `autonomous_agent` é configurável pelo inspetor e pelo importador de modelos; suas variáveis são persistidas com os pacotes do projeto. A IA de combate de `veilborne_rpg` permanece independente.
+
 ## Diagnóstico da tela preta
 
 No app de desenvolvimento, pressione **Ctrl+Shift+F** para abrir/fechar o painel de diagnóstico mesmo quando o modo de tela cheia estiver desligado. O painel compara o estado nativo da janela, a classe CSS, dimensões de `.app`, `.main`, `.viewport` e canvas, tamanho do buffer WebGL, último resize, quadros desenhados e perda/erro do contexto.

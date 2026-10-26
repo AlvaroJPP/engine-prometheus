@@ -405,7 +405,18 @@ function setExternalRef(name: string, element: unknown): void {
 
                       <div class="component-caption">VARIÁVEIS</div>
                       <div v-for="variable in entry.definition.variables" :key="variable.name" class="package-variable">
-                        <label v-if="variable.type === 'boolean'" class="checkline">
+                        <label v-if="entry.instance.packageId === 'autonomous_agent' && variable.name === 'target_object_id'" class="field">{{ variable.label }}
+                          <select :value="String(entry.instance.variables[variable.name] ?? '')" :disabled="variable.readOnly === true" @change="ctx.onPackageVariableChange(entry.instance, variable, $event)">
+                            <option value="">Selecione um objeto-alvo…</option>
+                            <option v-for="obj in ctx.objects.filter(obj => obj.id !== entry.instance.ownerObjectId)" :key="obj.id" :value="obj.id">{{ obj.name }}</option>
+                          </select>
+                        </label>
+                        <label v-else-if="variable.options?.length" class="field">{{ variable.label }}
+                          <select :value="String(entry.instance.variables[variable.name] ?? variable.defaultValue)" :disabled="variable.readOnly === true" @change="ctx.onPackageVariableChange(entry.instance, variable, $event)">
+                            <option v-for="option in variable.options" :key="String(option.value)" :value="String(option.value)">{{ option.label }}</option>
+                          </select>
+                        </label>
+                        <label v-else-if="variable.type === 'boolean'" class="checkline">
                           <input type="checkbox" :checked="entry.instance.variables[variable.name] === true" :disabled="variable.readOnly === true" @change="ctx.onPackageVariableChange(entry.instance, variable, $event)" />
                           {{ variable.label }}
                         </label>

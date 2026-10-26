@@ -26,6 +26,7 @@ import { HumanoidAvatar } from './world/HumanoidAvatar'
 import { AnimationController, createAnimationActionMap, getAnimationControllerFromObject } from './world/AnimationController'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
+import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
@@ -91,6 +92,7 @@ export class Engine {
   private modelLod!: ModelLodSystem
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
+  private readonly autonomousBehaviorSystem = new AutonomousBehaviorSystem()
   private orbit = new OrbitCamera()
   private viewport: Viewport
   private input: PointerController
@@ -295,6 +297,7 @@ export class Engine {
         if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
       }
       this.avatar.update(dt)
+      this.updateAutonomousBehaviors(dt)
       this.updateVeilborneRuntime(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
       const mountedMovementState = this.avatar.getMountedMovementState()
@@ -2361,6 +2364,40 @@ export class Engine {
       if (!activeIds.has(id)) this.veilborneTargetStates.delete(id)
     }
     this.viewport.invalidate()
+  }
+
+  /** Executa pacotes autônomos para qualquer objeto, independentemente do pacote VEILBORNE. */
+  private updateAutonomousBehaviors(dt: number): void {
+    if (!this.runtimeModeActive && !this.autonomousBehaviorSystem.hasRuntimeState()) return
+
+    const transitions = this.autonomousBehaviorSystem.update({
+      dt,
+      runtimeEnabled: this.runtimeModeActive,
+      world: this.world,
+      packages: this.logic.listPackages(),
+      playerPosition: this.avatar.mesh.position,
+    })
+
+    for (const transition of transitions) {
+      this.logic.setPackageVariable(transition.instanceId, 'state', transition.state)
+      const object = this.world.get(transition.ownerObjectId)
+      const controller = object ? getAnimationControllerFromObject(object.mesh) : undefined
+      if (controller) {
+        if (isAutonomousMovingState(transition.state)) {
+          controller.setState(transition.state === 'fleeing' ? 'run' : 'walk')
+        } else if (controller.currentState === 'walk' || controller.currentState === 'run') {
+          controller.setState('idle')
+        }
+      }
+
+      if (transition.events.length) {
+        for (const eventId of transition.events) {
+          this.triggerBehaviorPackageEvent(transition.ownerObjectId, 'autonomous_agent', eventId)
+        }
+      } else {
+        this.notifyBehaviorPackageChanged(transition.ownerObjectId)
+      }
+    }
   }
 
   private notifyBehaviorPackageChanged(ownerObjectId: string): void {

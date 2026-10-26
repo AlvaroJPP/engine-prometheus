@@ -95,6 +95,8 @@ export interface BehaviorPackageVariableDefinition {
   type: 'boolean' | 'number' | 'string'
   defaultValue: PackageScalar
   description: string
+  /** Opções para apresentar um seletor no inspetor em vez de um campo de texto. */
+  options?: Array<{ value: PackageScalar; label: string }>
   min?: number
   max?: number
   step?: number
@@ -330,6 +332,58 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       seatOffset: [0, 0.55, 0],
       modelStates: [],
     },
+  },
+  {
+    id: 'autonomous_agent',
+    version: '1.0.0',
+    name: 'Comportamento autônomo',
+    description: 'Faz qualquer GameObject ou entidade agir por conta própria durante Run, sem depender do pacote VEILBORNE.',
+    variables: [
+      {
+        name: 'mode',
+        label: 'Comportamento',
+        type: 'string',
+        defaultValue: 'wander',
+        description: 'Escolhe a rotina autônoma executada pelo objeto.',
+        options: [
+          { value: 'idle', label: 'Parado' },
+          { value: 'wander', label: 'Vagar pela área' },
+          { value: 'patrol', label: 'Patrulhar em linha' },
+          { value: 'follow_player', label: 'Seguir jogador' },
+          { value: 'flee_player', label: 'Fugir do jogador' },
+          { value: 'follow_object', label: 'Seguir outro objeto' },
+          { value: 'move_to_point', label: 'Ir até coordenadas' },
+          { value: 'look_at_player', label: 'Observar jogador' },
+        ],
+      },
+      { name: 'move_speed', label: 'Velocidade', type: 'number', defaultValue: 2.5, description: 'Velocidade de movimento em unidades por segundo.', min: 0, max: 20, step: 0.1 },
+      { name: 'perception_range', label: 'Alcance de percepção', type: 'number', defaultValue: 15, description: 'Distância máxima para detectar o jogador ou objeto-alvo.', min: 0.5, max: 100, step: 0.5 },
+      { name: 'stopping_distance', label: 'Distância de parada', type: 'number', defaultValue: 1.4, description: 'Distância mínima mantida de um alvo ou destino.', min: 0.1, max: 20, step: 0.1 },
+      { name: 'wander_radius', label: 'Raio de exploração', type: 'number', defaultValue: 5, description: 'Raio máximo em torno do ponto inicial usado pelo modo Vagar.', min: 0.5, max: 40, step: 0.5 },
+      { name: 'patrol_radius', label: 'Raio de patrulha', type: 'number', defaultValue: 4, description: 'Distância de cada extremidade da patrulha em relação ao ponto inicial.', min: 0.5, max: 40, step: 0.5 },
+      { name: 'idle_duration', label: 'Pausa entre movimentos (s)', type: 'number', defaultValue: 1.2, description: 'Tempo de espera ao chegar ao destino em modos Vagar e Patrulhar.', min: 0, max: 30, step: 0.1 },
+      { name: 'target_object_id', label: 'Objeto-alvo', type: 'string', defaultValue: '', description: 'No modo Seguir outro objeto, selecione o GameObject usado como alvo.' },
+      { name: 'destination_x', label: 'Destino X', type: 'number', defaultValue: 0, description: 'Coordenada X usada pelo modo Ir até coordenadas.', min: -49, max: 49, step: 0.1 },
+      { name: 'destination_y', label: 'Destino Y', type: 'number', defaultValue: 0, description: 'Coordenada Y usada pelo modo Ir até coordenadas.', min: -50, max: 100, step: 0.1 },
+      { name: 'destination_z', label: 'Destino Z', type: 'number', defaultValue: 0, description: 'Coordenada Z usada pelo modo Ir até coordenadas.', min: -49, max: 49, step: 0.1 },
+      { name: 'state', label: 'Estado atual', type: 'string', defaultValue: 'idle', description: 'Estado calculado pelo motor durante Run; pode disparar eventos de comportamento.', readOnly: true },
+    ],
+    triggers: [
+      { id: 'behavior_started', label: 'Comportamento iniciado', description: 'Disparado quando a rotina autônoma começa a agir.' },
+      { id: 'behavior_stopped', label: 'Comportamento parado', description: 'Disparado quando uma rotina não direcionada deixa de agir.' },
+      { id: 'target_detected', label: 'Alvo detectado', description: 'Disparado quando o jogador ou objeto-alvo entra na área de percepção.' },
+      { id: 'target_lost', label: 'Alvo perdido', description: 'Disparado quando um alvo seguido deixa de estar ao alcance.' },
+      { id: 'destination_reached', label: 'Destino alcançado', description: 'Disparado quando o objeto alcança as coordenadas configuradas.' },
+    ],
+    conditions: [
+      { id: 'target_in_range', label: 'Alvo no alcance', description: 'Use as variáveis de percepção e estado em condições do Visual Script.' },
+      { id: 'destination_reached', label: 'Destino alcançado', description: 'Consulte a variável de estado para executar ações após uma chegada.' },
+    ],
+    actions: [
+      { id: 'change_mode', label: 'Alterar comportamento', description: 'Use uma regra do Visual Script para modificar a variável Comportamento.' },
+      { id: 'set_variable', label: 'Definir variável', description: 'Altere parâmetros do pacote para modificar a rotina em execução.' },
+    ],
+    defaultConfig: {},
   },
 ]
 

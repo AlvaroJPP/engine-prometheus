@@ -506,7 +506,17 @@ const thumbnailFileInput = ref<HTMLInputElement | null>(null)
 
                 <div class="model-package-subheading">VARIÁVEIS</div>
                 <div v-for="variable in definition.variables" :key="variable.name" class="model-package-variable">
-                  <label v-if="variable.type === 'boolean'" class="model-package-toggle">
+                  <label v-if="variable.options?.length" class="model-package-field">
+                    <span><strong>{{ variable.label }}</strong><small>{{ variable.description }}</small></span>
+                    <select
+                      :value="String(importPackageVariableValue(definition.id, variable.name, variable.defaultValue))"
+                      :disabled="variable.readOnly === true || isReadOnlyPreview"
+                      @change="updateImportPackageVariable(definition.id, variable, $event)"
+                    >
+                      <option v-for="option in variable.options" :key="String(option.value)" :value="String(option.value)">{{ option.label }}</option>
+                    </select>
+                  </label>
+                  <label v-else-if="variable.type === 'boolean'" class="model-package-toggle">
                     <input
                       type="checkbox"
                       :checked="importPackageVariableValue(definition.id, variable.name, variable.defaultValue) === true"
