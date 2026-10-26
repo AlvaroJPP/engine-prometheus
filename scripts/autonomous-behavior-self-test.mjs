@@ -35,6 +35,7 @@ const world = new TestWorld()
 const agentObject = world.add('agent')
 world.add('target', 10, 0)
 const playerPosition = { x: 12, y: 0, z: 0 }
+
 const makeAgent = (id, ownerObjectId, mode, overrides = {}) => ({
   id,
   packageId: 'autonomous_agent',
@@ -57,12 +58,14 @@ const makeAgent = (id, ownerObjectId, mode, overrides = {}) => ({
   },
   config: {},
 })
+
 const applyTransitions = (packages, transitions) => {
   for (const transition of transitions) {
     const instance = packages.find(item => item.id === transition.instanceId)
     if (instance) instance.variables.state = transition.state
   }
 }
+
 const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
   const transitions = system.update({
     dt,
@@ -78,11 +81,9 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
 {
   const system = new AutonomousBehaviorSystem()
   const agent = makeAgent('wander-agent', 'agent', 'wander')
+  agentObject.mesh.position.set(0, 0.5, 0)
   const startX = agentObject.mesh.position.x
-  let transitions = []
-  for (let index = 0; index < 40; index += 1) {
-    transitions = tick(system, [agent], 0.1)
-  }
+  for (let index = 0; index < 40; index += 1) tick(system, [agent], 0.1)
   assert.notEqual(agentObject.mesh.position.x, startX, 'wander mode should move the object away from its start point')
   assert.ok(['wandering', 'waiting'].includes(agent.variables.state))
 }
@@ -106,12 +107,14 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
     stopping_distance: 0.2,
   })
   let latestTransitions = []
+  const emittedEvents = []
   for (let index = 0; index < 20; index += 1) {
     latestTransitions = tick(system, [agent], 0.1)
+    emittedEvents.push(...latestTransitions.flatMap(item => item.events))
   }
   assert.equal(agent.variables.state, 'reached')
   assert.ok(Math.abs(agentObject.mesh.position.x - 2) <= 0.25, 'move_to_point should stop near its destination')
-  assert.ok(latestTransitions.every(item => !item.events.includes('destination_reached')), 'arrival event should only fire on the transition to reached')
+  assert.equal(emittedEvents.filter(event => event === 'destination_reached').length, 1, 'arrival event should fire exactly once')
 }
 
 {
@@ -122,6 +125,82 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition) => {
   tick(system, [agent], 0.1)
   assert.ok(agentObject.mesh.position.distanceTo(start) < 1e-6, 'idle mode should not move the object')
   assert.equal(agent.variables.state, 'idle')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('patrol-agent', 'agent', 'patrol', { patrol_radius: 2, idle_duration: 0 })
+  for (let index = 0; index < 8; index += 1) tick(system, [agent], 0.1)
+  assert.ok(agentObject.mesh.position.x > 0, 'patrol mode should move the object toward a patrol endpoint')
+  assert.ok(['patrolling', 'waiting'].includes(agent.variables.state), 'patrol should expose a moving or waiting state')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('flee-agent', 'agent', 'flee_player')
+  for (let index = 0; index < 3; index += 1) tick(system, [agent], 0.1, { x: 5, y: 0, z: 0 })
+  assert.ok(agentObject.mesh.position.x < 0, 'flee_player should move away from the player')
+  assert.equal(agent.variables.state, 'fleeing')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  world.get('target').mesh.position.set(10, 0.5, 0)
+  const agent = makeAgent('follow-object-agent', 'agent', 'follow_object')
+  for (let index = 0; index < 3; index += 1) tick(system, [agent], 0.1)
+  assert.ok(agentObject.mesh.position.x > 0, 'follow_object should approach the selected object')
+  assert.equal(agent.variables.state, 'following')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  agentObject.mesh.rotation.y = 0
+  const agent = makeAgent('look-agent', 'agent', 'look_at_player')
+  const transitions = tick(system, [agent], 0.1, { x: 0, y: 0, z: 10 })
+  assert.equal(agent.variables.state, 'watching')
+  assert.ok(Math.abs(agentObject.mesh.rotation.y) > 0.1, 'look_at_player should rotate the object toward the player')
+  assert.ok(transitions.some(item => item.events.includes('target_detected')), 'observing the player should emit target_detected')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('disabled-agent', 'agent', 'follow_player', { state: 'following' })
+  agent.enabled = false
+  const transitions = tick(system, [agent], 0.1)
+  assert.equal(agent.variables.state, 'idle', 'a disabled behavior should return to idle')
+  assert.ok(transitions.every(item => item.events.length === 0), 'disabling a behavior should not emit transition events')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  const agent = makeAgent('runtime-stop-agent', 'agent', 'wander', { state: 'wandering' })
+  const transitions = system.update({
+    dt: 0.1,
+    runtimeEnabled: false,
+    world,
+    packages: [agent],
+    playerPosition,
+  })
+  applyTransitions([agent], transitions)
+  assert.equal(agent.variables.state, 'idle', 'stopping runtime should reset the behavior state')
+  assert.ok(transitions.every(item => item.events.length === 0), 'stopping runtime should not emit behavior events')
+  assert.equal(system.hasRuntimeState(), false, 'stopping runtime should clear autonomous runtime state')
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('missing-target-agent', 'agent', 'follow_object', { state: 'following' })
+  world.get('target').mesh.visible = false
+  const transitions = tick(system, [agent], 0.1)
+  world.get('target').mesh.visible = true
+  assert.equal(agent.variables.state, 'idle', 'an invisible target should stop follow_object')
+  assert.ok(transitions.some(item => item.events.includes('target_lost')), 'losing an object target should emit target_lost')
 }
 
 console.log('Autonomous behavior self-test passed.')
