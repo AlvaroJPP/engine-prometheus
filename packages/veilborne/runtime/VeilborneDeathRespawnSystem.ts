@@ -114,7 +114,7 @@ export class VeilborneDeathRespawnSystem {
     d.logic.setVariable('jogador_atordoado', false)
     d.logic.setVariable('morte_contagem', 0)
     d.setRespawnRemaining(0)
-    d.avatar.setCombatStagger(0)
+    d.avatar.setActionLock(0)
     d.clearTargetLock()
     d.logic.setVariable('loot_notice', 'Você retornou ao santuário.')
     d.setLootNoticeDuration(2.2)
