@@ -51,6 +51,44 @@ export class GameModuleRegistry {
     }
   }
 
+  dispatchKeyDown(event: KeyboardEvent): boolean {
+    if (this.disposed || !this.context || !this.runtimeActive) return false
+    let handled = false
+    for (const record of this.modules.values()) {
+      if (!record.active || record.faulted || !record.module.onKeyDown) continue
+      try {
+        handled = record.module.onKeyDown(event, this.context) === true || handled
+      } catch (error) {
+        this.fail(record, 'processar keydown', error)
+      }
+    }
+    return handled
+  }
+
+  dispatchKeyUp(event: KeyboardEvent): void {
+    if (this.disposed || !this.context || !this.runtimeActive) return
+    for (const record of this.modules.values()) {
+      if (!record.active || record.faulted || !record.module.onKeyUp) continue
+      try {
+        record.module.onKeyUp(event, this.context)
+      } catch (error) {
+        this.fail(record, 'processar keyup', error)
+      }
+    }
+  }
+
+  dispatchInputBlur(): void {
+    if (this.disposed || !this.context || !this.runtimeActive) return
+    for (const record of this.modules.values()) {
+      if (!record.active || record.faulted || !record.module.onInputBlur) continue
+      try {
+        record.module.onInputBlur(this.context)
+      } catch (error) {
+        this.fail(record, 'limpar estado de entrada', error)
+      }
+    }
+  }
+
   update(dt: number): void {
     if (this.disposed || !this.context || !this.runtimeActive) return
     const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0
@@ -110,10 +148,14 @@ export class GameModuleRegistry {
       callback()
       return true
     } catch (error) {
-      record.faulted = true
-      record.active = false
-      console.error(`[GameModuleRegistry] O módulo "${record.module.id}" falhou ao ${phase}.`, error)
+      this.fail(record, phase, error)
       return false
     }
+  }
+
+  private fail(record: RegisteredModule, phase: string, error: unknown): void {
+    record.faulted = true
+    record.active = false
+    console.error(`[GameModuleRegistry] O módulo "${record.module.id}" falhou ao ${phase}.`, error)
   }
 }
