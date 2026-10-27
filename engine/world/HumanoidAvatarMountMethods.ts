@@ -33,9 +33,32 @@ export interface HumanoidAvatarMountContext {
 }
 
 /** Estado inicial mantido pelo fluxo de montaria, fora da classe principal. */
-export function createHumanoidAvatarMountState() {
+export interface HumanoidAvatarMountState {
+  playerMountTransition: 'mount' | null
+  mountedMovementState: MountMovementState
+  mountedJumpRequested: boolean
+  mountedAirborne: boolean
+  mountedVerticalVelocity: number
+  mountedStartPosition: THREE.Vector3 | null
+  mountedStartRotation: THREE.Euler | null
+  mountedVisualPivot: THREE.Object3D | null
+  mountedVisualBaseQuaternion: THREE.Quaternion | null
+  mountedSupportProbeElapsed: number
+  mountedHasSupportProbe: boolean
+  mountedLastSupportProbePosition: THREE.Vector3
+}
+
+export function createHumanoidAvatarMountState(): HumanoidAvatarMountState {
   return {
-    mountedVisualBaseQuaternion: null as THREE.Quaternion | null,
+    playerMountTransition: null,
+    mountedMovementState: 'idle',
+    mountedJumpRequested: false,
+    mountedAirborne: false,
+    mountedVerticalVelocity: 0,
+    mountedStartPosition: null,
+    mountedStartRotation: null,
+    mountedVisualPivot: null,
+    mountedVisualBaseQuaternion: null,
     mountedSupportProbeElapsed: 0,
     mountedHasSupportProbe: false,
     mountedLastSupportProbePosition: new THREE.Vector3(),
