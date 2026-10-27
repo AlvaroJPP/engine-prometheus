@@ -9,6 +9,7 @@ import { VeilborneInventorySystem } from './VeilborneInventorySystem'
 import { VeilborneItemUseSystem } from './VeilborneItemUseSystem'
 import { VeilborneLootSystem } from './VeilborneLootSystem'
 import { VeilborneProgressionSystem } from './VeilborneProgressionSystem'
+import { VeilborneTargetLockController } from './VeilborneTargetLockController'
 import { VeilborneVisualEffects } from './VeilborneVisualEffects'
 
 const PACKAGE_ID = 'veilborne_rpg'
@@ -26,6 +27,7 @@ export class VeilborneGameModule implements EngineGameModule {
   private unregisterPackage: (() => void) | null = null
   private combatRuntime: VeilborneCombatRuntime | null = null
   private enemyAI: VeilborneEnemyAISystem | null = null
+  private targetLock: VeilborneTargetLockController | null = null
   private visualEffects: VeilborneVisualEffects | null = null
   private healthBars: VeilborneHealthBarSystem | null = null
   private inventory: VeilborneInventorySystem | null = null
@@ -67,6 +69,20 @@ export class VeilborneGameModule implements EngineGameModule {
     const spawnEffect = (position: THREE.Vector3, color: number, scale: number, durationSeconds = 0.32): void => {
       visualEffects.spawnEffect(position, color, scale, durationSeconds)
     }
+
+    const targetLock = new VeilborneTargetLockController({
+      scene: context.world.scene,
+      avatar: context.avatar.mesh,
+      logic: context.logic,
+      findTarget: maxRange => combatRuntime.findTarget(maxRange),
+      getHostiles: () => combatRuntime.getHostilePackages(),
+      getWorldPoint: objectId => combatRuntime.getWorldPoint(objectId),
+      isPlayerAlive: () => combatRuntime.getPlayerCombatant().alive,
+      spawnEffect,
+      invalidate: () => context.invalidate(),
+    })
+    this.targetLock = targetLock
+    context.avatar.setManeuverAdmission(kind => combatRuntime.admitManeuver(kind))
 
     const loot = new VeilborneLootSystem({
       world: context.world,
@@ -130,7 +146,10 @@ export class VeilborneGameModule implements EngineGameModule {
       setLootNoticeDuration: seconds => { this.lootNoticeRemainingSeconds = seconds },
     })
     this.deathRespawn = deathRespawn
-    combatRuntime.setPlayerDeathHandler(() => deathRespawn.handlePlayerDeath())
+    combatRuntime.setPlayerDeathHandler(() => {
+      targetLock.clear()
+      deathRespawn.handlePlayerDeath()
+    })
     combatRuntime.setEnemyKilledHandler(instance => loot.spawnDrop(instance))
 
     const itemUse = new VeilborneItemUseSystem({
@@ -182,18 +201,37 @@ export class VeilborneGameModule implements EngineGameModule {
   onKeyDown(event: KeyboardEvent, context: GameModuleContext): boolean {
     if (!context.isRuntimeActive() || !(this.combatRuntime?.isEnabled() ?? false)) return false
     const bindings = context.getControlBindings()
+    const extraControls = this.getExtraControls(context)
+    if (event.code === extraControls.block) {
+      this.combatRuntime?.setBlocking(true)
+      return true
+    }
+    if (event.code === extraControls.parry) {
+      this.combatRuntime?.beginParry()
+      return true
+    }
+    if (event.code === extraControls.targetLock) {
+      this.targetLock?.toggle()
+      return true
+    }
     if (event.code === bindings.interact) {
       if (this.progression?.activateCheckpoint() || this.progression?.pickupEchoCache() || this.loot?.pickup()) return true
     }
     return this.combatRuntime?.handleKeyDown(event) ?? false
   }
 
-  onKeyUp(event: KeyboardEvent): void {
+  onKeyUp(event: KeyboardEvent, context: GameModuleContext): void {
+    if (event.code === this.getExtraControls(context).block) {
+      this.combatRuntime?.setBlocking(false)
+      return
+    }
     this.combatRuntime?.handleKeyUp(event)
   }
 
   onInputBlur(): void {
     this.combatRuntime?.handleInputBlur()
+    this.combatRuntime?.setBlocking(false)
+    this.targetLock?.clear()
   }
 
   update(dt: number, context: GameModuleContext): void {
@@ -208,6 +246,7 @@ export class VeilborneGameModule implements EngineGameModule {
     if (!enabled) return
 
     this.itemUse?.processRequest()
+    this.targetLock?.update(this.combatRuntime!.getPlayerCombatant().alive)
     this.enemyAI?.update(dt)
     this.deathRespawn?.update(dt, this.combatRuntime!.getPlayerCombatant())
     this.healthBars?.update(this.combatRuntime?.getHostilePackages() ?? [])
@@ -218,6 +257,7 @@ export class VeilborneGameModule implements EngineGameModule {
     const hadGameRuntime = this.active || (this.combatRuntime?.isEnabled() ?? false)
     this.active = false
     if (hadGameRuntime) this.combatRuntime?.resetCombatInputs()
+    this.targetLock?.clear()
     this.combatRuntime?.resetRuntimeState()
     this.enemyAI?.clear()
     this.loot?.resetForEditor()
@@ -233,6 +273,9 @@ export class VeilborneGameModule implements EngineGameModule {
     this.clearVisuals()
     this.unregisterPackage?.()
     this.unregisterPackage = null
+    this.targetLock?.clear()
+    this.context?.avatar.setManeuverAdmission(null)
+    this.targetLock = null
     this.combatRuntime?.resetRuntimeState()
     this.enemyAI?.clear()
     this.enemyAI = null
@@ -246,6 +289,15 @@ export class VeilborneGameModule implements EngineGameModule {
     this.deathRespawn = null
     this.defaultSpawnPosition = null
     this.context = null
+  }
+
+  private getExtraControls(context: GameModuleContext): { block: string; parry: string; targetLock: string } {
+    const bindings = context.getControlBindings()
+    return {
+      block: 'KeyR',
+      parry: 'KeyY',
+      targetLock: bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
+    }
   }
 
   private showNotice(context: GameModuleContext, message: string, durationSeconds: number): void {
