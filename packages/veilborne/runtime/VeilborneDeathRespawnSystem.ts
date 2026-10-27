@@ -25,7 +25,11 @@ export interface VeilborneDeathRespawnDependencies {
 
 /** Encapsula a lógica de morte, perda de Ecos e retorno ao santuário. */
 export class VeilborneDeathRespawnSystem {
-  constructor(private readonly deps: VeilborneDeathRespawnDependencies) {}
+  private readonly deps: VeilborneDeathRespawnDependencies
+
+  constructor(deps: VeilborneDeathRespawnDependencies) {
+    this.deps = deps
+  }
 
   handlePlayerDeath(): void {
     const d = this.deps
