@@ -1,13 +1,13 @@
 import type { ObjectInfo } from '../model/object/GameObject'
 import type { World } from '../world/World'
-import { EMPTY_LOGIC } from './types'
-import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages'
-import type { BehaviorPackageInstance, PackageScalar } from './packages'
-import type { LogicEventsFile, LogicRule, RuleAction, RuleTrigger } from './types'
-import { CombatPackageRuntime } from './CombatPackageRuntime'
-import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime'
-import { InventoryRuntime } from './InventoryRuntime'
-import type { InventoryStack } from './InventoryRuntime'
+import { EMPTY_LOGIC } from './types.ts'
+import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages.ts'
+import type { BehaviorPackageInstance, PackageScalar } from './packages.ts'
+import type { LogicEventsFile, LogicRule, RuleAction, RuleTrigger } from './types.ts'
+import { CombatPackageRuntime } from './CombatPackageRuntime.ts'
+import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime.ts'
+import { InventoryRuntime } from './InventoryRuntime.ts'
+import type { InventoryStack } from './InventoryRuntime.ts'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
 type ScriptApi = {
