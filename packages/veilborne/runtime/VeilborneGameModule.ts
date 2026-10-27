@@ -38,7 +38,6 @@ export class VeilborneGameModule implements EngineGameModule {
   private pressedBlockKey: string | null = null
   private defaultSpawnPosition: THREE.Vector3 | null = null
   private respawnRemainingSeconds = 0
-  private lootNoticeRemainingSeconds = 0
   private configuredControls: Partial<VeilborneGameModuleControls>
 
   constructor(options: VeilborneGameModuleOptions = {}) {
@@ -92,7 +91,6 @@ export class VeilborneGameModule implements EngineGameModule {
       removeObject,
       clearNotice: () => {
         if (context.logic.getVariable('loot_notice') !== undefined) context.logic.setVariable('loot_notice', '')
-        this.lootNoticeRemainingSeconds = 0
       },
       invalidate: () => context.invalidate(),
     })
@@ -238,7 +236,6 @@ export class VeilborneGameModule implements EngineGameModule {
     this.enemyAI?.update(dt)
     this.deathRespawn?.update(dt, this.combatRuntime!.getPlayerCombatant())
     this.healthBars?.update(this.combatRuntime?.getHostilePackages() ?? [])
-    this.updateLootNotice(dt)
   }
 
   onRuntimeStop(): void {
@@ -256,7 +253,6 @@ export class VeilborneGameModule implements EngineGameModule {
     this.progression?.clearEchoCacheReference()
     this.defaultSpawnPosition = null
     this.respawnRemainingSeconds = 0
-    this.lootNoticeRemainingSeconds = 0
     this.clearVisuals()
   }
 
@@ -307,10 +303,8 @@ export class VeilborneGameModule implements EngineGameModule {
         0.34,
         0.32,
       )
-      this.lootNoticeRemainingSeconds = 2
       context.invalidate()
     } else if (result === 'blocked') {
-      this.lootNoticeRemainingSeconds = 1.8
       context.invalidate()
     }
     context.logic.setVariable('item_use_result', '')
@@ -333,23 +327,6 @@ export class VeilborneGameModule implements EngineGameModule {
       context.getControlBindings(),
       this.configuredControls,
     )
-  }
-
-  private showNotice(context: GameModuleContext, message: string, durationSeconds: number): void {
-    context.logic.setVariable('loot_notice', message)
-    this.lootNoticeRemainingSeconds = Math.max(0, durationSeconds)
-    context.invalidate()
-  }
-
-  private updateLootNotice(dt: number): void {
-    if (this.lootNoticeRemainingSeconds <= 0) return
-    this.lootNoticeRemainingSeconds = Math.max(0, this.lootNoticeRemainingSeconds - Math.max(0, dt))
-    if (this.lootNoticeRemainingSeconds <= 0 && this.combatRuntime?.isEnabled()) {
-      const context = this.context
-      if (context?.logic.getVariable('loot_notice') !== undefined) {
-        context.logic.setVariable('loot_notice', '')
-      }
-    }
   }
 
   private clearVisuals(): void {
