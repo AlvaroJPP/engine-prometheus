@@ -19,11 +19,9 @@ export class VeilborneVisualEffects {
   private readonly damageNumbers = new Map<THREE.Sprite, TimedDamageNumber>()
   private readonly projectiles: ProjectileVisualRuntime
   private readonly scene: THREE.Scene
-  private readonly invalidate: () => void
 
   constructor(scene: THREE.Scene, invalidate: () => void) {
     this.scene = scene
-    this.invalidate = invalidate
     this.projectiles = new ProjectileVisualRuntime(scene, invalidate)
   }
 
