@@ -66,7 +66,7 @@ const assets: StarterAsset[] = [
     id: 'decorative-chest',
     name: 'Baú Decorativo',
     description: 'Prop 3D para praticar posicionamento, colisores e criação de componentes.',
-    category: 'items',
+    category: 'objects',
     kind: 'procedural',
     height: 0.72,
     badge: 'OBJETO · DECORAÇÃO',
