@@ -526,6 +526,31 @@ export class World {
     return [...this.objects.values()]
   }
 
+  /**
+   * Resolve a generic walkable ground height.
+   * Visible platforms are considered even when the procedural terrain is hidden.
+   * maxStepUp prevents an agent from snapping onto a platform above its step limit.
+   */
+  getGroundHeightAt(x: number, z: number, maxStepUp = Number.POSITIVE_INFINITY): number {
+    let groundY = this.terrain.mesh.visible ? this.terrain.heightAt(x, z) : 0
+    const maximum = Number.isFinite(maxStepUp) ? maxStepUp : Number.POSITIVE_INFINITY
+
+    for (const surface of this.objects.values()) {
+      if (surface.type !== 'platform' || surface.mesh.userData.colliderType === 'none') continue
+      if (!this.isObjectVisible(surface)) continue
+
+      surface.mesh.updateMatrixWorld(true)
+      const bounds = new THREE.Box3().setFromObject(surface.mesh)
+      if (bounds.isEmpty() || bounds.max.y > maximum) continue
+      if (x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03) continue
+      if (z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03) continue
+
+      groundY = Math.max(groundY, bounds.max.y)
+    }
+
+    return Number.isFinite(groundY) ? groundY : 0
+  }
+
   /** Retorna uma entidade pelo ID apenas quando o elemento foi declarado como entity. */
   getEntity(id: string): Entity | null {
     return toEntity(this.objects.get(id))
