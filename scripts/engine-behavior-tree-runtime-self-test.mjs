@@ -6,12 +6,14 @@ const packageInstance = {
   packageId: 'custom',
   ownerObjectId: 'npc',
   enabled: true,
-  variables: {},
+  variables: { stamina: 40 },
   config: {
     behaviorTree: {
       id: 'root',
       type: 'sequence',
       children: [
+        { id: 'global-health-check', type: 'condition', condition: 'global_variable_compare', parameters: { variable: 'health', operator: 'gte', value: 50 } },
+        { id: 'package-stamina-check', type: 'condition', condition: 'package_variable_compare', parameters: { variable: 'stamina', operator: 'lt', value: 50 } },
         { id: 'exists', type: 'condition', condition: 'object_exists' },
         { id: 'near-target', type: 'condition', condition: 'object_distance_lte', parameters: { targetObjectId: 'target', distance: 10 } },
         { id: 'move', type: 'action', action: 'set_object_position', parameters: { x: 2, z: 3 } },
@@ -40,7 +42,7 @@ const packageInstance = {
   },
 }
 const packages = [packageInstance]
-const globals = {}
+const globals = { health: 75 }
 const emitted = []
 const changed = []
 const object = { id: 'npc', mesh: { visible: true, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, position: { x: 0, y: 0, z: 0 } } }
