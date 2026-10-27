@@ -2,9 +2,6 @@ import * as THREE from 'three'
 import type { World } from '../../../engine/world/World'
 import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import type { VeilborneInventorySystem } from './VeilborneInventorySystem'
-import type { BehaviorPackageInstance } from '../../../engine/script/packages'
-
-type WorldObject = NonNullable<ReturnType<World['get']>>
 
 interface VeilborneLootDependencies {
   world: World
