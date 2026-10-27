@@ -41,6 +41,19 @@ export class VeilborneProgressionSystem {
     return this.cacheObjectId
   }
 
+  /** Reconstrói a referência de um cache que já veio salvo no projeto. */
+  syncEchoCacheReference(): string | null {
+    const d = this.dependencies
+    const savedCache = d.logic.listPackages().find(instance =>
+      instance.enabled &&
+      instance.packageId === 'veilborne_rpg' &&
+      instance.variables.entity_role === 'echo_cache' &&
+      d.world.get(instance.ownerObjectId) !== undefined,
+    )
+    this.cacheObjectId = savedCache?.ownerObjectId ?? null
+    return this.cacheObjectId
+  }
+
   activateCheckpoint(): boolean {
     const d = this.dependencies
     if (!d.isEnabled() || !d.isRuntimeModeActive()) return false
@@ -145,6 +158,7 @@ export class VeilborneProgressionSystem {
     const d = this.dependencies
     const value = Math.max(0, Math.floor(amount))
     if (value <= 0) return
+    if (!this.cacheObjectId) this.syncEchoCacheReference()
     if (this.cacheObjectId && d.world.get(this.cacheObjectId)) return
 
     const material = new THREE.MeshStandardMaterial({
@@ -179,6 +193,7 @@ export class VeilborneProgressionSystem {
 
   removeEchoCache(): void {
     const d = this.dependencies
+    if (!this.cacheObjectId) this.syncEchoCacheReference()
     const id = this.cacheObjectId
     if (!id) return
     d.forgetSpawnedLoot(id)
