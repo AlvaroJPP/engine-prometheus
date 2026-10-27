@@ -537,53 +537,20 @@ export class VeilborneCombatRuntimeBase {
     }
     this.context.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
     this.context.world.events.emit('behaviorPackageChanged', { ownerObjectId: instance.ownerObjectId })
-    this.awardKillReward(instance)
+    const previousLevel = Math.max(1, Math.floor(this.readNumber('nivel', 1)))
+    this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_killed')
+    const currentLevel = Math.max(1, Math.floor(this.readNumber('nivel', 1)))
+    if (currentLevel > previousLevel) {
+      this.visualEffects.spawnEffect(
+        this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)),
+        0xe9bf75,
+        1.2,
+        0.7,
+      )
+    }
     this.onEnemyKilled?.(instance)
     this.targetStates.delete(instance.ownerObjectId)
-    this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_killed')
     this.context.invalidate()
-  }
-
-  protected awardKillReward(instance: BehaviorPackageInstance): void {
-    const profiles: Record<string, { echoes: number; experience: number }> = {
-      melee: { echoes: 10, experience: 15 },
-      ranged_caster: { echoes: 12, experience: 18 },
-      flanker: { echoes: 14, experience: 20 },
-      guard_breaker: { echoes: 22, experience: 40 },
-      boss_phases: { echoes: 100, experience: 150 },
-    }
-    const profile = typeof instance.variables.ai_profile === 'string' ? instance.variables.ai_profile.trim().toLowerCase() : 'melee'
-    const automatic = profiles[profile] ?? profiles.melee!
-    const readReward = (name: string, fallback: number): number => {
-      const value = instance.variables[name]
-      return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
-    }
-    const echoes = readReward('eco_reward', automatic.echoes)
-    const rewardExperience = readReward('xp_reward', automatic.experience)
-    if (echoes > 0) this.context.logic.setVariable('ecos', Math.max(0, this.readNumber('ecos', 0)) + echoes)
-
-    let level = Math.max(1, Math.floor(this.readNumber('nivel', 1)))
-    let experience = Math.max(0, this.readNumber('experiencia', 0)) + rewardExperience
-    let attributePoints = Math.max(0, Math.floor(this.readNumber('pontos_atributo', 0)))
-    const thresholdForLevel = (currentLevel: number): number => Math.max(100, Math.floor(100 * Math.pow(currentLevel, 1.22)))
-    let threshold = thresholdForLevel(level)
-    let levelsGained = 0
-    while (experience >= threshold && level < 999) {
-      experience -= threshold
-      level += 1
-      levelsGained += 1
-      attributePoints += 1
-      threshold = thresholdForLevel(level)
-    }
-    this.context.logic.setVariable('nivel', level)
-    this.context.logic.setVariable('experiencia', experience)
-    this.context.logic.setVariable('experiencia_proximo_nivel', threshold)
-    this.context.logic.setVariable('pontos_atributo', attributePoints)
-    if (levelsGained > 0) {
-      this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'level_up')
-      this.visualEffects.spawnEffect(this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0xe9bf75, 1.2, 0.7)
-      this.context.invalidate()
-    }
   }
 
   protected readTargetPosture(instance: BehaviorPackageInstance): number {
