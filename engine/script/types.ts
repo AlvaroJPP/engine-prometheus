@@ -26,6 +26,8 @@ export interface LogicRule {
   trigger: RuleTrigger
   conditions: RuleCondition[]
   actions: RuleAction[]
+  /** Identifica regras instanciadas automaticamente por um pacote de comportamento. */
+  sourcePackageInstanceId?: string
   /** Interno: evita disparar continuamente enquanto permanece na área. */
   /** Posições persistidas dos nós no editor visual. */
   graphLayout?: { trigger: { x: number; y: number }; condition: { x: number; y: number }; action: { x: number; y: number } }
