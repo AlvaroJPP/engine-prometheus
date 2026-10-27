@@ -44,6 +44,8 @@ export class VeilborneCombatRuntime {
   private heavyChargeStartedAt: number | null = null
   private onPlayerDeath: (() => void) | null = null
   private onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
+  private playerStaggerRemaining = 0
+  private onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
   private wardMesh: THREE.Mesh | null = null
   private wardRemainingSeconds = 0
   private wardAbsorption = 0
@@ -468,7 +470,7 @@ export class VeilborneCombatRuntime {
       bindings.primaryAction, bindings.secondaryAction,
       bindings.ability1, bindings.ability2, bindings.ability3, bindings.ability4,
     ]
-    if (this.context.avatar.isCombatStaggered()) return combatActions.includes(event.code)
+    if (this.playerStaggerRemaining > 0 || this.context.avatar.isActionLocked()) return combatActions.includes(event.code)
     if (event.code === bindings.useItem) {
       this.activateSigil()
       return true
@@ -505,7 +507,7 @@ export class VeilborneCombatRuntime {
     if (this.context.logic.getVariable('carga_ataque') !== undefined) {
       this.context.logic.setVariable('carga_ataque', 0)
     }
-    if (!this.context.isRuntimeActive() || !this.isEnabled() || this.context.avatar.isCombatStaggered()) return
+    if (!this.context.isRuntimeActive() || !this.isEnabled() || this.playerStaggerRemaining > 0 || this.context.avatar.isActionLocked()) return
     const duration = Math.max(0, performance.now() / 1000 - startedAt)
     this.performWeaponAttack(true, 1 + Math.min(1.5, duration * 0.75))
   }
@@ -534,6 +536,12 @@ export class VeilborneCombatRuntime {
     if (this.pendingCast) {
       this.pendingCast.remainingSeconds -= step
       if (this.pendingCast.remainingSeconds <= 0) this.resolveSpellCast()
+    }
+    if (this.playerStaggerRemaining > 0) {
+      this.playerStaggerRemaining = Math.max(0, this.playerStaggerRemaining - step)
+      if (this.playerStaggerRemaining <= 0 && this.context.logic.getVariable('jogador_atordoado') !== undefined) {
+        this.context.logic.setVariable('jogador_atordoado', false)
+      }
     }
     const player = this.getPlayerCombatant()
     if (player.alive) {
@@ -605,7 +613,8 @@ export class VeilborneCombatRuntime {
     const postureBroken = player.alive && player.resources.posture >= player.resources.maxPosture
     if (postureBroken) {
       player.resources.posture = 0
-      this.context.avatar.setCombatStagger(0.85)
+      this.playerStaggerRemaining = 0.85
+      this.context.avatar.setActionLock(0.85)
       this.context.logic.setVariable('jogador_atordoado', true)
       this.visualEffects.spawnEffect(
         this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)),
@@ -964,13 +973,7 @@ export class VeilborneCombatRuntime {
       const wasAlive = instance.variables.morto !== true &&
         (typeof instance.variables.vida !== 'number' || instance.variables.vida > 0)
       this.syncTarget(instance, target, false)
-      if (wasAlive && !target.alive) {
-        this.context.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
-        this.awardKillReward(instance)
-        this.onEnemyKilled?.(instance)
-        this.targetStates.delete(instance.ownerObjectId)
-        this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_killed')
-      }
+      if (wasAlive && !target.alive) this.handleDefeatedTarget(instance)
     }
     for (const id of this.targetStates.keys()) {
       if (!activeIds.has(id)) this.targetStates.delete(id)
@@ -984,6 +987,8 @@ export class VeilborneCombatRuntime {
     this.cooldowns.clear()
     this.heavyChargeStartedAt = null
     this.pendingCast = null
+    this.playerStaggerRemaining = 0
+    if (this.context.logic.getVariable('jogador_atordoado') !== undefined) this.context.logic.setVariable('jogador_atordoado', false)
     this.clearActiveSigils()
     this.clearWard()
   }
