@@ -23,25 +23,44 @@ export class VeilborneGameModule implements EngineGameModule {
 
   onAttach(context: GameModuleContext): void {
     this.unregisterPackage = registerVeilborneBehaviorPackage()
-    this.combatRuntime = new VeilborneCombatRuntime(context)
     this.visualEffects = new VeilborneVisualEffects(context.world.scene, context.invalidate)
+    this.combatRuntime = new VeilborneCombatRuntime(context, this.visualEffects)
     this.healthBars = new VeilborneHealthBarSystem(context.world.scene)
   }
 
   onRuntimeStart(context: GameModuleContext): void {
-    this.active = context.logic.listPackages().some(
+    this.active = this.combatRuntime?.isEnabled() ?? context.logic.listPackages().some(
       instance => instance.enabled && instance.packageId === PACKAGE_ID,
     )
-    if (!this.active) return
+    if (this.active) this.combatRuntime?.ensurePlayerVariables()
+  }
 
-    this.combatRuntime?.ensurePlayerVariables()
+  onKeyDown(event: KeyboardEvent): boolean {
+    return this.combatRuntime?.handleKeyDown(event) ?? false
+  }
+
+  onKeyUp(event: KeyboardEvent): void {
+    this.combatRuntime?.handleKeyUp(event)
+  }
+
+  onInputBlur(): void {
+    this.combatRuntime?.handleInputBlur()
   }
 
   update(dt: number, context: GameModuleContext): void {
-    if (!this.active || !context.isRuntimeActive()) return
-    this.visualEffects?.update(dt)
-    this.combatRuntime?.tickHostileStatuses(dt)
-    this.healthBars?.update(this.combatRuntime?.getHostilePackages() ?? [])
+    if (!context.isRuntimeActive()) return
+
+    const enabled = this.combatRuntime?.isEnabled() ?? false
+    if (enabled && !this.active) this.combatRuntime?.ensurePlayerVariables()
+    if (!enabled && this.active) this.healthBars?.clear()
+    this.active = enabled
+
+    // A atualização também mantém os efeitos visuais e os tempos de recarga
+    // consistentes, enquanto a lógica de combate para quando o pacote está desativado.
+    this.combatRuntime?.update(dt)
+    if (enabled) {
+      this.healthBars?.update(this.combatRuntime?.getHostilePackages() ?? [])
+    }
   }
 
   onRuntimeStop(): void {
