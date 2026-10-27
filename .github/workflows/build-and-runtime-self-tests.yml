@@ -130,3 +130,6 @@ jobs:
 
       - name: Test gameplay behavior extension composition
         run: npm run gameplay:behavior-extensions:self-test
+
+      - name: Test gameplay runtime composition
+        run: npm run gameplay:runtime:self-test
