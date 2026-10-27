@@ -36,22 +36,14 @@ watch(
 let unregisterGameModule: (() => void) | null = null
 let gameModule: VeilborneGameModule | null = null
 
-const defensiveControls = computed(() => {
-  // Read each relevant prop so changes to the selected map/config refresh labels.
-  const engine = props.engine
-  const enabled = props.enabled
-  const bindings = props.bindings
-  const configured = {
+const defensiveControls = computed(() => resolveVeilborneGameModuleControls(
+  props.bindings,
+  {
     block: props.controls?.block,
     parry: props.controls?.parry,
     targetLock: props.controls?.targetLock,
-  }
-  if (engine && enabled && gameModule) {
-    // The module and HUD use the same pure resolver and current binding input.
-    return resolveVeilborneGameModuleControls(bindings, configured)
-  }
-  return resolveVeilborneGameModuleControls(bindings, configured)
-})
+  },
+))
 
 watch(
   [() => props.engine, () => props.enabled] as const,
