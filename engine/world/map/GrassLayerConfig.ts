@@ -174,7 +174,7 @@ export interface GrassRenderBand {
 }
 
 /** Gera um tufo de folhas em malha compartilhada. A versão distante usa bem menos polígonos. */
-function createGrassGeometry(lowDetail: boolean): THREE.BufferGeometry {
+export function createGrassGeometry(lowDetail: boolean): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
   const positions: number[] = []
   const colors: number[] = []
@@ -238,7 +238,7 @@ function createGrassGeometry(lowDetail: boolean): THREE.BufferGeometry {
 }
 
 /** Textura de folha local e leve; não depende de assets externos ou conexão. */
-function createGrassTexture(): THREE.CanvasTexture {
+export function createGrassTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 32
   canvas.height = 128
