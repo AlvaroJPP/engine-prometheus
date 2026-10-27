@@ -210,4 +210,29 @@ assert.deepEqual(
 )
 stopDuringStartRegistry.dispose()
 
+// Um módulo que se remove durante onRuntimeStart não pode voltar a ser
+// marcado como ativo depois de onDispose.
+const selfRemovingRegistry = new GameModuleRegistry()
+const selfRemovingCalls = []
+let unregisterSelf = null
+unregisterSelf = selfRemovingRegistry.register({
+  id: 'self-removing-module',
+  onRuntimeStart: () => {
+    selfRemovingCalls.push('start')
+    unregisterSelf?.()
+  },
+  onRuntimeStop: () => selfRemovingCalls.push('stop'),
+  onDispose: () => selfRemovingCalls.push('dispose'),
+})
+selfRemovingRegistry.attach(context)
+selfRemovingRegistry.start()
+assert.deepEqual(
+  selfRemovingCalls,
+  ['start', 'dispose'],
+  'um módulo removido durante a inicialização não deve ser reativado nem receber stop',
+)
+selfRemovingRegistry.stop()
+selfRemovingRegistry.dispose()
+assert.deepEqual(selfRemovingCalls, ['start', 'dispose'])
+
 console.log('Game module registry self-test passed.')
