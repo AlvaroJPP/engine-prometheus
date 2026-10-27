@@ -13,6 +13,7 @@ export interface EntityComponentDefinition<TComponent> {
 
 export type EntityComponentEvent<TComponents extends object> =
   | { readonly type: 'entity-created'; readonly entity: EntitySnapshot }
+  | { readonly type: 'entity-destroying'; readonly entityId: string }
   | { readonly type: 'entity-destroyed'; readonly entityId: string }
   | { readonly type: 'entity-enabled-changed'; readonly entityId: string; readonly enabled: boolean }
   | { readonly type: 'component-added'; readonly entityId: string; readonly componentType: EntityComponentKey<TComponents>; readonly component: unknown }
@@ -44,7 +45,7 @@ export class EntityComponentRuntime<TComponents extends object = Record<string, 
 
   create(entityId: string): EntitySnapshot {
     const id = this.normalizeEntityId(entityId)
-    if (this.entities.has(id)) throw new Error(`Entity already exists: "${id}".`)
+    if (this.entities.has(id) || this.destroying.has(id)) throw new Error(`Entity already exists or is being destroyed: "${id}".`)
     const record: EntityRecord = { enabled: true, components: new Map() }
     this.entities.set(id, record)
     const snapshot = this.snapshot(id, record)
@@ -57,8 +58,13 @@ export class EntityComponentRuntime<TComponents extends object = Record<string, 
     const record = this.entities.get(id)
     if (!record || this.destroying.has(id)) return false
     this.destroying.add(id)
-    this.entities.delete(id)
     const errors: unknown[] = []
+    try {
+      this.emit({ type: 'entity-destroying', entityId: id })
+    } catch (error) {
+      errors.push(error)
+    }
+    this.entities.delete(id)
 
     for (const [componentType, component] of [...record.components].reverse()) {
       record.components.delete(componentType)
