@@ -48,6 +48,7 @@ export class VeilborneGameModule implements EngineGameModule {
   private progression: VeilborneProgressionSystem | null = null
   private deathRespawn: VeilborneDeathRespawnSystem | null = null
   private active = false
+  private pressedBlockKey: string | null = null
   private defaultSpawnPosition: THREE.Vector3 | null = null
   private respawnRemainingSeconds = 0
   private lootNoticeRemainingSeconds = 0
@@ -213,6 +214,7 @@ export class VeilborneGameModule implements EngineGameModule {
     const bindings = context.getControlBindings()
     const extraControls = this.getExtraControls(context)
     if (event.code === extraControls.block) {
+      this.pressedBlockKey = event.code
       this.combatRuntime?.setBlocking(true)
       return true
     }
@@ -230,8 +232,9 @@ export class VeilborneGameModule implements EngineGameModule {
     return this.combatRuntime?.handleKeyDown(event) ?? false
   }
 
-  onKeyUp(event: KeyboardEvent, context: GameModuleContext): void {
-    if (event.code === this.getExtraControls(context).block) {
+  onKeyUp(event: KeyboardEvent): void {
+    if (event.code === this.pressedBlockKey) {
+      this.pressedBlockKey = null
       this.combatRuntime?.setBlocking(false)
       return
     }
@@ -239,6 +242,7 @@ export class VeilborneGameModule implements EngineGameModule {
   }
 
   onInputBlur(): void {
+    this.pressedBlockKey = null
     this.combatRuntime?.handleInputBlur()
     this.combatRuntime?.setBlocking(false)
     this.targetLock?.clear()
@@ -275,6 +279,7 @@ export class VeilborneGameModule implements EngineGameModule {
   }
 
   onRuntimeStop(): void {
+    this.pressedBlockKey = null
     const hadGameRuntime = this.active || (this.combatRuntime?.isEnabled() ?? false)
     this.active = false
     if (hadGameRuntime) this.combatRuntime?.resetCombatInputs()
@@ -291,6 +296,7 @@ export class VeilborneGameModule implements EngineGameModule {
 
   onDispose(): void {
     this.active = false
+    this.pressedBlockKey = null
     this.clearVisuals()
     this.unregisterPackage?.()
     this.unregisterPackage = null
