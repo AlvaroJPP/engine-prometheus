@@ -380,11 +380,17 @@ export class AutonomousBehaviorSystem {
   private resolveGroundHeight(world: AutonomousWorld, object: AutonomousObject, x: number, z: number): number {
     const bounds = new THREE.Box3().setFromObject(object.mesh)
     const bottomOffset = bounds.isEmpty() ? 0 : object.mesh.position.y - bounds.min.y
-    const currentGroundY = object.mesh.position.y - bottomOffset
-    const maxStepUp = currentGroundY + 0.6
+    const measuredGroundY = object.mesh.position.y - bottomOffset
+    const fallbackGroundY = Number.isFinite(measuredGroundY) ? measuredGroundY : 0
+    const maxStepUp = fallbackGroundY + 0.6
 
-    if (world.getGroundHeightAt) return world.getGroundHeightAt(x, z, maxStepUp)
-    return (world.terrain.mesh?.visible ?? true) ? world.terrain.heightAt(x, z) : 0
+    const groundY = world.getGroundHeightAt
+      ? world.getGroundHeightAt(x, z, maxStepUp)
+      : (world.terrain.mesh?.visible ?? true)
+        ? world.terrain.heightAt(x, z)
+        : 0
+    // Bad/missing terrain samples must not put NaN or Infinity into a Three.js transform.
+    return Number.isFinite(groundY) ? groundY : fallbackGroundY
   }
 
   private moveTowards(
@@ -478,6 +484,16 @@ export class AutonomousBehaviorSystem {
   ): boolean {
     const current = object.mesh.position
     const origin = { x: current.x, y: current.y, z: current.z }
+    if (
+      !Number.isFinite(origin.x)
+      || !Number.isFinite(origin.y)
+      || !Number.isFinite(origin.z)
+      || !Number.isFinite(desired.x)
+      || !Number.isFinite(desired.y)
+      || !Number.isFinite(desired.z)
+      || !Number.isFinite(rotationY)
+    ) return false
+
     const direct = {
       x: clampWorldCoordinate(desired.x),
       y: desired.y,
@@ -497,7 +513,10 @@ export class AutonomousBehaviorSystem {
       }
     }
     const isSafe = (candidate: Position3): boolean =>
-      !canMoveTo || canMoveTo(object.id, candidate)
+      Number.isFinite(candidate.x)
+      && Number.isFinite(candidate.y)
+      && Number.isFinite(candidate.z)
+      && (!canMoveTo || canMoveTo(object.id, candidate))
 
     if (movedDistance(direct) <= 1e-6) return false
     if (isSafe(direct)) {
