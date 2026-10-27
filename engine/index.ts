@@ -19,3 +19,6 @@ export { RuleEngine } from './script/RuleEngine'
 export type { LogicEventsFile, LogicRule, RuleTrigger, RuleCondition, RuleAction } from './script/types'
 
 export * from './script/packages'
+
+export { BehaviorTreeRuntime, validateBehaviorTree } from './script/BehaviorTree'
+export type { BehaviorTreeNode, BehaviorTreeStatus, BehaviorTreeParameters, BehaviorTreeHandlers, BehaviorTreeSequenceNode, BehaviorTreeSelectorNode, BehaviorTreeParallelNode, BehaviorTreeConditionNode, BehaviorTreeActionNode, BehaviorTreeWaitNode } from './script/BehaviorTree'
