@@ -554,7 +554,7 @@ export class VeilborneCombatRuntimeBase {
     this.context.invalidate()
   }
 
-  protected applyDamageToTarget(
+  applyDamageToTarget(
     instance: BehaviorPackageInstance,
     amount: number,
     damageType: VeilborneDamageType,
