@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>engine-prometheus</title>
+    <title>Engine Prometheus</title>
     <style>
       /* Keep render diagnostics on the left and lower it slightly in the viewport. */
       .viewport-fps {
@@ -12,10 +12,140 @@
         left: 16px !important;
         right: auto !important;
       }
+      #ep-startup-diagnostic {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #0b0d10;
+        color: #e8edf5;
+        font: 14px/1.55 "Cascadia Code", Consolas, monospace;
+      }
+      #ep-startup-diagnostic[hidden] { display: none !important; }
+      #ep-startup-diagnostic .ep-diagnostic-card {
+        width: min(760px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+        padding: 24px;
+        border: 1px solid #3a414c;
+        border-left: 4px solid #f5a524;
+        background: #14171c;
+      }
+      #ep-startup-diagnostic h1 {
+        margin: 0 0 12px;
+        color: #f5a524;
+        font-size: 17px;
+        letter-spacing: .04em;
+      }
+      #ep-startup-diagnostic p { margin: 8px 0; }
+      #ep-startup-diagnostic pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 12px;
+        color: #d9e2f0;
+        background: #0e1013;
+        border: 1px solid #292f39;
+      }
+      #ep-startup-diagnostic .ep-help { color: #a6b0bf; font-size: 12px; }
     </style>
   </head>
   <body>
     <div id="app"></div>
+    <section id="ep-startup-diagnostic" role="alert" aria-live="assertive">
+      <div class="ep-diagnostic-card">
+        <h1 id="ep-startup-title">ENGINE PROMETHEUS · INICIALIZANDO</h1>
+        <p id="ep-startup-message">Aguardando a interface e o primeiro quadro 3D…</p>
+        <pre id="ep-startup-details">Se a tela permanecer aqui, os dados de inicialização aparecerão automaticamente.</pre>
+        <p class="ep-help">Este painel some quando o viewport desenha um quadro válido. Se aparecer uma falha, registre o texto exibido para localizar a causa.</p>
+      </div>
+    </section>
+    <script>
+      (() => {
+        const panel = document.getElementById('ep-startup-diagnostic');
+        const title = document.getElementById('ep-startup-title');
+        const message = document.getElementById('ep-startup-message');
+        const details = document.getElementById('ep-startup-details');
+        let firstFrame = false;
+        const show = (heading, body) => {
+          if (!panel || !title || !message || !details) return;
+          panel.hidden = false;
+          panel.dataset.fatal = 'true';
+          title.textContent = heading;
+          message.textContent = heading;
+          details.textContent = body;
+        };
+        const frameDiagnostics = (detail) => {
+          firstFrame = true;
+          if (panel?.dataset.fatal === 'true') return;
+          if (detail && Number(detail.drawCalls) > 0) {
+            if (panel) panel.hidden = true;
+            return;
+          }
+          show('WEBGL INICIOU, MAS NÃO DESENHOU GEOMETRIA', JSON.stringify({
+            drawCalls: detail?.drawCalls ?? 'não informado',
+            triangles: detail?.triangles ?? 'não informado',
+            canvas: (() => {
+              const canvas = document.querySelector('canvas.canvas');
+              return canvas ? {
+                clientSize: canvas.clientWidth + 'x' + canvas.clientHeight,
+                bufferSize: canvas.width + 'x' + canvas.height,
+                webglReady: canvas.dataset.engineWebglReady || 'não registrado',
+                resizeBlocked: canvas.dataset.engineResizeBlocked || 'não',
+              } : 'canvas não encontrado';
+            })(),
+          }, null, 2));
+        };
+        window.addEventListener('error', (event) => {
+          if (!(event instanceof ErrorEvent) || !event.message) return;
+          show('ERRO JAVASCRIPT NA INICIALIZAÇÃO', [
+            event.message,
+            event.filename ? 'Arquivo: ' + event.filename : '',
+            event.lineno ? 'Linha: ' + event.lineno + ', coluna: ' + event.colno : '',
+            event.error?.stack || '',
+          ].filter(Boolean).join('\n'));
+        }, true);
+        window.addEventListener('unhandledrejection', (event) => {
+          const reason = event.reason;
+          show('PROMESSA REJEITADA DURANTE A INICIALIZAÇÃO',
+            reason instanceof Error ? reason.stack || reason.message : String(reason));
+        });
+        window.addEventListener('engine-prometheus:webgl-ready', () => {
+          if (panel?.dataset.fatal !== 'true' && message) {
+            message.textContent = 'WebGL criado; aguardando o primeiro quadro…';
+          }
+        });
+        window.addEventListener('engine-prometheus:webgl-init-error', (event) => {
+          const detail = event.detail || {};
+          show('FALHA AO CRIAR O CONTEXTO WEBGL', detail.message || JSON.stringify(detail));
+        });
+        window.addEventListener('engine-prometheus:render-error', (event) => {
+          const detail = event.detail || {};
+          show('ERRO AO DESENHAR A VIEWPORT', detail.message || JSON.stringify(detail));
+        });
+        window.addEventListener('engine-prometheus:first-render', (event) => {
+          frameDiagnostics(event.detail || {});
+        });
+        window.setTimeout(() => {
+          if (firstFrame || panel?.dataset.fatal === 'true') return;
+          const canvas = document.querySelector('canvas.canvas');
+          show('A INTERFACE NÃO CONFIRMOU O PRIMEIRO QUADRO 3D APÓS 8 SEGUNDOS', JSON.stringify({
+            appMounted: Boolean(document.querySelector('#app')?.children.length),
+            canvasFound: Boolean(canvas),
+            canvasClientSize: canvas ? canvas.clientWidth + 'x' + canvas.clientHeight : 'não encontrado',
+            canvasBufferSize: canvas ? canvas.width + 'x' + canvas.height : 'não encontrado',
+            webglReady: canvas?.dataset.engineWebglReady || 'não registrado',
+            webglError: canvas?.dataset.engineWebglError || 'nenhum',
+            lastResize: canvas?.dataset.engineLastResizeAt || 'nenhum',
+            resizeBlocked: canvas?.dataset.engineResizeBlocked || 'não',
+            lastRenderError: canvas?.dataset.engineLastRenderError || 'nenhum',
+            userAgent: navigator.userAgent,
+          }, null, 2));
+        }, 8000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
