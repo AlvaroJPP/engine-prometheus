@@ -37,8 +37,6 @@ interface OpenNode extends Cell {
 }
 
 const keyOf = ({ x, z }: Cell): string => `${x},${z}`
-const distance = (a: NavigationPoint, b: NavigationPoint): number =>
-  Math.hypot(b.x - a.x, b.z - a.z)
 
 function compareNodes(a: OpenNode, b: OpenNode): number {
   return a.f - b.f || a.h - b.h || a.order - b.order
@@ -115,6 +113,7 @@ export class GridPathfinder {
 
     const startPoint = this.toPoint(startCell, bounds, cellSize)
     const goalPoint = this.toPoint(goalCell, bounds, cellSize)
+    if (!startPoint || !goalPoint) return { path: [], visitedNodes: 0, reached: false }
     if (!isWalkable(startPoint, startCell) || !isWalkable(goalPoint, goalCell)) {
       return { path: [], visitedNodes: 0, reached: false }
     }
