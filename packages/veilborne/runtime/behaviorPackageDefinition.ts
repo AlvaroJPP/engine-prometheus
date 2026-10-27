@@ -1,6 +1,6 @@
-import { registerBehaviorPackageDefinition } from '../../../engine/script/packages'
-import type { BehaviorPackageDefinition } from '../../../engine/script/packages'
-import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat'
+import { registerBehaviorPackageDefinition } from '../../../engine/script/packages.ts'
+import type { BehaviorPackageDefinition } from '../../../engine/script/packages.ts'
+import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat.ts'
 
 const VEILBORNE_ITEM_IDS = Object.keys(VEILBORNE_RUNTIME_ITEMS)
 
