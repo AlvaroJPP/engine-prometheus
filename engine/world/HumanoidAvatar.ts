@@ -81,7 +81,7 @@ export class HumanoidAvatar {
   private maneuver: PlayerManeuver = null
   private maneuverRemaining = 0
   private maneuverCooldown = 0
-  private maneuverAdmission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null = null
+  private readonly maneuverAdmissions = new Map<symbol, (kind: 'dodge' | 'slide' | 'roll') => boolean>()
   private actionLockRemaining = 0
   private maneuverSpeed = 0
   private readonly maneuverDirection = new THREE.Vector3()
@@ -117,9 +117,23 @@ export class HumanoidAvatar {
     this.rollRequested = false
   }
 
-  /** Permite ao sistema de jogo validar/cobrar recursos antes de iniciar manobras. */
-  setManeuverAdmission(admission: ((kind: 'dodge' | 'slide' | 'roll') => boolean) | null): void {
-    this.maneuverAdmission = admission
+  /** Registra uma regra de admissão sem sobrescrever as regras de outros módulos. */
+  registerManeuverAdmission(admission: (kind: 'dodge' | 'slide' | 'roll') => boolean): () => void {
+    const id = Symbol('maneuver-admission')
+    this.maneuverAdmissions.set(id, admission)
+    let registered = true
+    return () => {
+      if (!registered) return
+      registered = false
+      this.maneuverAdmissions.delete(id)
+    }
+  }
+
+  private canStartManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
+    for (const admission of this.maneuverAdmissions.values()) {
+      if (!admission(kind)) return false
+    }
+    return true
   }
 
   /** Impede temporariamente as ações do avatar sem desativar a câmera ou o runtime inteiro. */
@@ -308,7 +322,7 @@ export class HumanoidAvatar {
       }
       if (event.code === bindings.dodge) {
         if (this.maneuverCooldown > 0 || this.maneuver !== null || !this.grounded) return
-        if (this.maneuverAdmission && !this.maneuverAdmission('dodge')) return
+        if (!this.canStartManeuver('dodge')) return
         this.dodgeRequested = true
         return
       }
@@ -317,13 +331,13 @@ export class HumanoidAvatar {
         const hasMovementIntent = this.pressed.has(bindings.forward) || this.pressed.has(bindings.backward) ||
           this.pressed.has(bindings.left) || this.pressed.has(bindings.right)
         if (!hasMovementIntent) return
-        if (this.maneuverAdmission && !this.maneuverAdmission('slide')) return
+        if (!this.canStartManeuver('slide')) return
         this.slideRequested = true
         return
       }
       if (event.code === bindings.roll) {
         if (this.maneuverCooldown > 0 || this.maneuver !== null || !this.grounded) return
-        if (this.maneuverAdmission && !this.maneuverAdmission('roll')) return
+        if (!this.canStartManeuver('roll')) return
         this.rollRequested = true
         return
       }
