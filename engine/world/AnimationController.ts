@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import { ONE_SHOT_ANIMATION_ROLES } from '../script/packages'
-import type { AnimationRole } from '../script/packages'
+import { ONE_SHOT_ANIMATION_ROLES } from '../script/packages.ts'
+import type { AnimationRole } from '../script/packages.ts'
 const LOCOMOTION_ROLES = new Set<string>([
   'walk', 'walk_slow', 'walk_backward', 'walk_left', 'walk_right',
   'walk_diagonal_left', 'walk_diagonal_right', 'walk_backward_diagonal_left', 'walk_backward_diagonal_right',
