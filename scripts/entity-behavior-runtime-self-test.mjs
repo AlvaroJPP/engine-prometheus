@@ -94,4 +94,24 @@ try {
   console.error = originalConsoleError
 }
 errorRuntime.dispose()
+
+// Behaviors are stopped before component teardown, so their cleanup can still
+// inspect the entity's components while responding to destruction.
+const orderedEntities = new EntityComponentRuntime()
+orderedEntities.defineComponent('marker')
+orderedEntities.create('ordered')
+orderedEntities.addComponent('ordered', 'marker', { ready: true })
+let detachSawMarker = false
+const orderedRuntime = new EntityBehaviorRuntime(
+  orderedEntities,
+  entityId => ({ entityId, hasMarker: orderedEntities.hasComponent(entityId, 'marker') }),
+)
+orderedRuntime.add('ordered', {
+  id: 'reads-components-on-detach',
+  onDetach: context => { detachSawMarker = context.hasMarker },
+})
+orderedRuntime.start()
+orderedEntities.destroy('ordered')
+assert.equal(detachSawMarker, true)
+orderedRuntime.dispose()
 console.log('Entity behavior runtime self-test passed.')
