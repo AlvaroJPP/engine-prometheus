@@ -577,7 +577,19 @@ export class RuleEngine {
   private executeJavaScript(source: string, eventObjectId?: string): void {
     source = this.resolveObjectIdToken(source, true, eventObjectId)
     const scopeId = eventObjectId ?? this.world.getSelectedId() ?? undefined
-    const vars = this.data.variables
+    // Keep the legacy `vars.name = value` API, but reject non-scalar and non-finite writes.
+    const vars = new Proxy(this.data.variables, {
+      set: (target, property, value) => {
+        if (typeof property !== 'string' || !isValidPackageScalar(value)) return true
+        target[property] = value
+        return true
+      },
+      defineProperty: (target, property, descriptor) => {
+        if (typeof property !== 'string') return false
+        if ('value' in descriptor && !isValidPackageScalar(descriptor.value)) return true
+        return Reflect.defineProperty(target, property, descriptor)
+      },
+    })
     const getScoped = (name: string) => this.getVariable(name, scopeId)
     const api = {
       get: (name: string) => getScoped(name),
