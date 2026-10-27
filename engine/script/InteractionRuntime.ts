@@ -1,7 +1,7 @@
-import { CooldownScheduler } from '../runtime/CooldownScheduler'
-import { ResourcePool } from '../runtime/ResourcePool'
-import { InteractionTargetSelector } from './InteractionTargetSelector'
-import type { InteractionPoint3, InteractionTarget } from './InteractionTargetSelector'
+import { CooldownScheduler } from '../runtime/CooldownScheduler.ts'
+import { ResourcePool } from '../runtime/ResourcePool.ts'
+import { InteractionTargetSelector } from './InteractionTargetSelector.ts'
+import type { InteractionPoint3, InteractionTarget } from './InteractionTargetSelector.ts'
 
 export interface InteractionResourceCost {
   readonly pool: ResourcePool
