@@ -128,4 +128,61 @@ try {
   console.error = previousConsoleError
 }
 
+// Registro reentrante durante onRuntimeStart deve iniciar o módulo novo apenas uma vez.
+const reentrantStartRegistry = new GameModuleRegistry()
+const reentrantStartCalls = []
+let unregisterNested = null
+reentrantStartRegistry.register({
+  id: 'parent-start-registration',
+  onRuntimeStart: () => {
+    reentrantStartCalls.push('parent-start')
+    unregisterNested = reentrantStartRegistry.register({
+      id: 'nested-start-registration',
+      onAttach: () => reentrantStartCalls.push('nested-attach'),
+      onRuntimeStart: () => reentrantStartCalls.push('nested-start'),
+      onRuntimeStop: () => reentrantStartCalls.push('nested-stop'),
+      onDispose: () => reentrantStartCalls.push('nested-dispose'),
+    })
+  },
+})
+reentrantStartRegistry.attach(context)
+reentrantStartRegistry.start()
+assert.deepEqual(
+  reentrantStartCalls,
+  ['parent-start', 'nested-attach', 'nested-start'],
+  'um módulo registrado durante start deve ser iniciado exatamente uma vez',
+)
+reentrantStartRegistry.stop()
+unregisterNested?.()
+reentrantStartRegistry.dispose()
+
+// Registro criado durante onRuntimeStop não pode ser iniciado num runtime que está encerrando.
+const reentrantStopRegistry = new GameModuleRegistry()
+const reentrantStopCalls = []
+let unregisterLateStop = null
+reentrantStopRegistry.register({
+  id: 'parent-stop-registration',
+  onRuntimeStart: () => reentrantStopCalls.push('parent-start'),
+  onRuntimeStop: () => {
+    reentrantStopCalls.push('parent-stop')
+    unregisterLateStop = reentrantStopRegistry.register({
+      id: 'late-stop-registration',
+      onAttach: () => reentrantStopCalls.push('late-attach'),
+      onRuntimeStart: () => reentrantStopCalls.push('late-start'),
+      onRuntimeStop: () => reentrantStopCalls.push('late-stop'),
+      onDispose: () => reentrantStopCalls.push('late-dispose'),
+    })
+  },
+})
+reentrantStopRegistry.attach(context)
+reentrantStopRegistry.start()
+reentrantStopRegistry.stop()
+assert.deepEqual(
+  reentrantStopCalls,
+  ['parent-start', 'parent-stop', 'late-attach'],
+  'um módulo criado durante stop deve ser anexado sem iniciar no runtime encerrado',
+)
+unregisterLateStop?.()
+reentrantStopRegistry.dispose()
+
 console.log('Game module registry self-test passed.')
