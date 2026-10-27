@@ -202,9 +202,6 @@ export class CombatEngagementSystem {
     }
 
     const targetPosition = this.dependencies.getTargetPosition().clone()
-    const targetStatuses = this.dependencies.getActorState(
-      this.combatActors(logic.listPackages())[0]?.instance ?? ({} as BehaviorPackageInstance),
-    ).statuses
     const attacks: CombatAttackIntent[] = []
 
     for (const { instance, settings, profile: baseProfile } of this.combatActors(logic.listPackages())) {
