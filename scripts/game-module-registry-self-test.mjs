@@ -282,6 +282,50 @@ dynamicSelfRemoveRegistry.stop()
 dynamicSelfRemoveRegistry.dispose()
 assert.deepEqual(dynamicSelfRemoveCalls, ['start', 'dispose'])
 
+// Encerramento reentrante não pode chamar stop/dispose duas vezes.
+const reentrantTeardownRegistry = new GameModuleRegistry()
+const reentrantTeardownCalls = []
+reentrantTeardownRegistry.register({
+  id: 'reentrant-teardown',
+  onRuntimeStart: () => reentrantTeardownCalls.push('start'),
+  onRuntimeStop: () => {
+    reentrantTeardownCalls.push('stop')
+    reentrantTeardownRegistry.unregister('reentrant-teardown')
+  },
+  onDispose: () => {
+    reentrantTeardownCalls.push('dispose')
+    reentrantTeardownRegistry.dispose()
+  },
+})
+reentrantTeardownRegistry.attach(context)
+reentrantTeardownRegistry.start()
+reentrantTeardownRegistry.stop()
+assert.deepEqual(
+  reentrantTeardownCalls,
+  ['start', 'stop', 'dispose'],
+  'stop/unregister/dispose reentrantes devem liberar o módulo exatamente uma vez',
+)
+
+// unregister deve retirar o módulo antes de executar callbacks, permitindo
+// reutilizar o mesmo ID sem que a limpeza do módulo antigo remova o novo.
+const reusedIdRegistry = new GameModuleRegistry()
+const reusedIdCalls = []
+reusedIdRegistry.register({
+  id: 'reusable-id',
+  onDispose: () => reusedIdCalls.push('old-dispose'),
+})
+reusedIdRegistry.attach(context)
+reusedIdRegistry.unregister('reusable-id')
+const unregisterReplacement = reusedIdRegistry.register({
+  id: 'reusable-id',
+  onAttach: () => reusedIdCalls.push('new-attach'),
+  onDispose: () => reusedIdCalls.push('new-dispose'),
+})
+assert.deepEqual(reusedIdCalls, ['old-dispose', 'new-attach'])
+unregisterReplacement()
+assert.deepEqual(reusedIdCalls, ['old-dispose', 'new-attach', 'new-dispose'])
+reusedIdRegistry.dispose()
+
 console.log('Game module registry self-test passed.')
 
 
