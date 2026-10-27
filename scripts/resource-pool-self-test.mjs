@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict'
+import { ResourcePool } from '../engine/runtime/ResourcePool.ts'
+
+const pool = new ResourcePool({ current: 20, maximum: 100 })
+const changes = []
+const off = pool.subscribe(change => changes.push(change))
+assert.equal(pool.ratio, 0.2)
+assert.equal(pool.spend(5), true)
+assert.equal(pool.current, 15)
+assert.equal(pool.spend(16), false)
+assert.equal(pool.drain(7), 7)
+assert.equal(pool.current, 8)
+assert.equal(pool.restore(200), 92)
+assert.equal(pool.full, true)
+assert.equal(pool.restore(1), 0)
+assert.equal(pool.setCurrent(-20), true)
+assert.equal(pool.depleted, true)
+assert.equal(pool.setCurrent(Number.NaN), false)
+assert.equal(pool.setMaximum(200, true), true)
+assert.equal(pool.current, 0)
+assert.equal(pool.restore(50), 50)
+assert.equal(pool.setMaximum(100, true), true)
+assert.equal(pool.current, 25)
+assert.equal(changes.some(change => change.reason === 'spend'), true)
+off()
+off()
+const before = changes.length
+pool.setCurrent(30)
+assert.equal(changes.length, before)
+assert.equal(pool.reset(), true)
+assert.equal(pool.current, 100)
+assert.throws(() => new ResourcePool({ current: 0, maximum: -1 }), /maximum/)
+console.log('Resource pool self-test passed.')
