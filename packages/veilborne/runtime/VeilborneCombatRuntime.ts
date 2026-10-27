@@ -391,7 +391,7 @@ export class VeilborneCombatRuntime {
             0.5,
           )
           for (const candidate of inside) {
-            this.applyHit(candidate.instance, sigil.damage ?? 42, sigil.damageType ?? 'arcane', sigil.postureDamage ?? 28)
+            this.applyDamageToTarget(candidate.instance, sigil.damage ?? 42, sigil.damageType ?? 'arcane', sigil.postureDamage ?? 28)
             const point = this.getWorldPoint(candidate.object.id)
             if (point) this.visualEffects.spawnEffect(point, sigil.visualColor, 0.35, 0.3)
           }
@@ -796,7 +796,7 @@ export class VeilborneCombatRuntime {
     this.context.invalidate()
   }
 
-  private applyHit(
+  applyDamageToTarget(
     instance: BehaviorPackageInstance,
     amount: number,
     damageType: VeilborneDamageType,
