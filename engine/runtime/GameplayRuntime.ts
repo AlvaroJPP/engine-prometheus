@@ -54,7 +54,10 @@ export class GameplayRuntime {
     this.world = new GameplayWorldSystems(options.cellSize, options.maxQueryCells)
     this.statuses = new StatusEffectRuntime(options.maxCatchUpTicks)
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
-    this.behaviors = new EntityBehaviorRuntime(this.entities, entityId => ({ entityId, runtime: this }))
+    this.behaviors = new EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>(
+      this.entities,
+      (entityId): GameplayEntityContext => ({ entityId, runtime: this }),
+    )
   }
 
   /** Start entity behaviors; timed systems remain deterministic and explicitly updated. */
