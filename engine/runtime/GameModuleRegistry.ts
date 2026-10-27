@@ -46,9 +46,16 @@ export class GameModuleRegistry {
     // Um callback pode registrar outros módulos. Use um snapshot para que
     // módulos anexados dinamicamente sejam iniciados uma única vez por register().
     for (const record of [...this.modules.values()]) {
+      if (!this.runtimeActive || this.disposed) break
       if (!record.attached || record.faulted) continue
-      if (this.invoke(record, 'iniciar runtime', () => record.module.onRuntimeStart?.(this.context!))) {
+      const started = this.invoke(record, 'iniciar runtime', () => record.module.onRuntimeStart?.(this.context!))
+      if (!started) continue
+      if (this.runtimeActive && !this.disposed) {
         record.active = true
+      } else if (!this.disposed) {
+        // onRuntimeStart pode pedir stop() de forma reentrante. Como o módulo
+        // ainda não estava marcado ativo, stop() não o viu; finalize-o aqui.
+        this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
       }
     }
   }
