@@ -224,12 +224,17 @@ export class Engine {
       invalidate: () => this.viewport.invalidate(),
     }
     this.gameModules.attach(moduleContext)
+    // Uma falha de simulação não deve impedir o viewport de desenhar a cena.
+    let lastFrameUpdateError = ''
+    let lastFrameUpdateErrorAt = 0
     this.viewport.start((dt) => {
       const frameStartedAt = performance.now()
-      this.input.update(dt)
-      // Um controlador por objeto animado. O mixer pertence ao controlador e só é
-      // avançado aqui uma vez, antes da física, para manter colisões e render em sincronia.
       let hasRunningModelAnimation = false
+      let updateFailed = false
+      try {
+        this.input.update(dt)
+        // Um controlador por objeto animado. O mixer pertence ao controlador e só é
+        // avançado aqui uma vez, antes da física, para manter colisões e render em sincronia.
       for (const object of this.world.list()) {
         const root = object.mesh
         if (!root.userData.importAnimationController && !root.userData.importAnimationMixer) continue
@@ -282,13 +287,23 @@ export class Engine {
       if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
         this.viewport.invalidate()
       }
-      this.world.terrain.grass.updateVisibility(
-        this.orbit.camera.position,
-        this.avatar.mesh.visible ? this.avatar.mesh.position : null,
-        this.world.grassOcclusionRoots(),
-      )
+        this.world.terrain.grass.updateVisibility(
+          this.orbit.camera.position,
+          this.avatar.mesh.visible ? this.avatar.mesh.position : null,
+          this.world.grassOcclusionRoots(),
+        )
+      } catch (error) {
+        updateFailed = true
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        const now = performance.now()
+        if (message !== lastFrameUpdateError || now - lastFrameUpdateErrorAt >= 5000) {
+          console.error('[Engine] Falha ao atualizar a simulação; mantendo a renderização ativa.', error)
+          lastFrameUpdateError = message
+          lastFrameUpdateErrorAt = now
+        }
+      }
       const environment = this.world.getEnvironment()
-      const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation
+      const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation || updateFailed
       this.viewport.recordUpdateDuration(performance.now() - frameStartedAt)
       this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
     })
