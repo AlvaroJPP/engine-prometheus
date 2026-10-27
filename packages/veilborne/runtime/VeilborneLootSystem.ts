@@ -1,13 +1,10 @@
 import * as THREE from 'three'
 import type { World } from '../../../engine/world/World'
 import type { RuleEngine } from '../../../engine/script/RuleEngine'
-import type { VeilborneInventorySystem } from './VeilborneInventorySystem'
 
 interface VeilborneLootDependencies {
   world: World
   logic: RuleEngine
-  avatar: THREE.Object3D
-  inventory: VeilborneInventorySystem
   notifyBehaviorPackageChanged(ownerObjectId: string): void
   removeObject(id: string): void
   clearNotice(): void
@@ -17,18 +14,9 @@ interface VeilborneLootDependencies {
 /** Controla drops, coleta e restauração dos itens de loot no editor/runtime. */
 export class VeilborneLootSystem {
   private readonly d: VeilborneLootDependencies
-  private readonly spawnedIds = new Set<string>()
 
   constructor(dependencies: VeilborneLootDependencies) {
     this.d = dependencies
-  }
-
-  registerSpawnedLoot(id: string): void {
-    this.spawnedIds.add(id)
-  }
-
-  forgetSpawnedLoot(id: string): void {
-    this.spawnedIds.delete(id)
   }
 
   /**
@@ -56,12 +44,13 @@ export class VeilborneLootSystem {
       const modelHeight = Math.max(0.1, bounds.max.y - bounds.min.y)
       const bottomOffset = object.mesh.position.y - bounds.min.y
       const ceilingY = object.mesh.position.y + Math.max(0.75, modelHeight)
-      const groundY = this.findGroundHeight(
+      const excludedIds = new Set(lootOwnerIds)
+      excludedIds.add(object.id)
+      const groundY = d.world.getSurfaceHeightAt(
         object.mesh.position.x,
         object.mesh.position.z,
         ceilingY,
-        lootOwnerIds,
-        object.id,
+        excludedIds,
       )
       const targetY = groundY + bottomOffset + 0.12
       if (!Number.isFinite(targetY) || Math.abs(object.mesh.position.y - targetY) < 0.05) continue
@@ -72,38 +61,8 @@ export class VeilborneLootSystem {
     if (changed) d.invalidate()
   }
 
-  private findGroundHeight(
-    x: number,
-    z: number,
-    ceilingY: number,
-    excludedLootIds: Set<string>,
-    excludedObjectId?: string,
-  ): number {
-    const terrainHeight = this.d.world.terrain.mesh.visible
-      ? this.d.world.terrain.heightAt(x, z)
-      : 0
-    let groundY = Number.isFinite(terrainHeight) ? terrainHeight : 0
-
-    for (const candidate of this.d.world.list()) {
-      if (candidate.id === excludedObjectId || excludedLootIds.has(candidate.id)) continue
-      if (candidate.mesh.visible === false || candidate.mesh.userData.colliderType === 'none') continue
-      candidate.mesh.updateMatrixWorld(true)
-      const bounds = new THREE.Box3().setFromObject(candidate.mesh)
-      if (bounds.isEmpty() || bounds.max.y > ceilingY) continue
-      if (
-        x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03
-        || z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03
-      ) continue
-      groundY = Math.max(groundY, bounds.max.y)
-    }
-    return groundY
-  }
-
   resetForEditor(): void {
     const d = this.d
-    for (const id of this.spawnedIds) if (d.world.get(id)) d.removeObject(id)
-    this.spawnedIds.clear()
-
     // Drops created by package scripts exist only during Run and are discarded on return to Edit.
     for (const instance of d.logic.listPackages()) {
       if (instance.packageId !== 'veilborne_rpg' || instance.variables.loot_spawned !== true) continue
