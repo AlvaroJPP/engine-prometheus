@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict'
+import { ResourcePoolRegistry } from '../engine/runtime/ResourcePoolRegistry.ts'
+
+const registry = new ResourcePoolRegistry()
+const events = []
+const off = registry.onChange(event => events.push([event.ownerId, event.resourceId, event.change.reason]))
+const stamina = registry.create('player', 'stamina', { current: 10, maximum: 10 })
+registry.create('player', 'mana', { current: 2, maximum: 5 })
+registry.create('enemy-1', 'health', { current: 20, maximum: 20 })
+assert.equal(registry.get('player', 'stamina'), stamina)
+assert.equal(registry.list('player').length, 2)
+assert.throws(() => registry.create('player', 'stamina', { current: 1, maximum: 1 }), /already exists/)
+stamina.spend(3)
+assert.deepEqual(events, [['player', 'stamina', 'spend']])
+assert.equal(registry.remove('player', 'mana'), true)
+assert.equal(registry.remove('player', 'mana'), false)
+assert.equal(registry.removeOwner('player'), 1)
+assert.equal(registry.get('player', 'stamina'), undefined)
+assert.equal(registry.ownerCount, 1)
+registry.get('enemy-1', 'health').drain(2)
+assert.equal(events.length, 2)
+off()
+off()
+assert.equal(registry.removeOwner('enemy-1'), 1)
+assert.equal(registry.ownerCount, 0)
+registry.clear()
+console.log('Resource pool registry self-test passed.')
