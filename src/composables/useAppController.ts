@@ -197,7 +197,10 @@ watch(executionMode, mode => {
   }
 }, { immediate: true })
 onBeforeUnmount(() => {
-  const {
+  if (hudVariablePollTimer !== null) window.clearInterval(hudVariablePollTimer)
+})
+
+const {
   clearSkyTexture,
   handleTimeOfDayKeydown,
   onPlayerModelSelected,
