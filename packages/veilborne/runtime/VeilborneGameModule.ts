@@ -14,6 +14,19 @@ import { VeilborneVisualEffects } from './VeilborneVisualEffects'
 
 const PACKAGE_ID = 'veilborne_rpg'
 
+export interface VeilborneGameModuleControls {
+  /** Tecla mantida para bloquear; padrão: R. */
+  block: string
+  /** Tecla de aparo; padrão: Y. */
+  parry: string
+  /** Tecla de travamento de alvo; padrão: O (M no perfil IJKL). */
+  targetLock: string
+}
+
+export interface VeilborneGameModuleOptions {
+  controls?: Partial<VeilborneGameModuleControls>
+}
+
 /**
  * Módulo opcional do jogo VEILBORNE.
  *
@@ -39,6 +52,11 @@ export class VeilborneGameModule implements EngineGameModule {
   private defaultSpawnPosition: THREE.Vector3 | null = null
   private respawnRemainingSeconds = 0
   private lootNoticeRemainingSeconds = 0
+  private readonly configuredControls: Partial<VeilborneGameModuleControls>
+
+  constructor(options: VeilborneGameModuleOptions = {}) {
+    this.configuredControls = { ...options.controls }
+  }
 
   onAttach(context: GameModuleContext): void {
     this.context = context
@@ -294,9 +312,10 @@ export class VeilborneGameModule implements EngineGameModule {
   private getExtraControls(context: GameModuleContext): { block: string; parry: string; targetLock: string } {
     const bindings = context.getControlBindings()
     return {
-      block: 'KeyR',
-      parry: 'KeyY',
-      targetLock: bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
+      block: this.configuredControls.block ?? 'KeyR',
+      parry: this.configuredControls.parry ?? 'KeyY',
+      targetLock: this.configuredControls.targetLock
+        ?? (bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO'),
     }
   }
 
