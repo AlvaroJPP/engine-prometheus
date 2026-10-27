@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict'
+import { CooldownScheduler } from '../engine/runtime/CooldownScheduler.ts'
+
+const timers = new CooldownScheduler()
+assert.equal(timers.start(' attack ', 2), true)
+assert.equal(timers.isReady('attack'), false)
+assert.equal(timers.start('attack', 5, false), false)
+timers.update(0.5)
+assert.equal(timers.getRemaining('attack'), 1.5)
+timers.update(99)
+assert.equal(timers.isReady('attack'), true)
+assert.equal(timers.start('instant', 0), true)
+assert.equal(timers.start('bad', -1), false)
+assert.equal(timers.start('', 1), false)
+timers.start('a', 1)
+timers.start('b', 2)
+assert.deepEqual(timers.snapshot().map(item => item.key), ['a', 'b'])
+assert.equal(timers.cancel('a'), true)
+timers.clear()
+assert.equal(timers.snapshot().length, 0)
+console.log('Cooldown scheduler self-test passed.')
