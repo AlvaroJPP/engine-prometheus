@@ -6,6 +6,8 @@ import type { BehaviorPackageInstance, PackageScalar } from './packages'
 import type { LogicEventsFile, LogicRule, RuleAction, RuleTrigger } from './types'
 import { CombatPackageRuntime } from './CombatPackageRuntime'
 import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime'
+import { InventoryRuntime } from './InventoryRuntime'
+import type { InventoryStack } from './InventoryRuntime'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
 type ScriptApi = {
@@ -27,7 +29,18 @@ type ScriptApi = {
   package: {
     get: (ownerObjectId: string, packageId: string, variableName: string) => PackageScalar | undefined
     set: (ownerObjectId: string, packageId: string, variableName: string, value: PackageScalar) => void
+    list: (packageId?: string, ownerObjectId?: string) => BehaviorPackageInstance[]
     triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) => boolean
+  }
+  inventory: {
+    read: (variableName?: string) => InventoryStack[]
+    grant: (itemId: string, quantity?: number, variableName?: string) => boolean
+    consume: (itemId: string, quantity?: number, variableName?: string) => boolean
+    quantity: (itemId: string, variableName?: string) => number
+  }
+  world: {
+    position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
+    remove: (objectId: string) => void
   }
 }
 
@@ -292,6 +305,15 @@ export class RuleEngine {
     return executed
   }
 
+  private createInventoryRuntime(variableName: string): InventoryRuntime {
+    const name = variableName.trim()
+    if (!name) throw new Error('O nome da variável de inventário é obrigatório.')
+    return new InventoryRuntime({
+      readSerialized: () => this.getVariable(name),
+      writeSerialized: serialized => this.setVariable(name, serialized),
+    })
+  }
+
   /** Ações reutilizáveis para scripts e módulos de jogo. */
   applyCombatDamageToPackage(ownerObjectId: string, options: PackageDamageOptions): ReturnType<CombatPackageRuntime['damage']> {
     return this.combatPackages.damage(ownerObjectId, options)
@@ -451,8 +473,34 @@ export class RuleEngine {
           instance.variables[variableName] = value
           this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
         },
+        list: (packageId?: string, ownerObjectId?: string) =>
+          this.listPackages(ownerObjectId).filter(instance => !packageId || instance.packageId === packageId),
         triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) =>
           this.triggerPackageEvent(ownerObjectId, packageId, eventId),
+      },
+      inventory: {
+        read: (variableName = 'inventory_json') => this.createInventoryRuntime(variableName).read(),
+        grant: (itemId: string, quantity = 1, variableName = 'inventory_json') =>
+          this.createInventoryRuntime(variableName).grant(itemId, quantity),
+        consume: (itemId: string, quantity = 1, variableName = 'inventory_json') =>
+          this.createInventoryRuntime(variableName).consume(itemId, quantity),
+        quantity: (itemId: string, variableName = 'inventory_json') =>
+          this.createInventoryRuntime(variableName).quantity(itemId),
+      },
+      world: {
+        position: (objectId: string) => {
+          const object = this.world.get(objectId)
+          return object ? {
+            x: object.mesh.position.x,
+            y: object.mesh.position.y,
+            z: object.mesh.position.z,
+            visible: this.world.isObjectVisible(object),
+          } : null
+        },
+        remove: (objectId: string) => {
+          if (this.world.get(objectId)) this.world.remove(objectId)
+          this.removeObjectVariables(objectId)
+        },
       },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
