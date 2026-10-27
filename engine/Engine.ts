@@ -658,6 +658,7 @@ export class Engine {
     }
 
     this.gameModules.stop()
+    this.logic.restoreRuntimeWorldChanges()
     for (const objectId of removeTransientScriptObjects(this.world)) {
       this.logic.removeObjectVariables(objectId)
     }
