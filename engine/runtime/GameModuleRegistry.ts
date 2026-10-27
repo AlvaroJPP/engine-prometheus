@@ -77,8 +77,9 @@ export class GameModuleRegistry {
   dispatchKeyDown(event: KeyboardEvent): boolean {
     if (this.disposed || !this.context || !this.runtimeActive) return false
     let handled = false
-    for (const record of this.modules.values()) {
-      if (!record.active || record.faulted || !record.module.onKeyDown) continue
+    for (const record of [...this.modules.values()]) {
+      if (!this.runtimeActive || this.disposed) break
+      if (this.modules.get(record.id) !== record || !record.active || record.faulted || !record.module.onKeyDown) continue
       try {
         handled = record.module.onKeyDown(event, this.context) === true || handled
       } catch (error) {
@@ -90,8 +91,9 @@ export class GameModuleRegistry {
 
   dispatchKeyUp(event: KeyboardEvent): void {
     if (this.disposed || !this.context || !this.runtimeActive) return
-    for (const record of this.modules.values()) {
-      if (!record.active || record.faulted || !record.module.onKeyUp) continue
+    for (const record of [...this.modules.values()]) {
+      if (!this.runtimeActive || this.disposed) break
+      if (this.modules.get(record.id) !== record || !record.active || record.faulted || !record.module.onKeyUp) continue
       try {
         record.module.onKeyUp(event, this.context)
       } catch (error) {
@@ -102,8 +104,9 @@ export class GameModuleRegistry {
 
   dispatchInputBlur(): void {
     if (this.disposed || !this.context || !this.runtimeActive) return
-    for (const record of this.modules.values()) {
-      if (!record.active || record.faulted || !record.module.onInputBlur) continue
+    for (const record of [...this.modules.values()]) {
+      if (!this.runtimeActive || this.disposed) break
+      if (this.modules.get(record.id) !== record || !record.active || record.faulted || !record.module.onInputBlur) continue
       try {
         record.module.onInputBlur(this.context)
       } catch (error) {
@@ -115,8 +118,9 @@ export class GameModuleRegistry {
   update(dt: number): void {
     if (this.disposed || !this.context || !this.runtimeActive) return
     const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0
-    for (const record of this.modules.values()) {
-      if (!record.active || record.faulted || !record.module.update) continue
+    for (const record of [...this.modules.values()]) {
+      if (!this.runtimeActive || this.disposed) break
+      if (this.modules.get(record.id) !== record || !record.active || record.faulted || !record.module.update) continue
       this.invoke(record, 'atualizar', () => record.module.update!(safeDt, this.context!))
     }
   }
