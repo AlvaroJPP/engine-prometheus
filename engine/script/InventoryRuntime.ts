@@ -62,10 +62,16 @@ export class InventoryRuntime {
   }
 
   grant(itemId: string, quantity = 1): boolean {
-    if (typeof itemId !== 'string' || !itemId.trim() || !this.isKnown(itemId)) return false
-    const amount = Math.max(1, Math.min(this.maxGrantPerCall, Math.floor(
-      Number.isFinite(quantity) ? quantity : 1,
-    )))
+    if (
+      typeof itemId !== 'string'
+      || !itemId.trim()
+      || !this.isKnown(itemId)
+      || !Number.isFinite(quantity)
+      || quantity <= 0
+    ) return false
+
+    const amount = Math.min(this.maxGrantPerCall, Math.floor(quantity))
+    if (amount < 1) return false
     const items = this.read()
     const current = items.find(item => item.id === itemId)
     if (current) {
@@ -79,8 +85,15 @@ export class InventoryRuntime {
   }
 
   consume(itemId: string, quantity = 1): boolean {
-    if (typeof itemId !== 'string' || !itemId.trim()) return false
-    const amount = Math.max(1, Math.floor(Number.isFinite(quantity) ? quantity : 1))
+    if (
+      typeof itemId !== 'string'
+      || !itemId.trim()
+      || !Number.isFinite(quantity)
+      || quantity <= 0
+    ) return false
+
+    const amount = Math.floor(quantity)
+    if (amount < 1) return false
     const items = this.read()
     const current = items.find(item => item.id === itemId)
     if (!current || current.quantity < amount) return false
