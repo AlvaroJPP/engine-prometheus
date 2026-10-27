@@ -283,3 +283,82 @@ dynamicSelfRemoveRegistry.dispose()
 assert.deepEqual(dynamicSelfRemoveCalls, ['start', 'dispose'])
 
 console.log('Game module registry self-test passed.')
+
+
+// Dispatch uses a stable snapshot: modules added mid-event wait until the next
+// dispatch, while modules removed by an earlier callback are skipped immediately.
+const dispatchRegistry = new GameModuleRegistry()
+const dispatchCalls = []
+let unregisterDispatchTarget = null
+let dispatchAdded = false
+dispatchRegistry.register({
+  id: 'dispatch-mutator',
+  onKeyDown: () => {
+    dispatchCalls.push('mutator')
+    if (!dispatchAdded) {
+      dispatchAdded = true
+      dispatchRegistry.register({
+        id: 'dispatch-added',
+        onKeyDown: () => dispatchCalls.push('added'),
+      })
+      unregisterDispatchTarget?.()
+    }
+    return false
+  },
+})
+unregisterDispatchTarget = dispatchRegistry.register({
+  id: 'dispatch-removed',
+  onKeyDown: () => dispatchCalls.push('removed'),
+})
+dispatchRegistry.attach(context)
+dispatchRegistry.start()
+dispatchRegistry.dispatchKeyDown({ code: 'KeyA' })
+assert.deepEqual(dispatchCalls, ['mutator'], 'módulos adicionados no meio do dispatch não devem receber o evento atual e os removidos devem ser ignorados')
+dispatchRegistry.dispatchKeyDown({ code: 'KeyB' })
+assert.deepEqual(dispatchCalls, ['mutator', 'mutator', 'added'], 'módulos adicionados devem receber eventos a partir do próximo dispatch')
+dispatchRegistry.dispose()
+
+// Update também deve usar snapshot e parar imediatamente se um callback encerrar o runtime.
+const updateSnapshotRegistry = new GameModuleRegistry()
+const updateSnapshotCalls = []
+let updateAdded = false
+updateSnapshotRegistry.register({
+  id: 'update-mutator',
+  update: () => {
+    updateSnapshotCalls.push('first')
+    if (!updateAdded) {
+      updateAdded = true
+      updateSnapshotRegistry.register({
+        id: 'update-added',
+        update: () => updateSnapshotCalls.push('added'),
+      })
+    }
+  },
+})
+updateSnapshotRegistry.attach(context)
+updateSnapshotRegistry.start()
+updateSnapshotRegistry.update(0.016)
+assert.deepEqual(updateSnapshotCalls, ['first'], 'módulos adicionados durante update devem aguardar o próximo frame')
+updateSnapshotRegistry.update(0.016)
+assert.deepEqual(updateSnapshotCalls, ['first', 'first', 'added'])
+updateSnapshotRegistry.dispose()
+
+const stopDuringDispatchRegistry = new GameModuleRegistry()
+const stopDuringDispatchCalls = []
+stopDuringDispatchRegistry.register({
+  id: 'dispatch-stop',
+  onKeyDown: () => {
+    stopDuringDispatchCalls.push('stop')
+    stopDuringDispatchRegistry.stop()
+  },
+})
+stopDuringDispatchRegistry.register({
+  id: 'dispatch-after-stop',
+  onKeyDown: () => stopDuringDispatchCalls.push('should-not-run'),
+})
+stopDuringDispatchRegistry.attach(context)
+stopDuringDispatchRegistry.start()
+stopDuringDispatchRegistry.dispatchKeyDown({ code: 'Escape' })
+assert.deepEqual(stopDuringDispatchCalls, ['stop'], 'o dispatch deve parar quando um módulo encerra o runtime')
+stopDuringDispatchRegistry.dispose()
+
