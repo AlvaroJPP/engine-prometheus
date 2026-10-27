@@ -34,6 +34,14 @@ assert.equal(inventory.consume('potion', 99), false)
 assert.equal(inventory.consume('missing', 1), false)
 assert.equal(inventory.consume('key', 1), true)
 assert.equal(inventory.quantity('key'), 0)
+
+// Explicit invalid quantities must not be silently converted into a one-item operation.
+const quantityBeforeInvalidOperations = inventory.quantity('potion')
+for (const quantity of [0, -1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+  assert.equal(inventory.grant('potion', quantity), false, `invalid grant quantity: ${quantity}`)
+  assert.equal(inventory.consume('potion', quantity), false, `invalid consume quantity: ${quantity}`)
+}
+assert.equal(inventory.quantity('potion'), quantityBeforeInvalidOperations)
 assert.deepEqual(JSON.parse(stored), [{ id: 'potion', quantity: 6 }])
 
 stored = '{not valid json'
