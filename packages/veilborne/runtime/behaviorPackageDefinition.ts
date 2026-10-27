@@ -599,7 +599,6 @@ api.package.configure(dropId, 'veilborne_rpg', {
   loot_item_id: itemId,
   loot_quantity: quantity,
   loot_collected: false,
-  loot_original_visible: true,
   loot_spawned: true,
   ai_enabled: false,
   drop_item_id: '',
