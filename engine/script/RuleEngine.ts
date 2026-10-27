@@ -3,7 +3,7 @@ import type { World } from '../world/World'
 import { EMPTY_LOGIC } from './types'
 import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages'
 import type { BehaviorPackageInstance, PackageScalar } from './packages'
-import type { LogicEventsFile, LogicRule, RuleAction } from './types'
+import type { LogicEventsFile, LogicRule, RuleAction, RuleTrigger } from './types'
 import { CombatPackageRuntime } from './CombatPackageRuntime'
 import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime'
 
@@ -47,6 +47,7 @@ export class RuleEngine {
   load(data?: LogicEventsFile): void {
     this.data = data ? structuredClone(data) : structuredClone(EMPTY_LOGIC)
     this.data.packages ??= []
+    this.data.disabledPackageScripts ??= []
     for (const rule of this.data.events) {
       rule.lastInside = false
       // Migra projetos antigos para uma regra pertencente a um único objeto.
@@ -54,6 +55,7 @@ export class RuleEngine {
         ? rule.trigger.objectId
         : (rule.actions.find((action) => 'objectId' in action) as Extract<RuleAction, { objectId: string }> | undefined)?.objectId
     }
+    this.ensureBehaviorPackageScripts()
   }
 
   replace(data: LogicEventsFile): void { this.load(data) }
@@ -75,11 +77,52 @@ export class RuleEngine {
     const installed = this.data.packages.find(item =>
       item.ownerObjectId === ownerObjectId && item.packageId === packageId,
     )
-    if (installed) return structuredClone(installed)
+    if (installed) {
+      this.ensureBehaviorPackageScripts(packageId)
+      return structuredClone(installed)
+    }
 
     const instance = createBehaviorPackageInstance(packageId, ownerObjectId)
     this.data.packages.push(instance)
+    this.ensureBehaviorPackageScripts(packageId)
     return structuredClone(instance)
+  }
+
+  /** Instala os scripts declarados por uma definição como nós editáveis do Visual Script. */
+  ensureBehaviorPackageScripts(packageId?: string): void {
+    const disabled = new Set(this.data.disabledPackageScripts ?? [])
+    for (const instance of this.data.packages ?? []) {
+      if (packageId && instance.packageId !== packageId) continue
+      const definition = getBehaviorPackageDefinition(instance.packageId)
+      for (const template of definition?.scripts ?? []) {
+        const id = `${instance.id}::${template.id}`
+        if (disabled.has(id) || this.data.events.some(rule => rule.id === id)) continue
+        const rule = JSON.parse(JSON.stringify(template)) as LogicRule
+        rule.id = id
+        rule.ownerObjectId = instance.ownerObjectId
+        rule.sourcePackageInstanceId = instance.id
+        rule.lastInside = false
+        rule.trigger = this.bindPackageTrigger(rule.trigger, instance.ownerObjectId)
+        rule.actions = rule.actions.map(action => this.bindPackageAction(action, instance.ownerObjectId))
+        this.data.events.push(rule)
+      }
+    }
+  }
+
+  private bindPackageTrigger(trigger: RuleTrigger, ownerObjectId: string): RuleTrigger {
+    const bound = JSON.parse(JSON.stringify(trigger)) as RuleTrigger
+    if ('objectId' in bound && (!bound.objectId || bound.objectId === '{ID_OBJECT}')) {
+      bound.objectId = ownerObjectId
+    }
+    return bound
+  }
+
+  private bindPackageAction(action: RuleAction, ownerObjectId: string): RuleAction {
+    const bound = JSON.parse(JSON.stringify(action)) as RuleAction
+    if ('objectId' in bound && (!bound.objectId || bound.objectId === '{ID_OBJECT}')) {
+      bound.objectId = ownerObjectId
+    }
+    return bound
   }
 
   /** Atualiza somente os campos configuráveis, sem substituir identidade/proprietário. */
@@ -103,6 +146,8 @@ export class RuleEngine {
 
   removePackage(id: string): void {
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.id !== id)
+    this.data.events = this.data.events.filter(rule => rule.sourcePackageInstanceId !== id)
+    this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => !scriptId.startsWith(`${id}::`))
   }
 
   variables(objectId?: string | null): Record<string, boolean | number | string> {
@@ -141,7 +186,10 @@ export class RuleEngine {
 
   removeObjectVariables(objectId: string): void {
     if (this.data.objectVariables) delete this.data.objectVariables[objectId]
+    const removed = new Set((this.data.packages ?? []).filter(instance => instance.ownerObjectId === objectId).map(instance => instance.id))
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.ownerObjectId !== objectId)
+    this.data.events = this.data.events.filter(rule => !rule.sourcePackageInstanceId || !removed.has(rule.sourcePackageInstanceId))
+    this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => ![...removed].some(id => scriptId.startsWith(`${id}::`)))
   }
   upsert(rule: LogicRule): void {
     const i = this.data.events.findIndex((r) => r.id === rule.id)
@@ -152,7 +200,14 @@ export class RuleEngine {
     const plainRule = JSON.parse(JSON.stringify({ ...rule, lastInside: false })) as LogicRule
     if (i < 0) this.data.events.push(plainRule); else this.data.events[i] = plainRule
   }
-  remove(id: string): void { this.data.events = this.data.events.filter((r) => r.id !== id) }
+  remove(id: string): void {
+    const rule = this.data.events.find(item => item.id === id)
+    if (rule?.sourcePackageInstanceId) {
+      this.data.disabledPackageScripts ??= []
+      if (!this.data.disabledPackageScripts.includes(id)) this.data.disabledPackageScripts.push(id)
+    }
+    this.data.events = this.data.events.filter(item => item.id !== id)
+  }
   move(id: string, direction: -1 | 1): void {
     const index = this.data.events.findIndex((rule) => rule.id === id)
     const target = index + direction
@@ -207,6 +262,7 @@ export class RuleEngine {
 
   /** Dispara uma regra comum quando um pacote emite um dos seus gatilhos. */
   triggerPackageEvent(objectId: string, packageId: string, eventId: string): boolean {
+    this.ensureBehaviorPackageScripts(packageId)
     const instance = (this.data.packages ?? []).find(item =>
       item.ownerObjectId === objectId && item.packageId === packageId,
     )
