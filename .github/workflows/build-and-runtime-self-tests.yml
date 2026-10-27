@@ -139,3 +139,6 @@ jobs:
 
       - name: Test generic entity behavior lifecycle
         run: npm run entity:behaviors:self-test
+
+      - name: Test entity behavior module integration
+        run: npm run entity:game-module:self-test
