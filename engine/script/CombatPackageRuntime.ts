@@ -1,7 +1,6 @@
 import type { BehaviorPackageInstance, PackageJsonValue, PackageScalar } from './packages'
 import {
   applyCombatDamage,
-  applyCombatStatus,
   type CombatActorState,
   type TimedCombatStatus,
 } from './CombatModel'
