@@ -24,6 +24,11 @@ type ScriptApi = {
     spend: (ownerObjectId: string, options: PackageResourceOptions) => boolean
     applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => void
   }
+  package: {
+    get: (ownerObjectId: string, packageId: string, variableName: string) => PackageScalar | undefined
+    set: (ownerObjectId: string, packageId: string, variableName: string, value: PackageScalar) => void
+    triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) => boolean
+  }
 }
 
 export class RuleEngine {
@@ -424,6 +429,25 @@ export class RuleEngine {
         restore: (ownerObjectId: string, options: PackageResourceOptions) => this.restoreCombatPackageResource(ownerObjectId, options),
         spend: (ownerObjectId: string, options: PackageResourceOptions) => this.spendCombatPackageResource(ownerObjectId, options),
         applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => this.applyCombatPackageStatus(ownerObjectId, status, packageId),
+      },
+      package: {
+        get: (ownerObjectId: string, packageId: string, variableName: string) => {
+          const instance = (this.data.packages ?? []).find(item =>
+            item.ownerObjectId === ownerObjectId && item.packageId === packageId,
+          )
+          return instance?.variables[variableName]
+        },
+        set: (ownerObjectId: string, packageId: string, variableName: string, value: PackageScalar) => {
+          const instance = (this.data.packages ?? []).find(item =>
+            item.ownerObjectId === ownerObjectId && item.packageId === packageId,
+          )
+          if (!instance) throw new Error(`O objeto "${ownerObjectId}" não possui o pacote "${packageId}".`)
+          if (!variableName.trim()) throw new Error('O nome da variável de pacote é obrigatório.')
+          instance.variables[variableName] = value
+          this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
+        },
+        triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) =>
+          this.triggerPackageEvent(ownerObjectId, packageId, eventId),
       },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
