@@ -19,6 +19,7 @@ type ScriptApi = {
   add: (name: string, amount: number) => void
   toggle: (name: string) => void
   global: { get: (name: string) => boolean | number | string | undefined; set: (name: string, value: boolean | number | string) => void; add: (name: string, amount: number) => void; toggle: (name: string) => void }
+  event: { get: (name: string) => PackageScalar | undefined }
   move: (objectId: string, x: number, y: number, z: number) => void
   rotate: (objectId: string, degrees: number) => void
   setVisible: (objectId: string, visible: boolean) => void
@@ -46,6 +47,7 @@ type ScriptApi = {
   notice: (message: string, durationSeconds: number, variableName?: string) => void
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
+    nearby: (center: { x: number; y: number; z: number }, radius: number) => Array<{ id: string; name: string; x: number; y: number; z: number; distance: number; visible: boolean }>
     bounds: (objectId: string) => { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null
     groundHeightAt: (x: number, z: number, maxStepUp?: number) => number
     spawnPrimitive: (options: { name?: string; shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'octahedron'; x: number; y: number; z: number; size?: number; color?: number; emissive?: number; emissiveIntensity?: number; metalness?: number; roughness?: number; objectType?: ObjectType }) => string
@@ -58,6 +60,7 @@ export class RuleEngine {
   private readonly world: World
   private readonly combatPackages: CombatPackageRuntime
   private readonly noticeTimers = new Map<string, number>()
+  private currentGlobalEventPayload: Record<string, PackageScalar> = {}
 
   constructor(world: World) {
     this.world = world
@@ -79,6 +82,10 @@ export class RuleEngine {
     this.noticeTimers.clear()
     for (const rule of this.data.events) {
       rule.lastInside = false
+      if (rule.trigger.type === 'global_event') {
+        delete rule.ownerObjectId
+        continue
+      }
       // Migra projetos antigos para uma regra pertencente a um único objeto.
       rule.ownerObjectId ??= rule.trigger.type === 'object_clicked' || rule.trigger.type === 'package_event'
         ? rule.trigger.objectId
@@ -117,10 +124,12 @@ export class RuleEngine {
     return structuredClone(instance)
   }
 
-  /** Instala os scripts declarados por uma definição como nós editáveis do Visual Script. */
+  /** Instala scripts por objeto e scripts globais definidos por pacotes. */
   ensureBehaviorPackageScripts(packageId?: string): void {
     const disabled = new Set(this.data.disabledPackageScripts ?? [])
     const changedOwners = new Set<string>()
+    const installedPackageIds = new Set((this.data.packages ?? []).map(instance => instance.packageId))
+
     for (const instance of this.data.packages ?? []) {
       if (packageId && instance.packageId !== packageId) continue
       const definition = getBehaviorPackageDefinition(instance.packageId)
@@ -138,6 +147,26 @@ export class RuleEngine {
         changedOwners.add(instance.ownerObjectId)
       }
     }
+
+    for (const definitionId of installedPackageIds) {
+      if (packageId && packageId !== definitionId) continue
+      const definition = getBehaviorPackageDefinition(definitionId)
+      for (const template of definition?.globalScripts ?? []) {
+        if (template.trigger.type !== 'global_event') continue
+        const id = `global::${definitionId}::${template.id}`
+        if (disabled.has(id) || this.data.events.some(rule => rule.id === id)) continue
+        const rule = JSON.parse(JSON.stringify(template)) as LogicRule
+        rule.id = id
+        delete rule.ownerObjectId
+        rule.sourcePackageDefinitionId = definitionId
+        rule.lastInside = false
+        this.data.events.push(rule)
+        for (const instance of this.data.packages ?? []) {
+          if (instance.packageId === definitionId) changedOwners.add(instance.ownerObjectId)
+        }
+      }
+    }
+
     for (const ownerObjectId of changedOwners) {
       this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
     }
@@ -179,8 +208,12 @@ export class RuleEngine {
   }
 
   removePackage(id: string): void {
+    const removed = (this.data.packages ?? []).find(instance => instance.id === id)
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.id !== id)
     this.data.events = this.data.events.filter(rule => rule.sourcePackageInstanceId !== id)
+    if (removed && !(this.data.packages ?? []).some(instance => instance.packageId === removed.packageId)) {
+      this.data.events = this.data.events.filter(rule => rule.sourcePackageDefinitionId !== removed.packageId)
+    }
     this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => !scriptId.startsWith(`${id}::`))
   }
 
@@ -221,8 +254,14 @@ export class RuleEngine {
   removeObjectVariables(objectId: string): void {
     if (this.data.objectVariables) delete this.data.objectVariables[objectId]
     const removed = new Set((this.data.packages ?? []).filter(instance => instance.ownerObjectId === objectId).map(instance => instance.id))
+    const removedPackages = (this.data.packages ?? []).filter(instance => removed.has(instance.id))
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.ownerObjectId !== objectId)
     this.data.events = this.data.events.filter(rule => !rule.sourcePackageInstanceId || !removed.has(rule.sourcePackageInstanceId))
+    for (const packageId of new Set(removedPackages.map(instance => instance.packageId))) {
+      if (!(this.data.packages ?? []).some(instance => instance.packageId === packageId)) {
+        this.data.events = this.data.events.filter(rule => rule.sourcePackageDefinitionId !== packageId)
+      }
+    }
     this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => ![...removed].some(id => scriptId.startsWith(`${id}::`)))
   }
   upsert(rule: LogicRule): void {
@@ -236,7 +275,7 @@ export class RuleEngine {
   }
   remove(id: string): void {
     const rule = this.data.events.find(item => item.id === id)
-    if (rule?.sourcePackageInstanceId) {
+    if (rule?.sourcePackageInstanceId || rule?.sourcePackageDefinitionId) {
       this.data.disabledPackageScripts ??= []
       if (!this.data.disabledPackageScripts.includes(id)) this.data.disabledPackageScripts.push(id)
     }
@@ -337,6 +376,28 @@ export class RuleEngine {
       readSerialized: () => this.getVariable(name),
       writeSerialized: serialized => this.setVariable(name, serialized),
     })
+  }
+
+  /** Dispara regras globais definidas por pacotes, transportando dados de evento transitórios. */
+  triggerGlobalEvent(eventId: string, payload: Record<string, PackageScalar> = {}): boolean {
+    const key = eventId.trim()
+    if (!key) return false
+    this.ensureBehaviorPackageScripts()
+    const previousPayload = this.currentGlobalEventPayload
+    this.currentGlobalEventPayload = { ...payload }
+    try {
+      const matchingRules = this.rulesInHierarchyOrder().filter(rule =>
+        rule.enabled
+        && rule.trigger.type === 'global_event'
+        && rule.trigger.eventId === key
+        && this.conditionsMatch(rule, undefined),
+      )
+      let executed = false
+      for (const rule of matchingRules) executed = this.run(rule, undefined, true) || executed
+      return executed
+    } finally {
+      this.currentGlobalEventPayload = previousPayload
+    }
   }
 
   /** Dispara um evento no pacote interativo mais próximo que corresponde aos filtros. */
@@ -497,6 +558,9 @@ export class RuleEngine {
     const api = {
       get: (name: string) => getScoped(name),
       set: (name: string, value: boolean | number | string) => this.setVariable(name, value, scopeId),
+      event: {
+        get: (name: string) => this.currentGlobalEventPayload[name],
+      },
       global: {
         get: (name: string) => this.data.variables[name],
         set: (name: string, value: boolean | number | string) => this.setVariable(name, value),
@@ -580,6 +644,26 @@ export class RuleEngine {
             z: object.mesh.position.z,
             visible: this.world.isObjectVisible(object),
           } : null
+        },
+        nearby: (center: { x: number; y: number; z: number }, radius: number) => {
+          const maximum = Number.isFinite(radius) ? Math.max(0, radius) : 0
+          return this.world.list().flatMap(object => {
+            const distance = Math.hypot(
+              object.mesh.position.x - center.x,
+              object.mesh.position.y - center.y,
+              object.mesh.position.z - center.z,
+            )
+            if (distance > maximum) return []
+            return [{
+              id: object.id,
+              name: object.name,
+              x: object.mesh.position.x,
+              y: object.mesh.position.y,
+              z: object.mesh.position.z,
+              distance,
+              visible: this.world.isObjectVisible(object),
+            }]
+          })
         },
         bounds: (objectId: string) => {
           const object = this.world.get(objectId)
