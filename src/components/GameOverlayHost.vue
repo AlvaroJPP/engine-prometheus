@@ -17,6 +17,10 @@ const emit = defineEmits<{
 const overlays = computed(() => getGameOverlays().filter(overlay =>
   props.behaviorPackages.some(instance => instance.packageId === overlay.packageId),
 ))
+
+const handleSetGlobalVariable = (name: string, value: string | number | boolean) => {
+  emit('set-global-variable', name, value)
+}
 </script>
 
 <template>
@@ -29,6 +33,6 @@ const overlays = computed(() => getGameOverlays().filter(overlay =>
     :bindings="bindings"
     :game-variables="gameVariables"
     :editor-preview="editorPreview"
-    @set-global-variable="(name, value) => emit('set-global-variable', name, value)"
+    @set-global-variable="handleSetGlobalVariable"
   />
 </template>
