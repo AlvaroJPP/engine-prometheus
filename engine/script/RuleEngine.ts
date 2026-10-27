@@ -760,6 +760,8 @@ export class RuleEngine {
           x: number; y: number; z: number; size?: number; color?: number; emissive?: number
           emissiveIntensity?: number; metalness?: number; roughness?: number; objectType?: ObjectType
         }) => {
+          // Invalid coordinates must not silently create an object at the world origin.
+          if (![options.x, options.y, options.z].every(Number.isFinite)) return ''
           const shape = options.shape ?? 'box'
           const size = typeof options.size === 'number' && Number.isFinite(options.size)
             ? Math.max(0.05, Math.min(100, options.size))
@@ -787,11 +789,7 @@ export class RuleEngine {
             roughness: Number.isFinite(options.roughness) ? Math.max(0, Math.min(1, options.roughness!)) : 0.6,
           })
           const mesh = new THREE.Mesh(geometry, material)
-          mesh.position.set(
-            Number.isFinite(options.x) ? options.x : 0,
-            Number.isFinite(options.y) ? options.y : 0,
-            Number.isFinite(options.z) ? options.z : 0,
-          )
+          mesh.position.set(options.x, options.y, options.z)
           mesh.scale.setScalar(size)
           mesh.castShadow = true
           mesh.receiveShadow = true
