@@ -19,6 +19,8 @@ import { VeilborneCombatRuntimeBase } from './VeilborneCombatRuntimeBase'
 
 export type { VeilborneHostile } from './VeilborneCombatRuntimeBase'
 
+const PACKAGE_ID = 'veilborne_rpg'
+
 export class VeilborneCombatRuntime extends VeilborneCombatRuntimeBase {
   handleKeyDown(event: KeyboardEvent): boolean {
     if (!this.context.isRuntimeActive() || !this.isEnabled()) return false
@@ -416,50 +418,5 @@ export class VeilborneCombatRuntime extends VeilborneCombatRuntimeBase {
     this.context.invalidate()
   }
 
-  applyDamageToTarget(
-    instance: BehaviorPackageInstance,
-    amount: number,
-    damageType: VeilborneDamageType,
-    postureDamage: number,
-    status?: { id: VeilborneStatusId; potency: number; durationSeconds: number },
-  ): { damage: number; killed: boolean } {
-    const target = this.getTargetCombatant(instance)
-    if (!target.alive) return { damage: 0, killed: true }
-    const marked = target.statuses.some(item => item.id === 'marked')
-    const result = applyVeilborneDamage(target, {
-      amount: marked ? amount * 1.2 : amount,
-      type: damageType,
-      postureDamage,
-    })
-    if (status && target.alive) {
-      applyVeilborneStatus(target, {
-        id: status.id,
-        potency: status.potency,
-        remainingSeconds: status.durationSeconds,
-        stacks: 1,
-      })
-    }
-    if (result.postureBroken && target.alive) {
-      target.resources.posture = 0
-      applyVeilborneStatus(target, {
-        id: 'stagger',
-        potency: 1,
-        remainingSeconds: 1.15,
-        stacks: 1,
-      })
-    }
-    this.syncTarget(instance, target)
-    const hitObject = this.context.world.get(instance.ownerObjectId)
-    if (result.vitalityDamage > 0 && hitObject) {
-      const hitPoint = this.getWorldPoint(instance.ownerObjectId) ?? hitObject.mesh.position.clone().add(new THREE.Vector3(0, 1.1, 0))
-      this.visualEffects.spawnDamageNumber(hitPoint, result.vitalityDamage, result.killed)
-      this.visualEffects.spawnEffect(hitPoint, result.killed ? 0xffd7a0 : 0xff4358, result.killed ? 0.72 : 0.46, 0.34)
-    }
-    if (result.postureBroken && !result.killed) {
-      this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'posture_broken')
-    }
-    if (result.killed) this.handleDefeatedTarget(instance)
-    return { damage: result.vitalityDamage, killed: result.killed }
-  }
 
 }
