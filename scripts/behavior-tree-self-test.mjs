@@ -75,15 +75,24 @@ import {
       { id: 'after', type: 'action', action: 'after-wait' },
     ],
   })
-  assert.equal(runtime.tick({}, 0.2), 'running')
+  assert.equal(runtime.tick({}, 0.25), 'running')
   assert.equal(finished, false)
-  assert.equal(runtime.tick({}, 0.3), 'success')
+  assert.equal(runtime.tick({}, 0.25), 'success')
   assert.equal(finished, true, 'sequence continues after wait completes in that tick')
 }
 
 {
+  let leftTicks = 0
+  let rightTicks = 0
   const runtime = new BehaviorTreeRuntime({
-    action: name => name === 'left' ? 'success' : 'running',
+    action: name => {
+      if (name === 'left') {
+        leftTicks += 1
+        return 'success'
+      }
+      rightTicks += 1
+      return rightTicks === 1 ? 'running' : 'success'
+    },
   })
   runtime.setTree({
     id: 'parallel-root',
@@ -96,16 +105,9 @@ import {
     ],
   })
   assert.equal(runtime.tick({}, 0.016), 'running')
-  runtime.setTree({
-    id: 'parallel-root-2',
-    type: 'parallel',
-    successThreshold: 1,
-    children: [
-      { id: 'success', type: 'action', action: 'left' },
-      { id: 'running', type: 'action', action: 'right' },
-    ],
-  })
-  assert.equal(runtime.tick({}, 0.016), 'success', 'parallel completes after reaching its success threshold')
+  assert.equal(runtime.tick({}, 0.016), 'success')
+  assert.equal(leftTicks, 1, 'completed parallel children must not repeat their side effects while siblings run')
+  assert.equal(rightTicks, 2)
 }
 
 {
@@ -117,6 +119,8 @@ import {
   assert.equal(runtime.tick({}, 0.25), 'running')
   runtime.reset()
   assert.equal(runtime.tick({}, 0.25), 'running', 'reset restarts wait timers')
+  runtime.setTree({ id: 'instant', type: 'wait', durationSeconds: 0 })
+  assert.equal(runtime.tick({}, Number.NaN), 'success', 'invalid frame deltas are treated as zero')
 }
 
 assert.throws(
@@ -143,12 +147,14 @@ assert.throws(
   }),
   /Limite de sucesso inválido/,
 )
+
+const cyclic = { id: 'cycle', type: 'sequence', children: [] }
+cyclic.children.push(cyclic)
+assert.throws(() => validateBehaviorTree(cyclic), /Ciclo detectado/)
+
 assert.throws(
-  () => validateBehaviorTree({ id: 'cycle', type: 'sequence', children: [] }).children.push(
-    { id: 'cycle', type: 'wait', durationSeconds: 0 },
-  ),
-  /read only|Cannot add property|frozen|duplicate/i,
-  'test setup mutation must not be accepted as a valid way to alter a readonly node',
+  () => validateBehaviorTree({ id: 'unknown', type: 'teleport' }),
+  /Tipo de nó desconhecido/,
 )
 
 console.log('Generic behavior tree self-test passed.')
