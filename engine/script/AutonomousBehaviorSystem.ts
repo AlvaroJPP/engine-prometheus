@@ -39,6 +39,7 @@ interface AgentRuntimeState {
   path: Position3[]
   pathGoal: Position3 | null
   waypointIndex: number
+  pathAttempted: boolean
 }
 
 type AutonomousWorld = Pick<World, 'get' | 'update' | 'terrain' | 'isObjectVisible'> & Partial<Pick<World, 'getGroundHeightAt'>>
@@ -174,6 +175,7 @@ export class AutonomousBehaviorSystem {
           path: [],
           pathGoal: null,
           waypointIndex: 0,
+          pathAttempted: false,
         }
         this.runtime.set(instance.id, runtime)
       }
@@ -429,11 +431,13 @@ export class AutonomousBehaviorSystem {
         runtime.path = []
         runtime.pathGoal = { ...target }
         runtime.waypointIndex = 0
+        runtime.pathAttempted = false
       }
-      if (runtime.path.length === 0) {
+      if (!runtime.pathAttempted) {
         const planned = findPath(object.id, current, target)
         runtime.path = planned.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
         runtime.waypointIndex = 0
+        runtime.pathAttempted = true
       }
       while (runtime.waypointIndex < runtime.path.length) {
         const waypoint = runtime.path[runtime.waypointIndex]!
@@ -470,6 +474,7 @@ export class AutonomousBehaviorSystem {
     if (!moving && findPath && runtime.path.length > 0) {
       runtime.path = []
       runtime.waypointIndex = 0
+      runtime.pathAttempted = false
     }
 
     const after = object.mesh.position
