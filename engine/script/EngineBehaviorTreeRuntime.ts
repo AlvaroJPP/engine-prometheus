@@ -198,6 +198,13 @@ export class EngineBehaviorTreeRuntime {
             context.notifyPackageChanged(objectId)
             return 'success'
           }
+          case 'destroy_object': {
+            const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
+            if (!context.world.get(objectId)) return 'failure'
+            context.world.remove(objectId)
+            context.invalidate()
+            return 'success'
+          }
           case 'set_object_visible': {
             const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
             const visible = params.visible
