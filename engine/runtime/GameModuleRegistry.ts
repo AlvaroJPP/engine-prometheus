@@ -144,16 +144,18 @@ export class GameModuleRegistry {
     // Remova e atualize o estado antes dos callbacks: eles podem chamar unregister,
     // dispose ou registrar novamente um módulo com o mesmo identificador.
     this.modules.delete(id)
+    const context = this.context
     const wasActive = record.active
     const wasAttached = record.attached
     record.active = false
     record.attached = false
 
-    if (wasActive && this.context) {
-      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
+    // Preserve the original context if onRuntimeStop triggers dispose() reentrantly.
+    if (wasActive && context) {
+      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(context))
     }
-    if (wasAttached && this.context) {
-      this.invoke(record, 'liberar', () => record.module.onDispose?.(this.context!))
+    if (wasAttached && context) {
+      this.invoke(record, 'liberar', () => record.module.onDispose?.(context))
     }
   }
 
