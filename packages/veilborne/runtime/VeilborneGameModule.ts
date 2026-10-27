@@ -1,6 +1,7 @@
 import type { EngineGameModule, GameModuleContext } from '../../../engine/runtime/GameModule'
 import { registerVeilborneBehaviorPackage } from './behaviorPackageDefinition'
 import { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
+import { VeilborneEnemyAISystem } from './VeilborneEnemyAISystem'
 import { VeilborneHealthBarSystem } from './VeilborneHealthBarSystem'
 import { VeilborneVisualEffects } from './VeilborneVisualEffects'
 
@@ -17,6 +18,7 @@ export class VeilborneGameModule implements EngineGameModule {
 
   private unregisterPackage: (() => void) | null = null
   private combatRuntime: VeilborneCombatRuntime | null = null
+  private enemyAI: VeilborneEnemyAISystem | null = null
   private visualEffects: VeilborneVisualEffects | null = null
   private healthBars: VeilborneHealthBarSystem | null = null
   private active = false
@@ -25,6 +27,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.unregisterPackage = registerVeilborneBehaviorPackage()
     this.visualEffects = new VeilborneVisualEffects(context.world.scene, context.invalidate)
     this.combatRuntime = new VeilborneCombatRuntime(context, this.visualEffects)
+    this.enemyAI = new VeilborneEnemyAISystem(context, this.combatRuntime, this.visualEffects)
     this.healthBars = new VeilborneHealthBarSystem(context.world.scene)
   }
 
@@ -60,12 +63,14 @@ export class VeilborneGameModule implements EngineGameModule {
     this.combatRuntime?.update(dt)
     if (enabled) {
       this.healthBars?.update(this.combatRuntime?.getHostilePackages() ?? [])
+      this.enemyAI?.update(dt)
     }
   }
 
   onRuntimeStop(): void {
     this.active = false
     this.combatRuntime?.resetRuntimeState()
+    this.enemyAI?.clear()
     this.clearVisuals()
   }
 
@@ -75,6 +80,8 @@ export class VeilborneGameModule implements EngineGameModule {
     this.unregisterPackage?.()
     this.unregisterPackage = null
     this.combatRuntime?.resetRuntimeState()
+    this.enemyAI?.clear()
+    this.enemyAI = null
     this.combatRuntime = null
     this.visualEffects = null
     this.healthBars = null
