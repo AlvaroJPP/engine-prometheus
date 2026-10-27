@@ -217,6 +217,13 @@ export class RuleEngine {
     instance.variables[name] = value
   }
 
+  removePackageVariable(id: string, name: string): boolean {
+    const instance = (this.data.packages ?? []).find(item => item.id === id)
+    if (!instance || !name.trim() || !Object.prototype.hasOwnProperty.call(instance.variables, name)) return false
+    delete instance.variables[name]
+    return true
+  }
+
   removePackage(id: string): void {
     const removed = (this.data.packages ?? []).find(instance => instance.id === id)
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.id !== id)
