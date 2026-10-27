@@ -58,6 +58,7 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'loot_quantity', label: 'Quantidade coletável', type: 'number', defaultValue: 1, description: 'Quantidade de itens recebida ao coletar este objeto.', min: 1, max: 99, step: 1 },
       { name: 'loot_collected', label: 'Já coletado', type: 'boolean', defaultValue: false, description: 'Estado usado pelo runtime para evitar coleta repetida.', readOnly: true },
       { name: 'loot_original_visible', label: 'Visibilidade original do loot', type: 'boolean', defaultValue: true, description: 'Estado temporário usado para restaurar itens coletados ao voltar ao editor.', readOnly: true },
+      { name: 'loot_spawned', label: 'Drop temporário', type: 'boolean', defaultValue: false, description: 'Marca itens criados durante Run para removê-los ao voltar ao editor.', readOnly: true },
       { name: 'checkpoint_name', label: 'Nome do santuário', type: 'string', defaultValue: 'Santuário', description: 'Nome exibido quando o jogador ativa este checkpoint.' },
       { name: 'checkpoint_active', label: 'Santuário ativo', type: 'boolean', defaultValue: false, description: 'Indica se este é o último checkpoint ativado.', readOnly: true },
       { name: 'checkpoint_restore_resources', label: 'Restaurar recursos ao ativar', type: 'boolean', defaultValue: true, description: 'Recupera vida, éter e vigor quando o jogador ativa o santuário.' },
@@ -242,6 +243,60 @@ api.package.set(owner, 'veilborne_rpg', 'loot_collected', true);
 api.setVisible(owner, false);
 api.notice('Item coletado ×' + quantity, 2.4, 'loot_notice');
 api.package.triggerEvent(owner, 'veilborne_rpg', 'loot_collected');`,
+        }],
+      },
+      {
+        id: 'enemy-drop-item',
+        name: 'Criar drop a partir do catálogo de itens',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'enemy_killed',
+        },
+        conditions: [
+          { type: 'variable', name: 'drop_item_id', operator: 'not_equals', value: '' },
+        ],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const itemId = api.package.get(owner, 'veilborne_rpg', 'drop_item_id');
+const catalog = ${JSON.stringify(VEILBORNE_RUNTIME_ITEMS)};
+if (typeof itemId !== 'string' || !Object.prototype.hasOwnProperty.call(catalog, itemId)) return;
+const rawChance = api.package.get(owner, 'veilborne_rpg', 'drop_chance');
+const chance = typeof rawChance === 'number' && Number.isFinite(rawChance) ? Math.max(0, Math.min(1, rawChance)) : 0.35;
+if (chance <= 0 || Math.random() > chance) return;
+const rawQuantity = api.package.get(owner, 'veilborne_rpg', 'drop_quantity');
+const quantity = typeof rawQuantity === 'number' && Number.isFinite(rawQuantity) ? Math.max(1, Math.min(99, Math.floor(rawQuantity))) : 1;
+const source = api.world.position(owner);
+if (!source) return;
+const item = catalog[itemId];
+const dropId = api.world.spawnPrimitive({
+  name: item.name,
+  shape: 'octahedron',
+  x: source.x,
+  y: api.world.groundHeightAt(source.x, source.z) + 0.3,
+  z: source.z,
+  size: 0.24,
+  color: item.visualColor,
+  emissive: item.visualColor,
+  emissiveIntensity: 0.6,
+  metalness: 0.15,
+  roughness: 0.32,
+});
+api.package.install(dropId, 'veilborne_rpg');
+api.package.configure(dropId, 'veilborne_rpg', {
+  entity_role: 'loot',
+  faction: 'neutral',
+  loot_item_id: itemId,
+  loot_quantity: quantity,
+  loot_collected: false,
+  loot_original_visible: true,
+  loot_spawned: true,
+  ai_enabled: false,
+  drop_item_id: '',
+});`,
         }],
       },
       {
