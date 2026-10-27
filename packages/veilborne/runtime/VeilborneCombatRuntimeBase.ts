@@ -40,7 +40,6 @@ export class VeilborneCombatRuntimeBase {
   protected readonly cooldowns = new Map<string, number>()
   protected heavyChargeStartedAt: number | null = null
   protected onPlayerDeath: (() => void) | null = null
-  protected onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
   protected playerStaggerRemaining = 0
   protected parryStartedAt = Number.NEGATIVE_INFINITY
   protected parrySuccessRemaining = 0
@@ -285,10 +284,6 @@ export class VeilborneCombatRuntimeBase {
 
   setPlayerDeathHandler(handler: (() => void) | null): void {
     this.onPlayerDeath = handler
-  }
-
-  setEnemyKilledHandler(handler: ((instance: BehaviorPackageInstance) => void) | null): void {
-    this.onEnemyKilled = handler
   }
 
   admitManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
@@ -549,7 +544,6 @@ export class VeilborneCombatRuntimeBase {
         0.7,
       )
     }
-    this.onEnemyKilled?.(instance)
     this.targetStates.delete(instance.ownerObjectId)
     this.context.invalidate()
   }
