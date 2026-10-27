@@ -25,6 +25,9 @@ const violations = []
 
 for (const directory of coreRoots) {
   for (const file of await listSourceFiles(path.join(root, directory))) {
+    const relativePath = path.relative(root, file).replaceAll(path.sep, '/')
+    // main.ts is the application composition root: it may opt into external packages.
+    if (relativePath === 'src/main.ts') continue
     const source = await readFile(file, 'utf8')
     if (forbiddenGameReference.test(source)) {
       violations.push(path.relative(root, file).replaceAll(path.sep, '/'))
