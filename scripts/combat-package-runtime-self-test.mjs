@@ -90,7 +90,20 @@ runtime.update(0.1)
 assert.equal(instance.config.statuses.length, 0)
 assert.ok(events.some(event => event.eventId === 'status_expired'))
 
+// Imported/saved package data may contain statuses as serialized JSON.
+instance.config.statuses = JSON.stringify([{
+  id: 'serialized-slow',
+  remainingSeconds: 1,
+  potency: 0.5,
+  stacks: 1,
+}])
+runtime.update(0.1)
+assert.ok(Array.isArray(instance.config.statuses), 'serialized status JSON must be normalized to structured package data')
+assert.equal(instance.config.statuses[0].id, 'serialized-slow')
+assert.ok(Math.abs(instance.config.statuses[0].remainingSeconds - 0.9) < 1e-9)
+
 // Generic damage-over-time statuses use the package's own resource schema.
+instance.config.statuses = []
 instance.variables.health = 50
 instance.variables.alive = true
 runtime.applyStatus('guard-01', {
