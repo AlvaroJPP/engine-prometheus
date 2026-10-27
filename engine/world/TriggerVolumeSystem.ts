@@ -47,9 +47,9 @@ export class TriggerVolumeSystem {
   clear(): void { this.volumes.clear(); this.occupants.clear() }
 
   update(subjects: readonly TriggerSubject[]): TriggerEvent[] {
-    const validSubjects = new Map(subjects.filter(subject =>
+    const validSubjects = new Map<string, TriggerSubject>(subjects.filter(subject =>
       !!subject && typeof subject.id === 'string' && !!subject.id.trim() && this.validPoint(subject.position),
-    ).map(subject => [subject.id, subject]))
+    ).map(subject => [subject.id, subject] as const))
     const events: TriggerEvent[] = []
     for (const [triggerId, volume] of this.volumes) {
       const previous = this.occupants.get(triggerId) ?? new Set<string>()
