@@ -70,19 +70,13 @@ export class VeilborneLootSystem {
       if (d.world.get(id)) d.removeObject(id)
     }
 
-    // Declarative pickup scripts record the original visibility in package data,
-    // so editor reset can restore those objects without game-specific pickup code.
+    // Temporary visibility is restored by the generic RuleEngine runtime.
+    // The package-specific adapter only resets the collectable flag for authored loot.
     for (const instance of d.logic.listPackages()) {
       if (instance.packageId !== 'veilborne_rpg' || instance.variables.entity_role !== 'loot'
         || instance.variables.loot_collected !== true) continue
-      const id = instance.ownerObjectId
-      if (!d.world.get(id)) continue
-      const originalVisible = typeof instance.variables.loot_original_visible === 'boolean'
-        ? instance.variables.loot_original_visible
-        : true
-      d.world.update(id, { visible: originalVisible })
       d.logic.setPackageVariable(instance.id, 'loot_collected', false)
-      d.notifyBehaviorPackageChanged(id)
+      d.notifyBehaviorPackageChanged(instance.ownerObjectId)
     }
     if (d.logic.getVariable('item_use_request') !== undefined) d.logic.setVariable('item_use_request', '')
     d.clearNotice()
