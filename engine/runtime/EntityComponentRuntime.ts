@@ -190,6 +190,13 @@ export class EntityComponentRuntime<TComponents extends object = Record<string, 
         errors.push(error)
       }
     }
+    if (errors.length > 0) throw errors[0]
+  }
+
+  /** Clears entity instances while keeping component definitions and subscriptions reusable. */
+  dispose(): void {
+    const errors: unknown[] = []
+    try { this.clear() } catch (error) { errors.push(error) }
     this.definitions.clear()
     this.listeners.clear()
     if (errors.length > 0) throw errors[0]
