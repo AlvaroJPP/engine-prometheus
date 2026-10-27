@@ -133,3 +133,9 @@ jobs:
 
       - name: Test gameplay runtime composition
         run: npm run gameplay:runtime:self-test
+
+      - name: Test generic entity component lifecycle
+        run: npm run entity:components:self-test
+
+      - name: Test generic entity behavior lifecycle
+        run: npm run entity:behaviors:self-test
