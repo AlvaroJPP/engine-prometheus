@@ -50,4 +50,25 @@ for (const axis of ['x', 'y', 'z']) {
 }
 assert.ok(emitted.some(event => event.type === 'objectChanged'), 'valid update should emit objectChanged')
 
+mesh.userData.importedModel = true
+World.prototype.update.call(runtime, object.id, { scale: 1e308 })
+assert.deepEqual(mesh.scale.toArray(), [10000, 10000, 10000], 'imported model scale must respect its maximum')
+
+mesh.userData.locked = true
+const lockedPosition = mesh.position.toArray()
+const lockedRotation = mesh.rotation.toArray()
+const lockedScale = mesh.scale.toArray()
+World.prototype.update.call(runtime, object.id, {
+  x: 12,
+  y: 13,
+  z: 14,
+  rotationX: 90,
+  rotationY: 90,
+  rotationZ: 90,
+  scale: 2,
+})
+assert.deepEqual(mesh.position.toArray(), lockedPosition, 'locked object position must not change')
+assert.deepEqual(mesh.rotation.toArray(), lockedRotation, 'locked object rotation must not change')
+assert.deepEqual(mesh.scale.toArray(), lockedScale, 'locked object scale must not change')
+
 console.log('World transform safety self-test passed.')
