@@ -267,7 +267,9 @@ unregisterDynamicSelf = dynamicSelfRemoveRegistry.register({
   id: 'dynamic-self-removing-module',
   onRuntimeStart: () => {
     dynamicSelfRemoveCalls.push('start')
-    unregisterDynamicSelf?.()
+    // The disposer is returned only after register() completes, so exercise
+    // reentrant self-removal through the registry's public unregister API.
+    dynamicSelfRemoveRegistry.unregister('dynamic-self-removing-module')
   },
   onRuntimeStop: () => dynamicSelfRemoveCalls.push('stop'),
   onDispose: () => dynamicSelfRemoveCalls.push('dispose'),
