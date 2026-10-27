@@ -93,14 +93,21 @@ assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), undefined)
 const genericCoreFiles = [
   '../engine/Engine.ts',
   '../engine/index.ts',
+  '../engine/runtime/GameModule.ts',
+  '../engine/runtime/GameModuleRegistry.ts',
   '../engine/script/packages.ts',
   '../engine/input/ControlMaps.ts',
   '../engine/world/HumanoidAvatar.ts',
+  '../src/App.vue',
+  '../src/main.ts',
+  '../src/components/AppWorkspace.vue',
   '../src/components/RuntimeHUD.vue',
   '../src/components/RuntimeHUD.css',
   '../src/components/EditorViewport.vue',
   '../src/components/StarterAssetCatalogDialog.vue',
   '../src/components/ControlMapsDialog.vue',
+  '../src/composables/useEditor.ts',
+  '../src/composables/useAppController.ts',
 ]
 for (const relativePath of genericCoreFiles) {
   const source = await readFile(new URL(relativePath, import.meta.url), 'utf8')
