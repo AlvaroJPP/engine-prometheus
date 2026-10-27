@@ -1,4 +1,5 @@
 import type { PackageJsonValue } from '../../../engine/script/packages.ts'
+import type { CombatEngagementSchema } from '../../../engine/script/CombatEngagementSystem.ts'
 
 export interface VeilborneAIProfile {
   attackRange: number
@@ -17,6 +18,53 @@ export const VEILBORNE_AI_PROFILES: Readonly<Record<string, VeilborneAIProfile>>
   guard_breaker: { attackRange: 2.7, moveSpeed: 1.7, damage: 24, cooldown: 2, damageType: 'physical', postureDamage: 20, ranged: false },
   boss_phases: { attackRange: 3.2, moveSpeed: 2.3, damage: 28, cooldown: 1.7, damageType: 'shadow', postureDamage: 24, ranged: false },
 })
+
+/** Data-only schema that binds VEILBORNE actor variables to the generic combat engagement module. */
+export const VEILBORNE_COMBAT_ENGAGEMENT_SCHEMA: CombatEngagementSchema = {
+  actorRoleVariable: 'entity_role',
+  actorRoleValue: 'combatant',
+  actorFactionVariable: 'faction',
+  actorFactionValue: 'hostile',
+  enabledVariable: 'ai_enabled',
+  profileVariable: 'ai_profile',
+  profilesConfigKey: 'aiProfiles',
+  defaultProfile: 'melee',
+  customStatsVariable: 'ai_custom_stats',
+  perceptionRangeVariable: 'perception_range',
+  stateVariable: 'ai_state',
+  damageMultiplierVariable: 'ai_damage_multiplier',
+  attackRangeVariable: 'attack_range',
+  moveSpeedVariable: 'move_speed',
+  damageVariable: 'attack_damage',
+  cooldownVariable: 'attack_cooldown',
+  damageTypeVariable: 'attack_damage_type',
+  postureDamageVariable: 'attack_posture_damage',
+  autonomousPackageId: 'autonomous_agent',
+  autonomousModeVariable: 'mode',
+  autonomousSpeedVariable: 'move_speed',
+  autonomousPerceptionVariable: 'perception_range',
+  autonomousStopDistanceVariable: 'stopping_distance',
+  attackEvent: 'enemy_attack',
+  spottedEvent: 'enemy_spotted',
+  lostTargetEvent: 'enemy_lost_target',
+  staggerStatusId: 'stagger',
+  slowStatusId: 'slow',
+  silenceStatusId: 'silence',
+  idleState: 'idle',
+  pursueState: 'pursue',
+  attackState: 'attack',
+  recoverState: 'recover',
+  staggeredState: 'staggered',
+  deadState: 'dead',
+  idleMode: 'idle',
+  followMode: 'follow_player',
+  fleeMode: 'flee_player',
+  lookMode: 'look_at_player',
+  retreatRatio: 0.62,
+  stoppingDistanceRatio: 0.94,
+  attackOriginHeight: 0.9,
+  targetImpactHeight: 0.85,
+}
 
 export const VEILBORNE_AI_PROFILE_OPTIONS = Object.freeze([
   { value: 'melee', label: 'Corpo a corpo' },
