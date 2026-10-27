@@ -874,18 +874,25 @@ export class VeilborneCombatRuntime {
     const target = pending.targetId
       ? this.getHostilePackages().find(candidate => candidate.object.id === pending.targetId)
       : undefined
-    const center = target ? target.object.mesh.position.clone() : pending.impactPosition.clone()
+    const targetStillAtImpact = Boolean(target && (
+      spell.targeting !== 'projectile'
+      || Math.hypot(
+        target.object.mesh.position.x - pending.impactPosition.x,
+        target.object.mesh.position.z - pending.impactPosition.z,
+      ) <= Math.max(1.35, spell.radius)
+    ))
+    const center = target && targetStillAtImpact ? target.object.mesh.position.clone() : pending.impactPosition.clone()
     this.visualEffects.spawnEffect(
       center.clone().add(new THREE.Vector3(0, 0.55, 0)),
       spell.visualColor,
       spell.radius > 0 ? Math.max(0.45, spell.radius * 0.45) : 0.45,
       0.42,
     )
-    const candidates = spell.targeting === 'area' && spell.radius > 0
+    const candidates = spell.radius > 0
       ? this.getHostilePackages().filter(candidate =>
         Math.hypot(candidate.object.mesh.position.x - center.x, candidate.object.mesh.position.z - center.z) <= spell.radius,
       )
-      : target ? [target] : []
+      : target && targetStillAtImpact ? [target] : []
 
     let totalDamage = 0
     for (const candidate of candidates) {
