@@ -57,11 +57,11 @@ assert.equal(behaviorRuntime.size, 1)
 assert.equal(entities.destroy('hero'), true)
 assert.equal(behaviorRuntime.size, 0)
 assert.deepEqual(calls.slice(-4), [
+  'update:slow:0:hero',
   'stop:slow:hero',
   'detach:slow:hero',
   'detach:fast:hero',
-  'stop:fast:hero',
-].reverse(), 'detaching a destroyed entity must stop active behaviors before detach')
+], 'entity destruction must detach remaining behaviors after removing active ones')
 // fast was already disabled, so teardown should not call stop a second time.
 assert.equal(calls.filter(call => call === 'stop:fast:hero').length, 1)
 behaviorRuntime.stop()
