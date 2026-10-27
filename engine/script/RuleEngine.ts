@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import type { ObjectInfo } from '../model/object/GameObject'
 import type { World } from '../world/World'
 import { EMPTY_LOGIC } from './types.ts'
@@ -41,6 +42,7 @@ type ScriptApi = {
   notice: (message: string, durationSeconds: number, variableName?: string) => void
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
+    bounds: (objectId: string) => { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null
     remove: (objectId: string) => void
   }
 }
@@ -558,6 +560,17 @@ export class RuleEngine {
             z: object.mesh.position.z,
             visible: this.world.isObjectVisible(object),
           } : null
+        },
+        bounds: (objectId: string) => {
+          const object = this.world.get(objectId)
+          if (!object) return null
+          object.mesh.updateMatrixWorld(true)
+          const bounds = new THREE.Box3().setFromObject(object.mesh)
+          if (bounds.isEmpty()) return null
+          return {
+            min: { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },
+            max: { x: bounds.max.x, y: bounds.max.y, z: bounds.max.z },
+          }
         },
         remove: (objectId: string) => {
           if (this.world.get(objectId)) this.world.remove(objectId)
