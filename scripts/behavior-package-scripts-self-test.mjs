@@ -42,7 +42,7 @@ const definition = {
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false)",
+      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false); api.global.set('nearby_invalid_count', api.world.nearby({ x: Number.NaN, y: 0, z: 0 }, 100).length)",
     }],
   }],
 }
@@ -59,6 +59,7 @@ try {
     eventId: 'ping', packageId: 'script-test', radius: 2, variableEquals: { script_ran: false },
   }), true)
   assert.equal(logic.getVariable('runs'), 1)
+  assert.equal(logic.getVariable('nearby_invalid_count'), 0, 'nearby returns no objects for a non-finite center')
   assert.equal(logic.listPackages(target.id)[0].variables.script_ran, true)
   const spawned = [...objects.values()].find(object => object.id !== target.id)
   assert.ok(spawned, 'generic script API can create an object')
