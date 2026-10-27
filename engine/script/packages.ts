@@ -335,17 +335,49 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
   },
 ]
 
+interface PackageDefinitionRegistration {
+  references: number
+  removeWhenUnused: boolean
+}
+
+const packageDefinitionRegistrations = new WeakMap<BehaviorPackageDefinition, PackageDefinitionRegistration>()
+
 /** Registra um pacote externo sem adicionar suas regras ao núcleo da engine. */
 export function registerBehaviorPackageDefinition(definition: BehaviorPackageDefinition): () => void {
   const id = definition.id.trim()
   if (!id) throw new Error('A definição do pacote precisa de um identificador não vazio.')
+
   const existing = BEHAVIOR_PACKAGE_DEFINITIONS.find(item => item.id === id)
-  if (existing) {
-    if (existing === definition) return () => undefined
+  if (existing && existing !== definition) {
     throw new Error(`Já existe uma definição de pacote com o identificador "${id}".`)
   }
-  BEHAVIOR_PACKAGE_DEFINITIONS.push(definition)
+
+  let registration = packageDefinitionRegistrations.get(definition)
+  if (registration) {
+    registration.references += 1
+  } else {
+    const wasAlreadyPresent = existing === definition
+    registration = {
+      references: 1,
+      removeWhenUnused: !wasAlreadyPresent,
+    }
+    packageDefinitionRegistrations.set(definition, registration)
+    if (!wasAlreadyPresent) BEHAVIOR_PACKAGE_DEFINITIONS.push(definition)
+  }
+
+  let released = false
   return () => {
+    if (released) return
+    released = true
+
+    const current = packageDefinitionRegistrations.get(definition)
+    if (!current) return
+    current.references -= 1
+    if (current.references > 0) return
+
+    packageDefinitionRegistrations.delete(definition)
+    if (!current.removeWhenUnused) return
+
     const index = BEHAVIOR_PACKAGE_DEFINITIONS.indexOf(definition)
     if (index >= 0) BEHAVIOR_PACKAGE_DEFINITIONS.splice(index, 1)
   }
