@@ -3,12 +3,17 @@ import {
   calculateScaledMagnitude,
   clampFinite,
   isWithinTimeWindow,
-  mergeTimedEffect,
-  resolveResistedMagnitude,
   restoreResource,
   spendResource,
-  tickTimedEffects,
 } from '../../../engine/script/CombatPrimitives'
+import {
+  applyCombatDamage,
+  applyCombatStatus,
+  createCombatActorState,
+  updateCombatActor,
+  type CombatActorState,
+  type TimedCombatStatus,
+} from '../../../engine/script/CombatModel'
 
 /**
  * VEILBORNE: regras puras de combate.
@@ -40,20 +45,15 @@ export interface VeilborneAttributes {
   resistance: number
 }
 
-export interface VeilborneCombatant {
-  id: string
-  resources: VeilborneResources
-  attributes: VeilborneAttributes
-  resistances: Partial<Record<VeilborneDamageType, number>>
-  statuses: VeilborneStatus[]
-  alive: boolean
-}
+export interface VeilborneCombatant extends CombatActorState<
+  VeilborneResources,
+  VeilborneAttributes,
+  Partial<Record<VeilborneDamageType, number>>,
+  VeilborneStatus
+> {}
 
-export interface VeilborneStatus {
+export interface VeilborneStatus extends TimedCombatStatus {
   id: VeilborneStatusId
-  remainingSeconds: number
-  potency: number
-  stacks: number
 }
 
 export interface VeilborneDamagePacket {
@@ -134,11 +134,15 @@ export function createVeilborneCombatant(id: string, overrides: Partial<Veilborn
   resources.ether = clamp(resources.ether, 0, resources.maxEther)
   resources.stamina = clamp(resources.stamina, 0, resources.maxStamina)
   resources.posture = clamp(resources.posture, 0, resources.maxPosture)
-  return {
+  const actor = createCombatActorState(
     id,
     resources,
-    attributes: { strength: 10, dexterity: 10, intellect: 10, will: 10, resistance: 10 },
-    resistances: {},
+    { strength: 10, dexterity: 10, intellect: 10, will: 10, resistance: 10 },
+    {},
+    'vitality',
+  )
+  return {
+    ...actor,
     statuses: [],
     alive: resources.vitality > 0,
   }
@@ -202,37 +206,38 @@ export function applyVeilborneDamage(
   target: VeilborneCombatant,
   packet: VeilborneDamagePacket,
 ): VeilborneDamageResult {
-  if (!target.alive) return { vitalityDamage: 0, postureDamage: 0, killed: true, postureBroken: false }
-  const resistance = target.resistances[packet.type] ?? 0
-  const critical = packet.canCrit ? Math.max(1, packet.criticalMultiplier ?? 1) : 1
-  const vitalityDamage = resolveResistedMagnitude(packet.amount, resistance, critical)
-  const postureDamage = Math.max(0, Number.isFinite(packet.postureDamage) ? packet.postureDamage! : 0)
-  const previousPosture = target.resources.posture
-  const previousVitality = target.resources.vitality
-  target.resources.vitality = clamp(previousVitality - vitalityDamage, 0, target.resources.maxVitality)
-  target.resources.posture = clamp(previousPosture + postureDamage, 0, target.resources.maxPosture)
-  const killed = target.resources.vitality <= 0
-  const postureBroken = previousPosture < target.resources.maxPosture && target.resources.posture >= target.resources.maxPosture
-  target.alive = !killed
-  return { vitalityDamage: Math.min(vitalityDamage, previousVitality), postureDamage, killed, postureBroken }
+  const result = applyCombatDamage(target, {
+    amount: packet.amount,
+    damageType: packet.type,
+    resourceKey: 'vitality',
+    maximumResourceKey: 'maxVitality',
+    resistanceKey: packet.type,
+    postureDamage: packet.postureDamage,
+    postureResourceKey: 'posture',
+    maximumPostureKey: 'maxPosture',
+    criticalMultiplier: packet.canCrit ? Math.max(1, packet.criticalMultiplier ?? 1) : 1,
+  })
+  return {
+    vitalityDamage: result.resourceDamage,
+    postureDamage: result.postureDamage,
+    killed: result.killed,
+    postureBroken: result.postureBroken,
+  }
 }
 
 export function applyVeilborneStatus(
   target: VeilborneCombatant,
   status: VeilborneStatus,
 ): void {
-  if (!target.alive || status.remainingSeconds <= 0) return
-  target.statuses = mergeTimedEffect(target.statuses, status)
+  applyCombatStatus(target, status)
 }
 
 export function tickVeilborneStatuses(target: VeilborneCombatant, deltaSeconds: number): void {
-  const delta = clamp(deltaSeconds, 0, 1)
-  target.statuses = tickTimedEffects(target.statuses, delta)
-  target.resources.posture = clamp(
-    target.resources.posture - VEILBORNE_DEFAULT_COMBAT_CONFIG.postureRecoveryPerSecond * delta,
-    0,
-    target.resources.maxPosture,
-  )
+  updateCombatActor(target, deltaSeconds, {
+    postureResourceKey: 'posture',
+    resourceLimits: { posture: 'maxPosture' },
+    postureRecoveryPerSecond: VEILBORNE_DEFAULT_COMBAT_CONFIG.postureRecoveryPerSecond,
+  })
 }
 
 export function canVeilborneDodge(combatant: VeilborneCombatant, cost = VEILBORNE_DEFAULT_COMBAT_CONFIG.dodgeStaminaCost): boolean {
