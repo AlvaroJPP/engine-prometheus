@@ -326,6 +326,28 @@ unregisterReplacement()
 assert.deepEqual(reusedIdCalls, ['old-dispose', 'new-attach', 'new-dispose'])
 reusedIdRegistry.dispose()
 
+// dispose() chamado dentro de onRuntimeStop não pode apagar o contexto
+// antes de onDispose do módulo que iniciou o encerramento.
+const disposeDuringStopRegistry = new GameModuleRegistry()
+const disposeDuringStopCalls = []
+disposeDuringStopRegistry.register({
+  id: 'dispose-during-stop',
+  onRuntimeStart: () => disposeDuringStopCalls.push('start'),
+  onRuntimeStop: () => {
+    disposeDuringStopCalls.push('stop')
+    disposeDuringStopRegistry.dispose()
+  },
+  onDispose: () => disposeDuringStopCalls.push('dispose'),
+})
+disposeDuringStopRegistry.attach(context)
+disposeDuringStopRegistry.start()
+disposeDuringStopRegistry.stop()
+assert.deepEqual(
+  disposeDuringStopCalls,
+  ['start', 'stop', 'dispose'],
+  'onDispose deve receber limpeza mesmo se onRuntimeStop chamar dispose()',
+)
+
 console.log('Game module registry self-test passed.')
 
 
