@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Engine } from '../../../engine/Engine'
 import { VeilborneGameModule } from '../runtime/VeilborneGameModule'
 import type { VeilborneGameModuleControls } from '../runtime/VeilborneGameModule'
+import { resolveVeilborneGameModuleControls } from '../runtime/VeilborneControls'
 import VeilborneHUD from './VeilborneHUD.vue'
 
 const props = withDefaults(defineProps<{
@@ -34,6 +35,23 @@ watch(
 
 let unregisterGameModule: (() => void) | null = null
 let gameModule: VeilborneGameModule | null = null
+
+const defensiveControls = computed(() => {
+  // Read each relevant prop so changes to the selected map/config refresh labels.
+  const engine = props.engine
+  const enabled = props.enabled
+  const bindings = props.bindings
+  const configured = {
+    block: props.controls?.block,
+    parry: props.controls?.parry,
+    targetLock: props.controls?.targetLock,
+  }
+  if (engine && enabled && gameModule) {
+    // The module and HUD use the same pure resolver and current binding input.
+    return resolveVeilborneGameModuleControls(bindings, configured)
+  }
+  return resolveVeilborneGameModuleControls(bindings, configured)
+})
 
 watch(
   [() => props.engine, () => props.enabled] as const,
@@ -73,6 +91,7 @@ function setGlobalVariable(name: string, value: string | number | boolean): void
   <VeilborneHUD
     v-if="engine && enabled"
     :bindings="bindings"
+    :defensive-controls="defensiveControls"
     :game-variables="localGameVariables"
     :editor-preview="editorPreview"
     @set-global-variable="setGlobalVariable"
