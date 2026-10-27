@@ -30,6 +30,13 @@ try {
   logic.setPackageVariable(instance.id, 'ai_profile', 'boss_phases')
   const rules = logic.list()
   assert.ok(rules.some(rule => rule.sourcePackageInstanceId === instance.id && rule.trigger.type === 'package_event' && rule.trigger.eventId === 'enemy_killed'))
+  assert.ok(rules.some(rule => rule.sourcePackageInstanceId === instance.id && rule.trigger.type === 'package_event' && rule.trigger.eventId === 'enemy_attack'))
+
+  logic.setPackageVariable(instance.id, 'vida', 20)
+  logic.setPackageVariable(instance.id, 'vida_max', 100)
+  assert.equal(logic.triggerPackageEvent(target.id, 'veilborne_rpg', 'enemy_attack'), true)
+  assert.equal(logic.listPackages(target.id)[0].variables.boss_phase, 3)
+  assert.equal(logic.listPackages(target.id)[0].variables.ai_damage_multiplier, 1.45, 'boss phase scaling is configured by the declarative package script')
 
   assert.equal(logic.triggerPackageEvent(target.id, 'veilborne_rpg', 'enemy_killed'), true)
   assert.equal(logic.getVariable('ecos'), 100, 'boss reward is composed from a package script')
