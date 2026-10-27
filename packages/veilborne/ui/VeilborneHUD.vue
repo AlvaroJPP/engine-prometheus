@@ -17,7 +17,7 @@ let loadoutDragRoot: HTMLElement | null = null
 const loadoutPanelStyle = computed(() => loadoutPanelPosition.value
   ? { left: `${loadoutPanelPosition.value.x}px`, top: `${loadoutPanelPosition.value.y}px`, right: 'auto' }
   : {})
-const veilborneActive = computed(() => typeof props.gameVariables.arma_equipada === 'string')
+const veilborneActive = computed(() => props.editorPreview === true || typeof props.gameVariables.arma_equipada === 'string')
 const veilborneWeaponOptions = [
   { id: 'starter_arcane_sword', label: 'Lâmina do Véu' },
   { id: 'starter_rune_staff', label: 'Cajado das Cinzas' },
