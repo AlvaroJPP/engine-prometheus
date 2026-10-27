@@ -136,7 +136,8 @@ unregister()
 assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), undefined)
 
 // Architectural regression guard: game-specific behavior and UI must stay
-// outside the reusable engine/editor files.
+// outside reusable engine/editor files. src/main.ts is intentionally excluded:
+// it is the composition root where optional external game packages are wired.
 const genericCoreFiles = [
   '../engine/Engine.ts',
   '../engine/index.ts',
@@ -146,7 +147,6 @@ const genericCoreFiles = [
   '../engine/input/ControlMaps.ts',
   '../engine/world/HumanoidAvatar.ts',
   '../src/App.vue',
-  '../src/main.ts',
   '../src/components/RuntimeHUD.vue',
   '../src/components/RuntimeHUD.css',
   '../src/components/EditorViewport.vue',
