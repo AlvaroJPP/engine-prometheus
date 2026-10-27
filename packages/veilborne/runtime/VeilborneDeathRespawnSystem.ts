@@ -12,7 +12,7 @@ export interface VeilborneDeathRespawnDependencies {
   progression: VeilborneProgressionSystem
   readNumber: (name: string, fallback: number) => number
   syncPlayer: (player: VeilborneCombatant) => void
-  getOrbitTarget: () => THREE.Vector3
+  setCameraTarget: (x: number, y: number, z: number) => void
   getDefaultSpawnPosition: () => THREE.Vector3 | null
   getRespawnRemaining: () => number
   setRespawnRemaining: (seconds: number) => void
@@ -100,7 +100,7 @@ export class VeilborneDeathRespawnSystem {
     if (!spawnPosition) spawnPosition = d.avatar.mesh.position.clone()
     d.avatar.mesh.position.copy(spawnPosition)
     d.avatar.resetVerticalState()
-    d.getOrbitTarget().set(spawnPosition.x, spawnPosition.y + 0.9, spawnPosition.z)
+    d.setCameraTarget(spawnPosition.x, spawnPosition.y + 0.9, spawnPosition.z)
 
     player.resources.vitality = player.resources.maxVitality
     player.resources.ether = player.resources.maxEther
