@@ -25,9 +25,22 @@ export class GameModuleRegistry {
     if (this.context) {
       this.attachOne(record)
       // Registros dinâmicos feitos durante o jogo entram no ciclo atual sem esperar outra execução.
-      if (this.runtimeActive && record.attached && !record.faulted) {
-        if (this.invoke(record, 'iniciar runtime', () => module.onRuntimeStart?.(this.context!))) {
+      if (
+        this.runtimeActive &&
+        this.modules.get(id) === record &&
+        record.attached &&
+        !record.faulted
+      ) {
+        const started = this.invoke(record, 'iniciar runtime', () => module.onRuntimeStart?.(this.context!))
+        // O callback pode remover o próprio módulo ou encerrar o runtime.
+        // Só marque como ativo se ele ainda estiver registrado e o runtime continuar aberto.
+        if (!started || this.modules.get(id) !== record) return () => this.unregister(id, module)
+        if (this.runtimeActive && !this.disposed) {
           record.active = true
+        } else if (!this.disposed) {
+          // stop() executado dentro de onRuntimeStart não consegue ver este
+          // registro como ativo ainda; finalize a inicialização parcial aqui.
+          this.invoke(record, 'encerrar runtime', () => module.onRuntimeStop?.(this.context!))
         }
       }
     }
