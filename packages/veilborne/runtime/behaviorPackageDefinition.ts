@@ -309,6 +309,54 @@ if (echoes > 0) {
         }],
       },
       {
+        id: 'restore-echo-cache',
+        name: 'Reconstruir cache de Ecos salvo',
+        enabled: true,
+        trigger: { type: 'global_event', eventId: 'veilborne:restore_echo_cache' },
+        conditions: [],
+        actions: [{
+          type: 'javascript',
+          code: `const rawAmount = api.global.get('ecos_perdidos');
+const amount = typeof rawAmount === 'number' && Number.isFinite(rawAmount)
+  ? Math.max(0, Math.floor(rawAmount))
+  : 0;
+if (amount <= 0) return;
+const existing = api.package.list('veilborne_rpg').find(instance =>
+  instance.enabled
+  && instance.variables.entity_role === 'echo_cache'
+  && api.world.position(instance.ownerObjectId) !== null
+);
+if (existing) return;
+const readNumber = (name, fallback) => {
+  const value = api.global.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const cacheId = api.world.spawnPrimitive({
+  name: 'Ecos perdidos',
+  shape: 'octahedron',
+  x: readNumber('ponto_de_morte_x', 0),
+  y: readNumber('ponto_de_morte_y', 0) + 0.4,
+  z: readNumber('ponto_de_morte_z', 0),
+  size: 0.3,
+  color: 0xe9bf75,
+  emissive: 0x9e682b,
+  emissiveIntensity: 1.1,
+  metalness: 0.35,
+  roughness: 0.2,
+  objectType: 'sphere',
+});
+api.package.install(cacheId, 'veilborne_rpg');
+api.package.configure(cacheId, 'veilborne_rpg', {
+  entity_role: 'echo_cache',
+  faction: 'neutral',
+  echoes_amount: amount,
+  ai_enabled: false,
+  drop_item_id: '',
+  loot_spawned: true,
+});`,
+        }],
+      },
+      {
         id: 'player-respawn',
         name: 'Calcular retorno ao santuário e restaurar recursos',
         enabled: true,
