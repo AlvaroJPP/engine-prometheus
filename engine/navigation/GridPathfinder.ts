@@ -44,6 +44,44 @@ function compareNodes(a: OpenNode, b: OpenNode): number {
   return a.f - b.f || a.h - b.h || a.order - b.order
 }
 
+class MinHeap {
+  private readonly items: OpenNode[] = []
+
+  get size(): number { return this.items.length }
+
+  push(node: OpenNode): void {
+    this.items.push(node)
+    let index = this.items.length - 1
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2)
+      if (compareNodes(this.items[parent]!, this.items[index]!) <= 0) break
+      ;[this.items[parent], this.items[index]] = [this.items[index]!, this.items[parent]!]
+      index = parent
+    }
+  }
+
+  pop(): OpenNode | undefined {
+    if (this.items.length === 0) return undefined
+    const first = this.items[0]!
+    const last = this.items.pop()!
+    if (this.items.length > 0) {
+      this.items[0] = last
+      let index = 0
+      while (true) {
+        const left = index * 2 + 1
+        const right = left + 1
+        let smallest = index
+        if (left < this.items.length && compareNodes(this.items[left]!, this.items[smallest]!) < 0) smallest = left
+        if (right < this.items.length && compareNodes(this.items[right]!, this.items[smallest]!) < 0) smallest = right
+        if (smallest === index) break
+        ;[this.items[index], this.items[smallest]] = [this.items[smallest]!, this.items[index]!]
+        index = smallest
+      }
+    }
+    return first
+  }
+}
+
 /**
  * Bounded A* pathfinder for a generic XZ navigation grid.
  * It has no dependency on Three.js, a particular game, or a specific world model.
@@ -89,8 +127,7 @@ export class GridPathfinder {
         ]
       : [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }]
 
-    const open: OpenNode[] = []
-    const openKeys = new Set<string>()
+    const open = new MinHeap()
     const closed = new Set<string>()
     const cameFrom = new Map<string, string>()
     const cells = new Map<string, Cell>([[keyOf(startCell), startCell]])
@@ -103,16 +140,14 @@ export class GridPathfinder {
     }
     const startKey = keyOf(startCell)
     open.push({ ...startCell, g: 0, h: heuristic(startCell), f: heuristic(startCell), order: order++ })
-    openKeys.add(startKey)
     let visitedNodes = 0
     let reached = false
 
-    while (open.length > 0 && visitedNodes < maxVisitedNodes) {
-      open.sort(compareNodes)
-      const current = open.shift()!
+    while (open.size > 0 && visitedNodes < maxVisitedNodes) {
+      const current = open.pop()!
       const currentKey = keyOf(current)
-      openKeys.delete(currentKey)
       if (closed.has(currentKey)) continue
+      if (current.g !== gScores.get(currentKey)) continue
       closed.add(currentKey)
       visitedNodes += 1
 
@@ -143,17 +178,8 @@ export class GridPathfinder {
         gScores.set(nextKey, tentative)
         cells.set(nextKey, next)
         const h = heuristic(next)
-        if (!openKeys.has(nextKey)) {
-          open.push({ ...next, g: tentative, h, f: tentative + h, order: order++ })
-          openKeys.add(nextKey)
-        } else {
-          const existing = open.find(node => keyOf(node) === nextKey)
-          if (existing) {
-            existing.g = tentative
-            existing.h = h
-            existing.f = tentative + h
-          }
-        }
+        // Push an improved candidate; outdated heap entries are skipped when popped.
+        open.push({ ...next, g: tentative, h, f: tentative + h, order: order++ })
       }
     }
 
