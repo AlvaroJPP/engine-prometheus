@@ -348,6 +348,47 @@ assert.deepEqual(
   'onDispose deve receber limpeza mesmo se onRuntimeStop chamar dispose()',
 )
 
+
+// stop must retain its original context for every module even when an early
+// onRuntimeStop callback disposes the registry, and must reject a reentrant start.
+const disposeDuringMultiStopRegistry = new GameModuleRegistry()
+const disposeDuringMultiStopCalls = []
+const disposeDuringMultiStopContext = { marker: 'original-context' }
+disposeDuringMultiStopRegistry.register({
+  id: 'dispose-first-during-stop',
+  onRuntimeStart: () => disposeDuringMultiStopCalls.push('first-start'),
+  onRuntimeStop: (receivedContext) => {
+    assert.equal(receivedContext, disposeDuringMultiStopContext)
+    disposeDuringMultiStopCalls.push('first-stop')
+    disposeDuringMultiStopRegistry.start()
+    disposeDuringMultiStopRegistry.dispose()
+  },
+  onDispose: (receivedContext) => {
+    assert.equal(receivedContext, disposeDuringMultiStopContext)
+    disposeDuringMultiStopCalls.push('first-dispose')
+  },
+})
+disposeDuringMultiStopRegistry.register({
+  id: 'dispose-second-during-stop',
+  onRuntimeStart: () => disposeDuringMultiStopCalls.push('second-start'),
+  onRuntimeStop: (receivedContext) => {
+    assert.equal(receivedContext, disposeDuringMultiStopContext)
+    disposeDuringMultiStopCalls.push('second-stop')
+  },
+  onDispose: (receivedContext) => {
+    assert.equal(receivedContext, disposeDuringMultiStopContext)
+    disposeDuringMultiStopCalls.push('second-dispose')
+  },
+})
+disposeDuringMultiStopRegistry.attach(disposeDuringMultiStopContext)
+disposeDuringMultiStopRegistry.start()
+disposeDuringMultiStopRegistry.stop()
+assert.deepEqual(
+  disposeDuringMultiStopCalls,
+  ['first-start', 'second-start', 'second-stop', 'first-stop', 'second-dispose', 'first-dispose'],
+  'dispose reentrante não deve perder contexto nem reiniciar o runtime durante stop',
+)
+
 console.log('Game module registry self-test passed.')
 
 
