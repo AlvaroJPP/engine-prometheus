@@ -91,7 +91,6 @@ export class VeilborneGameModule implements EngineGameModule {
       getHostiles: () => combatRuntime.getHostilePackages(),
       getWorldPoint: objectId => combatRuntime.getWorldPoint(objectId),
       isPlayerAlive: () => combatRuntime.getPlayerCombatant().alive,
-      spawnEffect,
       invalidate: () => context.invalidate(),
     })
     this.targetLock = targetLock
@@ -102,8 +101,6 @@ export class VeilborneGameModule implements EngineGameModule {
       logic: context.logic,
       avatar: context.avatar.mesh,
       inventory,
-      isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
-      isRuntimeModeActive: () => context.isRuntimeActive(),
       notifyBehaviorPackageChanged: notifyPackageChanged,
       removeObject,
       spawnEffect,
@@ -231,7 +228,11 @@ export class VeilborneGameModule implements EngineGameModule {
           variableEquals: { entity_role: 'loot' },
         },
       )
-      if (collectedByScript || this.loot?.pickup()) return true
+      if (collectedByScript) {
+        this.visualEffects?.spawnEffect(position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xe9bf75, 0.38, 0.28)
+        context.invalidate()
+        return true
+      }
     }
     return this.combatRuntime?.handleKeyDown(event) ?? false
   }
