@@ -72,3 +72,6 @@ export { ObjectiveTracker } from './script/ObjectiveTracker'
 export type { ObjectiveState, ObjectiveDefinition, ObjectiveSnapshot, ObjectiveEvent } from './script/ObjectiveTracker'
 export { registerGameplayBehaviorNodes } from './script/GameplayBehaviorExtensions'
 export type { GameplayBehaviorServices } from './script/GameplayBehaviorExtensions'
+
+export { GameplayRuntime } from './runtime/GameplayRuntime'
+export type { GameplayRuntimeOptions, GameplayRuntimeUpdate, GameplayEntityCleanup, GameplayRuntimeAccessors } from './runtime/GameplayRuntime'
