@@ -97,6 +97,64 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { id: 'add_echoes', label: 'Adicionar Ecos', description: 'Adiciona recurso de progressão por vitória ou recompensa.' },
       { id: 'respawn_at_checkpoint', label: 'Renascer no santuário', description: 'Reposiciona o jogador no último ponto de descanso salvo.' },
     ],
+    scripts: [
+      {
+        id: 'enemy-killed-reward',
+        name: 'Recompensa por inimigo derrotado',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'enemy_killed',
+        },
+        conditions: [],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const getNumber = (name, fallback) => {
+  const value = api.global.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const profileValue = api.package.get(owner, 'veilborne_rpg', 'ai_profile');
+const profile = typeof profileValue === 'string' ? profileValue.toLowerCase() : 'melee';
+const rewards = {
+  melee: { echoes: 10, experience: 15 },
+  ranged_caster: { echoes: 12, experience: 18 },
+  flanker: { echoes: 14, experience: 20 },
+  guard_breaker: { echoes: 22, experience: 40 },
+  boss_phases: { echoes: 100, experience: 150 },
+};
+const base = rewards[profile] || rewards.melee;
+const readReward = (name, fallback) => {
+  const value = api.package.get(owner, 'veilborne_rpg', name);
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+};
+const echoes = readReward('eco_reward', base.echoes);
+const rewardExperience = readReward('xp_reward', base.experience);
+if (echoes > 0) api.global.set('ecos', Math.max(0, getNumber('ecos', 0)) + echoes);
+
+let level = Math.max(1, Math.floor(getNumber('nivel', 1)));
+let experience = Math.max(0, getNumber('experiencia', 0)) + rewardExperience;
+let attributePoints = Math.max(0, Math.floor(getNumber('pontos_atributo', 0)));
+const thresholdForLevel = currentLevel => Math.max(100, Math.floor(100 * Math.pow(currentLevel, 1.22)));
+let threshold = thresholdForLevel(level);
+let levelsGained = 0;
+while (experience >= threshold && level < 999) {
+  experience -= threshold;
+  level += 1;
+  levelsGained += 1;
+  attributePoints += 1;
+  threshold = thresholdForLevel(level);
+}
+api.global.set('nivel', level);
+api.global.set('experiencia', experience);
+api.global.set('experiencia_proximo_nivel', threshold);
+api.global.set('pontos_atributo', attributePoints);
+if (levelsGained > 0) api.package.triggerEvent(owner, 'veilborne_rpg', 'level_up');`,
+        }],
+      },
+    ],
     defaultConfig: {
       combat: {
         targetLock: true,
