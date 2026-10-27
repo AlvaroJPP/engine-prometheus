@@ -3,7 +3,7 @@ import {
   mergeTimedEffect,
   resolveResistedMagnitude,
   tickTimedEffects,
-} from './CombatPrimitives'
+} from './CombatPrimitives.ts'
 
 /** Dados numéricos de um ator, sem nomes de recursos específicos de qualquer jogo. */
 export interface CombatActorState<
