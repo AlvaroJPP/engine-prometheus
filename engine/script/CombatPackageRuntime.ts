@@ -18,6 +18,8 @@ export interface PackageDamageOptions {
   postureDamage?: number
   criticalMultiplier?: number
   aliveVariable?: string
+  /** Optional inverted life flag (true means dead), for packages with legacy schemas. */
+  deadVariable?: string
   damagedEvent?: string
   healthChangedEvent?: string
   postureBrokenEvent?: string
@@ -80,7 +82,9 @@ export class CombatPackageRuntime {
       attributes: {},
       resistances: { [options.damageType]: resistance },
       statuses: [],
-      alive: currentHealth > 0 && instance.variables[options.aliveVariable ?? 'alive'] !== false,
+      alive: currentHealth > 0 && (options.deadVariable
+        ? instance.variables[options.deadVariable] !== true
+        : instance.variables[options.aliveVariable ?? 'alive'] !== false),
     }
     const result = applyCombatDamage(actor, {
       amount: options.amount,
@@ -96,7 +100,9 @@ export class CombatPackageRuntime {
 
     instance.variables[healthVariable] = resources[healthVariable]!
     if (postureVariable && maximumPostureVariable) instance.variables[postureVariable] = resources[postureVariable]!
-    if (Object.prototype.hasOwnProperty.call(instance.variables, options.aliveVariable ?? 'alive')) {
+    if (options.deadVariable) {
+      instance.variables[options.deadVariable] = result.killed
+    } else if (Object.prototype.hasOwnProperty.call(instance.variables, options.aliveVariable ?? 'alive')) {
       instance.variables[options.aliveVariable ?? 'alive'] = !result.killed
     }
     if (Object.prototype.hasOwnProperty.call(instance.variables, 'last_damage')) {
