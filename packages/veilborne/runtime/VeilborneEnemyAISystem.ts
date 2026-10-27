@@ -26,6 +26,18 @@ const PROFILES: Record<string, AIProfile> = {
   boss_phases: { attackRange: 3.2, moveSpeed: 2.3, damage: 28, cooldown: 1.7, damageType: 'shadow', postureDamage: 24, ranged: false },
 }
 
+interface PendingEnemyProjectile {
+  remainingSeconds: number
+  attackerObjectId: string
+  origin: THREE.Vector3
+  targetPosition: THREE.Vector3
+  damage: number
+  damageType: VeilborneDamageType
+  postureDamage: number
+}
+
+const AUTONOMOUS_PACKAGE_ID = 'autonomous_agent'
+
 const DAMAGE_COLORS: Record<VeilborneDamageType, number> = {
   physical: 0xd3d8e8,
   fire: 0xff713b,
@@ -43,6 +55,7 @@ export class VeilborneEnemyAISystem {
   private readonly combat: VeilborneCombatRuntime
   private readonly effects: VeilborneVisualEffects
   private readonly attackCooldowns = new Map<string, number>()
+  private pendingProjectiles: PendingEnemyProjectile[] = []
 
   constructor(context: GameModuleContext, combat: VeilborneCombatRuntime, effects: VeilborneVisualEffects) {
     this.context = context
@@ -50,8 +63,66 @@ export class VeilborneEnemyAISystem {
     this.effects = effects
   }
 
+  syncAutonomousPackages(runtimeEnabled: boolean): void {
+    const packages = this.context.logic.listPackages()
+    const hostilePackages = packages.filter(instance =>
+      instance.packageId === PACKAGE_ID
+      && instance.variables.entity_role === 'combatant'
+      && instance.variables.faction === 'hostile',
+    )
+
+    for (const hostile of hostilePackages) {
+      const shouldRun = runtimeEnabled && hostile.enabled && hostile.variables.ai_enabled !== false
+      let agent = packages.find(instance =>
+        instance.ownerObjectId === hostile.ownerObjectId
+        && instance.packageId === AUTONOMOUS_PACKAGE_ID,
+      )
+      if (!agent && !shouldRun) continue
+      if (!agent) {
+        agent = this.context.logic.installPackage(hostile.ownerObjectId, AUTONOMOUS_PACKAGE_ID)
+        this.context.logic.setPackageVariable(agent.id, 'veilborne_managed', true)
+        agent.variables.veilborne_managed = true
+        packages.push(agent)
+      }
+
+      // Pacotes autônomos criados pelo usuário mantêm sua configuração própria.
+      if (agent.variables.veilborne_managed !== true) continue
+      if (!agent.enabled) {
+        this.context.logic.updatePackage(agent.id, { enabled: true })
+        agent.enabled = true
+      }
+
+      const profileName = typeof hostile.variables.ai_profile === 'string'
+        ? hostile.variables.ai_profile.trim().toLowerCase()
+        : 'melee'
+      const profile = PROFILES[profileName] ?? PROFILES.melee!
+      const customStats = hostile.variables.ai_custom_stats === true
+      const number = (name: string, fallback: number): number => {
+        const value = hostile.variables[name]
+        return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+      }
+      const attackRange = Math.max(0.5, customStats ? number('attack_range', profile.attackRange) : profile.attackRange)
+      const moveSpeed = Math.max(0, customStats ? number('move_speed', profile.moveSpeed) : profile.moveSpeed)
+      const perceptionRange = Math.max(1, number('perception_range', 18))
+      const targetState = this.combat.getTargetCombatant(hostile)
+      const staggered = targetState.statuses.some(status => status.id === 'stagger')
+      const mode = shouldRun && !staggered ? 'follow_player' : 'idle'
+      const stopDistance = attackRange * (profile.ranged ? 0.62 : 0.94)
+      const setIfChanged = (name: string, value: string | number | boolean): void => {
+        if (agent!.variables[name] === value) return
+        this.context.logic.setPackageVariable(agent!.id, name, value)
+        agent!.variables[name] = value
+      }
+      setIfChanged('mode', mode)
+      setIfChanged('move_speed', moveSpeed)
+      setIfChanged('perception_range', perceptionRange)
+      setIfChanged('stopping_distance', stopDistance)
+    }
+  }
+
   update(dt: number): void {
     const step = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 0.1))
+    this.updatePendingProjectiles(step)
     for (const [id, remaining] of this.attackCooldowns) {
       const next = Math.max(0, remaining - step)
       if (next <= 0) this.attackCooldowns.delete(id)
@@ -61,6 +132,8 @@ export class VeilborneEnemyAISystem {
     const player = this.combat.getPlayerCombatant()
     const { avatar, logic, world, collisions } = this.context
     if (!player.alive) {
+      this.syncAutonomousPackages(false)
+      this.pendingProjectiles = []
       for (const { instance, object } of this.combat.getHostilePackages()) {
         this.setState(instance, 'idle')
         const controller = getAnimationControllerFromObject(object.mesh)
@@ -125,6 +198,10 @@ export class VeilborneEnemyAISystem {
       const directionX = dx / distance
       const directionZ = dz / distance
       const targetYaw = Math.atan2(directionX, directionZ)
+      const autonomousAgent = logic.listPackages(object.id).find(agent =>
+        agent.packageId === AUTONOMOUS_PACKAGE_ID && agent.enabled && agent.variables.mode !== 'idle',
+      )
+      const autonomousMovementActive = Boolean(autonomousAgent)
       const movingToward = distance > attackRange * 0.94
       const movingAway = profile.ranged && distance < attackRange * 0.62
       const slowStatus = targetState.statuses.find(status => status.id === 'slow')
@@ -133,7 +210,9 @@ export class VeilborneEnemyAISystem {
       let nextZ = object.mesh.position.z
       let moving = false
 
-      if ((movingToward || movingAway) && moveSpeed > 0) {
+      // O sistema autônomo genérico persegue e controla a animação. O sistema
+      // VEILBORNE só assume o movimento quando o conjurador precisa recuar.
+      if ((!autonomousMovementActive || movingAway) && (movingToward || movingAway) && moveSpeed > 0) {
         const direction = movingAway ? -1 : 1
         const stepDistance = Math.min(
           moveSpeed * slowMultiplier * step,
@@ -145,7 +224,7 @@ export class VeilborneEnemyAISystem {
       }
 
       const currentRotation = object.mesh.rotation.y
-      if (moving || Math.abs(currentRotation - targetYaw) > 0.01) {
+      if ((!autonomousMovementActive || movingAway) && (moving || Math.abs(currentRotation - targetYaw) > 0.01)) {
         const bounds = new THREE.Box3().setFromObject(object.mesh)
         const bottomOffset = object.mesh.position.y - bounds.min.y
         const groundYRaw = world.terrain.heightAt(nextX, nextZ)
@@ -175,39 +254,24 @@ export class VeilborneEnemyAISystem {
             const controller = getAnimationControllerFromObject(object.mesh)
             if (controller) controller.playOneShot(profile.ranged ? 'ability_1' : 'primary_action')
             logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_attack')
-            const result = this.combat.receiveIncomingDamage(attackDamage, attackType, postureDamage, instance.ownerObjectId)
-            const source = object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0))
-            this.effects.spawnEffect(source, DAMAGE_COLORS[attackType], 0.35, 0.28)
-            if (result.damage > 0 || result.absorbedByWard > 0) {
-              this.effects.spawnEffect(
-                avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
-                DAMAGE_COLORS[attackType],
-                result.blocked ? 0.38 : 0.52,
-                0.3,
-              )
+            const source = object.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0))
+            if (profile.ranged) {
+              const impact = avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0))
+              const flightSeconds = THREE.MathUtils.clamp(source.distanceTo(impact) / 22, 0.2, 0.75)
+              this.effects.spawnEffect(source, DAMAGE_COLORS[attackType], 0.24, 0.2)
+              this.effects.spawnProjectile(source, impact, DAMAGE_COLORS[attackType], flightSeconds)
+              this.pendingProjectiles.push({
+                remainingSeconds: flightSeconds,
+                attackerObjectId: instance.ownerObjectId,
+                origin: source.clone(),
+                targetPosition: impact,
+                damage: attackDamage,
+                damageType: attackType,
+                postureDamage,
+              })
+            } else if (this.resolveAttackImpact(instance, attackDamage, attackType, postureDamage, source)) {
+              break
             }
-            if (result.parried) {
-              const weaponIdRaw = logic.getVariable('arma_equipada')
-              const weaponId = typeof weaponIdRaw === 'string' ? weaponIdRaw : 'starter_arcane_sword'
-              const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
-              const counterDamage = Math.round(
-                calculateVeilborneWeaponDamage(weapon, this.combat.getPlayerCombatant().attributes) * 0.8,
-              )
-              const counter = this.combat.applyDamageToTarget(
-                instance,
-                counterDamage,
-                weapon.damageType,
-                weapon.postureDamage * 1.5,
-              )
-              this.effects.spawnEffect(
-                this.combat.getWorldPoint(object.id) ?? object.mesh.position.clone(),
-                0xe3f5ff,
-                0.8,
-                0.34,
-              )
-              if (counter.killed) break
-            }
-            if (result.killed) break
           }
         }
       } else {
@@ -218,6 +282,82 @@ export class VeilborneEnemyAISystem {
 
   clear(): void {
     this.attackCooldowns.clear()
+    this.pendingProjectiles = []
+  }
+
+  private updatePendingProjectiles(dt: number): void {
+    const remaining: PendingEnemyProjectile[] = []
+    for (const projectile of this.pendingProjectiles) {
+      projectile.remainingSeconds -= dt
+      if (projectile.remainingSeconds > 0) {
+        remaining.push(projectile)
+        continue
+      }
+
+      this.effects.spawnEffect(projectile.targetPosition, DAMAGE_COLORS[projectile.damageType], 0.4, 0.32)
+      if (!this.combat.getPlayerCombatant().alive) continue
+      const playerPosition = this.context.avatar.mesh.position
+      const planarDistance = Math.hypot(
+        playerPosition.x - projectile.targetPosition.x,
+        playerPosition.z - projectile.targetPosition.z,
+      )
+      // Esquivar para fora do ponto previsto evita o impacto do projétil.
+      if (planarDistance > 1.45) continue
+      const attacker = this.context.logic.listPackages(projectile.attackerObjectId).find(
+        instance => instance.packageId === PACKAGE_ID,
+      )
+      if (!attacker) continue
+      this.resolveAttackImpact(
+        attacker,
+        projectile.damage,
+        projectile.damageType,
+        projectile.postureDamage,
+        projectile.origin,
+      )
+    }
+    this.pendingProjectiles = remaining
+  }
+
+  private resolveAttackImpact(
+    instance: BehaviorPackageInstance,
+    damage: number,
+    damageType: VeilborneDamageType,
+    postureDamage: number,
+    source: THREE.Vector3,
+  ): boolean {
+    const { avatar, logic } = this.context
+    const result = this.combat.receiveIncomingDamage(damage, damageType, postureDamage, instance.ownerObjectId)
+    this.effects.spawnEffect(source, DAMAGE_COLORS[damageType], 0.35, 0.28)
+    if (result.damage > 0 || result.absorbedByWard > 0) {
+      this.effects.spawnEffect(
+        avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
+        DAMAGE_COLORS[damageType],
+        result.blocked ? 0.38 : 0.52,
+        0.3,
+      )
+    }
+    if (result.parried) {
+      const weaponIdRaw = logic.getVariable('arma_equipada')
+      const weaponId = typeof weaponIdRaw === 'string' ? weaponIdRaw : 'starter_arcane_sword'
+      const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
+      const counterDamage = Math.round(
+        calculateVeilborneWeaponDamage(weapon, this.combat.getPlayerCombatant().attributes) * 0.8,
+      )
+      const counter = this.combat.applyDamageToTarget(
+        instance,
+        counterDamage,
+        weapon.damageType,
+        weapon.postureDamage * 1.5,
+      )
+      this.effects.spawnEffect(
+        this.combat.getWorldPoint(instance.ownerObjectId) ?? source,
+        0xe3f5ff,
+        0.8,
+        0.34,
+      )
+      return counter.killed
+    }
+    return result.killed
   }
 
   private setState(instance: BehaviorPackageInstance, next: string): void {
