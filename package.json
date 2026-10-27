@@ -41,7 +41,8 @@
     "veilborne:scripts:self-test": "node --experimental-strip-types scripts/veilborne-script-composition-self-test.mjs",
     "veilborne:controls:self-test": "node --experimental-strip-types scripts/veilborne-controls-self-test.mjs",
     "world:transform-safety:self-test": "node --experimental-strip-types scripts/world-transform-safety-self-test.mjs",
-    "game:separation:self-test": "node --experimental-strip-types scripts/game-separation-self-test.mjs"
+    "game:separation:self-test": "node --experimental-strip-types scripts/game-separation-self-test.mjs",
+    "behavior:package-registration:self-test": "node --experimental-strip-types scripts/behavior-package-registration-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
