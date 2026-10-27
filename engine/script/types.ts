@@ -4,6 +4,7 @@ export type RuleTrigger =
   | { type: 'object_clicked'; objectId: string }
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
   | { type: 'key_pressed'; key: string }
+  | { type: 'global_event'; eventId: string }
   | { type: 'package_event'; objectId: string; packageId: string; eventId: string }
 
 export type RuleCondition = { type: 'variable'; name: string; operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than'; value: boolean | number | string }
@@ -28,6 +29,8 @@ export interface LogicRule {
   actions: RuleAction[]
   /** Identifica regras instanciadas automaticamente por um pacote de comportamento. */
   sourcePackageInstanceId?: string
+  /** Identifies a global script installed from a reusable package definition. */
+  sourcePackageDefinitionId?: string
   /** Interno: evita disparar continuamente enquanto permanece na área. */
   /** Posições persistidas dos nós no editor visual. */
   graphLayout?: { trigger: { x: number; y: number }; condition: { x: number; y: number }; action: { x: number; y: number } }
