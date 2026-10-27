@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict'
+import { GameplayWorldSystems } from '../engine/world/GameplayWorldSystems.ts'
+
+const world = new GameplayWorldSystems(2)
+world.upsert({ id: 'player', x: 0, y: 0, z: 0 }, ['player', 'alive'])
+world.upsert({ id: 'enemy', x: 1, y: 0, z: 0 }, ['enemy', 'alive'])
+world.upsert({ id: 'prop', x: 1.5, y: 0, z: 0 }, ['prop'])
+assert.deepEqual(world.queryRadius({ x: 0, y: 0, z: 0 }, 2, { allTags: ['alive'] }).map(r => r.item.id), ['player', 'enemy'])
+assert.equal(world.queryNearest({ x: 0, y: 0, z: 0 }, 5, { anyTags: ['enemy', 'prop'], excludedTags: ['prop'] })?.item.id, 'enemy')
+assert.equal(world.setTags('prop', ['enemy', 'interactable']), true)
+assert.deepEqual(world.queryRadius({ x: 0, y: 0, z: 0 }, 2, { allTags: ['enemy'], anyTags: ['interactable'] }).map(r => r.item.id), ['prop'])
+world.setTrigger({ id: 'spawn', shape: 'sphere', center: { x: 0, y: 0, z: 0 }, radius: 1, requiredTags: ['player'] })
+assert.deepEqual(world.updateTriggers(), [{ type: 'enter', triggerId: 'spawn', subjectId: 'player' }])
+assert.deepEqual(world.updateTriggers(), [{ type: 'stay', triggerId: 'spawn', subjectId: 'player' }])
+world.upsert({ id: 'player', x: 4, y: 0, z: 0 }, ['player', 'alive'])
+assert.deepEqual(world.updateTriggers(), [{ type: 'exit', triggerId: 'spawn', subjectId: 'player' }])
+assert.deepEqual(world.removeTrigger('spawn'), [])
+assert.equal(world.remove('enemy'), true)
+assert.equal(world.remove('enemy'), false)
+world.clear()
+assert.equal(world.size, 0)
+assert.deepEqual(world.queryRadius({ x: 0, y: 0, z: 0 }, 100), [])
+console.log('Gameplay world systems self-test passed.')
