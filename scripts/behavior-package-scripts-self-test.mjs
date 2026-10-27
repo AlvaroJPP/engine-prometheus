@@ -42,7 +42,7 @@ const definition = {
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false); api.global.set('nearby_invalid_count', api.world.nearby({ x: Number.NaN, y: 0, z: 0 }, 100).length); api.global.add('runs', Number.NaN); api.global.set('bad_global_value', Number.POSITIVE_INFINITY); api.set('bad_scoped_value', Number.NaN); api.package.set('{ID_OBJECT}', 'script-test', 'bad_package_value', Number.NaN); api.package.configure('{ID_OBJECT}', 'script-test', { bad_configured_value: Number.POSITIVE_INFINITY })",
+      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false); api.global.set('nearby_invalid_count', api.world.nearby({ x: Number.NaN, y: 0, z: 0 }, 100).length); api.global.add('runs', Number.NaN); api.global.set('bad_global_value', Number.POSITIVE_INFINITY); api.set('bad_scoped_value', Number.NaN); api.package.set('{ID_OBJECT}', 'script-test', 'bad_package_value', Number.NaN); api.package.configure('{ID_OBJECT}', 'script-test', { bad_configured_value: Number.POSITIVE_INFINITY }); vars.bad_legacy_value = Number.NaN; vars.runs = Number.POSITIVE_INFINITY",
     }],
   }],
 }
@@ -58,7 +58,8 @@ try {
   assert.equal(logic.triggerNearestPackageEvent({ x: 0, y: 0, z: 0 }, {
     eventId: 'ping', packageId: 'script-test', radius: 2, variableEquals: { script_ran: false },
   }), true)
-  assert.equal(logic.getVariable('runs'), 1, 'invalid numeric additions must not corrupt global counters')
+  assert.equal(logic.getVariable('runs'), 1, 'invalid numeric additions and legacy writes must not corrupt global counters')
+  assert.equal(logic.getVariable('bad_legacy_value'), undefined, 'legacy vars writes reject non-finite values')
   assert.equal(logic.getVariable('nearby_invalid_count'), 0, 'nearby returns no objects for a non-finite center')
   assert.equal(logic.getVariable('bad_global_value'), undefined, 'non-finite global values are rejected')
   assert.equal(logic.getVariable('bad_scoped_value', target.id), undefined, 'non-finite scoped values are rejected')
