@@ -125,6 +125,7 @@ export class VeilborneGameModule implements EngineGameModule {
       setLootNoticeDuration: seconds => { this.lootNoticeRemainingSeconds = seconds },
     })
     this.combatRuntime.setPlayerDeathHandler(() => this.deathRespawn?.handlePlayerDeath())
+    this.combatRuntime.setEnemyKilledHandler(instance => this.loot?.spawnDrop(instance))
 
     this.itemUse = new VeilborneItemUseSystem({
       logic: context.logic,
