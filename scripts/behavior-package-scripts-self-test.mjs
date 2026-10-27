@@ -4,15 +4,23 @@ import { registerBehaviorPackageDefinition } from '../engine/script/packages.ts'
 
 const emitted = []
 const target = { id: 'target-01', name: 'Target', mesh: { position: { x: 1, y: 0, z: 0 }, visible: true } }
+const objects = new Map([[target.id, target]])
 const world = {
   events: { emit: (type, payload) => emitted.push({ type, payload }) },
-  get: id => id === target.id ? target : undefined,
+  get: id => objects.get(id),
   isObjectVisible: object => object.mesh.visible,
-  update: (id, patch) => { if (id === target.id && typeof patch.visible === 'boolean') target.mesh.visible = patch.visible },
-  remove: id => { if (id === target.id) target.mesh.visible = false },
-  info: () => [{ id: target.id, name: target.name }],
+  add: object => { objects.set(object.id, object); return object },
+  update: (id, patch) => {
+    const object = objects.get(id)
+    if (!object) return
+    if (typeof patch.visible === 'boolean') object.mesh.visible = patch.visible
+    for (const axis of ['x', 'y', 'z']) if (typeof patch[axis] === 'number') object.mesh.position[axis] = patch[axis]
+  },
+  remove: id => { objects.delete(id) },
+  list: () => [...objects.values()],
+  info: () => [...objects.values()].map(object => ({ id: object.id, name: object.name })),
   getSelectedId: () => null,
-  update: () => {},
+  getGroundHeightAt: () => 0,
 }
 const definition = {
   id: 'script-test',
@@ -34,7 +42,7 @@ const definition = {
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true)",
+      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true })",
     }],
   }],
 }
@@ -52,6 +60,11 @@ try {
   }), true)
   assert.equal(logic.getVariable('runs'), 1)
   assert.equal(logic.listPackages(target.id)[0].variables.script_ran, true)
+  const spawned = [...objects.values()].find(object => object.id !== target.id)
+  assert.ok(spawned, 'generic script API can create an object')
+  assert.equal(spawned.type, 'cube')
+  assert.equal(spawned.mesh.geometry.type, 'OctahedronGeometry')
+  assert.equal(logic.listPackages(spawned.id)[0].variables.script_ran, true, 'scripts can install and configure behavior packages on created objects')
   assert.ok(emitted.some(event => event.type === 'behaviorPackageChanged'))
 
   logic.remove(generatedRuleId)
