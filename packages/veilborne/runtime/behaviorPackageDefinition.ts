@@ -1,6 +1,7 @@
 import { registerBehaviorPackageDefinition } from '../../../engine/script/packages.ts'
 import type { BehaviorPackageDefinition } from '../../../engine/script/packages.ts'
 import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat.ts'
+import { VEILBORNE_AI_PROFILES, VEILBORNE_AI_PROFILE_OPTIONS } from './VeilborneAIProfiles.ts'
 
 const VEILBORNE_ITEM_IDS = Object.keys(VEILBORNE_RUNTIME_ITEMS)
 
@@ -39,7 +40,7 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'res_arcano', label: 'Resistência arcana (%)', type: 'number', defaultValue: 0, description: 'Resistência a magia arcana.', min: -100, max: 95, step: 1 },
       { name: 'ai_enabled', label: 'IA ativa', type: 'boolean', defaultValue: true, description: 'Permite que este objeto persiga e ataque o jogador durante a execução.' },
       { name: 'ai_custom_stats', label: 'Usar atributos de IA personalizados', type: 'boolean', defaultValue: false, description: 'Quando ativado, usa alcance, velocidade, dano, tipo de dano e recarga informados manualmente.' },
-      { name: 'ai_profile', label: 'Perfil de IA', type: 'string', defaultValue: 'melee', description: 'melee, ranged_caster, flanker, guard_breaker ou boss_phases.' },
+      { name: 'ai_profile', label: 'Perfil de IA', type: 'string', defaultValue: 'melee', description: 'Preset de combate configurável por instância.', options: [...VEILBORNE_AI_PROFILE_OPTIONS] },
       { name: 'ai_state', label: 'Estado da IA', type: 'string', defaultValue: 'idle', description: 'Estado atual: idle, pursue, attack, recover ou dead.', readOnly: true },
       { name: 'perception_range', label: 'Alcance de percepção', type: 'number', defaultValue: 18, description: 'Distância máxima para detectar o jogador.', min: 1, max: 60, step: 0.5 },
       { name: 'attack_range', label: 'Alcance de ataque', type: 'number', defaultValue: 2, description: 'Distância horizontal para iniciar um ataque.', min: 0.5, max: 40, step: 0.1 },
@@ -49,6 +50,7 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'attack_cooldown', label: 'Recarga de ataque da IA', type: 'number', defaultValue: 1.4, description: 'Tempo mínimo entre dois golpes, em segundos.', min: 0.2, max: 30, step: 0.1 },
       { name: 'attack_posture_damage', label: 'Dano de postura da IA', type: 'number', defaultValue: 8, description: 'Postura que o golpe acumula no jogador.', min: 0, max: 99999, step: 1 },
       { name: 'boss_phase', label: 'Fase do chefe', type: 'number', defaultValue: 1, description: 'Fase atual calculada pela vida restante.', min: 1, max: 3, step: 1, readOnly: true },
+      { name: 'ai_damage_multiplier', label: 'Multiplicador de dano da IA', type: 'number', defaultValue: 1, description: 'Multiplicador configurado por scripts de comportamento.', min: 0, max: 10, step: 0.05, readOnly: true },
       { name: 'eco_reward', label: 'Recompensa em Ecos', type: 'number', defaultValue: -1, description: 'Ecos concedidos ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
       { name: 'xp_reward', label: 'Recompensa de experiência', type: 'number', defaultValue: -1, description: 'Experiência concedida ao derrotar este inimigo. -1 usa a recompensa automática do perfil; 0 desativa a recompensa.', min: -1, max: 1000000, step: 1 },
       { name: 'entity_role', label: 'Função VEILBORNE', type: 'string', defaultValue: 'combatant', description: 'combatant para inimigos/personagens ou loot para objetos coletáveis.' },
@@ -105,6 +107,33 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { id: 'respawn_at_checkpoint', label: 'Renascer no santuário', description: 'Reposiciona o jogador no último ponto de descanso salvo.' },
     ],
     scripts: [
+      {
+        id: 'boss-phase-scaling',
+        name: 'Escalar ataque por fase do chefe',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'enemy_attack',
+        },
+        conditions: [
+          { type: 'variable', name: 'ai_profile', operator: 'equals', value: 'boss_phases' },
+        ],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const health = api.package.get(owner, 'veilborne_rpg', 'vida');
+const maximum = api.package.get(owner, 'veilborne_rpg', 'vida_max');
+const ratio = typeof health === 'number' && typeof maximum === 'number' && maximum > 0
+  ? Math.max(0, health) / maximum
+  : 1;
+const phase = ratio <= 0.25 ? 3 : ratio <= 0.6 ? 2 : 1;
+const multiplier = phase === 3 ? 1.45 : phase === 2 ? 1.2 : 1;
+api.package.set(owner, 'veilborne_rpg', 'boss_phase', phase);
+api.package.set(owner, 'veilborne_rpg', 'ai_damage_multiplier', multiplier);`,
+        }],
+      },
       {
         id: 'checkpoint-activate',
         name: 'Ativar santuário e salvar ponto de retorno',
@@ -273,6 +302,13 @@ if (levelsGained > 0) api.package.triggerEvent(owner, 'veilborne_rpg', 'level_up
       },
     ],
     defaultConfig: {
+      aiProfiles: {
+        melee: { ...VEILBORNE_AI_PROFILES.melee },
+        ranged_caster: { ...VEILBORNE_AI_PROFILES.ranged_caster },
+        flanker: { ...VEILBORNE_AI_PROFILES.flanker },
+        guard_breaker: { ...VEILBORNE_AI_PROFILES.guard_breaker },
+        boss_phases: { ...VEILBORNE_AI_PROFILES.boss_phases },
+      },
       combat: {
         targetLock: true,
         quickAttack: true,
