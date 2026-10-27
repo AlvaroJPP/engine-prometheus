@@ -4,6 +4,7 @@ import type { ObjectType } from '../../../engine/project/format'
 import type { World } from '../../../engine/world/World'
 import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import type { VeilborneCombatant } from './VeilborneCombat'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages.ts'
 
 interface VeilborneProgressionDependencies {
   world: World
