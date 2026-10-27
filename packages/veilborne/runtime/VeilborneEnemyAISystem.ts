@@ -190,7 +190,6 @@ export class VeilborneEnemyAISystem {
         return typeof value === 'number' && Number.isFinite(value) ? value : fallback
       }
       const attackRange = Math.max(0.5, customStats ? number('attack_range', profile.attackRange) : profile.attackRange)
-      const moveSpeed = Math.max(0, customStats ? number('move_speed', profile.moveSpeed) : profile.moveSpeed)
       let attackDamage = Math.max(0, customStats ? number('attack_damage', profile.damage) : profile.damage)
       const attackCooldown = Math.max(0.2, customStats ? number('attack_cooldown', profile.cooldown) : profile.cooldown)
       const postureDamage = Math.max(0, customStats ? number('attack_posture_damage', profile.postureDamage) : profile.postureDamage)
