@@ -42,3 +42,9 @@ export type { EngineBehaviorTreeContext } from './script/EngineBehaviorTreeRunti
 
 export { GridPathfinder } from './navigation/GridPathfinder'
 export type { NavigationPoint, GridPathfinderOptions, GridPathfinderResult } from './navigation/GridPathfinder'
+
+export { CooldownScheduler } from './runtime/CooldownScheduler'
+export type { CooldownEntry } from './runtime/CooldownScheduler'
+export { FiniteStateMachine } from './runtime/FiniteStateMachine'
+export type { StateDefinition, StateTransition, StateTransitionGuard } from './runtime/FiniteStateMachine'
+export { TagRegistry } from './world/TagRegistry'
