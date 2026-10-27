@@ -56,7 +56,7 @@ export class GameplayRuntime {
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
     this.behaviors = new EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>(
       this.entities,
-      (entityId): GameplayEntityContext => ({ entityId, runtime: this }),
+      (entityId): GameplayEntityContext => ({ entityId, runtime: this as GameplayRuntime }),
     )
   }
 
