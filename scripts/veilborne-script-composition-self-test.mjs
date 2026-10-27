@@ -23,7 +23,7 @@ const world = {
     if (!object) return
     if (typeof patch.visible === 'boolean') object.mesh.visible = patch.visible
     for (const axis of ['x', 'y', 'z']) {
-      if (typeof patch[axis] === 'number) object.mesh.position[axis] = patch[axis]
+      if (typeof patch[axis] === 'number' object.mesh.position[axis] = patch[axis]
     }
   },
   getGroundHeightAt: () => 0,
