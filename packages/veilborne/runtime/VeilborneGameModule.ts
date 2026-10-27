@@ -56,6 +56,7 @@ export class VeilborneGameModule implements EngineGameModule {
   onAttach(context: GameModuleContext): void {
     this.context = context
     this.unregisterPackage = registerVeilborneBehaviorPackage()
+    context.logic.ensureBehaviorPackageScripts(PACKAGE_ID)
     const visualEffects = new VeilborneVisualEffects(context.world.scene, () => context.invalidate())
     this.visualEffects = visualEffects
     const combatRuntime = new VeilborneCombatRuntime(context, visualEffects)
