@@ -551,6 +551,35 @@ export class World {
     return Number.isFinite(groundY) ? groundY : 0
   }
 
+  /**
+   * Finds the highest visible collidable surface under an X/Z point.
+   * Useful for dropping or aligning objects on platforms, props, and imported meshes.
+   * The caller can exclude the object itself and nearby pickup objects.
+   */
+  getSurfaceHeightAt(
+    x: number,
+    z: number,
+    maxSurfaceY = Number.POSITIVE_INFINITY,
+    excludedObjectIds: ReadonlySet<string> = new Set<string>(),
+  ): number {
+    const maxY = Number.isFinite(maxSurfaceY) ? maxSurfaceY : Number.POSITIVE_INFINITY
+    let surfaceY = this.terrain.mesh.visible ? this.terrain.heightAt(x, z) : 0
+    if (!Number.isFinite(surfaceY)) surfaceY = 0
+
+    for (const object of this.objects.values()) {
+      if (excludedObjectIds.has(object.id)) continue
+      if (object.mesh.userData.colliderType === 'none' || !this.isObjectVisible(object)) continue
+      object.mesh.updateMatrixWorld(true)
+      const bounds = new THREE.Box3().setFromObject(object.mesh)
+      if (bounds.isEmpty() || bounds.max.y > maxY) continue
+      if (x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03) continue
+      if (z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03) continue
+      surfaceY = Math.max(surfaceY, bounds.max.y)
+    }
+
+    return surfaceY
+  }
+
   /** Retorna uma entidade pelo ID apenas quando o elemento foi declarado como entity. */
   getEntity(id: string): Entity | null {
     return toEntity(this.objects.get(id))
