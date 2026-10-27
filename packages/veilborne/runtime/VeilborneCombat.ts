@@ -5,7 +5,7 @@ import {
   isWithinTimeWindow,
   restoreResource,
   spendResource,
-} from '../../../engine/script/CombatPrimitives'
+} from '../../../engine/script/CombatPrimitives.ts'
 import {
   applyCombatDamage,
   applyCombatStatus,
@@ -13,7 +13,7 @@ import {
   updateCombatActor,
   type CombatActorState,
   type TimedCombatStatus,
-} from '../../../engine/script/CombatModel'
+} from '../../../engine/script/CombatModel.ts'
 
 /**
  * VEILBORNE: regras puras de combate.
