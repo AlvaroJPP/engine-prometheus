@@ -21,7 +21,7 @@ export interface CombatActorState<
 }
 
 /** Estado temporizado genérico que pode representar dano periódico, lentidão ou outras regras. */
-export interface TimedCombatStatus extends Readonly<Record<string, unknown>> {
+export interface TimedCombatStatus {
   id: string
   remainingSeconds: number
   potency: number
