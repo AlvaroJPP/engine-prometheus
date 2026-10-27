@@ -41,12 +41,15 @@ export class VeilborneGameModule implements EngineGameModule {
   onAttach(context: GameModuleContext): void {
     this.context = context
     this.unregisterPackage = registerVeilborneBehaviorPackage()
-    this.visualEffects = new VeilborneVisualEffects(context.world.scene, context.invalidate)
-    this.combatRuntime = new VeilborneCombatRuntime(context, this.visualEffects)
+    const visualEffects = new VeilborneVisualEffects(context.world.scene, () => context.invalidate())
+    this.visualEffects = visualEffects
+    const combatRuntime = new VeilborneCombatRuntime(context, visualEffects)
+    this.combatRuntime = combatRuntime
     this.healthBars = new VeilborneHealthBarSystem(context.world.scene)
-    this.inventory = new VeilborneInventorySystem(context.logic, (message, duration) => {
+    const inventory = new VeilborneInventorySystem(context.logic, (message, duration) => {
       this.showNotice(context, message, duration)
     })
+    this.inventory = inventory
 
     const notifyPackageChanged = (ownerObjectId: string): void => {
       context.world.events.emit('behaviorPackageChanged', { ownerObjectId })
@@ -62,14 +65,14 @@ export class VeilborneGameModule implements EngineGameModule {
       return instance
     }
     const spawnEffect = (position: THREE.Vector3, color: number, scale: number, durationSeconds = 0.32): void => {
-      this.visualEffects?.spawnEffect(position, color, scale, durationSeconds)
+      visualEffects.spawnEffect(position, color, scale, durationSeconds)
     }
 
-    this.loot = new VeilborneLootSystem({
+    const loot = new VeilborneLootSystem({
       world: context.world,
       logic: context.logic,
       avatar: context.avatar.mesh,
-      inventory: this.inventory,
+      inventory,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
       isRuntimeModeActive: () => context.isRuntimeActive(),
       installBehaviorPackage,
@@ -82,8 +85,9 @@ export class VeilborneGameModule implements EngineGameModule {
       },
       invalidate: () => context.invalidate(),
     })
+    this.loot = loot
 
-    this.progression = new VeilborneProgressionSystem({
+    const progression = new VeilborneProgressionSystem({
       world: context.world,
       logic: context.logic,
       avatar: context.avatar.mesh,
@@ -97,18 +101,19 @@ export class VeilborneGameModule implements EngineGameModule {
       triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
         context.logic.triggerPackageEvent(ownerObjectId, packageId, eventId),
       removeObject,
-      registerSpawnedLoot: id => this.loot?.registerSpawnedLoot(id),
-      forgetSpawnedLoot: id => this.loot?.forgetSpawnedLoot(id),
+      registerSpawnedLoot: id => loot.registerSpawnedLoot(id),
+      forgetSpawnedLoot: id => loot.forgetSpawnedLoot(id),
       spawnEffect,
       showNotice: (message, duration) => this.showNotice(context, message, duration),
       invalidate: () => context.invalidate(),
     })
+    this.progression = progression
 
-    this.deathRespawn = new VeilborneDeathRespawnSystem({
+    const deathRespawn = new VeilborneDeathRespawnSystem({
       world: context.world,
       logic: context.logic,
       avatar: context.avatar,
-      progression: this.progression,
+      progression,
       readNumber: (name, fallback) => this.combatRuntime?.readNumber(name, fallback) ?? fallback,
       syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
       setCameraTarget: (x, y, z) => context.setCameraTarget(x, y, z),
@@ -124,12 +129,13 @@ export class VeilborneGameModule implements EngineGameModule {
       invalidate: () => context.invalidate(),
       setLootNoticeDuration: seconds => { this.lootNoticeRemainingSeconds = seconds },
     })
-    this.combatRuntime.setPlayerDeathHandler(() => this.deathRespawn?.handlePlayerDeath())
-    this.combatRuntime.setEnemyKilledHandler(instance => this.loot?.spawnDrop(instance))
+    this.deathRespawn = deathRespawn
+    combatRuntime.setPlayerDeathHandler(() => deathRespawn.handlePlayerDeath())
+    combatRuntime.setEnemyKilledHandler(instance => loot.spawnDrop(instance))
 
-    this.itemUse = new VeilborneItemUseSystem({
+    const itemUse = new VeilborneItemUseSystem({
       logic: context.logic,
-      inventory: this.inventory,
+      inventory,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
       isRuntimeModeActive: () => context.isRuntimeActive(),
       getPlayer: () => this.combatRuntime!.getPlayerCombatant(),
@@ -140,13 +146,14 @@ export class VeilborneGameModule implements EngineGameModule {
       getAvatarMesh: () => context.avatar.mesh,
       spawnEffect,
       applyHit: (instance, amount, damageType, postureDamage, status) =>
-        this.combatRuntime?.applyDamageToTarget(instance, amount, damageType, postureDamage, status)
+        combatRuntime.applyDamageToTarget(instance, amount, damageType, postureDamage, status)
           ?? { damage: 0, killed: false },
       showNotice: (message, duration) => this.showNotice(context, message, duration),
       invalidate: () => context.invalidate(),
     })
+    this.itemUse = itemUse
 
-    this.enemyAI = new VeilborneEnemyAISystem(context, this.combatRuntime, this.visualEffects)
+    this.enemyAI = new VeilborneEnemyAISystem(context, combatRuntime, visualEffects)
   }
 
   onRuntimeStart(context: GameModuleContext): void {
