@@ -176,7 +176,15 @@ export class CombatPackageRuntime {
 
   applyStatus(ownerObjectId: string, status: PackageCombatStatus, packageId = 'combatant'): void {
     const instance = this.findInstance(ownerObjectId, packageId)
-    const current = this.readStatuses(instance.config.statuses)
+    // Invalid applications must not emit success events or dirty the owning object.
+    if (
+      typeof status.id !== 'string'
+      || !status.id.trim()
+      || !Number.isFinite(status.remainingSeconds)
+      || status.remainingSeconds <= 0
+    ) return
+
+    const current = tickTimedEffects(this.readStatuses(instance.config.statuses), 0)
     const next = mergeTimedEffect(current, status)
     instance.config.statuses = next as unknown as PackageJsonValue
     this.triggerEvent(ownerObjectId, instance.packageId, 'status_applied')
