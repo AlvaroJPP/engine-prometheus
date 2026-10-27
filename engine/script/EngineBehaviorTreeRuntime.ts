@@ -36,6 +36,21 @@ const numberParam = (params: BehaviorTreeParameters, key: string): number | null
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+type ComparisonOperator = 'equals' | 'not_equals' | 'gt' | 'gte' | 'lt' | 'lte'
+
+function compareScalars(actual: PackageScalar | undefined, expected: PackageScalar | undefined, operator: unknown): boolean {
+  if (actual === undefined || expected === undefined) return false
+  switch (operator as ComparisonOperator) {
+    case 'equals': return actual === expected
+    case 'not_equals': return actual !== expected
+    case 'gt': return typeof actual === 'number' && typeof expected === 'number' && actual > expected
+    case 'gte': return typeof actual === 'number' && typeof expected === 'number' && actual >= expected
+    case 'lt': return typeof actual === 'number' && typeof expected === 'number' && actual < expected
+    case 'lte': return typeof actual === 'number' && typeof expected === 'number' && actual <= expected
+    default: return false
+  }
+}
+
 function findPackage(
   context: EngineBehaviorTreeContext,
   instance: BehaviorPackageInstance,
@@ -112,6 +127,21 @@ export class EngineBehaviorTreeRuntime {
             const target = findPackage(context, instance, stringParam(params, 'packageId'))
             return !!target && variable !== null && expected !== undefined
               && target.variables[variable] === expected
+          }
+          case 'global_variable_compare': {
+            const variable = stringParam(params, 'variable')
+            if (!variable) return false
+            return compareScalars(
+              context.logic.getVariable(variable),
+              scalarParam(params, 'value'),
+              params.operator,
+            )
+          }
+          case 'package_variable_compare': {
+            const variable = stringParam(params, 'variable')
+            const target = findPackage(context, instance, stringParam(params, 'packageId'))
+            if (!target || !variable) return false
+            return compareScalars(target.variables[variable], scalarParam(params, 'value'), params.operator)
           }
           case 'distance_to_player_lte': {
             const maxDistance = numberParam(params, 'distance')
