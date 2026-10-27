@@ -314,6 +314,42 @@ export class RuleEngine {
     })
   }
 
+  /** Dispara um evento no pacote interativo mais próximo que corresponde aos filtros. */
+  triggerNearestPackageEvent(
+    position: { x: number; y: number; z: number },
+    options: {
+      eventId: string
+      packageId?: string
+      radius?: number
+      verticalTolerance?: number
+      variableEquals?: Record<string, PackageScalar>
+    },
+  ): boolean {
+    const radius = Math.max(0, Number.isFinite(options.radius) ? options.radius! : 2.5)
+    const verticalTolerance = Math.max(0, Number.isFinite(options.verticalTolerance) ? options.verticalTolerance! : 3)
+    const candidates = (this.data.packages ?? [])
+      .filter(instance => instance.enabled && (!options.packageId || instance.packageId === options.packageId))
+      .filter(instance => Object.entries(options.variableEquals ?? {}).every(([name, value]) => instance.variables[name] === value))
+      .map(instance => {
+        const object = this.world.get(instance.ownerObjectId)
+        if (!object || !this.world.isObjectVisible(object)) return null
+        const distance = Math.hypot(object.mesh.position.x - position.x, object.mesh.position.z - position.z)
+        const verticalDistance = Math.abs(object.mesh.position.y - position.y)
+        return { instance, distance, verticalDistance }
+      })
+      .filter((candidate): candidate is NonNullable<typeof candidate> =>
+        !!candidate && candidate.distance <= radius && candidate.verticalDistance <= verticalTolerance,
+      )
+      .sort((a, b) => a.distance - b.distance)
+
+    for (const candidate of candidates) {
+      if (this.triggerPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, options.eventId)) {
+        return true
+      }
+    }
+    return false
+  }
+
   /** Ações reutilizáveis para scripts e módulos de jogo. */
   applyCombatDamageToPackage(ownerObjectId: string, options: PackageDamageOptions): ReturnType<CombatPackageRuntime['damage']> {
     return this.combatPackages.damage(ownerObjectId, options)
