@@ -741,7 +741,15 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   onMounted(() => {
     if (!canvas.value) return
     loadPerformanceSettings()
-    const e = new Engine(canvas.value)
+    let e: Engine
+    try {
+      e = new Engine(canvas.value)
+    } catch (error) {
+      const message = errMsg(error)
+      console.error('[Editor] Falha ao inicializar o motor 3D.', error)
+      status.value = `Falha ao inicializar o motor 3D: ${message}`
+      return
+    }
     engine = e
     engineInstance.value = e
     e.setControlBindings(playerControlBindings)
