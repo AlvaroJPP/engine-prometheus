@@ -10,6 +10,7 @@ VEILBORNE é um jogo de fantasia sombria feito sobre o Engine Prometheus. As reg
 - `runtime/VeilborneInventorySystem.ts`, `VeilborneItemUseSystem.ts` e `VeilborneLootSystem.ts`: inventário serializado, consumíveis, drops e coleta.
 - `runtime/VeilborneProgressionSystem.ts` e `VeilborneDeathRespawnSystem.ts`: santuários, ecos perdidos e renascimento.
 - `runtime/VeilborneTargetLockController.ts`: travamento visual de alvo.
+- `runtime/VeilborneControls.ts`: resolução pura e testável dos atalhos defensivos, sem colisões com o mapa ativo.
 - `runtime/VeilborneVisualEffects.ts` e `VeilborneHealthBarSystem.ts`: efeitos visuais temporários e barras de vida.
 - `ui/VeilborneGameHost.vue`: host de UI que registra o módulo opcional e monta a HUD do jogo.
 - `ui/VeilborneHUD.vue` e `ui/VeilborneHUD.css`: interface própria de VEILBORNE.
@@ -76,7 +77,7 @@ Nesse caso, o host é responsável por montar a HUD e encaminhar seu evento `set
 
 O adaptador liga os serviços de combate, IA, efeitos, barras de vida, itens, drops, progressão, pontos de controle e renascimento ao ciclo de runtime. A definição de comportamento é registrada apenas quando o host registra o módulo; nada é ativado automaticamente pelo editor genérico.
 
-**A integração ainda não está completa nem validada por build nesta sessão.** A HUD está disponível pelo host opt-in, mas não é montada automaticamente pelo editor genérico. A IA usa perseguição direta por distância e ainda não tem pathfinding nem teste de linha de visão. Também faltam hitboxes de animação para acerto preciso, persistência dedicada de personagem e conteúdo completo de missões/diálogos.
+**A build de produção e os autotestes automatizados de runtime passaram no GitHub Actions.** Ainda não fiz uma sessão manual do jogo; por isso, a aprovação da build não substitui testes de combate dentro da aplicação. A HUD está disponível pelo host opt-in, mas não é montada automaticamente pelo editor genérico. A IA usa perseguição direta por distância e ainda não tem pathfinding nem teste de linha de visão. Também faltam hitboxes de animação para acerto preciso, persistência dedicada de personagem e conteúdo completo de missões/diálogos.
 
 ## Verificação local
 
@@ -88,11 +89,12 @@ git pull --ff-only origin main
 npm run build
 npm run game:modules:self-test
 npm run veilborne:combat:self-test
+npm run veilborne:controls:self-test
 npm run behavior:autonomous:self-test
 npm run behavior:packages:self-test
 ```
 
-O novo `veilborne:combat:self-test` verifica regras puras de dano, recursos, estados, aparo e registro opt-in do pacote. Esses comandos são instruções para executar localmente; não foram executados nesta alteração.
+Os testes `veilborne:combat:self-test` e `veilborne:controls:self-test` verificam regras puras de combate, recursos, estados, aparo, registro opt-in e resolução de atalhos defensivos. A build e os cinco autotestes do workflow passaram no GitHub Actions; os testes manuais do jogo continuam pendentes.
 
 ## Princípios arquiteturais
 
