@@ -4,6 +4,8 @@ import { EMPTY_LOGIC } from './types'
 import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages'
 import type { BehaviorPackageInstance, PackageScalar } from './packages'
 import type { LogicEventsFile, LogicRule, RuleAction } from './types'
+import { CombatPackageRuntime } from './CombatPackageRuntime'
+import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
 type ScriptApi = {
@@ -16,13 +18,26 @@ type ScriptApi = {
   rotate: (objectId: string, degrees: number) => void
   setVisible: (objectId: string, visible: boolean) => void
   setColor: (objectId: string, color: string | number) => void
+  combat: {
+    damage: (ownerObjectId: string, options: PackageDamageOptions) => ReturnType<CombatPackageRuntime['damage']>
+    restore: (ownerObjectId: string, options: PackageResourceOptions) => number
+    spend: (ownerObjectId: string, options: PackageResourceOptions) => boolean
+    applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => void
+  }
 }
 
 export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
+  private readonly combatPackages: CombatPackageRuntime
+
   constructor(world: World) {
     this.world = world
+    this.combatPackages = new CombatPackageRuntime({
+      getPackages: () => this.data.packages ?? [],
+      emitChanged: ownerObjectId => this.world.events.emit('behaviorPackageChanged', { ownerObjectId }),
+      triggerEvent: (ownerObjectId, packageId, eventId) => this.triggerPackageEvent(ownerObjectId, packageId, eventId),
+    })
   }
 
   exportData(): LogicEventsFile {
@@ -211,7 +226,8 @@ export class RuleEngine {
     return executed
   }
 
-  update(): void {
+  update(deltaSeconds = 0): void {
+    this.combatPackages.update(deltaSeconds)
     const objects = this.world.info()
     // Eventos contínuos/por área também respeitam a ordem dos objetos da Hierarquia.
     for (const rule of this.rulesInHierarchyOrder()) {
@@ -329,6 +345,12 @@ export class RuleEngine {
         const parsed = typeof color === 'number' ? color : Number.parseInt(color.trim().replace(/^#/, ''), 16)
         if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0xffffff) throw new Error('Cor inválida. Use hexadecimal como #0000FF ou um número entre 0 e 16777215.')
         this.world.update(objectId, { color: parsed })
+      },
+      combat: {
+        damage: (ownerObjectId: string, options: PackageDamageOptions) => this.combatPackages.damage(ownerObjectId, options),
+        restore: (ownerObjectId: string, options: PackageResourceOptions) => this.combatPackages.restore(ownerObjectId, options),
+        spend: (ownerObjectId: string, options: PackageResourceOptions) => this.combatPackages.spend(ownerObjectId, options),
+        applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => this.combatPackages.applyStatus(ownerObjectId, status, packageId),
       },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
