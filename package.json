@@ -47,7 +47,10 @@
     "behavior:tree:self-test": "node --experimental-strip-types scripts/behavior-tree-self-test.mjs",
     "behavior:tree-package:self-test": "node --experimental-strip-types scripts/behavior-tree-package-self-test.mjs",
     "behavior:tree-runtime:self-test": "node --experimental-strip-types scripts/engine-behavior-tree-runtime-self-test.mjs",
-    "navigation:pathfinder:self-test": "node --experimental-strip-types scripts/grid-pathfinder-self-test.mjs"
+    "navigation:pathfinder:self-test": "node --experimental-strip-types scripts/grid-pathfinder-self-test.mjs",
+    "cooldown:scheduler:self-test": "node --experimental-strip-types scripts/cooldown-scheduler-self-test.mjs",
+    "state-machine:self-test": "node --experimental-strip-types scripts/finite-state-machine-self-test.mjs",
+    "world:tags:self-test": "node --experimental-strip-types scripts/tag-registry-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
