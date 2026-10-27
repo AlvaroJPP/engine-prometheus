@@ -11,6 +11,7 @@ import { useMountModelStates } from '@/composables/useMountModelStates'
 import { useBehaviorPackageEditor } from '@/composables/useBehaviorPackageEditor'
 import { useEnvironmentController } from '@/composables/useEnvironmentController'
 import { useHudRuntimeSync } from '@/composables/useHudRuntimeSync'
+import { useRuntimeSessionController } from '@/composables/useRuntimeSessionController'
 
 export function useAppController() {
 const appRoot = ref<HTMLElement | null>(null)
@@ -223,6 +224,23 @@ function submitVariable(scope: 'global' | 'object' = 'object') {
 }
 
 const {
+  cycleCameraView,
+  handleHudExitRuntime,
+  handleHudToggleCamera,
+  returnToEdit,
+  startRuntimeSession,
+  toggleFirstPerson,
+} = useRuntimeSessionController({
+  executionMode,
+  firstPersonMode,
+  status,
+  activeControlMapName: () => activeControlMap.value.name,
+  setFirstPersonMode,
+  setRuntimeMode,
+  cycleCamera,
+})
+
+const {
   TOOLS,
   TRANSFORMS,
   changeGraphRuleActionPackage,
@@ -295,51 +313,12 @@ watch(selectedId, () => { inspectorTab.value = 'transform'; publicLibraryOpen.va
 function copyObjectId(id: string) {
   void navigator.clipboard?.writeText(id)
 }
-function toggleFirstPerson() {
-  firstPersonMode.value = !firstPersonMode.value
-  setFirstPersonMode(firstPersonMode.value)
-}
-function cycleCameraView() {
-  if (firstPersonMode.value) {
-    firstPersonMode.value = false
-    setFirstPersonMode(false)
-  }
-  cycleCamera()
-}
-function handleHudToggleCamera() {
-  if (executionMode.value === 'running') cycleCameraView()
-}
-function handleHudExitRuntime() {
-  if (executionMode.value === 'running') returnToEdit()
-}
+
 function runWorld() {
   graphOpen.value = false
-  if (firstPersonMode.value) {
-    firstPersonMode.value = false
-    setFirstPersonMode(false)
-  }
-  setRuntimeMode(true)
-  executionMode.value = 'running'
-  status.value = `Modo Run ativo · mapa “${activeControlMap.value.name}”. Use Controles para personalizar as teclas.`
+  startRuntimeSession()
 }
-function returnToEdit() {
-  // Atualiza a interface mesmo se algum recurso do runtime falhar ao ser encerrado.
-  try {
-    if (firstPersonMode.value) {
-      firstPersonMode.value = false
-      setFirstPersonMode(false)
-    }
-    setRuntimeMode(false)
-  } catch (error) {
-    console.error('Falha ao encerrar o modo Run:', error)
-    status.value = 'Ocorreu um erro ao encerrar o jogo. O editor foi reativado; confira o console.'
-  } finally {
-    executionMode.value = 'edit'
-    if (!status.value.includes('Ocorreu um erro ao encerrar')) {
-      status.value = 'Modo de edição · câmera livre e ferramentas habilitadas.'
-    }
-  }
-}
+
 const selectedObjectRules = computed(() => logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value))
 const selectedObjectPackages = computed(() => behaviorPackages.value.filter(instance => instance.ownerObjectId === selectedId.value))
 const selectedRulePackageDefinition = computed(() => getBehaviorPackageDefinition(rulePackageId.value))
