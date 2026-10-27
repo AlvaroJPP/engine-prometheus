@@ -7,8 +7,8 @@ VEILBORNE é um jogo de fantasia sombria feito sobre o Engine Prometheus. As reg
 - `runtime/VeilborneGameModule.ts`: integração do runtime com o contrato público `EngineGameModule`.
 - `runtime/VeilborneCombatRuntime.ts`: atributos, recursos, ataques, feitiços, sigilos, aparo, bloqueio, dano, estados e progressão de combate.
 - `runtime/VeilborneEnemyAISystem.ts`: perseguição, perfis de inimigos, ataques, reação a aparos e fases de chefes.
-- `runtime/VeilborneInventorySystem.ts`, `VeilborneItemUseSystem.ts` e `VeilborneLootSystem.ts`: inventário serializado, consumíveis, drops e coleta.
-- `runtime/VeilborneProgressionSystem.ts` e `VeilborneDeathRespawnSystem.ts`: santuários, ecos perdidos e renascimento.
+- `runtime/VeilborneInventorySystem.ts` e `VeilborneLootSystem.ts`: adaptadores finos para o inventário genérico, coleta, drops e retorno ao editor.
+- `runtime/VeilborneProgressionSystem.ts` e `VeilborneDeathRespawnSystem.ts`: adaptadores de estado em memória para interação, efeitos e teleporte; as regras de santuários, itens, morte, Ecos e renascimento são scripts globais do pacote.
 - `runtime/VeilborneTargetLockController.ts`: travamento visual de alvo.
 - `runtime/VeilborneControls.ts`: resolução pura e testável dos atalhos defensivos, sem colisões com o mapa ativo.
 - `runtime/VeilborneVisualEffects.ts` e `VeilborneHealthBarSystem.ts`: efeitos visuais temporários e barras de vida.
@@ -76,7 +76,7 @@ Nesse caso, o host é responsável por montar a HUD e encaminhar seu evento `set
 
 ## Estado atual
 
-O adaptador liga os serviços de combate, IA, efeitos, barras de vida, itens, drops, progressão, pontos de controle e renascimento ao ciclo de runtime. A definição de comportamento é registrada quando o host da aplicação detecta instâncias de `veilborne_rpg` no projeto. O editor genérico continua sem importar ou inicializar regras de VEILBORNE automaticamente; projetos sem esse pacote não montam o host.
+O módulo liga os serviços que realmente precisam de estado de runtime — combate, IA, efeitos, barras de vida, entrada e animações — ao ciclo da engine. A definição declara scripts globais para usar itens, calcular recompensas e experiência, criar drops, registrar morte, gerar/restaurar cache de Ecos e calcular o renascimento. Esses scripts ficam salvos como regras editáveis do Visual Script, enquanto o núcleo só expõe APIs genéricas para eventos, inventário, combate, animação e objetos próximos. A definição de comportamento é registrada quando o host da aplicação detecta instâncias de `veilborne_rpg` no projeto. O editor genérico continua sem importar ou inicializar regras de VEILBORNE automaticamente; projetos sem esse pacote não montam o host.
 
 O host da aplicação monta a HUD e registra o runtime quando abre um projeto que contém o pacote. O runtime também ajusta os itens importados para que repousem sobre a superfície abaixo deles. A IA usa perseguição direta por distância e ainda não tem pathfinding nem teste de linha de visão. Também faltam hitboxes de animação para acerto preciso, persistência dedicada de personagem e conteúdo completo de missões/diálogos.
 
