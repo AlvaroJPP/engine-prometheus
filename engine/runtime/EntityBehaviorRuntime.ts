@@ -46,7 +46,7 @@ export class EntityBehaviorRuntime<TComponents extends object, TContext> {
     this.entities = entities
     this.createContext = createContext
     this.unsubscribeEntities = entities.subscribe(event => {
-      if (event.type === 'entity-destroyed') this.removeEntity(event.entityId)
+      if (event.type === 'entity-destroying') this.removeEntity(event.entityId)
       if (event.type === 'entity-enabled-changed') {
         if (event.enabled) this.startEntity(event.entityId)
         else this.stopEntity(event.entityId)
