@@ -77,9 +77,10 @@ export class ResourcePool {
     if (!Number.isFinite(maximum) || maximum < this.floor) return false
     const oldRatio = this.ratio
     const previous = this.value
+    const previousMaximum = this.ceiling
     this.ceiling = maximum
     this.value = this.clamp(preserveRatio ? this.floor + oldRatio * (maximum - this.floor) : this.value)
-    if (previous !== this.value) this.notify(previous, 'maximum')
+    if (previousMaximum !== maximum || previous !== this.value) this.notify(previous, 'maximum')
     return true
   }
 
