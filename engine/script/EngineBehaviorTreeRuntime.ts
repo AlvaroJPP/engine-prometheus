@@ -1,5 +1,5 @@
 import type { BehaviorPackageInstance, PackageScalar } from './packages'
-import type { BehaviorTreeHandlers, BehaviorTreeParameters } from './BehaviorTree.ts'
+import type { BehaviorTreeHandlers, BehaviorTreeParameters, BehaviorTreeStatus } from './BehaviorTree.ts'
 import { BehaviorTreePackageSystem } from './BehaviorTreePackageSystem.ts'
 import { BehaviorTreeHandlerRegistry } from './BehaviorTreeHandlerRegistry.ts'
 import type { RuleEngine } from './RuleEngine'
@@ -64,8 +64,8 @@ function findPackage(
 
 /**
  * Bridges serialized behavior trees into the regular Engine Run loop.
- * The action vocabulary is generic; projects can add game-specific handlers
- * through BehaviorTreePackageSystem without changing this bridge.
+ * Projects can extend the shared generic vocabulary through registerNamespace,
+ * without adding project-specific cases to this bridge.
  */
 export class EngineBehaviorTreeRuntime {
   private readonly system = new BehaviorTreePackageSystem<EngineBehaviorTreeContext>()
@@ -81,7 +81,7 @@ export class EngineBehaviorTreeRuntime {
 
   registerAction(
     name: string,
-    handler: (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => import('./BehaviorTree.ts').BehaviorTreeStatus,
+    handler: (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => BehaviorTreeStatus,
     replace = false,
   ): () => void {
     return this.extensions.registerAction(name, handler, replace)
@@ -91,7 +91,7 @@ export class EngineBehaviorTreeRuntime {
     namespace: string,
     handlers: {
       readonly conditions?: Readonly<Record<string, (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => boolean>>
-      readonly actions?: Readonly<Record<string, (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => import('./BehaviorTree.ts').BehaviorTreeStatus>>
+      readonly actions?: Readonly<Record<string, (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => BehaviorTreeStatus>>
     },
   ): () => void {
     return this.extensions.registerNamespace(namespace, handlers)
