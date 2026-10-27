@@ -92,37 +92,56 @@ export function restoreResource(
   return { value, changed: value - before, accepted: value > before }
 }
 
-/** Reaplica um efeito temporário: duração e potência máximas, stacks acumulados. */
+/** Reaplica um efeito temporário sem permitir dados numéricos inválidos. */
 export function mergeTimedEffect<T extends TimedEffectState>(
   effects: readonly T[],
   incoming: T,
 ): T[] {
-  if (incoming.remainingSeconds <= 0) return [...effects]
+  if (
+    typeof incoming.id !== 'string'
+    || !incoming.id.trim()
+    || !Number.isFinite(incoming.remainingSeconds)
+    || incoming.remainingSeconds <= 0
+  ) return [...effects]
+
+  const incomingPotency = clampFinite(incoming.potency, 0, Number.MAX_SAFE_INTEGER, 0)
+  const incomingStacks = clampFinite(
+    Math.round(Number.isFinite(incoming.stacks) ? incoming.stacks : 1),
+    1,
+    99,
+    1,
+  )
   const index = effects.findIndex(effect => effect.id === incoming.id)
   if (index < 0) {
     return [...effects, {
       ...incoming,
-      potency: Math.max(0, incoming.potency),
-      stacks: clampFinite(Math.round(incoming.stacks), 1, 99, 1),
+      potency: incomingPotency,
+      stacks: incomingStacks,
     }]
   }
+
   return effects.map((effect, effectIndex) => {
     if (effectIndex !== index) return effect
+    const currentDuration = Number.isFinite(effect.remainingSeconds)
+      ? Math.max(0, effect.remainingSeconds)
+      : 0
+    const currentPotency = clampFinite(effect.potency, 0, Number.MAX_SAFE_INTEGER, 0)
+    const currentStacks = clampFinite(
+      Math.round(Number.isFinite(effect.stacks) ? effect.stacks : 1),
+      1,
+      99,
+      1,
+    )
     return {
       ...effect,
-      remainingSeconds: Math.max(effect.remainingSeconds, incoming.remainingSeconds),
-      potency: Math.max(effect.potency, incoming.potency, 0),
-      stacks: clampFinite(
-        effect.stacks + Math.max(1, incoming.stacks),
-        1,
-        99,
-        1,
-      ),
+      remainingSeconds: Math.max(currentDuration, incoming.remainingSeconds),
+      potency: Math.max(currentPotency, incomingPotency),
+      stacks: clampFinite(currentStacks + incomingStacks, 1, 99, 1),
     }
   })
 }
 
-/** Avança o tempo de vida de efeitos e retorna somente os ainda ativos. */
+/** Avança os timers e remove efeitos vencidos ou com duração inválida. */
 export function tickTimedEffects<T extends TimedEffectState>(
   effects: readonly T[],
   deltaSeconds: number,
@@ -131,9 +150,24 @@ export function tickTimedEffects<T extends TimedEffectState>(
   return effects
     .map(effect => ({
       ...effect,
-      remainingSeconds: Math.max(0, effect.remainingSeconds - delta),
+      remainingSeconds: Math.max(
+        0,
+        (Number.isFinite(effect.remainingSeconds) ? effect.remainingSeconds : 0) - delta,
+      ),
+      potency: clampFinite(effect.potency, 0, Number.MAX_SAFE_INTEGER, 0),
+      stacks: clampFinite(
+        Math.round(Number.isFinite(effect.stacks) ? effect.stacks : 1),
+        1,
+        99,
+        1,
+      ),
     }))
-    .filter(effect => effect.remainingSeconds > 0)
+    .filter(effect =>
+      typeof effect.id === 'string'
+      && Boolean(effect.id.trim())
+      && Number.isFinite(effect.remainingSeconds)
+      && effect.remainingSeconds > 0,
+    )
 }
 
 /** Verifica se um instante pertence à janela inclusiva [início, início + duração]. */
