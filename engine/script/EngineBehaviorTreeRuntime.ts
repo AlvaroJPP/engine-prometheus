@@ -1,6 +1,6 @@
 import type { BehaviorPackageInstance, PackageScalar } from './packages'
-import type { BehaviorTreeHandlers, BehaviorTreeParameters } from './BehaviorTree'
-import { BehaviorTreePackageSystem } from './BehaviorTreePackageSystem'
+import type { BehaviorTreeHandlers, BehaviorTreeParameters } from './BehaviorTree.ts'
+import { BehaviorTreePackageSystem } from './BehaviorTreePackageSystem.ts'
 import type { RuleEngine } from './RuleEngine'
 import type { World } from '../world/World'
 
