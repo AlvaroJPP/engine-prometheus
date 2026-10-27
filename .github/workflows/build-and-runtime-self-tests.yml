@@ -121,3 +121,12 @@ jobs:
 
       - name: Test game and engine separation
         run: npm run game:separation:self-test
+
+      - name: Test generic status effects
+        run: npm run status:effects:self-test
+
+      - name: Test objective progression tracker
+        run: npm run objectives:tracker:self-test
+
+      - name: Test gameplay behavior extension composition
+        run: npm run gameplay:behavior-extensions:self-test
