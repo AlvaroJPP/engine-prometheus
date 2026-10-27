@@ -59,6 +59,8 @@ const makeAgent = (id, ownerObjectId, mode, overrides = {}) => ({
   config: {},
 })
 
+const tickWithPlanner = (system, packages, dt, findPath) => tick(system, packages, dt, playerPosition, undefined, findPath)
+
 const applyTransitions = (packages, transitions) => {
   for (const transition of transitions) {
     const instance = packages.find(item => item.id === transition.instanceId)
@@ -66,7 +68,7 @@ const applyTransitions = (packages, transitions) => {
   }
 }
 
-const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMoveTo) => {
+const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMoveTo, findPath) => {
   const transitions = system.update({
     dt,
     runtimeEnabled: true,
@@ -74,6 +76,7 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMo
     packages,
     playerPosition: targetPosition,
     canMoveTo,
+    findPath,
   })
   applyTransitions(packages, transitions)
   return transitions
@@ -250,6 +253,24 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMo
   } finally {
     world.terrain.heightAt = previousHeightAt
   }
+}
+
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('planned-agent', 'agent', 'move_to_point', {
+    destination_x: 3,
+    stopping_distance: 0.2,
+  })
+  let plannerCalls = 0
+  const findPath = (_id, start, goal) => {
+    plannerCalls += 1
+    assert.ok(Number.isFinite(start.x) && Number.isFinite(goal.x))
+    return [{ x: 1, y: 0.5, z: 1 }, { x: 2, y: 0.5, z: 1 }, { x: 3, y: 0.5, z: 0 }]
+  }
+  for (let index = 0; index < 80; index += 1) tickWithPlanner(system, [agent], 0.1, findPath)
+  assert.ok(plannerCalls >= 1, 'autonomous movement should request a planned route')
+  assert.equal(agent.variables.state, 'reached', 'planned movement should reach the destination')
 }
 
 console.log('Autonomous behavior self-test passed.')
