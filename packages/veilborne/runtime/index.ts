@@ -1,6 +1,7 @@
 /** Implementação do jogo VEILBORNE. Este entrypoint pertence ao pacote do jogo, não ao núcleo da engine. */
 export * from './VeilborneCombat'
 export * from './VeilborneCombatRuntime'
+export { resolveVeilborneGameModuleControls } from './VeilborneControls'
 export * from './VeilborneEnemyAISystem'
 export { VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION, registerVeilborneBehaviorPackage } from './behaviorPackageDefinition'
 export * from './VeilborneVisualEffects'
