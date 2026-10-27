@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import * as THREE from 'three'
+import { VeilborneVisualEffects } from '../packages/veilborne/runtime/VeilborneVisualEffects.ts'
 import {
   applyVeilborneDamage,
   applyVeilborneStatus,
@@ -32,6 +34,27 @@ assert.ok(criticalDamage > quickDamage, 'a critical attack must deal more damage
 const spell = VEILBORNE_RUNTIME_SPELLS.arcane_bolt
 assert.ok(spell, 'the starter spell must be available')
 assert.ok(calculateVeilborneSpellDamage(spell, player.attributes) >= spell.damage)
+const damageSpells = Object.values(VEILBORNE_RUNTIME_SPELLS).filter(item => item.damage > 0)
+assert.ok(
+  damageSpells.every(item => item.targeting === 'projectile' && (item.projectileSpeed ?? 0) > 0),
+  'every damaging spell must have a visible projectile path and travel speed',
+)
+const projectileScene = new THREE.Scene()
+const projectileEffects = new VeilborneVisualEffects(projectileScene, () => {})
+projectileEffects.spawnProjectile(new THREE.Vector3(0, 1, 0), new THREE.Vector3(10, 1, 0), 0x8c7cff, 1)
+const projectileTrail = projectileScene.children.find(item => item instanceof THREE.Line)
+assert.ok(projectileTrail, 'projectiles must create a visible trajectory line')
+projectileEffects.update(0.25)
+const trailPositions = projectileTrail.geometry.getAttribute('position')
+assert.ok(trailPositions.getX(1) > 0, 'the trajectory line must advance with the projectile')
+projectileEffects.clear()
+
+const hudSource = await readFile(new URL('../packages/veilborne/ui/VeilborneHUD.vue', import.meta.url), 'utf8')
+assert.match(hudSource, /watch\(\(\) => props\.gameVariables\.arquetipo,[\s\S]*?\{ immediate: true \}\)/)
+const enemyAiSource = await readFile(new URL('../packages/veilborne/runtime/VeilborneEnemyAISystem.ts', import.meta.url), 'utf8')
+assert.match(enemyAiSource, /syncAutonomousPackages\(runtimeEnabled: boolean\)/)
+assert.match(enemyAiSource, /updatePendingProjectiles\(dt: number\)/)
+assert.match(enemyAiSource, /this\.effects\.spawnProjectile\(/)
 
 assert.equal(spendVeilborneResource(player, 'stamina', 25), true)
 assert.equal(player.resources.stamina, 75)
