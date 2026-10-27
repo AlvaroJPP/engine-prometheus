@@ -11,6 +11,13 @@ const energy = gameplay.resources.create('player', 'energy', { current: 5, maxim
 gameplay.statuses.apply('player', 'regeneration', 2, { tickIntervalSeconds: 1 })
 gameplay.cooldowns.start('player::dash', 3)
 gameplay.objectives.register({ id: 'intro' })
+gameplay.entities.create('player')
+const entityBehaviorTicks = []
+gameplay.behaviors.add('player', {
+  id: 'generic-test-behavior',
+  update: (dt, context) => entityBehaviorTicks.push([dt, context.entityId, context.runtime === gameplay]),
+})
+gameplay.start()
 
 const context = { ownerId: 'player' }
 const registry = new BehaviorTreeHandlerRegistry()
@@ -36,10 +43,13 @@ const update = gameplay.update(1)
 assert.deepEqual(update.statusEvents.map(event => event.type), ['tick'])
 assert.deepEqual(update.triggerEvents.map(event => [event.type, event.subjectId]), [['enter', 'player']])
 assert.equal(gameplay.cooldowns.isReady('player::dash'), false)
+assert.deepEqual(entityBehaviorTicks, [[1, 'player', true]])
 
 const cleanup = gameplay.removeEntity('player')
 assert.deepEqual(cleanup, {
   entityRemoved: true,
+  componentEntityRemoved: true,
+  behaviorsRemoved: 1,
   resourcePoolsRemoved: 1,
   statusEffectsRemoved: 1,
   cooldownsCanceled: 1,
