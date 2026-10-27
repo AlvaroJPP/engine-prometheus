@@ -389,6 +389,44 @@ assert.deepEqual(
   'dispose reentrante não deve perder contexto nem reiniciar o runtime durante stop',
 )
 
+
+// Uma falha em callback durante o runtime deve desativar o módulo e limpar
+// seus estados uma única vez, sem impedir a atualização de outros módulos.
+const failedUpdateCleanupRegistry = new GameModuleRegistry()
+const failedUpdateCleanupCalls = []
+const savedConsoleError = console.error
+console.error = () => {}
+try {
+  failedUpdateCleanupRegistry.register({
+    id: 'failed-update-cleanup',
+    onAttach: () => failedUpdateCleanupCalls.push('attach'),
+    onRuntimeStart: () => failedUpdateCleanupCalls.push('start'),
+    update: () => {
+      failedUpdateCleanupCalls.push('update')
+      throw new Error('expected update failure')
+    },
+    onRuntimeStop: () => failedUpdateCleanupCalls.push('stop'),
+    onDispose: () => failedUpdateCleanupCalls.push('dispose'),
+  })
+  failedUpdateCleanupRegistry.attach(context)
+  failedUpdateCleanupRegistry.start()
+  failedUpdateCleanupRegistry.update(0.016)
+  failedUpdateCleanupRegistry.update(0.016)
+  assert.deepEqual(
+    failedUpdateCleanupCalls,
+    ['attach', 'start', 'update', 'stop'],
+    'um módulo com falha em runtime deve parar e não receber updates seguintes',
+  )
+  failedUpdateCleanupRegistry.dispose()
+  assert.deepEqual(
+    failedUpdateCleanupCalls,
+    ['attach', 'start', 'update', 'stop', 'dispose'],
+    'a limpeza final deve continuar funcionando após a falha do módulo',
+  )
+} finally {
+  console.error = savedConsoleError
+}
+
 console.log('Game module registry self-test passed.')
 
 
