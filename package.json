@@ -27,6 +27,7 @@
     "behavior:autonomous:self-test": "node --experimental-strip-types scripts/autonomous-behavior-self-test.mjs",
     "behavior:package-config:self-test": "node --experimental-strip-types scripts/import-behavior-package-config-self-test.mjs",
     "combat:primitives:self-test": "node --experimental-strip-types scripts/combat-primitives-self-test.mjs",
+    "combat:model:self-test": "node --experimental-strip-types scripts/combat-model-self-test.mjs",
     "animation:keyframe-timeline:self-test": "node --experimental-strip-types scripts/rig-keyframe-timeline-self-test.mjs",
     "model:import-normalization:self-test": "node --experimental-strip-types scripts/model-import-normalization-self-test.mjs",
     "game:modules:self-test": "node --experimental-strip-types scripts/game-module-registry-self-test.mjs",
