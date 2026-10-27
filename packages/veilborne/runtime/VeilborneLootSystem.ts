@@ -1,6 +1,4 @@
 import * as THREE from 'three'
-import { uuid } from '../../../engine/lib/id'
-import type { ObjectType } from '../../../engine/project/format'
 import type { World } from '../../../engine/world/World'
 import type { RuleEngine } from '../../../engine/script/RuleEngine'
 import type { VeilborneInventorySystem } from './VeilborneInventorySystem'
@@ -16,7 +14,6 @@ interface VeilborneLootDependencies {
   inventory: VeilborneInventorySystem
   isEnabled(): boolean
   isRuntimeModeActive(): boolean
-  installBehaviorPackage(ownerObjectId: string, packageId: string): BehaviorPackageInstance
   notifyBehaviorPackageChanged(ownerObjectId: string): void
   removeObject(id: string): void
   spawnEffect(position: THREE.Vector3, color: number, scale: number, durationSeconds?: number): void
@@ -121,66 +118,6 @@ export class VeilborneLootSystem {
     if (changed) d.invalidate()
   }
 
-  spawnDrop(instance: BehaviorPackageInstance): void {
-    const d = this.d
-    const itemId = instance.variables.drop_item_id
-    if (typeof itemId !== 'string' || !itemId.trim()
-      || !Object.prototype.hasOwnProperty.call(VEILBORNE_RUNTIME_ITEMS, itemId)) return
-    const source = d.world.get(instance.ownerObjectId)
-    if (!source) return
-    const rawChance = instance.variables.drop_chance
-    const chance = typeof rawChance === 'number' && Number.isFinite(rawChance)
-      ? Math.max(0, Math.min(1, rawChance))
-      : 0.35
-    if (chance <= 0 || Math.random() > chance) return
-
-    const rawQuantity = instance.variables.drop_quantity
-    const quantity = typeof rawQuantity === 'number' && Number.isFinite(rawQuantity)
-      ? Math.max(1, Math.min(99, Math.floor(rawQuantity)))
-      : 1
-    const definition = VEILBORNE_RUNTIME_ITEMS[itemId]!
-    const material = new THREE.MeshStandardMaterial({
-      color: definition.visualColor,
-      emissive: definition.visualColor,
-      emissiveIntensity: 0.6,
-      metalness: 0.15,
-      roughness: 0.32,
-    })
-    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 1), material)
-    mesh.name = 'VEILBORNE_DROP_' + itemId
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.position.set(
-      source.mesh.position.x,
-      this.findGroundHeight(
-        source.mesh.position.x,
-        source.mesh.position.z,
-        source.mesh.position.y + 0.65,
-        new Set(),
-        source.id,
-      ) + 0.3,
-      source.mesh.position.z,
-    )
-    mesh.scale.setScalar(0.92)
-    const object = d.world.add({
-      id: 'veilborne-loot-' + uuid(),
-      name: definition.name,
-      type: 'sphere' as ObjectType,
-      mesh,
-    })
-    this.spawnedIds.add(object.id)
-    const installed = d.installBehaviorPackage(object.id, 'veilborne_rpg')
-    d.logic.setPackageVariable(installed.id, 'entity_role', 'loot')
-    d.logic.setPackageVariable(installed.id, 'faction', 'neutral')
-    d.logic.setPackageVariable(installed.id, 'loot_item_id', itemId)
-    d.logic.setPackageVariable(installed.id, 'loot_quantity', quantity)
-    d.logic.setPackageVariable(installed.id, 'loot_collected', false)
-    d.logic.setPackageVariable(installed.id, 'ai_enabled', false)
-    d.logic.setPackageVariable(installed.id, 'drop_item_id', '')
-    d.notifyBehaviorPackageChanged(object.id)
-    d.invalidate()
-  }
-
   private findGroundHeight(
     x: number,
     z: number,
@@ -212,6 +149,14 @@ export class VeilborneLootSystem {
     const d = this.d
     for (const id of this.spawnedIds) if (d.world.get(id)) d.removeObject(id)
     this.spawnedIds.clear()
+
+    // Drops created by package scripts exist only during Run and are discarded on return to Edit.
+    for (const instance of d.logic.listPackages()) {
+      if (instance.packageId !== 'veilborne_rpg' || instance.variables.loot_spawned !== true) continue
+      const id = instance.ownerObjectId
+      if (d.world.get(id)) d.removeObject(id)
+    }
+
     for (const [id, wasVisible] of this.collectedVisibility) {
       if (!d.world.get(id)) continue
       d.world.update(id, { visible: wasVisible })
