@@ -39,3 +39,6 @@ export type { BehaviorTreePackageTransition } from './script/BehaviorTreePackage
 
 export { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 export type { EngineBehaviorTreeContext } from './script/EngineBehaviorTreeRuntime'
+
+export { GridPathfinder } from './navigation/GridPathfinder'
+export type { NavigationPoint, GridPathfinderOptions, GridPathfinderResult } from './navigation/GridPathfinder'
