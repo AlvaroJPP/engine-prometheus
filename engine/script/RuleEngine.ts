@@ -96,6 +96,7 @@ export class RuleEngine {
   /** Instala os scripts declarados por uma definição como nós editáveis do Visual Script. */
   ensureBehaviorPackageScripts(packageId?: string): void {
     const disabled = new Set(this.data.disabledPackageScripts ?? [])
+    const changedOwners = new Set<string>()
     for (const instance of this.data.packages ?? []) {
       if (packageId && instance.packageId !== packageId) continue
       const definition = getBehaviorPackageDefinition(instance.packageId)
@@ -110,7 +111,11 @@ export class RuleEngine {
         rule.trigger = this.bindPackageTrigger(rule.trigger, instance.ownerObjectId)
         rule.actions = rule.actions.map(action => this.bindPackageAction(action, instance.ownerObjectId))
         this.data.events.push(rule)
+        changedOwners.add(instance.ownerObjectId)
       }
+    }
+    for (const ownerObjectId of changedOwners) {
+      this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
     }
   }
 
