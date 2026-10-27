@@ -31,6 +31,27 @@ unregister()
 assert.deepEqual(calls, ['attach', 'start', 'keydown:Space', 'keyup:Space', 'blur', 'update:0.016', 'stop', 'dispose'])
 registry.dispose()
 
+// Registering a game after the editor/runtime registry is attached must attach
+// it immediately and start it immediately when Run is already active.
+const dynamicRegistry = new GameModuleRegistry()
+const dynamicCalls = []
+dynamicRegistry.attach(context)
+dynamicRegistry.start()
+const unregisterDynamic = dynamicRegistry.register({
+  id: 'late-game',
+  onAttach: () => dynamicCalls.push('attach'),
+  onRuntimeStart: () => dynamicCalls.push('start'),
+  update: () => dynamicCalls.push('update'),
+  onRuntimeStop: () => dynamicCalls.push('stop'),
+  onDispose: () => dynamicCalls.push('dispose'),
+})
+assert.deepEqual(dynamicCalls, ['attach', 'start'])
+dynamicRegistry.update(0.016)
+assert.deepEqual(dynamicCalls, ['attach', 'start', 'update'])
+unregisterDynamic()
+assert.deepEqual(dynamicCalls, ['attach', 'start', 'update', 'stop', 'dispose'])
+dynamicRegistry.dispose()
+
 const faultyRegistry = new GameModuleRegistry()
 let badUpdates = 0
 const originalConsoleError = console.error
