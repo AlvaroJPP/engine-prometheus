@@ -246,6 +246,120 @@ api.global.set('item_use_result', 'used');
 api.notice('Usado: ' + item.name, 2, 'loot_notice');`,
         }],
       },
+      {
+        id: 'player-death',
+        name: 'Registrar morte e criar cache de Ecos',
+        enabled: true,
+        trigger: { type: 'global_event', eventId: 'veilborne:player_died' },
+        conditions: [],
+        actions: [{
+          type: 'javascript',
+          code: `const number = (name, fallback) => {
+  const value = api.global.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const eventNumber = (name, fallback) => {
+  const value = api.event.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const death = {
+  x: eventNumber('avatarX', 0),
+  y: eventNumber('avatarY', 0),
+  z: eventNumber('avatarZ', 0),
+};
+api.global.set('ponto_de_morte_x', death.x);
+api.global.set('ponto_de_morte_y', death.y);
+api.global.set('ponto_de_morte_z', death.z);
+api.global.set('jogador_morreu', true);
+api.global.set('morte_contagem', 2.2);
+for (const cache of api.package.list('veilborne_rpg')) {
+  if (cache.variables.entity_role === 'echo_cache') api.world.remove(cache.ownerObjectId);
+}
+const echoes = Math.max(0, Math.floor(number('ecos', 0)));
+api.global.set('ecos_perdidos', echoes);
+if (echoes > 0) {
+  api.global.set('ecos', 0);
+  const cacheId = api.world.spawnPrimitive({
+    name: 'Ecos perdidos',
+    shape: 'octahedron',
+    x: death.x,
+    y: death.y + 0.4,
+    z: death.z,
+    size: 0.3,
+    color: 0xe9bf75,
+    emissive: 0x9e682b,
+    emissiveIntensity: 1.1,
+    metalness: 0.35,
+    roughness: 0.2,
+    objectType: 'sphere',
+  });
+  api.package.install(cacheId, 'veilborne_rpg');
+  api.package.configure(cacheId, 'veilborne_rpg', {
+    entity_role: 'echo_cache',
+    faction: 'neutral',
+    echoes_amount: echoes,
+    ai_enabled: false,
+    drop_item_id: '',
+    loot_spawned: true,
+  });
+  api.notice('Você morreu. Os Ecos foram deixados no local.', 2.4, 'loot_notice');
+} else {
+  api.notice('Você morreu. Retorno ao último santuário...', 2.4, 'loot_notice');
+}`,
+        }],
+      },
+      {
+        id: 'player-respawn',
+        name: 'Calcular retorno ao santuário e restaurar recursos',
+        enabled: true,
+        trigger: { type: 'global_event', eventId: 'veilborne:respawn_requested' },
+        conditions: [],
+        actions: [{
+          type: 'javascript',
+          code: `const number = (name, fallback) => {
+  const value = api.global.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const eventNumber = (name, fallback) => {
+  const value = api.event.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+const checkpointId = api.global.get('checkpoint_id');
+let spawn = null;
+if (typeof checkpointId === 'string' && checkpointId.trim()) {
+  const checkpoint = api.world.position(checkpointId);
+  const bounds = api.world.bounds(checkpointId);
+  if (checkpoint && bounds) {
+    spawn = { x: checkpoint.x, y: bounds.max.y + 0.05, z: checkpoint.z };
+  } else {
+    spawn = {
+      x: number('checkpoint_x', eventNumber('defaultSpawnX', 0)),
+      y: number('checkpoint_y', eventNumber('defaultSpawnY', 1)),
+      z: number('checkpoint_z', eventNumber('defaultSpawnZ', 0)),
+    };
+  }
+}
+if (!spawn) {
+  spawn = {
+    x: eventNumber('defaultSpawnX', 0),
+    y: eventNumber('defaultSpawnY', 1),
+    z: eventNumber('defaultSpawnZ', 0),
+  };
+}
+api.global.set('respawn_x', spawn.x);
+api.global.set('respawn_y', spawn.y);
+api.global.set('respawn_z', spawn.z);
+api.global.set('vida', Math.max(1, number('vida_max', 100)));
+api.global.set('eter', Math.max(1, number('eter_max', 100)));
+api.global.set('vigor', Math.max(1, number('vigor_max', 100)));
+api.global.set('postura', 0);
+api.global.set('morto', false);
+api.global.set('jogador_morreu', false);
+api.global.set('jogador_atordoado', false);
+api.global.set('morte_contagem', 0);
+api.notice('Você retornou ao santuário.', 2.2, 'loot_notice');`,
+        }],
+      },
     ],
     scripts: [
       {
