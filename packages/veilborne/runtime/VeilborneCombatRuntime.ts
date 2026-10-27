@@ -328,6 +328,101 @@ export class VeilborneCombatRuntime {
     this.tickHostileStatuses(step)
   }
 
+
+  receiveIncomingDamage(
+    amount: number,
+    type: VeilborneDamageType = 'physical',
+    postureDamage = 0,
+    attackerObjectId?: string,
+  ): { damage: number; absorbedByWard: number; blocked: boolean; parried: boolean; killed: boolean } {
+    if (!this.context.isRuntimeActive() || !this.isEnabled()) {
+      return {
+        damage: Math.max(0, Number.isFinite(amount) ? amount : 0),
+        absorbedByWard: 0,
+        blocked: false,
+        parried: false,
+        killed: false,
+      }
+    }
+
+    const player = this.getPlayerCombatant()
+    if (!player.alive) return { damage: 0, absorbedByWard: 0, blocked: false, parried: false, killed: true }
+
+    let remainingDamage = Math.max(0, Number.isFinite(amount) ? amount : 0)
+    const resistance = THREE.MathUtils.clamp(player.resistances[type] ?? 0, -100, 95)
+    remainingDamage *= 1 - resistance / 100
+
+    const wardValue = this.readNumber('ward_absorption', 0)
+    const absorbedByWard = Math.min(Math.max(0, wardValue), remainingDamage)
+    if (absorbedByWard > 0) {
+      remainingDamage -= absorbedByWard
+      this.context.logic.setVariable('ward_absorption', Math.max(0, wardValue - absorbedByWard))
+      this.visualEffects.spawnEffect(
+        this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
+        0x9b80ff,
+        0.42,
+        0.24,
+      )
+      if (wardValue - absorbedByWard <= 0) this.context.logic.setVariable('ward_remaining', 0)
+    }
+
+    let blocked = false
+    let actualPostureDamage = Math.max(0, Number.isFinite(postureDamage) ? postureDamage : 0)
+    if (this.context.logic.getVariable('bloqueando') === true && remainingDamage > 0 &&
+      spendVeilborneResource(player, 'stamina', 12)) {
+      blocked = true
+      remainingDamage *= 0.35
+      actualPostureDamage *= 0.4
+    }
+
+    const previousVitality = player.resources.vitality
+    player.resources.vitality = Math.max(0, previousVitality - remainingDamage)
+    player.resources.posture = Math.min(
+      player.resources.maxPosture,
+      player.resources.posture + actualPostureDamage,
+    )
+    player.alive = player.resources.vitality > 0
+    const postureBroken = player.alive && player.resources.posture >= player.resources.maxPosture
+    if (postureBroken) {
+      player.resources.posture = 0
+      this.context.avatar.setCombatStagger(0.85)
+      this.context.logic.setVariable('jogador_atordoado', true)
+      this.visualEffects.spawnEffect(
+        this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)),
+        0xffb26b,
+        0.9,
+        0.4,
+      )
+    }
+
+    const damage = previousVitality - player.resources.vitality
+    this.syncPlayerCombatant(player)
+    if (!player.alive) {
+      this.context.logic.setVariable('jogador_morreu', true)
+      this.context.logic.setVariable('bloqueando', false)
+      this.context.logic.setVariable('carregando_ataque', false)
+      this.context.logic.setVariable('carga_ataque', 0)
+      this.heavyChargeStartedAt = null
+      this.pendingCast = null
+      this.context.logic.setVariable('morte_contagem', 0)
+    }
+
+    if (attackerObjectId) {
+      const attackerPackage = this.context.logic.listPackages(attackerObjectId).find(item => item.packageId === PACKAGE_ID)
+      if (attackerPackage) this.context.logic.triggerPackageEvent(attackerObjectId, PACKAGE_ID, 'player_hit')
+    }
+    if (blocked) {
+      this.visualEffects.spawnEffect(
+        this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
+        0xb0d9ff,
+        0.55,
+        0.25,
+      )
+    }
+    this.context.invalidate()
+    return { damage, absorbedByWard, blocked, parried: false, killed: !player.alive }
+  }
+
   private beginHeavyCharge(): void {
     if (this.heavyChargeStartedAt !== null || (this.cooldowns.get('attack:heavy') ?? 0) > 0) return
     if (!this.getPlayerCombatant().alive) return
