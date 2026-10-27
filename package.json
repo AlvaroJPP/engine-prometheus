@@ -32,6 +32,7 @@
     "combat:packages:self-test": "node --experimental-strip-types scripts/combat-package-runtime-self-test.mjs",
     "combat:scheduler:self-test": "node --experimental-strip-types scripts/combat-action-scheduler-self-test.mjs",
     "inventory:runtime:self-test": "node --experimental-strip-types scripts/inventory-runtime-self-test.mjs",
+    "script-objects:cleanup:self-test": "node --experimental-strip-types scripts/transient-script-object-cleanup-self-test.mjs",
     "animation:keyframe-timeline:self-test": "node --experimental-strip-types scripts/rig-keyframe-timeline-self-test.mjs",
     "model:import-normalization:self-test": "node --experimental-strip-types scripts/model-import-normalization-self-test.mjs",
     "game:modules:self-test": "node --experimental-strip-types scripts/game-module-registry-self-test.mjs",
