@@ -13,6 +13,21 @@
   border-radius:50%; color:#f7c8df; font-family:Georgia,serif; font-size:17px;
 }
 .veilborne-loadout-trigger kbd { margin-left:5px; border:1px solid #ffffff24; border-radius:4px; padding:3px 5px; color:#e5d2dd; font-size:10px; }
+.veilborne-defensive-controls {
+  position:fixed; left:14px; bottom:14px; z-index:34;
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+  max-width:min(520px,calc(100vw - 28px)); padding:7px 9px;
+  border:1px solid #c9a4b02b; border-radius:6px;
+  background:#11101bd9; color:#d7c9d4; backdrop-filter:blur(8px);
+  font-size:10px; line-height:1.2; pointer-events:none;
+}
+.veilborne-defensive-controls span { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+.veilborne-defensive-controls kbd {
+  min-width:20px; padding:3px 4px; text-align:center;
+  border:1px solid #ffffff2a; border-radius:3px;
+  background:#28232f; color:#f1d7e4; font-size:9px; font-weight:800;
+}
+.veilborne-game-overlay.editor-preview .veilborne-defensive-controls { display:none; }
 .veilborne-loadout-panel {
   position:absolute; top:clamp(8px,16%,164px); right:clamp(8px,2%,20px); z-index:1000;
   display:block; box-sizing:border-box; min-width:0; width:min(390px,calc(100% - 16px));
