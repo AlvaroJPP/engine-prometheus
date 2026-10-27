@@ -405,8 +405,19 @@ try {
       failedUpdateCleanupCalls.push('update')
       throw new Error('expected update failure')
     },
-    onRuntimeStop: () => failedUpdateCleanupCalls.push('stop'),
+    onRuntimeStop: () => {
+      failedUpdateCleanupCalls.push('stop')
+      throw new Error('expected cleanup failure')
+    },
     onDispose: () => failedUpdateCleanupCalls.push('dispose'),
+  })
+  failedUpdateCleanupRegistry.register({
+    id: 'healthy-after-failure',
+    onAttach: () => failedUpdateCleanupCalls.push('healthy-attach'),
+    onRuntimeStart: () => failedUpdateCleanupCalls.push('healthy-start'),
+    update: () => failedUpdateCleanupCalls.push('healthy-update'),
+    onRuntimeStop: () => failedUpdateCleanupCalls.push('healthy-stop'),
+    onDispose: () => failedUpdateCleanupCalls.push('healthy-dispose'),
   })
   failedUpdateCleanupRegistry.attach(context)
   failedUpdateCleanupRegistry.start()
@@ -414,14 +425,23 @@ try {
   failedUpdateCleanupRegistry.update(0.016)
   assert.deepEqual(
     failedUpdateCleanupCalls,
-    ['attach', 'start', 'update', 'stop'],
-    'um módulo com falha em runtime deve parar e não receber updates seguintes',
+    [
+      'attach', 'healthy-attach',
+      'start', 'healthy-start',
+      'update', 'stop', 'healthy-update', 'healthy-update',
+    ],
+    'a falha e a falha da limpeza de um módulo não podem interromper os demais módulos',
   )
   failedUpdateCleanupRegistry.dispose()
   assert.deepEqual(
     failedUpdateCleanupCalls,
-    ['attach', 'start', 'update', 'stop', 'dispose'],
-    'a limpeza final deve continuar funcionando após a falha do módulo',
+    [
+      'attach', 'healthy-attach',
+      'start', 'healthy-start',
+      'update', 'stop', 'healthy-update', 'healthy-update',
+      'healthy-stop', 'healthy-dispose', 'dispose',
+    ],
+    'a limpeza final deve continuar funcionando após falhas de runtime e de onRuntimeStop',
   )
 } finally {
   console.error = savedConsoleError
