@@ -682,14 +682,21 @@ export class RuleEngine {
           return true
         },
         nearby: (center: { x: number; y: number; z: number }, radius: number) => {
-          const maximum = Number.isFinite(radius) ? Math.max(0, radius) : 0
+          if (
+            ![center.x, center.y, center.z, radius].every(Number.isFinite)
+            || radius < 0
+          ) return []
+
+          const maximum = radius
           return this.world.list().flatMap(object => {
+            const position = object.mesh.position
+            if (![position.x, position.y, position.z].every(Number.isFinite)) return []
             const distance = Math.hypot(
-              object.mesh.position.x - center.x,
-              object.mesh.position.y - center.y,
-              object.mesh.position.z - center.z,
+              position.x - center.x,
+              position.y - center.y,
+              position.z - center.z,
             )
-            if (distance > maximum) return []
+            if (!Number.isFinite(distance) || distance > maximum) return []
             return [{
               id: object.id,
               name: object.name,
