@@ -13,6 +13,8 @@ const packageInstance = {
       type: 'sequence',
       children: [
         { id: 'exists', type: 'condition', condition: 'object_exists' },
+        { id: 'near-target', type: 'condition', condition: 'object_distance_lte', parameters: { targetObjectId: 'target', distance: 10 } },
+        { id: 'move', type: 'action', action: 'set_object_position', parameters: { x: 2, z: 3 } },
         {
           id: 'mark',
           type: 'action',
@@ -40,10 +42,18 @@ const globals = {}
 const emitted = []
 const changed = []
 const object = { id: 'npc', mesh: { visible: true, position: { x: 0, y: 0, z: 0 } } }
+const target = { id: 'target', mesh: { visible: true, position: { x: 5, y: 0, z: 0 } } }
 const context = {
   world: {
-    get: id => id === 'npc' ? object : undefined,
+    get: id => id === 'npc' ? object : id === 'target' ? target : undefined,
     isObjectVisible: candidate => candidate.mesh.visible,
+    update: (id, patch) => {
+      const candidate = id === 'npc' ? object : id === 'target' ? target : undefined
+      if (!candidate) return
+      if (patch.x !== undefined) candidate.mesh.position.x = patch.x
+      if (patch.y !== undefined) candidate.mesh.position.y = patch.y
+      if (patch.z !== undefined) candidate.mesh.position.z = patch.z
+    },
   },
   logic: {
     listPackages: () => structuredClone(packages),
@@ -71,6 +81,8 @@ const context = {
 
 const runtime = new EngineBehaviorTreeRuntime()
 runtime.update(context, 0.016, true)
+assert.equal(object.mesh.position.x, 2, 'set_object_position should update the object')
+assert.equal(object.mesh.position.z, 3)
 assert.equal(packages[0].variables.ready, true)
 assert.equal(packages[0].variables.behavior_tree_status, 'success')
 assert.equal(globals.tree_completed, 'yes')
