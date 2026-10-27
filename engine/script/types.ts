@@ -42,6 +42,8 @@ export interface LogicEventsFile {
   events: LogicRule[]
   /** Instâncias de pacotes de comportamento vinculadas aos objetos da cena. */
   packages?: BehaviorPackageInstance[]
+  /** IDs de scripts de pacote removidos deliberadamente pelo autor do projeto. */
+  disabledPackageScripts?: string[]
 }
 
 export const EMPTY_LOGIC: LogicEventsFile = { formatVersion: 1, variables: {}, events: [], packages: [] }
