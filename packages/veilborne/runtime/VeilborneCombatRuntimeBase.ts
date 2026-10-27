@@ -1,3 +1,21 @@
+import * as THREE from 'three'
+import type { GameModuleContext } from '../../../engine/runtime/GameModule'
+import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
+import {
+  applyVeilborneDamage,
+  applyVeilborneStatus,
+  createVeilborneCombatant,
+  spendVeilborneResource,
+  tickVeilborneStatuses,
+  VEILBORNE_DEFAULT_SPELL_SLOTS,
+  VEILBORNE_RUNTIME_SIGILS,
+  VeilborneCombatant,
+  VeilborneDamageType,
+} from './VeilborneCombat'
+import { createVeilborneSigilVisual, createVeilborneWardMesh, disposeVeilborneVisual } from './VeilborneSigilVisuals'
+import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
+
 
 
 export type VeilborneHostile = {
