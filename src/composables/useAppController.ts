@@ -461,6 +461,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
     addSpawnPlatform,
     appRoot,
     availableBehaviorPackages,
+    behaviorPackages,
     backfillMissingComponentThumbnails,
     beginViewportLayoutDrag,
     brushRadius,
