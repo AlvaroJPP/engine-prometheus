@@ -42,7 +42,7 @@ const definition = {
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false); api.global.set('nearby_invalid_count', api.world.nearby({ x: Number.NaN, y: 0, z: 0 }, 100).length); api.global.add('runs', Number.NaN); api.global.set('bad_global_value', Number.POSITIVE_INFINITY); api.set('bad_scoped_value', Number.NaN); api.package.set('{ID_OBJECT}', 'script-test', 'bad_package_value', Number.NaN); api.package.configure('{ID_OBJECT}', 'script-test', { bad_configured_value: Number.POSITIVE_INFINITY }); vars.bad_legacy_value = Number.NaN; vars.runs = Number.POSITIVE_INFINITY; try { Object.defineProperty(vars, 'bad_accessor_value', { configurable: true, get: () => Number.NaN }) } catch (error) {}",
+      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false); api.global.set('nearby_invalid_count', api.world.nearby({ x: Number.NaN, y: 0, z: 0 }, 100).length); api.world.spawnPrimitive({ name: 'Invalid Spawn', x: Number.NaN, y: 0, z: 0 }); api.global.add('runs', Number.NaN); api.global.set('bad_global_value', Number.POSITIVE_INFINITY); api.set('bad_scoped_value', Number.NaN); api.package.set('{ID_OBJECT}', 'script-test', 'bad_package_value', Number.NaN); api.package.configure('{ID_OBJECT}', 'script-test', { bad_configured_value: Number.POSITIVE_INFINITY }); vars.bad_legacy_value = Number.NaN; vars.runs = Number.POSITIVE_INFINITY; try { Object.defineProperty(vars, 'bad_accessor_value', { configurable: true, get: () => Number.NaN }) } catch (error) {}",
     }],
   }],
 }
@@ -70,6 +70,11 @@ try {
   assert.equal(targetPackage.variables.bad_configured_value, undefined, 'package configuration rejects non-finite values')
   const spawned = [...objects.values()].find(object => object.id !== target.id)
   assert.ok(spawned, 'generic script API can create an object')
+  assert.equal(
+    [...objects.values()].some(object => object.name === 'Invalid Spawn'),
+    false,
+    'invalid spawn coordinates must not create an object at the origin',
+  )
   assert.equal(spawned.type, 'cube')
   assert.equal(spawned.mesh.geometry.type, 'OctahedronGeometry')
   assert.equal(logic.listPackages(spawned.id)[0].variables.script_ran, true, 'scripts can install and configure behavior packages on created objects')
