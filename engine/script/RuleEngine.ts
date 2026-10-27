@@ -226,6 +226,23 @@ export class RuleEngine {
     return executed
   }
 
+  /** Ações reutilizáveis para scripts e módulos de jogo. */
+  applyCombatDamageToPackage(ownerObjectId: string, options: PackageDamageOptions): ReturnType<CombatPackageRuntime['damage']> {
+    return this.combatPackages.damage(ownerObjectId, options)
+  }
+
+  restoreCombatPackageResource(ownerObjectId: string, options: PackageResourceOptions): number {
+    return this.combatPackages.restore(ownerObjectId, options)
+  }
+
+  spendCombatPackageResource(ownerObjectId: string, options: PackageResourceOptions): boolean {
+    return this.combatPackages.spend(ownerObjectId, options)
+  }
+
+  applyCombatPackageStatus(ownerObjectId: string, status: PackageCombatStatus, packageId = 'combatant'): void {
+    this.combatPackages.applyStatus(ownerObjectId, status, packageId)
+  }
+
   update(deltaSeconds = 0): void {
     this.combatPackages.update(deltaSeconds)
     const objects = this.world.info()
@@ -347,10 +364,10 @@ export class RuleEngine {
         this.world.update(objectId, { color: parsed })
       },
       combat: {
-        damage: (ownerObjectId: string, options: PackageDamageOptions) => this.combatPackages.damage(ownerObjectId, options),
-        restore: (ownerObjectId: string, options: PackageResourceOptions) => this.combatPackages.restore(ownerObjectId, options),
-        spend: (ownerObjectId: string, options: PackageResourceOptions) => this.combatPackages.spend(ownerObjectId, options),
-        applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => this.combatPackages.applyStatus(ownerObjectId, status, packageId),
+        damage: (ownerObjectId: string, options: PackageDamageOptions) => this.applyCombatDamageToPackage(ownerObjectId, options),
+        restore: (ownerObjectId: string, options: PackageResourceOptions) => this.restoreCombatPackageResource(ownerObjectId, options),
+        spend: (ownerObjectId: string, options: PackageResourceOptions) => this.spendCombatPackageResource(ownerObjectId, options),
+        applyStatus: (ownerObjectId: string, status: PackageCombatStatus, packageId?: string) => this.applyCombatPackageStatus(ownerObjectId, status, packageId),
       },
     }
     // Scripts do projeto rodam com as permissões do app; execute apenas código confiável.
