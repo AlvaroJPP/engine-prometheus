@@ -136,7 +136,6 @@ export class VeilborneGameModule implements EngineGameModule {
       world: context.world,
       logic: context.logic,
       avatar: context.avatar,
-      progression,
       readNumber: (name, fallback) => this.combatRuntime?.readNumber(name, fallback) ?? fallback,
       syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
       setCameraTarget: (x, y, z) => context.setCameraTarget(x, y, z),
@@ -341,17 +340,13 @@ export class VeilborneGameModule implements EngineGameModule {
 
   private restoreEchoCacheIfNeeded(context: GameModuleContext): void {
     const progression = this.progression
-    if (!progression) return
-    progression.syncEchoCacheReference()
     const lostEchoes = this.combatRuntime?.readNumber('ecos_perdidos', 0) ?? 0
-    if (lostEchoes <= 0 || progression.echoCacheObjectId) return
+    if (!progression || lostEchoes <= 0) return
+    progression.syncEchoCacheReference()
+    if (progression.echoCacheObjectId) return
 
-    const cachePosition = new THREE.Vector3(
-      this.combatRuntime?.readNumber('ponto_de_morte_x', context.avatar.mesh.position.x) ?? context.avatar.mesh.position.x,
-      this.combatRuntime?.readNumber('ponto_de_morte_y', context.avatar.mesh.position.y) ?? context.avatar.mesh.position.y,
-      this.combatRuntime?.readNumber('ponto_de_morte_z', context.avatar.mesh.position.z) ?? context.avatar.mesh.position.z,
-    )
-    progression.spawnEchoCache(lostEchoes, cachePosition)
+    context.logic.triggerGlobalEvent('veilborne:restore_echo_cache')
+    progression.syncEchoCacheReference()
   }
 
   private getExtraControls(context: GameModuleContext): VeilborneGameModuleControls {
