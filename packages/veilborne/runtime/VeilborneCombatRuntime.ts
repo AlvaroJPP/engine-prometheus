@@ -45,7 +45,8 @@ export class VeilborneCombatRuntime {
   private onPlayerDeath: (() => void) | null = null
   private onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
   private playerStaggerRemaining = 0
-  private onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
+  private parryStartedAt = Number.NEGATIVE_INFINITY
+  private parrySuccessRemaining = 0
   private wardMesh: THREE.Mesh | null = null
   private wardRemainingSeconds = 0
   private wardAbsorption = 0
@@ -191,6 +192,18 @@ export class VeilborneCombatRuntime {
 
   findTarget(maxRange: number): (VeilborneHostile & { distance: number }) | null {
     const playerPosition = this.context.avatar.mesh.position
+    const lockedId = this.context.logic.getVariable('alvo_veilborne_id')
+    if (this.context.logic.getVariable('alvo_travado') === true && typeof lockedId === 'string' && lockedId) {
+      const locked = this.getHostilePackages().find(candidate => candidate.object.id === lockedId)
+      if (locked) {
+        const distance = Math.hypot(
+          locked.object.mesh.position.x - playerPosition.x,
+          locked.object.mesh.position.z - playerPosition.z,
+        )
+        if (distance <= maxRange) return { ...locked, distance }
+        return null
+      }
+    }
     const forward = new THREE.Vector3(
       Math.sin(this.context.avatar.mesh.rotation.y),
       0,
@@ -279,6 +292,48 @@ export class VeilborneCombatRuntime {
 
   setEnemyKilledHandler(handler: ((instance: BehaviorPackageInstance) => void) | null): void {
     this.onEnemyKilled = handler
+  }
+
+  admitManeuver(kind: 'dodge' | 'slide' | 'roll'): boolean {
+    if (!this.context.isRuntimeActive() || !this.isEnabled()) return true
+    if (this.playerStaggerRemaining > 0 || this.context.avatar.isActionLocked()) return false
+    const player = this.getPlayerCombatant()
+    if (!player.alive) return false
+    const cost = kind === 'dodge' ? 22 : kind === 'roll' ? 30 : 24
+    if (!spendVeilborneResource(player, 'stamina', cost)) return false
+    this.syncPlayerCombatant(player)
+    return true
+  }
+
+  setBlocking(active: boolean): void {
+    if (!this.isEnabled() || !this.context.isRuntimeActive()) {
+      if (this.context.logic.getVariable('bloqueando') !== undefined) this.context.logic.setVariable('bloqueando', false)
+      return
+    }
+    if (active && (!this.getPlayerCombatant().alive || this.playerStaggerRemaining > 0 || this.context.avatar.isActionLocked())) return
+    this.context.logic.setVariable('bloqueando', active)
+    if (active) {
+      this.context.logic.setVariable('aparo_sucesso', false)
+      this.context.invalidate()
+    }
+  }
+
+  beginParry(): void {
+    if (!this.context.isRuntimeActive() || !this.isEnabled()) return
+    const player = this.getPlayerCombatant()
+    if (!player.alive || this.playerStaggerRemaining > 0 || this.context.avatar.isActionLocked()) return
+    if (!spendVeilborneResource(player, 'stamina', 14)) return
+    this.syncPlayerCombatant(player)
+    this.parryStartedAt = performance.now() / 1000
+    this.parrySuccessRemaining = 0
+    this.context.logic.setVariable('aparo_sucesso', false)
+    this.visualEffects.spawnEffect(
+      this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
+      0xb0d9ff,
+      0.35,
+      0.2,
+    )
+    this.context.invalidate()
   }
 
   resetCombatInputs(): void {
@@ -543,6 +598,12 @@ export class VeilborneCombatRuntime {
         this.context.logic.setVariable('jogador_atordoado', false)
       }
     }
+    if (this.parrySuccessRemaining > 0) {
+      this.parrySuccessRemaining = Math.max(0, this.parrySuccessRemaining - step)
+      if (this.parrySuccessRemaining <= 0 && this.context.logic.getVariable('aparo_sucesso') === true) {
+        this.context.logic.setVariable('aparo_sucesso', false)
+      }
+    }
     const player = this.getPlayerCombatant()
     if (player.alive) {
       restoreVeilborneResource(player, 'stamina', 16 * step)
@@ -574,6 +635,29 @@ export class VeilborneCombatRuntime {
 
     const player = this.getPlayerCombatant()
     if (!player.alive) return { damage: 0, absorbedByWard: 0, blocked: false, parried: false, killed: true }
+
+    const now = performance.now() / 1000
+    if (now - this.parryStartedAt >= 0 && now - this.parryStartedAt <= 0.2) {
+      this.parryStartedAt = Number.NEGATIVE_INFINITY
+      this.parrySuccessRemaining = 0.55
+      player.resources.posture = Math.max(0, player.resources.posture - Math.max(18, postureDamage * 2))
+      restoreVeilborneResource(player, 'stamina', 12)
+      this.syncPlayerCombatant(player)
+      this.context.logic.setVariable('aparo_sucesso', true)
+      this.context.logic.setVariable('aparo_total', Math.max(0, this.readNumber('aparo_total', 0)) + 1)
+      if (attackerObjectId) {
+        const attackerPackage = this.context.logic.listPackages(attackerObjectId).find(item => item.packageId === PACKAGE_ID)
+        if (attackerPackage) this.context.logic.triggerPackageEvent(attackerObjectId, PACKAGE_ID, 'parry_success')
+      }
+      this.visualEffects.spawnEffect(
+        this.context.avatar.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
+        0xe3f5ff,
+        1.05,
+        0.42,
+      )
+      this.context.invalidate()
+      return { damage: 0, absorbedByWard: 0, blocked: false, parried: true, killed: false }
+    }
 
     let remainingDamage = Math.max(0, Number.isFinite(amount) ? amount : 0)
     const resistance = THREE.MathUtils.clamp(player.resistances[type] ?? 0, -100, 95)
@@ -936,7 +1020,7 @@ export class VeilborneCombatRuntime {
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, value) : 100
   }
 
-  private getWorldPoint(objectId: string): THREE.Vector3 | null {
+  getWorldPoint(objectId: string): THREE.Vector3 | null {
     const object = this.context.world.get(objectId)
     if (!object) return null
     const point = object.mesh.getWorldPosition(new THREE.Vector3())
@@ -988,6 +1072,8 @@ export class VeilborneCombatRuntime {
     this.heavyChargeStartedAt = null
     this.pendingCast = null
     this.playerStaggerRemaining = 0
+    this.parryStartedAt = Number.NEGATIVE_INFINITY
+    this.parrySuccessRemaining = 0
     if (this.context.logic.getVariable('jogador_atordoado') !== undefined) this.context.logic.setVariable('jogador_atordoado', false)
     this.clearActiveSigils()
     this.clearWard()
