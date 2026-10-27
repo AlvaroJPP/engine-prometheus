@@ -46,6 +46,7 @@ assert.deepEqual(events, [
   'component-added',
   'entity-enabled-changed',
   'component-removed',
+  'entity-destroying',
   'component-removed',
   'entity-destroyed',
 ])
