@@ -127,7 +127,7 @@ export function tickTimedEffects<T extends TimedEffectState>(
   effects: readonly T[],
   deltaSeconds: number,
 ): T[] {
-  const delta = clampFinite(deltaSeconds, 0, 1, 0)
+  const delta = Number.isFinite(deltaSeconds) ? Math.max(0, deltaSeconds) : 0
   return effects
     .map(effect => ({
       ...effect,
