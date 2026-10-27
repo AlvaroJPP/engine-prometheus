@@ -282,7 +282,10 @@ export class VeilborneGameModule implements EngineGameModule {
     this.pressedBlockKey = null
     const hadGameRuntime = this.active || (this.combatRuntime?.isEnabled() ?? false)
     this.active = false
-    if (hadGameRuntime) this.combatRuntime?.resetCombatInputs()
+    if (hadGameRuntime) {
+      this.combatRuntime?.resetCombatInputs()
+      this.context?.avatar.setActionLock(0)
+    }
     this.targetLock?.clear()
     this.combatRuntime?.resetRuntimeState()
     this.enemyAI?.clear()
