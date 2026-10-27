@@ -428,12 +428,19 @@
       "respawn_at_last_checkpoint_or_start",
       "echoes_lost_on_death",
       "echo_recovery_cache",
-      "previous_echo_cache_lost_on_second_death"
+      "previous_echo_cache_lost_on_second_death",
+      "inventory_ui",
+      "runtime_arsenal_loadout_panel",
+      "spell_slot_configuration_from_hud",
+      "prepared_sigil_slot_configuration_from_hud",
+      "loadout_panel_attribute_point_spending",
+      "four_character_archetype_presets_in_arsenal",
+      "HUD_runtime_mounting",
+      "opt_in_VeilborneGameHost_component"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
       "weapon_animation_hitboxes",
-      "inventory_ui",
       "persistent_progression",
       "production_vfx_sfx",
       "quest_and_dialogue_runtime",
@@ -447,13 +454,7 @@
       "independent_character_save_file",
       "skill_tree_and_ability_progression",
       "quest_dialogue_runtime",
-      "unique_boss_attack_patterns",
-      "runtime_arsenal_loadout_panel",
-      "spell_slot_configuration_from_hud",
-      "prepared_sigil_slot_configuration_from_hud",
-      "loadout_panel_attribute_point_spending",
-      "four_character_archetype_presets_in_arsenal",
-      "HUD_runtime_mounting"
+      "unique_boss_attack_patterns"
     ],
     "enemyAIProfiles": [
       "melee",
