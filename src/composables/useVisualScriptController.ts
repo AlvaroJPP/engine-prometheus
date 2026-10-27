@@ -448,7 +448,7 @@ function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_va
           : type === 'set_package_variable'
             ? { type, objectId: target, packageId, name: variableName, value: previousPackageAction?.value ?? 4.2 }
             : type === 'javascript'
-              ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// api.move('{ID_OBJECT}', 2, 0, 1)" }
+              ? { type, code: "api.set('has_key', true)\napi.set('score', 0)\napi.add('score', 1)\n// Dano genérico em um objeto com o pacote Combatante:\n// api.combat.damage('ID_DO_ALVO', { amount: 10, damageType: 'physical', postureDamage: 15, postureVariable: 'posture', maximumPostureVariable: 'max_posture' })\n// Restaurar vida ou gastar vigor:\n// api.combat.restore('ID_DO_ALVO', { resourceVariable: 'health', maximumResourceVariable: 'max_health', amount: 25 })\n// api.combat.spend('ID_DO_ALVO', { resourceVariable: 'stamina', maximumResourceVariable: 'max_stamina', amount: 15 })\n// Aplicar efeito temporizado:\n// api.combat.applyStatus('ID_DO_ALVO', { id: 'slow', remainingSeconds: 3, potency: 1, stacks: 1 })\n// api.move('{ID_OBJECT}', 2, 0, 1)" }
               : { type, code: 'set has_key = true\nset score = 0\nadd score 1' }
   updateLogicRule({ ...rule, actions: [action, ...rule.actions.slice(1)] })
 }
