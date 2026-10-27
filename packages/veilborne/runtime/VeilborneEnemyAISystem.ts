@@ -120,9 +120,22 @@ export class VeilborneEnemyAISystem {
       const attackRange = Math.max(0.5, customStats ? number('attack_range', profile.attackRange) : profile.attackRange)
       const moveSpeed = Math.max(0, customStats ? number('move_speed', profile.moveSpeed) : profile.moveSpeed)
       const perceptionRange = Math.max(1, number('perception_range', 18))
-      // Inimigos VEILBORNE são movimentados pela IA de combate deste pacote.
-      // O agente genérico fica em idle para não competir com essa movimentação.
-      const mode = 'idle'
+      const playerPosition = this.context.avatar.mesh.position
+      const enemyPosition = this.context.world.get(hostile.ownerObjectId)?.mesh.position
+      const distance = enemyPosition
+        ? Math.hypot(playerPosition.x - enemyPosition.x, playerPosition.z - enemyPosition.z)
+        : Number.POSITIVE_INFINITY
+      const targetState = this.combat.getTargetCombatant(hostile)
+      const staggered = targetState.statuses.some(status => status.id === 'stagger')
+      const slowStatus = targetState.statuses.find(status => status.id === 'slow')
+      const slowMultiplier = slowStatus ? Math.max(0.2, 1 - slowStatus.potency) : 1
+      const mode = !shouldRun || staggered || distance > perceptionRange || distance < 0.001
+        ? 'idle'
+        : profile.ranged && distance < attackRange * 0.62
+          ? 'flee_player'
+          : distance > attackRange * 0.94
+            ? 'follow_player'
+            : 'look_at_player'
       const stopDistance = attackRange * 0.94
       const setIfChanged = (name: string, value: string | number | boolean): void => {
         if (agent!.variables[name] === value) return
@@ -130,7 +143,7 @@ export class VeilborneEnemyAISystem {
         agent!.variables[name] = value
       }
       setIfChanged('mode', mode)
-      setIfChanged('move_speed', moveSpeed)
+      setIfChanged('move_speed', moveSpeed * slowMultiplier)
       setIfChanged('perception_range', perceptionRange)
       setIfChanged('stopping_distance', stopDistance)
     }
@@ -146,7 +159,7 @@ export class VeilborneEnemyAISystem {
     }
 
     const player = this.combat.getPlayerCombatant()
-    const { avatar, logic, world, collisions } = this.context
+    const { avatar, logic } = this.context
     if (!player.alive) {
       this.syncAutonomousPackages(false)
       this.pendingProjectiles = []
@@ -161,17 +174,6 @@ export class VeilborneEnemyAISystem {
     const playerPosition = avatar.mesh.position
     // A altura da malha procedural não é o piso quando o terreno está oculto.
     // Cacheie os topos das plataformas visíveis para manter NPCs na superfície real.
-    const groundSurfaces = world.list()
-      .filter(candidate =>
-        candidate.type === 'platform'
-        && candidate.mesh.userData.colliderType !== 'none'
-        && world.isObjectVisible(candidate),
-      )
-      .map(candidate => {
-        candidate.mesh.updateMatrixWorld(true)
-        return { id: candidate.id, bounds: new THREE.Box3().setFromObject(candidate.mesh) }
-      })
-
     for (const { instance, object } of this.combat.getHostilePackages()) {
       if (instance.variables.ai_enabled === false) {
         this.setState(instance, 'idle')
@@ -224,108 +226,8 @@ export class VeilborneEnemyAISystem {
         continue
       }
 
-      const directionX = dx / distance
-      const directionZ = dz / distance
-      const targetYaw = Math.atan2(directionX, directionZ)
-      const autonomousAgent = logic.listPackages(object.id).find(agent =>
-        agent.packageId === AUTONOMOUS_PACKAGE_ID && agent.enabled,
-      )
-      // Só delega quando um agente foi configurado manualmente pelo criador.
-      // O agente auxiliar instalado pelo VEILBORNE fica em idle; ele não pode
-      // desativar a perseguição e os ataques específicos dos inimigos.
-      const autonomousMovementActive = Boolean(
-        autonomousAgent && autonomousAgent.variables.veilborne_managed !== true,
-      )
-      const movingToward = distance > attackRange * 0.94
-      const movingAway = profile.ranged && distance < attackRange * 0.62
-      const slowStatus = targetState.statuses.find(status => status.id === 'slow')
-      const slowMultiplier = slowStatus ? Math.max(0.2, 1 - slowStatus.potency) : 1
-      let nextX = object.mesh.position.x
-      let nextZ = object.mesh.position.z
-      let moving = false
-
-      // O sistema autônomo genérico persegue e controla a animação. O sistema
-      // VEILBORNE só assume o movimento quando o conjurador precisa recuar.
-      if ((!autonomousMovementActive || movingAway) && (movingToward || movingAway) && moveSpeed > 0) {
-        const direction = movingAway ? -1 : 1
-        const stepDistance = Math.min(
-          moveSpeed * slowMultiplier * step,
-          Math.max(0, Math.abs(distance - attackRange * (movingAway ? 0.72 : 0.94))),
-        )
-        nextX = THREE.MathUtils.clamp(nextX + directionX * stepDistance * direction, -49, 49)
-        nextZ = THREE.MathUtils.clamp(nextZ + directionZ * stepDistance * direction, -49, 49)
-        moving = stepDistance > 1e-5
-      }
-
-      const currentRotation = object.mesh.rotation.y
-      if ((!autonomousMovementActive || movingAway) && (moving || Math.abs(currentRotation - targetYaw) > 0.01)) {
-        const bounds = new THREE.Box3().setFromObject(object.mesh)
-        const bottomOffset = bounds.isEmpty() ? 0 : object.mesh.position.y - bounds.min.y
-        const groundAt = (x: number, z: number): number => {
-          const terrainVisible = world.terrain.mesh.visible === true
-          const terrainHeight = terrainVisible ? world.terrain.heightAt(x, z) : 0
-          let surfaceY = Number.isFinite(terrainHeight) ? terrainHeight : 0
-          const currentGroundY = object.mesh.position.y - bottomOffset
-          const maxStepUp = currentGroundY + 0.6
-
-          for (const surface of groundSurfaces) {
-            const bounds = surface.bounds
-            if (bounds.isEmpty() || bounds.max.y > maxStepUp) continue
-            if (
-              x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03
-              || z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03
-            ) continue
-            surfaceY = Math.max(surfaceY, bounds.max.y)
-          }
-
-          return surfaceY + bottomOffset + 0.02
-        }
-        let actualX = object.mesh.position.x
-        let actualZ = object.mesh.position.z
-        let actualY = object.mesh.position.y
-        let canMove = !moving
-
-        if (moving) {
-          const candidates = [
-            { x: nextX, z: nextZ },
-            { x: nextX, z: object.mesh.position.z },
-            { x: object.mesh.position.x, z: nextZ },
-          ]
-          for (const candidate of candidates) {
-            if (
-              Math.abs(candidate.x - object.mesh.position.x) < 1e-5
-              && Math.abs(candidate.z - object.mesh.position.z) < 1e-5
-            ) continue
-            const candidateY = groundAt(candidate.x, candidate.z)
-            if (!collisions.canMoveObjectTo(object.id, {
-              x: candidate.x,
-              y: candidateY,
-              z: candidate.z,
-            })) continue
-            actualX = candidate.x
-            actualZ = candidate.z
-            actualY = candidateY
-            canMove = true
-            break
-          }
-        } else {
-          actualY = groundAt(actualX, actualZ)
-        }
-
-        const didMove = canMove && moving && (
-          Math.abs(actualX - object.mesh.position.x) > 1e-5
-          || Math.abs(actualZ - object.mesh.position.z) > 1e-5
-        )
-        world.update(object.id, {
-          x: actualX,
-          y: actualY,
-          z: actualZ,
-          rotationY: targetYaw * 180 / Math.PI,
-        })
-        const controller = getAnimationControllerFromObject(object.mesh)
-        if (controller) controller.setState(didMove ? 'run' : 'idle')
-      }
-
+      // O deslocamento, a prevenção de obstáculos e a animação locomotora são
+      // executados pelo AutonomousBehaviorSystem genérico da engine.
       if (distance <= attackRange) {
         const key = 'ai-attack:' + instance.ownerObjectId
         const cooling = (this.attackCooldowns.get(key) ?? 0) > 0
