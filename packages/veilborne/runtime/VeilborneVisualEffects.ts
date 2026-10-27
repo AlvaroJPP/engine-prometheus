@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { ProjectileVisualRuntime } from '../../../engine/world/ProjectileVisualRuntime.ts'
 
 interface TimedVisual {
   remaining: number
@@ -9,12 +10,6 @@ interface TimedDamageNumber extends TimedVisual {
   rise: number
 }
 
-interface TimedProjectile extends TimedVisual {
-  start: THREE.Vector3
-  end: THREE.Vector3
-  trail: THREE.Line
-}
-
 /**
  * Gerencia efeitos visuais temporários do combate sem acoplar suas geometrias
  * e temporizadores ao controlador principal do Engine.
@@ -22,56 +17,18 @@ interface TimedProjectile extends TimedVisual {
 export class VeilborneVisualEffects {
   private readonly effects = new Map<THREE.Mesh, TimedVisual>()
   private readonly damageNumbers = new Map<THREE.Sprite, TimedDamageNumber>()
-  private readonly projectiles = new Map<THREE.Group, TimedProjectile>()
+  private readonly projectiles: ProjectileVisualRuntime
   private readonly scene: THREE.Scene
   private readonly invalidate: () => void
 
   constructor(scene: THREE.Scene, invalidate: () => void) {
     this.scene = scene
     this.invalidate = invalidate
+    this.projectiles = new ProjectileVisualRuntime(scene, invalidate)
   }
 
   spawnProjectile(start: THREE.Vector3, end: THREE.Vector3, color: number, duration: number): void {
-    const projectile = new THREE.Group()
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 12, 10),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 10, 8),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }),
-    )
-    projectile.add(halo, core)
-    projectile.position.copy(start)
-    projectile.renderOrder = 24
-    this.scene.add(projectile)
-
-    // Linha aditiva que expõe a trajetória percorrida até a frente do projétil.
-    const trailGeometry = new THREE.BufferGeometry()
-    const trailPositions = new Float32Array(6)
-    trailPositions.set([start.x, start.y, start.z, start.x, start.y, start.z])
-    trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3))
-    const trailMaterial = new THREE.LineBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.9,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    })
-    const trail = new THREE.Line(trailGeometry, trailMaterial)
-    trail.frustumCulled = false
-    trail.renderOrder = 23
-    this.scene.add(trail)
-
-    const safeDuration = Math.max(0.05, duration)
-    this.projectiles.set(projectile, {
-      remaining: safeDuration,
-      duration: safeDuration,
-      start: start.clone(),
-      end: end.clone(),
-      trail,
-    })
-    this.invalidate()
+    this.projectiles.spawn(start, end, color, duration)
   }
 
   spawnEffect(
@@ -126,15 +83,6 @@ export class VeilborneVisualEffects {
   }
 
   clear(): void {
-    for (const [projectile, state] of this.projectiles) {
-      this.scene.remove(projectile)
-      this.disposeGroup(projectile)
-      this.scene.remove(state.trail)
-      state.trail.geometry.dispose()
-      const trailMaterial = state.trail.material
-      if (Array.isArray(trailMaterial)) trailMaterial.forEach(material => material.dispose())
-      else trailMaterial.dispose()
-    }
     this.projectiles.clear()
 
     for (const [sprite] of this.damageNumbers) {
@@ -156,29 +104,7 @@ export class VeilborneVisualEffects {
 
   update(dt: number): void {
     const delta = Math.max(0, Number.isFinite(dt) ? dt : 0)
-
-    for (const [projectile, state] of this.projectiles) {
-      state.remaining -= delta
-      const progress = THREE.MathUtils.clamp(1 - state.remaining / state.duration, 0, 1)
-      projectile.position.lerpVectors(state.start, state.end, progress)
-      const positions = state.trail.geometry.getAttribute('position') as THREE.BufferAttribute
-      positions.setXYZ(0, state.start.x, state.start.y, state.start.z)
-      positions.setXYZ(1, projectile.position.x, projectile.position.y, projectile.position.z)
-      positions.needsUpdate = true
-      const trailMaterial = state.trail.material
-      if (!Array.isArray(trailMaterial)) trailMaterial.opacity = 0.9 * (1 - progress * 0.2)
-      projectile.rotation.y += delta * 12
-      projectile.scale.setScalar(0.9 + Math.sin(progress * Math.PI) * 0.3)
-      if (state.remaining <= 0) {
-        this.scene.remove(projectile)
-        this.disposeGroup(projectile)
-        this.scene.remove(state.trail)
-        state.trail.geometry.dispose()
-        if (Array.isArray(trailMaterial)) trailMaterial.forEach(material => material.dispose())
-        else trailMaterial.dispose()
-        this.projectiles.delete(projectile)
-      }
-    }
+    this.projectiles.update(delta)
 
     for (const [sprite, state] of this.damageNumbers) {
       state.remaining -= delta
@@ -211,13 +137,4 @@ export class VeilborneVisualEffects {
     }
   }
 
-  private disposeGroup(group: THREE.Group): void {
-    group.traverse(node => {
-      const mesh = node as THREE.Mesh
-      if (!mesh.isMesh) return
-      mesh.geometry.dispose()
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      materials.forEach(material => material.dispose())
-    })
-  }
 }
