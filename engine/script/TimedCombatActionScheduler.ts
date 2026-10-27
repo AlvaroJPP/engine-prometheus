@@ -16,14 +16,18 @@ export class TimedCombatActionScheduler<TPayload> {
   }
 
   startCooldown(actionId: string, durationSeconds: number): void {
-    if (!actionId.trim()) return
-    const duration = Number.isFinite(durationSeconds) ? Math.max(0, durationSeconds) : 0
+    if (!actionId.trim() || !Number.isFinite(durationSeconds)) return
+
+    const duration = Math.max(0, durationSeconds)
     if (duration <= 0) this.cooldowns.delete(actionId)
     else this.cooldowns.set(actionId, duration)
   }
 
   schedule(payload: TPayload, delaySeconds: number): void {
-    const delay = Number.isFinite(delaySeconds) ? Math.max(0, delaySeconds) : 0
+    // Do not reinterpret corrupted timing data as an immediate action.
+    if (!Number.isFinite(delaySeconds)) return
+
+    const delay = Math.max(0, delaySeconds)
     this.pending.push({ remainingSeconds: delay, payload })
   }
 
