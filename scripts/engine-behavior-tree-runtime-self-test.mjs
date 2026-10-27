@@ -94,7 +94,17 @@ const context = {
 }
 
 const runtime = new EngineBehaviorTreeRuntime()
+const customCalls = []
+const disposeCustom = runtime.registerNamespace('custom', {
+  conditions: { context_is_ready: (_params, _context) => true },
+  actions: { record: (params, _context) => { customCalls.push(params.value); return 'success' } },
+})
+packages[0].config.behaviorTree.children.unshift(
+  { id: 'custom-condition', type: 'condition', condition: 'custom:context_is_ready' },
+  { id: 'custom-action', type: 'action', action: 'custom:record', parameters: { value: 'works' } },
+)
 runtime.update(context, 0.016, true)
+assert.deepEqual(customCalls, ['works'], 'registered module handlers must execute in engine behavior trees')
 assert.equal(object.mesh.position.x, 2, 'set_object_position should update the object')
 assert.equal(object.mesh.position.z, 3)
 assert.ok(Math.abs(object.mesh.rotation.y - Math.PI / 2) < 1e-8, 'set_object_rotation should update rotation in degrees')
@@ -109,6 +119,7 @@ assert.ok(removed.has('target'), 'destroy_object should remove an existing world
 runtime.update(context, 0.016, false)
 assert.equal('behavior_tree_status' in packages[0].variables, false, 'stopping Run clears the transient status')
 assert.equal(runtime['system'].hasRuntime('tree-instance'), false)
+disposeCustom()
 
 packages[0].config.behaviorTree = null
 packages[0].variables.behavior_tree_status = 'running'
