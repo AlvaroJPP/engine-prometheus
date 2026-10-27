@@ -16,7 +16,7 @@ export interface VeilborneGameModuleOptions {
   controls?: Partial<VeilborneGameModuleControls>
 }
 
-type ActiveControlBindings = Readonly<Record<string, string>>
+type ActiveControlBindings = object
 
 const FALLBACK_CODES = [
   'F8', 'F9', 'F10', 'F11', 'F12', 'F13', 'F14', 'F15', 'F16', 'F17',
@@ -35,7 +35,8 @@ export function resolveVeilborneGameModuleControls(
   activeBindings: ActiveControlBindings,
   configured: Partial<VeilborneGameModuleControls> = {},
 ): VeilborneGameModuleControls {
-  const occupied = new Set(Object.values(activeBindings).filter(value => typeof value === 'string' && value.length > 0))
+  const bindingValues = activeBindings as Record<string, unknown>
+  const occupied = new Set(Object.values(bindingValues).filter((value): value is string => typeof value === 'string' && value.length > 0))
   const selected = new Set<string>()
 
   const choose = (requested: string | undefined, candidates: readonly string[]): string => {
@@ -66,7 +67,7 @@ export function resolveVeilborneGameModuleControls(
     'KeyY', 'KeyJ', 'KeyU', 'KeyP', 'KeyM', 'KeyH',
   ])
   const targetLock = choose(configured.targetLock, [
-    activeBindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
+    bindingValues.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
     'KeyO', 'KeyM', 'KeyJ', 'KeyU', 'KeyP', 'KeyK',
   ])
 
