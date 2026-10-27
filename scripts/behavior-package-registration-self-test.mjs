@@ -24,6 +24,13 @@ assert.equal(
 
 const releaseFirst = registerBehaviorPackageDefinition(definition)
 const releaseSecond = registerBehaviorPackageDefinition(definition)
+
+assert.throws(
+  () => registerBehaviorPackageDefinition({ ...definition }),
+  /Já existe uma definição de pacote/,
+  'a different definition must not silently replace a package with the same ID',
+)
+
 assert.equal(
   BEHAVIOR_PACKAGE_DEFINITIONS.filter(item => item.id === definition.id).length,
   1,
@@ -49,12 +56,6 @@ assert.equal(
   BEHAVIOR_PACKAGE_DEFINITIONS.includes(definition),
   false,
   'the external definition must be removed after its final host releases it',
-)
-
-assert.throws(
-  () => registerBehaviorPackageDefinition({ ...definition }),
-  /Já existe uma definição de pacote/,
-  'a different definition must not silently replace a package with the same ID',
 )
 
 console.log('Behavior package registration self-test passed.')
