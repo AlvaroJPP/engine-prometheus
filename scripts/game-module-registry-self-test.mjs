@@ -447,9 +447,6 @@ try {
   console.error = savedConsoleError
 }
 
-console.log('Game module registry self-test passed.')
-
-
 // Dispatch uses a stable snapshot: modules added mid-event wait until the next
 // dispatch, while modules removed by an earlier callback are skipped immediately.
 const dispatchRegistry = new GameModuleRegistry()
@@ -527,3 +524,4 @@ stopDuringDispatchRegistry.dispatchKeyDown({ code: 'Escape' })
 assert.deepEqual(stopDuringDispatchCalls, ['stop'], 'o dispatch deve parar quando um módulo encerra o runtime')
 stopDuringDispatchRegistry.dispose()
 
+console.log('Game module registry self-test passed.')
