@@ -296,9 +296,12 @@ export class World {
     if (ok(patch.x)) m.position.x = clamp(patch.x, -50, 50)
     if (ok(patch.y)) m.position.y = clamp(patch.y, -50, 100)
     if (ok(patch.z)) m.position.z = clamp(patch.z, -50, 50)
-    if (ok(patch.rotationX)) m.rotation.x = (patch.rotationX * Math.PI) / 180
-    if (ok(patch.rotationY)) m.rotation.y = (patch.rotationY * Math.PI) / 180
-    if (ok(patch.rotationZ)) m.rotation.z = (patch.rotationZ * Math.PI) / 180
+    // Normalize finite degrees before converting to radians. Very large finite
+    // values can overflow during multiplication and inject Infinity into transforms.
+    const toRadians = (degrees: number) => ((degrees % 360) * Math.PI) / 180
+    if (ok(patch.rotationX)) m.rotation.x = toRadians(patch.rotationX)
+    if (ok(patch.rotationY)) m.rotation.y = toRadians(patch.rotationY)
+    if (ok(patch.rotationZ)) m.rotation.z = toRadians(patch.rotationZ)
     // Modelos importados (GLB/GLTF) podem precisar de escala muito maior
     // que primitivas criadas no editor. Mantenha o limite antigo nas primitivas
     // e permita escala de até 10.000 nos modelos importados.
