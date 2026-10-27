@@ -282,10 +282,11 @@ export class VeilborneCombatRuntime {
   resetCombatInputs(): void {
     this.heavyChargeStartedAt = null
     this.pendingCast = null
-    this.context.logic.setVariable('carregando_ataque', false)
-    this.context.logic.setVariable('carga_ataque', 0)
-    this.context.logic.setVariable('bloqueando', false)
-    this.context.logic.setVariable('aparo_sucesso', false)
+    const { logic } = this.context
+    if (logic.getVariable('carregando_ataque') !== undefined) logic.setVariable('carregando_ataque', false)
+    if (logic.getVariable('carga_ataque') !== undefined) logic.setVariable('carga_ataque', 0)
+    if (logic.getVariable('bloqueando') !== undefined) logic.setVariable('bloqueando', false)
+    if (logic.getVariable('aparo_sucesso') !== undefined) logic.setVariable('aparo_sucesso', false)
   }
 
   cycleSigil(): void {
