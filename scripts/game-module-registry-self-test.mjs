@@ -68,4 +68,64 @@ try {
   console.error = originalConsoleError
 }
 
+// A falha no meio de onAttach ainda precisa permitir a limpeza dos recursos
+// que o módulo já criou antes de lançar a exceção.
+const partialAttachRegistry = new GameModuleRegistry()
+const partialAttachCalls = []
+const previousConsoleError = console.error
+console.error = () => {}
+try {
+  partialAttachRegistry.register({
+    id: 'partial-attach-game',
+    onAttach: () => {
+      partialAttachCalls.push('attach-started')
+      throw new Error('expected partial attach failure')
+    },
+    onRuntimeStart: () => partialAttachCalls.push('start'),
+    onDispose: () => partialAttachCalls.push('dispose'),
+  })
+  partialAttachRegistry.attach(context)
+  partialAttachRegistry.start()
+  assert.deepEqual(partialAttachCalls, ['attach-started'])
+  partialAttachRegistry.dispose()
+  assert.deepEqual(
+    partialAttachCalls,
+    ['attach-started', 'dispose'],
+    'onDispose deve ser chamado quando onAttach falha parcialmente',
+  )
+} finally {
+  console.error = previousConsoleError
+}
+
+// A falha em onRuntimeStart não deve deixar o módulo ativo, mas deve liberar
+// os recursos criados durante onAttach quando o registro for descartado.
+const failedStartRegistry = new GameModuleRegistry()
+const failedStartCalls = []
+console.error = () => {}
+try {
+  failedStartRegistry.register({
+    id: 'failed-start-game',
+    onAttach: () => failedStartCalls.push('attach'),
+    onRuntimeStart: () => {
+      failedStartCalls.push('start')
+      throw new Error('expected runtime start failure')
+    },
+    update: () => failedStartCalls.push('update'),
+    onRuntimeStop: () => failedStartCalls.push('stop'),
+    onDispose: () => failedStartCalls.push('dispose'),
+  })
+  failedStartRegistry.attach(context)
+  failedStartRegistry.start()
+  failedStartRegistry.update(0.016)
+  assert.deepEqual(failedStartCalls, ['attach', 'start'])
+  failedStartRegistry.dispose()
+  assert.deepEqual(
+    failedStartCalls,
+    ['attach', 'start', 'dispose'],
+    'módulos que falham ao iniciar não devem atualizar nem receber stop, mas precisam de dispose',
+  )
+} finally {
+  console.error = previousConsoleError
+}
+
 console.log('Game module registry self-test passed.')
