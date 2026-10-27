@@ -41,6 +41,9 @@ jobs:
       - name: Test generic inventory runtime
         run: npm run inventory:runtime:self-test
 
+      - name: Test transient script object cleanup
+        run: npm run script-objects:cleanup:self-test
+
       - name: Test generic combat action scheduler
         run: npm run combat:scheduler:self-test
 
