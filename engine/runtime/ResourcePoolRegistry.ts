@@ -1,5 +1,5 @@
-import { ResourcePool } from './ResourcePool'
-import type { ResourceChange } from './ResourcePool'
+import { ResourcePool } from './ResourcePool.ts'
+import type { ResourceChange } from './ResourcePool.ts'
 
 export interface ResourcePoolDefinition {
   readonly current: number
