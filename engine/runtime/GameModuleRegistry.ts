@@ -200,8 +200,24 @@ export class GameModuleRegistry {
   }
 
   private fail(record: RegisteredModule, phase: string, error: unknown): void {
+    const wasActive = record.active
+    const context = this.context
     record.faulted = true
     record.active = false
     console.error(`[GameModuleRegistry] O módulo "${record.module.id}" falhou ao ${phase}.`, error)
+
+    // Falhas durante input/update encerram o módulo imediatamente para que
+    // recursos temporários (teclas, animações ou estados de runtime) sejam limpos.
+    // O estado já está inativo, portanto erros em onRuntimeStop não causam recursão.
+    if (wasActive && context) {
+      try {
+        record.module.onRuntimeStop?.(context)
+      } catch (stopError) {
+        console.error(
+          `[GameModuleRegistry] O módulo "${record.module.id}" também falhou ao encerrar após a falha em ${phase}.`,
+          stopError,
+        )
+      }
+    }
   }
 }
