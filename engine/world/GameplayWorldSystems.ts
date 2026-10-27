@@ -1,8 +1,8 @@
-import { SpatialHash3D } from './SpatialHash3D'
-import type { SpatialItem3, SpatialPoint3, SpatialQueryResult } from './SpatialHash3D'
-import { TagRegistry } from './TagRegistry'
-import { TriggerVolumeSystem } from './TriggerVolumeSystem'
-import type { TriggerEvent, TriggerSubject, TriggerVolume } from './TriggerVolumeSystem'
+import { SpatialHash3D } from './SpatialHash3D.ts'
+import type { SpatialItem3, SpatialPoint3, SpatialQueryResult } from './SpatialHash3D.ts'
+import { TagRegistry } from './TagRegistry.ts'
+import { TriggerVolumeSystem } from './TriggerVolumeSystem.ts'
+import type { TriggerEvent, TriggerSubject, TriggerVolume } from './TriggerVolumeSystem.ts'
 
 export interface GameplayQueryOptions<T> {
   readonly allTags?: readonly string[]
