@@ -34,6 +34,7 @@
     "model:import-normalization:self-test": "node --experimental-strip-types scripts/model-import-normalization-self-test.mjs",
     "game:modules:self-test": "node --experimental-strip-types scripts/game-module-registry-self-test.mjs",
     "veilborne:combat:self-test": "node --experimental-strip-types scripts/veilborne-combat-self-test.mjs",
+    "veilborne:scripts:self-test": "node --experimental-strip-types scripts/veilborne-script-composition-self-test.mjs",
     "veilborne:controls:self-test": "node --experimental-strip-types scripts/veilborne-controls-self-test.mjs"
   },
   "dependencies": {
