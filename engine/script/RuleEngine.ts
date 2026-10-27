@@ -214,10 +214,16 @@ export class RuleEngine {
     const removed = (this.data.packages ?? []).find(instance => instance.id === id)
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.id !== id)
     this.data.events = this.data.events.filter(rule => rule.sourcePackageInstanceId !== id)
-    if (removed && !(this.data.packages ?? []).some(instance => instance.packageId === removed.packageId)) {
-      this.data.events = this.data.events.filter(rule => rule.sourcePackageDefinitionId !== removed.packageId)
-    }
     this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => !scriptId.startsWith(`${id}::`))
+    if (removed) this.removeGlobalScriptsIfUnused(removed.packageId)
+  }
+
+  private removeGlobalScriptsIfUnused(packageId: string): void {
+    if ((this.data.packages ?? []).some(instance => instance.packageId === packageId)) return
+    this.data.events = this.data.events.filter(rule => rule.sourcePackageDefinitionId !== packageId)
+    this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(
+      id => !id.startsWith(`global::${packageId}::`),
+    )
   }
 
   variables(objectId?: string | null): Record<string, boolean | number | string> {
@@ -260,12 +266,10 @@ export class RuleEngine {
     const removedPackages = (this.data.packages ?? []).filter(instance => removed.has(instance.id))
     this.data.packages = (this.data.packages ?? []).filter(instance => instance.ownerObjectId !== objectId)
     this.data.events = this.data.events.filter(rule => !rule.sourcePackageInstanceId || !removed.has(rule.sourcePackageInstanceId))
-    for (const packageId of new Set(removedPackages.map(instance => instance.packageId))) {
-      if (!(this.data.packages ?? []).some(instance => instance.packageId === packageId)) {
-        this.data.events = this.data.events.filter(rule => rule.sourcePackageDefinitionId !== packageId)
-      }
-    }
     this.data.disabledPackageScripts = (this.data.disabledPackageScripts ?? []).filter(scriptId => ![...removed].some(id => scriptId.startsWith(`${id}::`)))
+    for (const packageId of new Set(removedPackages.map(instance => instance.packageId))) {
+      this.removeGlobalScriptsIfUnused(packageId)
+    }
   }
   upsert(rule: LogicRule): void {
     const i = this.data.events.findIndex((r) => r.id === rule.id)
