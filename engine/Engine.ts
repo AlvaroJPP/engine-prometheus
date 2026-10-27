@@ -28,6 +28,7 @@ import { AnimationController, createAnimationActionMap, getAnimationControllerFr
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
+import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
@@ -66,6 +67,7 @@ export class Engine {
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private readonly autonomousBehaviorSystem = new AutonomousBehaviorSystem()
+  private readonly behaviorTreeRuntime = new EngineBehaviorTreeRuntime()
   private orbit = new OrbitCamera()
   private viewport: Viewport
   private input: PointerController
@@ -256,6 +258,7 @@ export class Engine {
       }
       this.avatar.update(dt)
       this.updateAutonomousBehaviors(dt)
+      this.updateBehaviorTrees(dt)
       this.gameModules.update(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
       const mountedMovementState = this.avatar.getMountedMovementState()
@@ -413,6 +416,17 @@ export class Engine {
         this.notifyBehaviorPackageChanged(transition.ownerObjectId)
       }
     }
+  }
+
+  /** Executa árvores de comportamento genéricas dos pacotes durante o modo Run. */
+  private updateBehaviorTrees(dt: number): void {
+    this.behaviorTreeRuntime.update({
+      world: this.world,
+      logic: this.logic,
+      playerPosition: this.avatar.mesh.position,
+      invalidate: () => this.viewport.invalidate(),
+      notifyPackageChanged: ownerObjectId => this.notifyBehaviorPackageChanged(ownerObjectId),
+    }, dt, this.runtimeModeActive)
   }
 
   private notifyBehaviorPackageChanged(ownerObjectId: string): void {
@@ -1746,6 +1760,7 @@ export class Engine {
   }
 
   dispose(): void {
+    this.behaviorTreeRuntime.reset()
     this.gameModules.dispose()
     window.removeEventListener('pointerdown', this.onRuntimePointerDown, true)
     window.removeEventListener('pointerup', this.onRuntimePointerUp, true)
