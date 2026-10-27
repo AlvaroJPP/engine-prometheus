@@ -1,5 +1,8 @@
 import { registerBehaviorPackageDefinition } from '../../../engine/script/packages'
 import type { BehaviorPackageDefinition } from '../../../engine/script/packages'
+import { VEILBORNE_RUNTIME_ITEMS } from './VeilborneCombat'
+
+const VEILBORNE_ITEM_IDS = Object.keys(VEILBORNE_RUNTIME_ITEMS)
 
 /** Definição de comportamento pertencente exclusivamente ao jogo VEILBORNE. */
 export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = {
@@ -52,6 +55,7 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'loot_item_id', label: 'ID do item coletável', type: 'string', defaultValue: 'lesser_vitality_vial', description: 'ID do item que o jogador recebe ao interagir com este objeto configurado como loot.' },
       { name: 'loot_quantity', label: 'Quantidade coletável', type: 'number', defaultValue: 1, description: 'Quantidade de itens recebida ao coletar este objeto.', min: 1, max: 99, step: 1 },
       { name: 'loot_collected', label: 'Já coletado', type: 'boolean', defaultValue: false, description: 'Estado usado pelo runtime para evitar coleta repetida.', readOnly: true },
+      { name: 'loot_original_visible', label: 'Visibilidade original do loot', type: 'boolean', defaultValue: true, description: 'Estado temporário usado para restaurar itens coletados ao voltar ao editor.', readOnly: true },
       { name: 'checkpoint_name', label: 'Nome do santuário', type: 'string', defaultValue: 'Santuário', description: 'Nome exibido quando o jogador ativa este checkpoint.' },
       { name: 'checkpoint_active', label: 'Santuário ativo', type: 'boolean', defaultValue: false, description: 'Indica se este é o último checkpoint ativado.', readOnly: true },
       { name: 'checkpoint_restore_resources', label: 'Restaurar recursos ao ativar', type: 'boolean', defaultValue: true, description: 'Recupera vida, éter e vigor quando o jogador ativa o santuário.' },
@@ -61,6 +65,8 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'drop_quantity', label: 'Quantidade derrubada', type: 'number', defaultValue: 1, description: 'Quantidade de itens no drop.', min: 1, max: 99, step: 1 },
     ],
     triggers: [
+      { id: 'interact', label: 'Interação próxima', description: 'Um jogador interagiu com este objeto através do sistema genérico de proximidade.' },
+      { id: 'loot_collected', label: 'Loot coletado', description: 'Um item deste objeto foi concedido pelo inventário genérico.' },
       { id: 'combat_started', label: 'Combate iniciado', description: 'Um alvo hostil detectou o personagem ou recebeu o primeiro ataque.' },
       { id: 'quick_attack', label: 'Ataque rápido', description: 'O jogador solicita um ataque rápido com a arma equipada.' },
       { id: 'heavy_attack', label: 'Ataque pesado', description: 'O jogador solicita um ataque pesado ou carregado.' },
@@ -98,6 +104,39 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { id: 'respawn_at_checkpoint', label: 'Renascer no santuário', description: 'Reposiciona o jogador no último ponto de descanso salvo.' },
     ],
     scripts: [
+      {
+        id: 'loot-pickup',
+        name: 'Conceder item ao interagir',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'interact',
+        },
+        conditions: [
+          { type: 'variable', name: 'entity_role', operator: 'equals', value: 'loot' },
+        ],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const itemId = api.package.get(owner, 'veilborne_rpg', 'loot_item_id');
+const validItemIds = ${JSON.stringify(VEILBORNE_ITEM_IDS)};
+if (typeof itemId !== 'string' || !validItemIds.includes(itemId)) return;
+const rawQuantity = api.package.get(owner, 'veilborne_rpg', 'loot_quantity');
+const quantity = typeof rawQuantity === 'number' && Number.isFinite(rawQuantity) ? Math.max(1, Math.min(99, Math.floor(rawQuantity))) : 1;
+const visible = api.world.position(owner)?.visible ?? true;
+if (!api.inventory.grant(itemId, quantity, 'inventario_json')) {
+  api.notice('Não foi possível adicionar o item.', 1.8, 'loot_notice');
+  return;
+}
+api.package.set(owner, 'veilborne_rpg', 'loot_original_visible', visible);
+api.package.set(owner, 'veilborne_rpg', 'loot_collected', true);
+api.setVisible(owner, false);
+api.notice('Item coletado ×' + quantity, 2.4, 'loot_notice');
+api.package.triggerEvent(owner, 'veilborne_rpg', 'loot_collected');`,
+        }],
+      },
       {
         id: 'enemy-killed-reward',
         name: 'Recompensa por inimigo derrotado',
