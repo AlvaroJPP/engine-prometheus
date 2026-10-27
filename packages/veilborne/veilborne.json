@@ -436,7 +436,10 @@
       "loadout_panel_attribute_point_spending",
       "four_character_archetype_presets_in_arsenal",
       "HUD_runtime_mounting",
-      "opt_in_VeilborneGameHost_component"
+      "opt_in_VeilborneGameHost_component",
+      "defensive_controls_resolved_against_active_control_map",
+      "defensive_control_hints_visible_in_veilborne_hud",
+      "defensive_control_resolution_self_test"
     ],
     "notYetConnected": [
       "enemy_pathfinding_and_line_of_sight",
