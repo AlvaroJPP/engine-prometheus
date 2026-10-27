@@ -221,11 +221,19 @@ if (item.effect === 'restore_vitality') {
     if (item.effect === 'area_damage' && !result.killed) {
       api.combat.applyStatus(owner, {
         id: 'burn',
+        effect: 'damage_over_time',
+        tickDamage: 1,
+        tickIntervalSeconds: 1,
         potency: 2,
         remainingSeconds: 3,
         stacks: 1,
         source: 'item:' + itemId,
         damageType,
+        healthVariable: 'vida',
+        maximumHealthVariable: 'vida_max',
+        resistanceVariable: resistanceVariables[damageType] ?? 'res_fisica',
+        deadVariable: 'morto',
+        defeatedEvent: 'enemy_killed',
       }, 'veilborne_rpg');
     }
     if (result.killed) {
