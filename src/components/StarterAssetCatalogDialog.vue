@@ -285,7 +285,7 @@ function openExternal(url: string) {
 .starter-asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .starter-asset-card{display:flex;min-height:178px;overflow:hidden;border:1px solid #303641;border-radius:5px;background:#1a1e25}
 .starter-art{display:grid;place-items:center;flex:none;width:110px;min-height:100%;background:radial-gradient(ellipse at center,#393044 0,#22212b 55%,#171a20 100%);border-right:1px solid #333743}
-.starter-art-objects{background:radial-gradient(ellipse at center,#31364a 0,#222530 57%,#171a20 100%}
+.starter-art-objects{background:radial-gradient(ellipse at center,#31364a 0,#222530 57%,#171a20 100%);}
 .starter-art-glyph{font-size:47px;color:#c4a2f8;text-shadow:0 0 24px #7f4fba8a}
 .art-objects .starter-art-glyph{color:#e2bc78}
 .starter-asset-content{display:flex;flex-direction:column;align-items:flex-start;padding:12px 13px;min-width:0;flex:1}
