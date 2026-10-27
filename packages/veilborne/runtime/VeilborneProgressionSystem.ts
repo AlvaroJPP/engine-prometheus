@@ -3,10 +3,7 @@ import { uuid } from '../../../engine/lib/id'
 import type { ObjectType } from '../../../engine/project/format'
 import type { World } from '../../../engine/world/World'
 import type { RuleEngine } from '../../../engine/script/RuleEngine'
-import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatant } from './VeilborneCombat'
-
-type WorldObject = NonNullable<ReturnType<World['get']>>
 
 interface VeilborneProgressionDependencies {
   world: World
@@ -57,58 +54,42 @@ export class VeilborneProgressionSystem {
   activateCheckpoint(): boolean {
     const d = this.dependencies
     if (!d.isEnabled() || !d.isRuntimeModeActive()) return false
+
     const position = d.avatar.position
-    const checkpoint = d.logic.listPackages()
-      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg'
-        && instance.variables.entity_role === 'checkpoint')
-      .map(instance => ({ instance, object: d.world.get(instance.ownerObjectId) }))
-      .filter((entry): entry is { instance: BehaviorPackageInstance; object: WorldObject } =>
-        !!entry.object && d.world.isObjectVisible(entry.object),
-      )
-      .map(entry => ({
-        ...entry,
-        distance: Math.hypot(
-          entry.object.mesh.position.x - position.x,
-          entry.object.mesh.position.z - position.z,
-        ),
-        verticalDistance: Math.abs(entry.object.mesh.position.y - position.y),
-      }))
-      .filter(entry => entry.distance <= 2.8 && entry.verticalDistance <= 3)
-      .sort((a, b) => a.distance - b.distance)[0]
-    if (!checkpoint) return false
+    const handled = d.logic.triggerNearestPackageEvent(
+      { x: position.x, y: position.y, z: position.z },
+      {
+        eventId: 'interact',
+        packageId: 'veilborne_rpg',
+        radius: 2.8,
+        verticalTolerance: 3,
+        variableEquals: { entity_role: 'checkpoint' },
+      },
+    )
+    if (!handled) return false
 
-    const bounds = new THREE.Box3().setFromObject(checkpoint.object.mesh)
-    const spawnY = Number.isFinite(bounds.max.y) ? bounds.max.y + 0.05 : checkpoint.object.mesh.position.y + 0.8
-    d.logic.setVariable('checkpoint_id', checkpoint.object.id)
-    d.logic.setVariable('checkpoint_x', checkpoint.object.mesh.position.x)
-    d.logic.setVariable('checkpoint_y', spawnY)
-    d.logic.setVariable('checkpoint_z', checkpoint.object.mesh.position.z)
-    for (const instance of d.logic.listPackages()) {
-      if (instance.packageId !== 'veilborne_rpg' || instance.variables.entity_role !== 'checkpoint') continue
-      const active = instance.ownerObjectId === checkpoint.object.id
-      d.logic.setPackageVariable(instance.id, 'checkpoint_active', active)
-      d.notifyBehaviorPackageChanged(instance.ownerObjectId)
-    }
-
-    if (checkpoint.instance.variables.checkpoint_restore_resources !== false) {
-      d.logic.setVariable('vida', d.readNumber('vida_max', 100))
-      d.logic.setVariable('eter', d.readNumber('eter_max', 100))
-      d.logic.setVariable('vigor', d.readNumber('vigor_max', 100))
-      d.logic.setVariable('postura', 0)
-      d.logic.setVariable('morto', false)
-      d.logic.setVariable('jogador_morreu', false)
-      d.logic.setVariable('jogador_atordoado', false)
+    // The package Visual Script owns checkpoint data and resource restoration.
+    // This adapter only clears transient combatant state that lives in memory.
+    if (d.logic.getVariable('checkpoint_restore_completed') === true) {
       const player = d.getPlayer()
       player.statuses = []
       player.alive = true
       d.syncPlayer(player)
+      d.logic.setVariable('checkpoint_restore_completed', false)
     }
-    const name = typeof checkpoint.instance.variables.checkpoint_name === 'string'
-      ? checkpoint.instance.variables.checkpoint_name
-      : 'Santuário'
-    d.showNotice('Santuário ativado: ' + name, 2.4)
-    d.triggerBehaviorPackageEvent(checkpoint.object.id, 'veilborne_rpg', 'checkpoint_used')
-    d.spawnEffect(checkpoint.object.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xe9bf75, 0.7, 0.55)
+
+    const checkpointId = d.logic.getVariable('checkpoint_id')
+    if (typeof checkpointId === 'string') {
+      const checkpoint = d.world.get(checkpointId)
+      if (checkpoint) {
+        d.spawnEffect(
+          checkpoint.mesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)),
+          0xe9bf75,
+          0.7,
+          0.55,
+        )
+      }
+    }
     d.invalidate()
     return true
   }
@@ -116,40 +97,27 @@ export class VeilborneProgressionSystem {
   pickupEchoCache(): boolean {
     const d = this.dependencies
     if (!d.isEnabled() || !d.isRuntimeModeActive()) return false
-    const position = d.avatar.position
-    const cache = d.logic.listPackages()
-      .filter(instance => instance.enabled && instance.packageId === 'veilborne_rpg'
-        && instance.variables.entity_role === 'echo_cache')
-      .map(instance => ({ instance, object: d.world.get(instance.ownerObjectId) }))
-      .filter((entry): entry is { instance: BehaviorPackageInstance; object: WorldObject } =>
-        !!entry.object && d.world.isObjectVisible(entry.object),
-      )
-      .map(entry => ({
-        ...entry,
-        distance: Math.hypot(
-          entry.object.mesh.position.x - position.x,
-          entry.object.mesh.position.z - position.z,
-        ),
-        verticalDistance: Math.abs(entry.object.mesh.position.y - position.y),
-      }))
-      .filter(entry => entry.distance <= 2.4 && entry.verticalDistance <= 3)
-      .sort((a, b) => a.distance - b.distance)[0]
-    if (!cache) return false
 
-    const amount = cache.instance.variables.echoes_amount
-    const recovered = typeof amount === 'number' && Number.isFinite(amount)
-      ? Math.max(0, Math.floor(amount))
-      : Math.max(0, Math.floor(d.readNumber('ecos_perdidos', 0)))
-    if (recovered <= 0) return false
+    this.syncEchoCacheReference()
+    const cacheId = this.cacheObjectId
+    const previousPosition = cacheId ? d.world.get(cacheId)?.mesh.position.clone() : null
+    const position = d.avatar.position.clone()
+    const handled = d.logic.triggerNearestPackageEvent(
+      { x: position.x, y: position.y, z: position.z },
+      {
+        eventId: 'interact',
+        packageId: 'veilborne_rpg',
+        radius: 2.4,
+        verticalTolerance: 3,
+        variableEquals: { entity_role: 'echo_cache' },
+      },
+    )
+    if (!handled) return false
 
-    d.logic.setVariable('ecos', Math.max(0, d.readNumber('ecos', 0)) + recovered)
-    d.logic.setVariable('ecos_perdidos', 0)
-    // O cache pode ter vindo de um projeto salvo, sem um ID registrado neste controlador.
-    d.forgetSpawnedLoot(cache.object.id)
-    if (this.cacheObjectId === cache.object.id) this.cacheObjectId = null
-    d.removeObject(cache.object.id)
-    d.showNotice('Ecos recuperados: ' + recovered, 2.6)
-    d.spawnEffect(position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xe9bf75, 0.62, 0.4)
+    if (cacheId) d.forgetSpawnedLoot(cacheId)
+    this.cacheObjectId = null
+    const effectPosition = previousPosition ?? position
+    d.spawnEffect(effectPosition.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xe9bf75, 0.62, 0.4)
     d.invalidate()
     return true
   }
