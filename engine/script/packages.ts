@@ -1,3 +1,5 @@
+import type { LogicRule } from './types'
+
 export type PackageScalar = boolean | number | string
 export type PackageJsonValue =
   | PackageScalar
@@ -109,6 +111,11 @@ export interface BehaviorPackageSlotDefinition {
   description: string
 }
 
+export type BehaviorPackageScriptDefinition = Pick<
+  LogicRule,
+  'id' | 'name' | 'enabled' | 'trigger' | 'conditions' | 'actions'
+>
+
 export interface BehaviorPackageDefinition {
   id: string
   version: string
@@ -119,6 +126,8 @@ export interface BehaviorPackageDefinition {
   conditions: BehaviorPackageSlotDefinition[]
   actions: BehaviorPackageSlotDefinition[]
   defaultConfig: Record<string, PackageJsonValue>
+  /** Regras prontas que são instaladas como nós do Visual Script ao anexar o pacote. */
+  scripts?: BehaviorPackageScriptDefinition[]
 }
 
 export interface BehaviorPackageInstance {
