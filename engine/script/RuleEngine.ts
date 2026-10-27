@@ -52,6 +52,7 @@ type ScriptApi = {
     nearby: (center: { x: number; y: number; z: number }, radius: number) => Array<{ id: string; name: string; x: number; y: number; z: number; distance: number; visible: boolean }>
     bounds: (objectId: string) => { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null
     groundHeightAt: (x: number, z: number, maxStepUp?: number) => number
+    surfaceHeightAt: (x: number, z: number, maxSurfaceY?: number, excludedObjectIds?: string[]) => number
     spawnPrimitive: (options: { name?: string; shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'octahedron'; x: number; y: number; z: number; size?: number; color?: number; emissive?: number; emissiveIntensity?: number; metalness?: number; roughness?: number; objectType?: ObjectType }) => string
     remove: (objectId: string) => void
   }
@@ -688,6 +689,8 @@ export class RuleEngine {
         },
         groundHeightAt: (x: number, z: number, maxStepUp?: number) =>
           this.world.getGroundHeightAt(x, z, maxStepUp),
+        surfaceHeightAt: (x: number, z: number, maxSurfaceY = Number.POSITIVE_INFINITY, excludedObjectIds: string[] = []) =>
+          this.world.getSurfaceHeightAt(x, z, maxSurfaceY, new Set(excludedObjectIds)),
         spawnPrimitive: (options: {
           name?: string; shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'octahedron'
           x: number; y: number; z: number; size?: number; color?: number; emissive?: number
