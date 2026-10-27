@@ -41,6 +41,9 @@ jobs:
         run: npm run combat:packages:self-test
       - name: Test generic inventory runtime
         run: npm run inventory:runtime:self-test
+
+      - name: Test generic combat action scheduler
+        run: npm run combat:scheduler:self-test
       - name: Test VEILBORNE progression script composition
         run: npm run veilborne:scripts:self-test
       - name: Test import behavior package drafts
