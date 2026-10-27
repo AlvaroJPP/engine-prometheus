@@ -116,18 +116,9 @@ export class VeilborneGameModule implements EngineGameModule {
       avatar: context.avatar.mesh,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
       isRuntimeModeActive: () => context.isRuntimeActive(),
-      readNumber: (name, fallback) => this.combatRuntime?.readNumber(name, fallback) ?? fallback,
       getPlayer: () => this.combatRuntime!.getPlayerCombatant(),
       syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
-      installBehaviorPackage,
-      notifyBehaviorPackageChanged: notifyPackageChanged,
-      triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
-        context.logic.triggerPackageEvent(ownerObjectId, packageId, eventId),
-      removeObject,
-      registerSpawnedLoot: id => loot.registerSpawnedLoot(id),
-      forgetSpawnedLoot: id => loot.forgetSpawnedLoot(id),
       spawnEffect,
-      showNotice: (message, duration) => this.showNotice(context, message, duration),
       invalidate: () => context.invalidate(),
     })
     this.progression = progression
