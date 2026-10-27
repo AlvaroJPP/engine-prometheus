@@ -29,6 +29,18 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+      - name: Test generic combat calculations
+        run: npm run combat:primitives:self-test
+
+      - name: Test generic combat actor model
+        run: npm run combat:model:self-test
+
+      - name: Test generic package combat actions
+        run: npm run combat:packages:self-test
+
+      - name: Test generic inventory runtime
+        run: npm run inventory:runtime:self-test
+
       - name: Test generic game-module lifecycle
         run: npm run game:modules:self-test
 
@@ -40,6 +52,12 @@ jobs:
 
       - name: Test autonomous behaviors
         run: npm run behavior:autonomous:self-test
+
+      - name: Test declarative behavior-package scripts
+        run: npm run behavior:package-scripts:self-test
+
+      - name: Test VEILBORNE progression script composition
+        run: npm run veilborne:scripts:self-test
 
       - name: Test behavior-package import drafts
         run: npm run behavior:packages:self-test
