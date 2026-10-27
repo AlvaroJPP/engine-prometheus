@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { GameModuleContext } from '../../../engine/runtime/GameModule'
 import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
-import type { VeilborneDamageType } from './VeilborneCombat'
+import { calculateVeilborneWeaponDamage, VEILBORNE_RUNTIME_WEAPONS, type VeilborneDamageType } from './VeilborneCombat'
 import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
 import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
@@ -185,6 +185,27 @@ export class VeilborneEnemyAISystem {
                 result.blocked ? 0.38 : 0.52,
                 0.3,
               )
+            }
+            if (result.parried) {
+              const weaponIdRaw = logic.getVariable('arma_equipada')
+              const weaponId = typeof weaponIdRaw === 'string' ? weaponIdRaw : 'starter_arcane_sword'
+              const weapon = VEILBORNE_RUNTIME_WEAPONS[weaponId] ?? VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword!
+              const counterDamage = Math.round(
+                calculateVeilborneWeaponDamage(weapon, this.combat.getPlayerCombatant().attributes) * 0.8,
+              )
+              const counter = this.combat.applyDamageToTarget(
+                instance,
+                counterDamage,
+                weapon.damageType,
+                weapon.postureDamage * 1.5,
+              )
+              this.effects.spawnEffect(
+                this.combat.getWorldPoint(object.id) ?? object.mesh.position.clone(),
+                0xe3f5ff,
+                0.8,
+                0.34,
+              )
+              if (counter.killed) break
             }
             if (result.killed) break
           }
