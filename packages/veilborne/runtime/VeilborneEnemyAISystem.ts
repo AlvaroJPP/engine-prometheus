@@ -70,8 +70,24 @@ export class VeilborneEnemyAISystem {
       && instance.variables.entity_role === 'combatant'
       && instance.variables.faction === 'hostile',
     )
+    const hostileOwnerIds = new Set(hostilePackages.map(instance => instance.ownerObjectId))
+
+    // Se o pacote de combate foi removido do objeto, não deixe o agente auxiliar
+    // continuar perseguindo o jogador como um comportamento órfão.
+    for (const agent of packages) {
+      if (
+        agent.packageId === AUTONOMOUS_PACKAGE_ID
+        && agent.variables.veilborne_managed === true
+        && !hostileOwnerIds.has(agent.ownerObjectId)
+        && agent.variables.mode !== 'idle'
+      ) {
+        this.context.logic.setPackageVariable(agent.id, 'mode', 'idle')
+        agent.variables.mode = 'idle'
+      }
+    }
 
     for (const hostile of hostilePackages) {
+      if (!this.context.world.get(hostile.ownerObjectId)) continue;
       const shouldRun = runtimeEnabled && hostile.enabled && hostile.variables.ai_enabled !== false
       let agent = packages.find(instance =>
         instance.ownerObjectId === hostile.ownerObjectId
@@ -107,7 +123,7 @@ export class VeilborneEnemyAISystem {
       const targetState = this.combat.getTargetCombatant(hostile)
       const staggered = targetState.statuses.some(status => status.id === 'stagger')
       const mode = shouldRun && !staggered ? 'follow_player' : 'idle'
-      const stopDistance = attackRange * (profile.ranged ? 0.62 : 0.94)
+      const stopDistance = attackRange * 0.94
       const setIfChanged = (name: string, value: string | number | boolean): void => {
         if (agent!.variables[name] === value) return
         this.context.logic.setPackageVariable(agent!.id, name, value)
@@ -199,7 +215,7 @@ export class VeilborneEnemyAISystem {
       const directionZ = dz / distance
       const targetYaw = Math.atan2(directionX, directionZ)
       const autonomousAgent = logic.listPackages(object.id).find(agent =>
-        agent.packageId === AUTONOMOUS_PACKAGE_ID && agent.enabled && agent.variables.mode !== 'idle',
+        agent.packageId === AUTONOMOUS_PACKAGE_ID && agent.enabled,
       )
       const autonomousMovementActive = Boolean(autonomousAgent)
       const movingToward = distance > attackRange * 0.94
