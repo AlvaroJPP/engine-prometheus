@@ -311,12 +311,34 @@ export class VeilborneGameModule implements EngineGameModule {
 
   private getExtraControls(context: GameModuleContext): { block: string; parry: string; targetLock: string } {
     const bindings = context.getControlBindings()
-    return {
-      block: this.configuredControls.block ?? 'KeyR',
-      parry: this.configuredControls.parry ?? 'KeyY',
-      targetLock: this.configuredControls.targetLock
-        ?? (bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO'),
+    const occupied = new Set(Object.values(bindings))
+    const selected = new Set<string>()
+
+    const choose = (
+      configured: string | undefined,
+      candidates: string[],
+    ): string => {
+      if (configured) {
+        selected.add(configured)
+        return configured
+      }
+      const available = candidates.find(code => !occupied.has(code) && !selected.has(code))
+      const fallback = available ?? candidates.find(code => !selected.has(code)) ?? 'F8'
+      selected.add(fallback)
+      return fallback
     }
+
+    const block = choose(this.configuredControls.block, [
+      'KeyR', 'KeyH', 'KeyU', 'KeyP', 'KeyJ', 'KeyM', 'F8',
+    ])
+    const parry = choose(this.configuredControls.parry, [
+      'KeyY', 'KeyJ', 'KeyU', 'KeyP', 'KeyM', 'KeyH', 'F9',
+    ])
+    const targetLock = choose(this.configuredControls.targetLock, [
+      bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
+      'KeyO', 'KeyM', 'KeyJ', 'KeyU', 'KeyP', 'KeyK', 'F10',
+    ])
+    return { block, parry, targetLock }
   }
 
   private showNotice(context: GameModuleContext, message: string, durationSeconds: number): void {
