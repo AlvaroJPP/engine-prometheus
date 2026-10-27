@@ -227,4 +227,29 @@ const tick = (system, packages, dt = 0.1, targetPosition = playerPosition, canMo
   assert.equal(agent.variables.state, 'reached', 'the autonomous behavior should reach its destination after avoiding an obstacle')
 }
 
+{
+  const system = new AutonomousBehaviorSystem()
+  agentObject.mesh.position.set(0, 0.5, 0)
+  const agent = makeAgent('invalid-terrain-agent', 'agent', 'move_to_point', {
+    destination_x: 2,
+    stopping_distance: 0.2,
+  })
+  const previousHeightAt = world.terrain.heightAt
+  world.terrain.heightAt = () => Number.NaN
+
+  try {
+    for (let index = 0; index < 20; index += 1) tick(system, [agent], 0.1)
+    assert.ok(
+      Number.isFinite(agentObject.mesh.position.x)
+        && Number.isFinite(agentObject.mesh.position.y)
+        && Number.isFinite(agentObject.mesh.position.z),
+      'invalid terrain height must never contaminate a transform',
+    )
+    assert.ok(agentObject.mesh.position.x > 0, 'movement should fall back to the current ground height')
+    assert.equal(agent.variables.state, 'reached')
+  } finally {
+    world.terrain.heightAt = previousHeightAt
+  }
+}
+
 console.log('Autonomous behavior self-test passed.')
