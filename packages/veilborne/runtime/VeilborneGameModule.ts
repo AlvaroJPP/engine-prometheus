@@ -91,6 +91,7 @@ export class VeilborneGameModule implements EngineGameModule {
       getHostiles: () => combatRuntime.getHostilePackages(),
       getWorldPoint: objectId => combatRuntime.getWorldPoint(objectId),
       isPlayerAlive: () => combatRuntime.getPlayerCombatant().alive,
+      spawnEffect,
       invalidate: () => context.invalidate(),
     })
     this.targetLock = targetLock
@@ -103,7 +104,6 @@ export class VeilborneGameModule implements EngineGameModule {
       inventory,
       notifyBehaviorPackageChanged: notifyPackageChanged,
       removeObject,
-      spawnEffect,
       clearNotice: () => {
         if (context.logic.getVariable('loot_notice') !== undefined) context.logic.setVariable('loot_notice', '')
         this.lootNoticeRemainingSeconds = 0
