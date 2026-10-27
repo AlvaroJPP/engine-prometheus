@@ -42,7 +42,7 @@ const definition = {
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true })",
+      code: "api.global.add('runs', 1); api.package.set('{ID_OBJECT}', 'script-test', 'script_ran', true); const spawned = api.world.spawnPrimitive({ name: 'Script Spawned', shape: 'octahedron', x: 0, y: 1, z: 0, color: 123 }); api.package.install(spawned, 'script-test'); api.package.configure(spawned, 'script-test', { script_ran: true }); api.world.setVisibleTemporary('{ID_OBJECT}', false)",
     }],
   }],
 }
@@ -65,6 +65,9 @@ try {
   assert.equal(spawned.type, 'cube')
   assert.equal(spawned.mesh.geometry.type, 'OctahedronGeometry')
   assert.equal(logic.listPackages(spawned.id)[0].variables.script_ran, true, 'scripts can install and configure behavior packages on created objects')
+  assert.equal(target.mesh.visible, false, 'scripts can hide an authored object temporarily during Run')
+  logic.restoreRuntimeWorldChanges()
+  assert.equal(target.mesh.visible, true, 'the generic runtime restores temporary visibility on return to Edit')
   assert.ok(emitted.some(event => event.type === 'behaviorPackageChanged'))
 
   logic.remove(generatedRuleId)
