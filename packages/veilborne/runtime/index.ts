@@ -7,7 +7,6 @@ export { VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION, registerVeilborneBehaviorPackage
 export * from './VeilborneVisualEffects'
 export * from './VeilborneHealthBarSystem'
 export * from './VeilborneInventorySystem'
-export * from './VeilborneItemUseSystem'
 export * from './VeilborneProgressionSystem'
 export * from './VeilborneLootSystem'
 export * from './VeilborneDeathRespawnSystem'
