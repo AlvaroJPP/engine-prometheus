@@ -139,8 +139,11 @@ export class BehaviorTreeRuntime<TContext = unknown> {
   private readonly sequenceCursors = new Map<string, number>()
   private readonly waitRemaining = new Map<string, number>()
   private readonly parallelResults = new Map<string, Map<string, BehaviorTreeStatus>>()
+  private readonly handlers: BehaviorTreeHandlers<TContext>
 
-  constructor(private readonly handlers: BehaviorTreeHandlers<TContext> = {}) {}
+  constructor(handlers: BehaviorTreeHandlers<TContext> = {}) {
+    this.handlers = handlers
+  }
 
   setTree(tree: BehaviorTreeNode): void {
     validateBehaviorTree(tree)
