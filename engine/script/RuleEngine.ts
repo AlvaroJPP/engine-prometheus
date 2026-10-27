@@ -586,6 +586,7 @@ export class RuleEngine {
       },
       defineProperty: (target, property, descriptor) => {
         if (typeof property !== 'string') return false
+        if ('get' in descriptor || 'set' in descriptor) return true
         if ('value' in descriptor && !isValidPackageScalar(descriptor.value)) return true
         return Reflect.defineProperty(target, property, descriptor)
       },
