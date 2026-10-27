@@ -128,41 +128,45 @@ export class GameModuleRegistry {
   stop(): void {
     if (!this.runtimeActive) return
     // Feche a janela de registro dinâmico antes dos callbacks de encerramento.
-    // Um módulo criado durante onRuntimeStop será anexado, mas não iniciado.
     this.runtimeActive = false
     for (const record of [...this.modules.values()].reverse()) {
-      if (!record.active) continue
-      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
+      if (!record.active || this.modules.get(record.id) !== record) continue
+      // Atualize o estado antes do callback para impedir stop reentrante duplicado.
       record.active = false
+      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
     }
   }
 
   unregister(id: string, expectedModule?: EngineGameModule): void {
     const record = this.modules.get(id)
     if (!record || (expectedModule && record.module !== expectedModule)) return
-    if (record.active && this.context) {
-      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
-      record.active = false
-    }
-    if (record.attached && this.context) {
-      this.invoke(record, 'liberar', () => record.module.onDispose?.(this.context!))
-      record.attached = false
-    }
+
+    // Remova e atualize o estado antes dos callbacks: eles podem chamar unregister,
+    // dispose ou registrar novamente um módulo com o mesmo identificador.
     this.modules.delete(id)
+    const wasActive = record.active
+    const wasAttached = record.attached
+    record.active = false
+    record.attached = false
+
+    if (wasActive && this.context) {
+      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
+    }
+    if (wasAttached && this.context) {
+      this.invoke(record, 'liberar', () => record.module.onDispose?.(this.context!))
+    }
   }
 
   dispose(): void {
     if (this.disposed) return
+    // Bloqueie novos registros antes de executar callbacks de encerramento.
+    this.disposed = true
     this.stop()
     for (const record of [...this.modules.values()].reverse()) {
-      if (record.attached && this.context) {
-        this.invoke(record, 'liberar', () => record.module.onDispose?.(this.context!))
-      }
-      record.attached = false
+      this.unregister(record.id, record.module)
     }
     this.modules.clear()
     this.context = null
-    this.disposed = true
   }
 
   private attachOne(record: RegisteredModule): void {
