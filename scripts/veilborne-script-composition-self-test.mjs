@@ -23,7 +23,7 @@ const world = {
     if (!object) return
     if (typeof patch.visible === 'boolean') object.mesh.visible = patch.visible
     for (const axis of ['x', 'y', 'z']) {
-      if (typeof patch[axis] === 'number' object.mesh.position[axis] = patch[axis]
+      if (typeof patch[axis] === 'number') object.mesh.position[axis] = patch[axis]
     }
   },
   getGroundHeightAt: () => 0,
@@ -35,6 +35,15 @@ try {
     formatVersion: 1,
     variables: {
       ecos: 0,
+      ecos_perdidos: 0,
+      vida: 100,
+      vida_max: 100,
+      eter: 100,
+      eter_max: 100,
+      vigor: 100,
+      vigor_max: 100,
+      postura: 0,
+      morto: false,
       nivel: 1,
       experiencia: 0,
       experiencia_proximo_nivel: 100,
