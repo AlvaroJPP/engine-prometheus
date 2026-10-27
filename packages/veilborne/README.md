@@ -22,9 +22,16 @@ Em uma aplicação que já criou a instância de `Engine`, monte o host do pacot
 <script setup lang="ts">
 import { VeilborneGameHost } from './packages/veilborne'
 
-// engine: instância de Engine criada pelo host;
-// activeBindings: mapa de controles ativo;
-// globalVariables: variáveis globais reativas atualizadas pelo host.
+// São referências do aplicativo que hospeda o jogo.
+const engine = /* instância de Engine já criada */
+const activeBindings = /* mapa de controles ativo */
+const globalVariables = /* Ref<Record<string, boolean | number | string>> */
+const markDirty = /* função que marca o projeto/save como alterado */
+
+function handleGameVariable(name: string, value: string | number | boolean) {
+  globalVariables.value = { ...globalVariables.value, [name]: value }
+  markDirty()
+}
 </script>
 
 <template>
@@ -32,6 +39,7 @@ import { VeilborneGameHost } from './packages/veilborne'
     :engine="engine"
     :bindings="activeBindings"
     :game-variables="globalVariables"
+    @set-global-variable="handleGameVariable"
   />
 </template>
 ```
