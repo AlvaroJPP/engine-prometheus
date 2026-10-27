@@ -16,10 +16,7 @@ import {
   BEHAVIOR_PACKAGE_DEFINITIONS,
   getBehaviorPackageDefinition,
 } from '../engine/script/packages.ts'
-import {
-  registerVeilborneBehaviorPackage,
-  VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION,
-} from '../packages/veilborne/runtime/behaviorPackageDefinition.ts'
+import { registerBehaviorPackageDefinition } from '../engine/script/packages.ts'
 
 const player = createVeilborneCombatant('test-player')
 const quickWeapon = VEILBORNE_RUNTIME_WEAPONS.starter_arcane_sword
@@ -70,12 +67,23 @@ assert.equal(isVeilborneParrySuccessful(10.15, 10, 0.2), true)
 assert.equal(isVeilborneParrySuccessful(10.21, 10, 0.2), false)
 
 assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), undefined)
-const unregister = registerVeilborneBehaviorPackage()
-assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION)
-assert.ok(BEHAVIOR_PACKAGE_DEFINITIONS.includes(VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION))
-const unregisterDuplicate = registerVeilborneBehaviorPackage()
+const testPackageDefinition = {
+  id: 'veilborne_rpg',
+  version: '0.1.0',
+  name: 'Test VEILBORNE package',
+  description: 'Test definition proving that a game package can opt in and unregister.',
+  variables: [],
+  triggers: [],
+  conditions: [],
+  actions: [],
+  defaultConfig: {},
+}
+const unregister = registerBehaviorPackageDefinition(testPackageDefinition)
+assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), testPackageDefinition)
+assert.ok(BEHAVIOR_PACKAGE_DEFINITIONS.includes(testPackageDefinition))
+const unregisterDuplicate = registerBehaviorPackageDefinition(testPackageDefinition)
 unregisterDuplicate()
-assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION)
+assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), testPackageDefinition)
 unregister()
 assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), undefined)
 
