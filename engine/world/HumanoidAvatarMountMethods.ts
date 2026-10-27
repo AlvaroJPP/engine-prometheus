@@ -41,16 +41,16 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
   return {
     isMounted(this: any): boolean {
       return this.mountedRoot !== null
-    }
+    },
 
     getMountedObjectId(this: any): string | null {
       const id = this.mountedRoot?.userData.id
       return typeof id === 'string' ? id : null
-    }
+    },
 
     getMountedMovementState(this: any): MountMovementState | null {
       return this.mountedRoot ? this.mountedMovementState : null
-    }
+    },
 
     /** Aplica alterações de configuração do pacote enquanto o jogador já está montado. */
     updateMountSettings(this: any, settings: MountPackageSettings): void {
@@ -64,7 +64,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         modelStates: settings.modelStates.map(rule => ({ ...rule })),
         controlBindings: { ...settings.controlBindings },
       }
-    }
+    },
 
     /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
     mount(this: any, root: THREE.Mesh, settings: MountPackageSettings): boolean {
@@ -116,7 +116,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       this.activeCollisions.clear()
       this.pressed.clear()
       return true
-    }
+    },
 
     updateMountedPlayerTransition(this: any, dt: number): void {
       if (!this.animationController || !this.playerMountTransition) return
@@ -125,7 +125,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
           this.animationController.activeOneShotRole === this.playerMountTransition) return
       this.playerMountTransition = null
       this.visualRoot.visible = false
-    }
+    },
 
     /** Desvincula o jogador e o posiciona junto ao lado livre da montaria. */
     dismount(this: any): string | null {
@@ -245,7 +245,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       // entidade realmente mudou de posição/rotação durante a execução.
       if (rootId && (positionChanged || rotationChanged)) this.world.notifyChanged(rootId)
       return rootId
-    }
+    },
 
     placeAvatarAtMountSeat(this: any): void {
       const root = this.mountedRoot
@@ -256,7 +256,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       this.mesh.position.copy(seat)
       this.mesh.updateMatrixWorld(true)
       this.cameraTarget.set(seat.x, seat.y + 0.9, seat.z)
-    }
+    },
 
     /**
      * Obtém a superfície caminhável diretamente sob um ponto de desmontagem.
@@ -336,7 +336,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       }
 
       return supportY
-    }
+    },
 
     playMountAnimation(this: any, root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
       const controller = getAnimationControllerFromObject(root)
@@ -344,7 +344,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       if (oneShot) controller.playOneShot(role, false)
       else controller.setState(role)
       root.userData.importAnimationState = controller.currentState || role
-    }
+    },
 
     /**
      * Inclina apenas o GLB visual para acompanhar a normal da rampa.
@@ -450,7 +450,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       const blend = 1 - Math.exp(-10 * Math.max(0, dt))
       pivot.quaternion.slerp(targetQuaternion, blend)
       root.updateWorldMatrix(true, true)
-    }
+    },
 
     updateMountedMovement(this: any,
       dt: number,
@@ -650,7 +650,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       this.cameraTarget.x = THREE.MathUtils.lerp(this.cameraTarget.x, this.mesh.position.x, 0.2)
       this.cameraTarget.y = THREE.MathUtils.lerp(this.cameraTarget.y, this.mesh.position.y + 0.9, 0.2)
       this.cameraTarget.z = THREE.MathUtils.lerp(this.cameraTarget.z, this.mesh.position.z, 0.2)
-    }
+    },
 
     /**
      * Support probing is expensive: each probe raycasts the nearby scene at nine
@@ -673,12 +673,12 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       this.mountedHasSupportProbe = true
       this.mountedSupportProbeElapsed = 0
       return true
-    }
+    },
 
     /** Bounds de movimento da montaria, usando o colisor configurado ou o modelo visual como fallback. */
     getMountedBounds(this: any, root: THREE.Mesh): THREE.Box3 {
       return getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
-    }
+    },
 
     /** Cacheia a complexidade uma vez; não conte vértices novamente em cada quadro. */
     getImportedTriangleCount(this: any, root: THREE.Mesh): number {
@@ -695,7 +695,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       })
       root.userData.mountCollisionTriangleCount = triangleCount
       return triangleCount
-    }
+    },
 
     /**
      * Verifica colisão da montaria com o mesmo princípio usado pelo player:
@@ -822,7 +822,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         }
       }
       return false
-    }
+    },
 
     /**
      * Detecta colisão ascendente com tetos. Usa colisores simplificados nos modelos
@@ -920,7 +920,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         }
       }
       return false
-    }
+    },
 
     /**
      * Detecta uma superfície alcançável na borda dianteira do colisor.
@@ -1004,7 +1004,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         }
       }
       return bestSurface
-    }
+    },
 
     /**
      * Obtém o piso sob toda a pegada da montaria, não apenas sob o centro.
@@ -1155,7 +1155,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       }
 
       return { flat, inclined, terrain }
-    }
+    },
 
     chooseMountedSupportSurface(this: any,
       surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
@@ -1188,7 +1188,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         return terrainMax
       }
       return null
-    }
+    },
 
     findMountedGroundSurface(this: any, root: THREE.Mesh, bounds: THREE.Box3): number {
       const feetY = bounds.min.y
@@ -1202,7 +1202,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         root, bounds, maxFlatDrop, maxSlopeDrop, maxRise, originY,
       )
       return this.chooseMountedSupportSurface(surfaces, feetY, maxRise) ?? terrainY
-    }
+    },
 
     /**
      * Detecta uma plataforma plana na junção inferior/superior de uma rampa.
@@ -1286,7 +1286,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       }
 
       return false
-    }
+    },
 
     /**
      * Confirma que uma rampa inclinada tem uma face superior caminhável logo sob
@@ -1339,7 +1339,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
         }
       }
       return false
-    }
+    },
 
     /**
      * Segue o piso sob o centro a cada subpasso de movimento. A tolerância vertical
@@ -1372,7 +1372,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       root.position.y = supportY + bottomOffset
       root.updateWorldMatrix(true, true)
       return true
-    }
+    },
 
   }
 }
