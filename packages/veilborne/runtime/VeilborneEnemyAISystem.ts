@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { GameModuleContext } from '../../../engine/runtime/GameModule'
 import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
+import { TimedCombatActionScheduler } from '../../../engine/script/TimedCombatActionScheduler.ts'
 import { calculateVeilborneWeaponDamage, VEILBORNE_RUNTIME_WEAPONS, type VeilborneDamageType } from './VeilborneCombat'
 import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
@@ -27,7 +28,6 @@ const PROFILES: Record<string, AIProfile> = {
 }
 
 interface PendingEnemyProjectile {
-  remainingSeconds: number
   attackerObjectId: string
   origin: THREE.Vector3
   targetPosition: THREE.Vector3
@@ -54,8 +54,7 @@ export class VeilborneEnemyAISystem {
   private readonly context: GameModuleContext
   private readonly combat: VeilborneCombatRuntime
   private readonly effects: VeilborneVisualEffects
-  private readonly attackCooldowns = new Map<string, number>()
-  private pendingProjectiles: PendingEnemyProjectile[] = []
+  private readonly actions = new TimedCombatActionScheduler<PendingEnemyProjectile>()
 
   constructor(context: GameModuleContext, combat: VeilborneCombatRuntime, effects: VeilborneVisualEffects) {
     this.context = context
@@ -152,17 +151,11 @@ export class VeilborneEnemyAISystem {
   update(dt: number): void {
     const step = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 0.1))
     this.updatePendingProjectiles(step)
-    for (const [id, remaining] of this.attackCooldowns) {
-      const next = Math.max(0, remaining - step)
-      if (next <= 0) this.attackCooldowns.delete(id)
-      else this.attackCooldowns.set(id, next)
-    }
-
     const player = this.combat.getPlayerCombatant()
     const { avatar, logic } = this.context
     if (!player.alive) {
       this.syncAutonomousPackages(false)
-      this.pendingProjectiles = []
+      this.actions.clear()
       for (const { instance, object } of this.combat.getHostilePackages()) {
         this.setState(instance, 'idle')
         const controller = getAnimationControllerFromObject(object.mesh)
@@ -229,15 +222,15 @@ export class VeilborneEnemyAISystem {
       // executados pelo AutonomousBehaviorSystem genérico da engine.
       if (distance <= attackRange) {
         const key = 'ai-attack:' + instance.ownerObjectId
-        const cooling = (this.attackCooldowns.get(key) ?? 0) > 0
+        const cooling = !this.actions.canExecute(key)
         this.setState(instance, cooling ? 'recover' : 'attack')
         if (!cooling) {
           const silenced = targetState.statuses.some(status => status.id === 'silence')
           if (profile.ranged && silenced) {
-            this.attackCooldowns.set(key, Math.min(0.4, attackCooldown))
+            this.actions.startCooldown(key, Math.min(0.4, attackCooldown))
             this.setState(instance, 'recover')
           } else {
-            this.attackCooldowns.set(key, attackCooldown)
+            this.actions.startCooldown(key, attackCooldown)
             const controller = getAnimationControllerFromObject(object.mesh)
             if (controller) controller.playOneShot(profile.ranged ? 'ability_1' : 'primary_action')
             logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_attack')
@@ -247,15 +240,14 @@ export class VeilborneEnemyAISystem {
               const flightSeconds = THREE.MathUtils.clamp(source.distanceTo(impact) / 22, 0.2, 0.75)
               this.effects.spawnEffect(source, DAMAGE_COLORS[attackType], 0.24, 0.2)
               this.effects.spawnProjectile(source, impact, DAMAGE_COLORS[attackType], flightSeconds)
-              this.pendingProjectiles.push({
-                remainingSeconds: flightSeconds,
+              this.actions.schedule({
                 attackerObjectId: instance.ownerObjectId,
                 origin: source.clone(),
                 targetPosition: impact,
                 damage: attackDamage,
                 damageType: attackType,
                 postureDamage,
-              })
+              }, flightSeconds)
             } else if (this.resolveAttackImpact(instance, attackDamage, attackType, postureDamage, source)) {
               break
             }
@@ -268,19 +260,11 @@ export class VeilborneEnemyAISystem {
   }
 
   clear(): void {
-    this.attackCooldowns.clear()
-    this.pendingProjectiles = []
+    this.actions.clear()
   }
 
   private updatePendingProjectiles(dt: number): void {
-    const remaining: PendingEnemyProjectile[] = []
-    for (const projectile of this.pendingProjectiles) {
-      projectile.remainingSeconds -= dt
-      if (projectile.remainingSeconds > 0) {
-        remaining.push(projectile)
-        continue
-      }
-
+    for (const projectile of this.actions.update(dt)) {
       this.effects.spawnEffect(projectile.targetPosition, DAMAGE_COLORS[projectile.damageType], 0.4, 0.32)
       if (!this.combat.getPlayerCombatant().alive) continue
       const playerPosition = this.context.avatar.mesh.position
@@ -302,7 +286,6 @@ export class VeilborneEnemyAISystem {
         projectile.origin,
       )
     }
-    this.pendingProjectiles = remaining
   }
 
   private resolveAttackImpact(
