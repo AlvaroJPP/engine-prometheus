@@ -10,8 +10,8 @@ import {
   tickVeilborneStatuses,
   VEILBORNE_DEFAULT_SPELL_SLOTS,
   VEILBORNE_RUNTIME_SIGILS,
-  VeilborneCombatant,
-  VeilborneDamageType,
+  type VeilborneCombatant,
+  type VeilborneDamageType,
 } from './VeilborneCombat'
 import { createVeilborneSigilVisual, createVeilborneWardMesh, disposeVeilborneVisual } from './VeilborneSigilVisuals'
 import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
