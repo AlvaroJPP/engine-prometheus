@@ -70,7 +70,7 @@ export function createCombatActorState<
     attributes: { ...attributes },
     resistances: { ...resistances },
     statuses: [],
-    alive: typeof health !== 'number' || health > 0,
+    alive: typeof health !== 'number' || (Number.isFinite(health) && health > 0),
   }
 }
 
@@ -94,15 +94,24 @@ export function applyCombatDamage<
 
   const current = resources[resourceKey]
   const maximum = resources[maximumResourceKey]
-  if (typeof current !== 'number' || typeof maximum !== 'number') {
-    throw new Error(`O ator "${target.id}" não possui os recursos "${resourceKey}" e "${maximumResourceKey}".`)
+  if (
+    typeof current !== 'number'
+    || !Number.isFinite(current)
+    || typeof maximum !== 'number'
+    || !Number.isFinite(maximum)
+  ) {
+    throw new Error(
+      `O ator "${target.id}" precisa dos recursos numéricos finitos "${resourceKey}" e "${maximumResourceKey}".`,
+    )
   }
 
   const resistance = resistances[packet.resistanceKey ?? packet.damageType] ?? 0
   const multiplier = Math.max(1, Number.isFinite(packet.criticalMultiplier) ? packet.criticalMultiplier! : 1)
   const resolved = resolveResistedMagnitude(packet.amount, resistance, multiplier)
-  const resourceDamage = Math.min(Math.max(0, current), resolved)
-  resources[resourceKey] = clampFinite(current - resourceDamage, 0, Math.max(0, maximum))
+  const safeMaximum = Math.max(0, maximum)
+  const safeCurrent = clampFinite(current, 0, safeMaximum)
+  const resourceDamage = Math.min(safeCurrent, resolved)
+  resources[resourceKey] = safeCurrent - resourceDamage
 
   let appliedPostureDamage = 0
   let postureBroken = false
@@ -111,10 +120,22 @@ export function applyCombatDamage<
   if (postureKey && maxPostureKey) {
     const before = resources[postureKey]
     const postureMaximum = resources[maxPostureKey]
-    if (typeof before === 'number' && typeof postureMaximum === 'number') {
+    if (
+      typeof before === 'number'
+      && Number.isFinite(before)
+      && typeof postureMaximum === 'number'
+      && Number.isFinite(postureMaximum)
+    ) {
+      const safePostureMaximum = Math.max(0, postureMaximum)
+      const safePosture = clampFinite(before, 0, safePostureMaximum)
       appliedPostureDamage = Math.max(0, Number.isFinite(packet.postureDamage) ? packet.postureDamage! : 0)
-      resources[postureKey] = clampFinite(before + appliedPostureDamage, 0, Math.max(0, postureMaximum))
-      postureBroken = before < postureMaximum && resources[postureKey]! >= postureMaximum
+      resources[postureKey] = clampFinite(
+        safePosture + appliedPostureDamage,
+        0,
+        safePostureMaximum,
+      )
+      postureBroken = safePosture < safePostureMaximum
+        && resources[postureKey]! >= safePostureMaximum
     }
   }
 
@@ -162,19 +183,39 @@ export function updateCombatActor<
     const value = resources[key]
     const maximumKey = options.resourceLimits?.[key]
     const maximum = maximumKey ? resources[maximumKey] : undefined
-    if (typeof value !== 'number' || typeof maximum !== 'number') continue
-    resources[key] = clampFinite(value + rate * delta, 0, Math.max(0, maximum))
+    if (
+      typeof value !== 'number'
+      || !Number.isFinite(value)
+      || typeof maximum !== 'number'
+      || !Number.isFinite(maximum)
+      || !Number.isFinite(rate)
+    ) continue
+    resources[key] = clampFinite(
+      value + rate * delta,
+      0,
+      Math.max(0, maximum),
+    )
   }
 
   const postureKey = options.postureResourceKey
-  if (postureKey && typeof resources[postureKey] === 'number') {
+  if (postureKey && Number.isFinite(resources[postureKey])) {
+    const maximumKey = options.resourceLimits?.[postureKey]
+    const configuredMaximum = maximumKey ? resources[maximumKey] : undefined
+    const postureMaximum = typeof configuredMaximum === 'number' && Number.isFinite(configuredMaximum)
+      ? Math.max(0, configuredMaximum)
+      : Number.MAX_SAFE_INTEGER
+    const recoveryRate = Number.isFinite(options.postureRecoveryPerSecond)
+      ? Math.max(0, options.postureRecoveryPerSecond!)
+      : 0
     resources[postureKey] = clampFinite(
-      resources[postureKey]! - Math.max(0, options.postureRecoveryPerSecond ?? 0) * delta,
+      resources[postureKey]! - recoveryRate * delta,
       0,
-      Math.max(0, resources[options.resourceLimits?.[postureKey] ?? ''] ?? Number.MAX_SAFE_INTEGER),
+      postureMaximum,
     )
   }
 
   const healthKey = options.healthKey
-  if (healthKey && typeof resources[healthKey] === 'number') target.alive = resources[healthKey]! > 0
+  if (healthKey && typeof resources[healthKey] === 'number') {
+    target.alive = Number.isFinite(resources[healthKey]!) && resources[healthKey]! > 0
+  }
 }
