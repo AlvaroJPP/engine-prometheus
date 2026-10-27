@@ -248,7 +248,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="veilborne-game-overlay" :class="{ 'editor-preview': editorPreview }">
+  <div class="veilborne-game-overlay" data-no-game-attack :class="{ 'editor-preview': editorPreview }">
     <div
       v-if="veilborneActive && typeof gameVariables.loot_notice === 'string' && gameVariables.loot_notice"
       class="veilborne-loot-toast"
