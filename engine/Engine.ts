@@ -272,7 +272,7 @@ export class Engine {
         this.lastMountMovementState = null
       }
       this.world.updateEnvironment(dt)
-      this.logic.update()
+      this.logic.update(this.runtimeModeActive ? dt : 0)
       for (const instance of this.logic.listPackages()) {
         if (instance.packageId === 'mount') this.applyMountModelStates(instance)
       }
