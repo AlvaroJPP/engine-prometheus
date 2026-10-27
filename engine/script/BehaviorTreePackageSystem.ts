@@ -1,8 +1,7 @@
 import type { BehaviorPackageInstance, PackageJsonValue } from './packages'
 import {
   BehaviorTreeRuntime,
-  validateBehaviorTree,
-} from './BehaviorTree'
+} from './BehaviorTree.ts'
 import type {
   BehaviorTreeHandlers,
   BehaviorTreeNode,
