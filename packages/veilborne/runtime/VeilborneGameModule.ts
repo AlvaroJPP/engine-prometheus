@@ -104,7 +104,6 @@ export class VeilborneGameModule implements EngineGameModule {
       inventory,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
       isRuntimeModeActive: () => context.isRuntimeActive(),
-      installBehaviorPackage,
       notifyBehaviorPackageChanged: notifyPackageChanged,
       removeObject,
       spawnEffect,
