@@ -54,7 +54,11 @@
     "resource:pool:self-test": "node --experimental-strip-types scripts/resource-pool-self-test.mjs",
     "spatial:hash:self-test": "node --experimental-strip-types scripts/spatial-hash-3d-self-test.mjs",
     "trigger:volume:self-test": "node --experimental-strip-types scripts/trigger-volume-system-self-test.mjs",
-    "interaction:target:self-test": "node --experimental-strip-types scripts/interaction-target-selector-self-test.mjs"
+    "interaction:target:self-test": "node --experimental-strip-types scripts/interaction-target-selector-self-test.mjs",
+    "resource:pools:self-test": "node --experimental-strip-types scripts/resource-pool-registry-self-test.mjs",
+    "gameplay:world:self-test": "node --experimental-strip-types scripts/gameplay-world-systems-self-test.mjs",
+    "interaction:runtime:self-test": "node --experimental-strip-types scripts/interaction-runtime-self-test.mjs",
+    "behavior:handlers:self-test": "node --experimental-strip-types scripts/behavior-tree-handler-registry-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
