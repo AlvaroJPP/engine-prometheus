@@ -38,7 +38,7 @@ interface AgentRuntimeState {
   avoidanceSide: -1 | 0 | 1
 }
 
-type AutonomousWorld = Pick<World, 'get' | 'update' | 'terrain' | 'isObjectVisible'>
+type AutonomousWorld = Pick<World, 'get' | 'update' | 'terrain' | 'isObjectVisible'> & Partial<Pick<World, 'getGroundHeightAt'>>
 type AutonomousObject = NonNullable<ReturnType<World['get']>>
 type MovementSafetyCheck = (objectId: string, target: Position3) => boolean
 
@@ -377,6 +377,16 @@ export class AutonomousBehaviorSystem {
     }
   }
 
+  private resolveGroundHeight(world: AutonomousWorld, object: AutonomousObject, x: number, z: number): number {
+    const bounds = new THREE.Box3().setFromObject(object.mesh)
+    const bottomOffset = bounds.isEmpty() ? 0 : object.mesh.position.y - bounds.min.y
+    const currentGroundY = object.mesh.position.y - bottomOffset
+    const maxStepUp = currentGroundY + 0.6
+
+    if (world.getGroundHeightAt) return world.getGroundHeightAt(x, z, maxStepUp)
+    return world.terrain.mesh.visible ? world.terrain.heightAt(x, z) : 0
+  }
+
   private moveTowards(
     world: AutonomousWorld,
     object: AutonomousObject,
@@ -400,7 +410,7 @@ export class AutonomousBehaviorSystem {
     const rotationY = Math.atan2(dx, dz) * 180 / Math.PI
     const bounds = new THREE.Box3().setFromObject(object.mesh)
     const bottomOffset = bounds.isEmpty() ? 0 : position.y - bounds.min.y
-    const y = world.terrain.heightAt(x, z) + bottomOffset
+    const y = this.resolveGroundHeight(world, object, x, z) + bottomOffset
     const moving = this.applyMovement(
       world,
       object,
@@ -442,7 +452,7 @@ export class AutonomousBehaviorSystem {
     const rotationY = Math.atan2(dx, dz) * 180 / Math.PI
     const bounds = new THREE.Box3().setFromObject(object.mesh)
     const bottomOffset = bounds.isEmpty() ? 0 : position.y - bounds.min.y
-    const y = world.terrain.heightAt(x, z) + bottomOffset
+    const y = this.resolveGroundHeight(world, object, x, z) + bottomOffset
 
     return this.applyMovement(
       world,
@@ -482,7 +492,7 @@ export class AutonomousBehaviorSystem {
       const bottomOffset = bounds.isEmpty() ? 0 : current.y - bounds.min.y
       return {
         x: clampedX,
-        y: world.terrain.heightAt(clampedX, clampedZ) + bottomOffset,
+        y: this.resolveGroundHeight(world, object, clampedX, clampedZ) + bottomOffset,
         z: clampedZ,
       }
     }
