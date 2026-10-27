@@ -50,7 +50,11 @@
     "navigation:pathfinder:self-test": "node --experimental-strip-types scripts/grid-pathfinder-self-test.mjs",
     "cooldown:scheduler:self-test": "node --experimental-strip-types scripts/cooldown-scheduler-self-test.mjs",
     "state-machine:self-test": "node --experimental-strip-types scripts/finite-state-machine-self-test.mjs",
-    "world:tags:self-test": "node --experimental-strip-types scripts/tag-registry-self-test.mjs"
+    "world:tags:self-test": "node --experimental-strip-types scripts/tag-registry-self-test.mjs",
+    "resource:pool:self-test": "node --experimental-strip-types scripts/resource-pool-self-test.mjs",
+    "spatial:hash:self-test": "node --experimental-strip-types scripts/spatial-hash-3d-self-test.mjs",
+    "trigger:volume:self-test": "node --experimental-strip-types scripts/trigger-volume-system-self-test.mjs",
+    "interaction:target:self-test": "node --experimental-strip-types scripts/interaction-target-selector-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
