@@ -33,15 +33,17 @@ export function clampFinite(
 }
 
 /** Soma escala por atributo e aplica multiplicadores ordenados, retornando magnitude inteira. */
-export function calculateScaledMagnitude(
+export function calculateScaledMagnitude<A extends object, S extends object>(
   base: number,
-  attributes: NumericMap,
-  scaling: ScalingMap,
+  attributes: A,
+  scaling: S,
   multipliers: readonly number[] = [],
 ): number {
+  const attributeValues = attributes as Record<string, number>
+  const scalingValues = scaling as Record<string, number | undefined>
   let magnitude = Math.max(0, Number.isFinite(base) ? base : 0)
-  for (const [attribute, coefficient] of Object.entries(scaling)) {
-    const score = attributes[attribute] ?? 0
+  for (const [attribute, coefficient] of Object.entries(scalingValues)) {
+    const score = attributeValues[attribute] ?? 0
     magnitude += Math.max(0, Number.isFinite(score) ? score : 0)
       * Math.max(0, Number.isFinite(coefficient) ? coefficient! : 0)
   }
