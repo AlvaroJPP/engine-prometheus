@@ -3,8 +3,8 @@ import {
   applyCombatDamage,
   type CombatActorState,
   type TimedCombatStatus,
-} from './CombatModel'
-import { clampFinite, mergeTimedEffect, restoreResource, spendResource, tickTimedEffects } from './CombatPrimitives'
+} from './CombatModel.ts'
+import { clampFinite, mergeTimedEffect, restoreResource, spendResource, tickTimedEffects } from './CombatPrimitives.ts'
 
 export interface PackageDamageOptions {
   packageId?: string
