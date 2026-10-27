@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import type { Engine } from '../../../engine/Engine'
 import { VeilborneGameModule } from '../runtime/VeilborneGameModule'
 import type { VeilborneGameModuleControls } from '../runtime/VeilborneGameModule'
@@ -22,6 +22,15 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (event: 'set-global-variable', name: string, value: string | number | boolean): void
 }>()
+
+// Keep the HUD responsive immediately, while still allowing the owning host to
+// refresh its own model and mark the project dirty through the emitted event.
+const localGameVariables = ref({ ...props.gameVariables })
+watch(
+  () => props.gameVariables,
+  value => { localGameVariables.value = { ...value } },
+  { deep: true },
+)
 
 let unregisterGameModule: (() => void) | null = null
 let gameModule: VeilborneGameModule | null = null
@@ -54,6 +63,7 @@ onBeforeUnmount(() => {
 })
 
 function setGlobalVariable(name: string, value: string | number | boolean): void {
+  localGameVariables.value = { ...localGameVariables.value, [name]: value }
   props.engine?.setLogicVariable(name, value)
   emit('set-global-variable', name, value)
 }
@@ -63,7 +73,7 @@ function setGlobalVariable(name: string, value: string | number | boolean): void
   <VeilborneHUD
     v-if="engine && enabled"
     :bindings="bindings"
-    :game-variables="gameVariables"
+    :game-variables="localGameVariables"
     :editor-preview="editorPreview"
     @set-global-variable="setGlobalVariable"
   />
