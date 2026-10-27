@@ -70,3 +70,54 @@ jobs:
 
       - name: Test behavior-package import drafts
         run: npm run behavior:packages:self-test
+
+      - name: Test cooldown scheduler
+        run: npm run cooldown:scheduler:self-test
+
+      - name: Test finite state machine
+        run: npm run state-machine:self-test
+
+      - name: Test world tag registry
+        run: npm run world:tags:self-test
+
+      - name: Test generic resource pool
+        run: npm run resource:pool:self-test
+
+      - name: Test owner-scoped resource registry
+        run: npm run resource:pools:self-test
+
+      - name: Test 3D spatial hash
+        run: npm run spatial:hash:self-test
+
+      - name: Test generic trigger volumes
+        run: npm run trigger:volume:self-test
+
+      - name: Test interaction target selection
+        run: npm run interaction:target:self-test
+
+      - name: Test composed gameplay world systems
+        run: npm run gameplay:world:self-test
+
+      - name: Test integrated interaction runtime
+        run: npm run interaction:runtime:self-test
+
+      - name: Test extensible behavior tree handlers
+        run: npm run behavior:handlers:self-test
+
+      - name: Test generic behavior tree package runtime
+        run: npm run behavior:tree-runtime:self-test
+
+      - name: Test generic behavior tree interpreter
+        run: npm run behavior:tree:self-test
+
+      - name: Test behavior tree package lifecycle
+        run: npm run behavior:tree-package:self-test
+
+      - name: Test generic navigation pathfinder
+        run: npm run navigation:pathfinder:self-test
+
+      - name: Test generic event bus
+        run: npm run events:bus:self-test
+
+      - name: Test game and engine separation
+        run: npm run game:separation:self-test
