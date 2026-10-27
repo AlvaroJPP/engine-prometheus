@@ -120,9 +120,9 @@ export class VeilborneEnemyAISystem {
       const attackRange = Math.max(0.5, customStats ? number('attack_range', profile.attackRange) : profile.attackRange)
       const moveSpeed = Math.max(0, customStats ? number('move_speed', profile.moveSpeed) : profile.moveSpeed)
       const perceptionRange = Math.max(1, number('perception_range', 18))
-      const targetState = this.combat.getTargetCombatant(hostile)
-      const staggered = targetState.statuses.some(status => status.id === 'stagger')
-      const mode = shouldRun && !staggered ? 'follow_player' : 'idle'
+      // Inimigos VEILBORNE são movimentados pela IA de combate deste pacote.
+      // O agente genérico fica em idle para não competir com essa movimentação.
+      const mode = 'idle'
       const stopDistance = attackRange * 0.94
       const setIfChanged = (name: string, value: string | number | boolean): void => {
         if (agent!.variables[name] === value) return
@@ -217,7 +217,12 @@ export class VeilborneEnemyAISystem {
       const autonomousAgent = logic.listPackages(object.id).find(agent =>
         agent.packageId === AUTONOMOUS_PACKAGE_ID && agent.enabled,
       )
-      const autonomousMovementActive = Boolean(autonomousAgent)
+      // Só delega quando um agente foi configurado manualmente pelo criador.
+      // O agente auxiliar instalado pelo VEILBORNE fica em idle; ele não pode
+      // desativar a perseguição e os ataques específicos dos inimigos.
+      const autonomousMovementActive = Boolean(
+        autonomousAgent && autonomousAgent.variables.veilborne_managed !== true,
+      )
       const movingToward = distance > attackRange * 0.94
       const movingAway = profile.ranged && distance < attackRange * 0.62
       const slowStatus = targetState.statuses.find(status => status.id === 'slow')
@@ -242,18 +247,55 @@ export class VeilborneEnemyAISystem {
       const currentRotation = object.mesh.rotation.y
       if ((!autonomousMovementActive || movingAway) && (moving || Math.abs(currentRotation - targetYaw) > 0.01)) {
         const bounds = new THREE.Box3().setFromObject(object.mesh)
-        const bottomOffset = object.mesh.position.y - bounds.min.y
-        const groundYRaw = world.terrain.heightAt(nextX, nextZ)
-        const groundY = Number.isFinite(groundYRaw) ? groundYRaw + bottomOffset : object.mesh.position.y
-        const canMove = !moving || collisions.canMoveObjectTo(object.id, { x: nextX, y: groundY, z: nextZ })
+        const bottomOffset = bounds.isEmpty() ? 0 : object.mesh.position.y - bounds.min.y
+        const groundAt = (x: number, z: number): number => {
+          const height = world.terrain.heightAt(x, z)
+          return Number.isFinite(height) ? height + bottomOffset : object.mesh.position.y
+        }
+        let actualX = object.mesh.position.x
+        let actualZ = object.mesh.position.z
+        let actualY = object.mesh.position.y
+        let canMove = !moving
+
+        if (moving) {
+          const candidates = [
+            { x: nextX, z: nextZ },
+            { x: nextX, z: object.mesh.position.z },
+            { x: object.mesh.position.x, z: nextZ },
+          ]
+          for (const candidate of candidates) {
+            if (
+              Math.abs(candidate.x - object.mesh.position.x) < 1e-5
+              && Math.abs(candidate.z - object.mesh.position.z) < 1e-5
+            ) continue
+            const candidateY = groundAt(candidate.x, candidate.z)
+            if (!collisions.canMoveObjectTo(object.id, {
+              x: candidate.x,
+              y: candidateY,
+              z: candidate.z,
+            })) continue
+            actualX = candidate.x
+            actualZ = candidate.z
+            actualY = candidateY
+            canMove = true
+            break
+          }
+        } else {
+          actualY = groundAt(actualX, actualZ)
+        }
+
+        const didMove = canMove && moving && (
+          Math.abs(actualX - object.mesh.position.x) > 1e-5
+          || Math.abs(actualZ - object.mesh.position.z) > 1e-5
+        )
         world.update(object.id, {
-          x: canMove ? nextX : object.mesh.position.x,
-          y: canMove ? groundY : object.mesh.position.y,
-          z: canMove ? nextZ : object.mesh.position.z,
+          x: actualX,
+          y: actualY,
+          z: actualZ,
           rotationY: targetYaw * 180 / Math.PI,
         })
         const controller = getAnimationControllerFromObject(object.mesh)
-        if (controller) controller.setState(moving && canMove ? 'run' : 'idle')
+        if (controller) controller.setState(didMove ? 'run' : 'idle')
       }
 
       if (distance <= attackRange) {
