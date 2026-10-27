@@ -88,7 +88,7 @@ export class VeilborneGameModule implements EngineGameModule {
       logic: context.logic,
       avatar: context.avatar.mesh,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
-      isRuntimeModeActive: context.isRuntimeActive,
+      isRuntimeModeActive: () => context.isRuntimeActive(),
       readNumber: (name, fallback) => this.combatRuntime?.readNumber(name, fallback) ?? fallback,
       getPlayer: () => this.combatRuntime!.getPlayerCombatant(),
       syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
@@ -101,7 +101,7 @@ export class VeilborneGameModule implements EngineGameModule {
       forgetSpawnedLoot: id => this.loot?.forgetSpawnedLoot(id),
       spawnEffect,
       showNotice: (message, duration) => this.showNotice(context, message, duration),
-      invalidate: context.invalidate,
+      invalidate: () => context.invalidate(),
     })
 
     this.deathRespawn = new VeilborneDeathRespawnSystem({
@@ -121,7 +121,7 @@ export class VeilborneGameModule implements EngineGameModule {
         context.logic.setVariable('alvo_veilborne_id', '')
       },
       spawnEffect,
-      invalidate: context.invalidate,
+      invalidate: () => context.invalidate(),
       setLootNoticeDuration: seconds => { this.lootNoticeRemainingSeconds = seconds },
     })
     this.combatRuntime.setPlayerDeathHandler(() => this.deathRespawn?.handlePlayerDeath())
@@ -130,7 +130,7 @@ export class VeilborneGameModule implements EngineGameModule {
       logic: context.logic,
       inventory: this.inventory,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
-      isRuntimeModeActive: context.isRuntimeActive,
+      isRuntimeModeActive: () => context.isRuntimeActive(),
       getPlayer: () => this.combatRuntime!.getPlayerCombatant(),
       syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
       readEchoes: () => this.combatRuntime?.readNumber('ecos', 0) ?? 0,
@@ -142,7 +142,7 @@ export class VeilborneGameModule implements EngineGameModule {
         this.combatRuntime?.applyDamageToTarget(instance, amount, damageType, postureDamage, status)
           ?? { damage: 0, killed: false },
       showNotice: (message, duration) => this.showNotice(context, message, duration),
-      invalidate: context.invalidate,
+      invalidate: () => context.invalidate(),
     })
 
     this.enemyAI = new VeilborneEnemyAISystem(context, this.combatRuntime, this.visualEffects)
