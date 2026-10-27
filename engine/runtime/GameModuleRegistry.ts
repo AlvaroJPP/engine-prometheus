@@ -1,6 +1,7 @@
 import type { EngineGameModule, GameModuleContext } from './GameModule'
 
 type RegisteredModule = {
+  id: string
   module: EngineGameModule
   attached: boolean
   active: boolean
@@ -19,7 +20,7 @@ export class GameModuleRegistry {
     const id = module.id.trim()
     if (!id) throw new Error('O módulo de jogo precisa de um identificador não vazio.')
     if (this.modules.has(id)) throw new Error(`Já existe um módulo de jogo registrado com o identificador "${id}".`)
-    const record: RegisteredModule = { module, attached: false, active: false, faulted: false }
+    const record: RegisteredModule = { id, module, attached: false, active: false, faulted: false }
     this.modules.set(id, record)
     if (this.context) {
       this.attachOne(record)
@@ -47,9 +48,9 @@ export class GameModuleRegistry {
     // módulos anexados dinamicamente sejam iniciados uma única vez por register().
     for (const record of [...this.modules.values()]) {
       if (!this.runtimeActive || this.disposed) break
-      if (!record.attached || record.faulted) continue
+      if (this.modules.get(record.id) !== record || !record.attached || record.faulted) continue
       const started = this.invoke(record, 'iniciar runtime', () => record.module.onRuntimeStart?.(this.context!))
-      if (!started) continue
+      if (!started || this.modules.get(record.id) !== record) continue
       if (this.runtimeActive && !this.disposed) {
         record.active = true
       } else if (!this.disposed) {
