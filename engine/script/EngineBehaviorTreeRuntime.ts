@@ -125,6 +125,15 @@ export class EngineBehaviorTreeRuntime {
               position.z - context.playerPosition.z,
             ) <= maxDistance
           }
+          case 'object_distance_lte': {
+            const maxDistance = numberParam(params, 'distance')
+            const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
+            const targetId = stringParam(params, 'targetObjectId')
+            const object = context.world.get(objectId)
+            const target = targetId ? context.world.get(targetId) : undefined
+            if (!object || !target || maxDistance === null || maxDistance < 0) return false
+            return object.mesh.position.distanceTo(target.mesh.position) <= maxDistance
+          }
           default:
             return false
         }
@@ -162,6 +171,23 @@ export class EngineBehaviorTreeRuntime {
             if (!object || typeof visible !== 'boolean') return 'failure'
             object.mesh.visible = visible
             context.invalidate()
+            return 'success'
+          }
+          case 'set_object_position': {
+            const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
+            const object = context.world.get(objectId)
+            if (!object) return 'failure'
+            const x = numberParam(params, 'x')
+            const y = numberParam(params, 'y')
+            const z = numberParam(params, 'z')
+            if (x === null && y === null && z === null) return 'failure'
+            context.world.update(objectId, {
+              ...(x !== null ? { x } : {}),
+              ...(y !== null ? { y } : {}),
+              ...(z !== null ? { z } : {}),
+            })
+            context.invalidate()
+            context.notifyPackageChanged(objectId)
             return 'success'
           }
           default:
