@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import type { GameModuleContext } from '../../../engine/runtime/GameModule'
 import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
-import type { VeilborneCombatant, VeilborneDamageType } from './VeilborneCombat'
+import type { VeilborneDamageType } from './VeilborneCombat'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
 import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
 
@@ -185,6 +186,7 @@ export class VeilborneEnemyAISystem {
                 0.3,
               )
             }
+            if (result.killed) break
           }
         }
       } else {
@@ -197,7 +199,7 @@ export class VeilborneEnemyAISystem {
     this.attackCooldowns.clear()
   }
 
-  private setState(instance: { id: string; ownerObjectId: string; variables: Record<string, boolean | number | string | null> }, next: string): void {
+  private setState(instance: BehaviorPackageInstance, next: string): void {
     const previous = typeof instance.variables.ai_state === 'string' ? instance.variables.ai_state : 'idle'
     if (previous === next) return
     this.context.logic.setPackageVariable(instance.id, 'ai_state', next)
