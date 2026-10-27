@@ -1,3 +1,15 @@
+import {
+  applyPercentageDiscount,
+  calculateScaledMagnitude,
+  clampFinite,
+  isWithinTimeWindow,
+  mergeTimedEffect,
+  resolveResistedMagnitude,
+  restoreResource,
+  spendResource,
+  tickTimedEffects,
+} from '../../../engine/script/CombatPrimitives'
+
 /**
  * VEILBORNE: regras puras de combate.
  *
@@ -104,8 +116,7 @@ export const VEILBORNE_DEFAULT_COMBAT_CONFIG: Readonly<VeilborneCombatConfig> = 
   postureRecoveryPerSecond: 8,
 })
 
-const clamp = (value: number, min: number, max: number): number =>
-  Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : min
+const clamp = (value: number, min: number, max: number): number => clampFinite(value, min, max)
 
 export function createVeilborneCombatant(id: string, overrides: Partial<VeilborneResources> = {}): VeilborneCombatant {
   const resources: VeilborneResources = {
@@ -138,19 +149,20 @@ export function calculateVeilborneWeaponDamage(
   attributes: VeilborneAttributes,
   options: { heavy?: boolean; chargedMultiplier?: number; critical?: boolean } = {},
 ): number {
-  const scalingBonus = Object.entries(weapon.scaling).reduce((sum, [attribute, coefficient]) => {
-    const score = attributes[attribute as VeilborneAttribute] ?? 0
-    return sum + Math.max(0, score) * Math.max(0, coefficient ?? 0)
-  }, 0)
-  const attackMultiplier = options.heavy ? 1.35 : 1
-  const chargedMultiplier = clamp(options.chargedMultiplier ?? 1, 1, 5)
-  const criticalMultiplier = options.critical ? Math.max(1, weapon.criticalMultiplier ?? 1.75) : 1
-  return Math.max(0, Math.round((weapon.baseDamage + scalingBonus) * attackMultiplier * chargedMultiplier * criticalMultiplier))
+  const multipliers = [
+    options.heavy ? 1.35 : 1,
+    clamp(options.chargedMultiplier ?? 1, 1, 5),
+    options.critical ? Math.max(1, weapon.criticalMultiplier ?? 1.75) : 1,
+  ]
+  return calculateScaledMagnitude(weapon.baseDamage, attributes, weapon.scaling, multipliers)
 }
 
 export function calculateVeilborneSpellDamage(spell: VeilborneSpellProfile, attributes: VeilborneAttributes): number {
-  const score = Math.max(0, attributes[spell.scalingAttribute])
-  return Math.max(0, Math.round(spell.damage + score * Math.max(0, spell.scaling)))
+  return calculateScaledMagnitude(
+    spell.damage,
+    attributes,
+    { [spell.scalingAttribute]: spell.scaling },
+  )
 }
 
 export function spendVeilborneResource(
@@ -158,9 +170,14 @@ export function spendVeilborneResource(
   resource: 'ether' | 'stamina',
   amount: number,
 ): boolean {
-  const cost = Math.max(0, Number.isFinite(amount) ? amount : 0)
-  if (!combatant.alive || combatant.resources[resource] < cost) return false
-  combatant.resources[resource] = clamp(combatant.resources[resource] - cost, 0, combatant.resources[resource === 'ether' ? 'maxEther' : 'maxStamina'])
+  const maximumKey = resource === 'ether' ? 'maxEther' : 'maxStamina'
+  const result = spendResource(
+    combatant.resources[resource],
+    combatant.resources[maximumKey],
+    amount,
+  )
+  if (!result.accepted) return false
+  combatant.resources[resource] = result.value
   return true
 }
 
@@ -171,10 +188,14 @@ export function restoreVeilborneResource(
 ): number {
   if (!combatant.alive && resource !== 'vitality') return 0
   const maximumKey = resource === 'vitality' ? 'maxVitality' : resource === 'ether' ? 'maxEther' : 'maxStamina'
-  const before = combatant.resources[resource]
-  combatant.resources[resource] = clamp(before + Math.max(0, Number.isFinite(amount) ? amount : 0), 0, combatant.resources[maximumKey])
-  if (resource === 'vitality' && combatant.resources.vitality > 0) combatant.alive = true
-  return combatant.resources[resource] - before
+  const result = restoreResource(
+    combatant.resources[resource],
+    combatant.resources[maximumKey],
+    amount,
+  )
+  combatant.resources[resource] = result.value
+  if (resource === 'vitality' && result.value > 0) combatant.alive = true
+  return result.changed
 }
 
 export function applyVeilborneDamage(
@@ -182,10 +203,9 @@ export function applyVeilborneDamage(
   packet: VeilborneDamagePacket,
 ): VeilborneDamageResult {
   if (!target.alive) return { vitalityDamage: 0, postureDamage: 0, killed: true, postureBroken: false }
-  const rawDamage = Math.max(0, Number.isFinite(packet.amount) ? packet.amount : 0)
-  const resistance = clamp(target.resistances[packet.type] ?? 0, -100, 95)
+  const resistance = target.resistances[packet.type] ?? 0
   const critical = packet.canCrit ? Math.max(1, packet.criticalMultiplier ?? 1) : 1
-  const vitalityDamage = Math.max(0, Math.round(rawDamage * (1 - resistance / 100) * critical))
+  const vitalityDamage = resolveResistedMagnitude(packet.amount, resistance, critical)
   const postureDamage = Math.max(0, Number.isFinite(packet.postureDamage) ? packet.postureDamage! : 0)
   const previousPosture = target.resources.posture
   const previousVitality = target.resources.vitality
@@ -202,26 +222,12 @@ export function applyVeilborneStatus(
   status: VeilborneStatus,
 ): void {
   if (!target.alive || status.remainingSeconds <= 0) return
-  const existing = target.statuses.find(item => item.id === status.id)
-  if (existing) {
-    existing.remainingSeconds = Math.max(existing.remainingSeconds, status.remainingSeconds)
-    existing.potency = Math.max(existing.potency, status.potency)
-    existing.stacks = clamp(existing.stacks + Math.max(1, status.stacks), 1, 99)
-    return
-  }
-  target.statuses.push({
-    id: status.id,
-    remainingSeconds: status.remainingSeconds,
-    potency: Math.max(0, status.potency),
-    stacks: clamp(Math.round(status.stacks), 1, 99),
-  })
+  target.statuses = mergeTimedEffect(target.statuses, status)
 }
 
 export function tickVeilborneStatuses(target: VeilborneCombatant, deltaSeconds: number): void {
   const delta = clamp(deltaSeconds, 0, 1)
-  target.statuses = target.statuses
-    .map(status => ({ ...status, remainingSeconds: Math.max(0, status.remainingSeconds - delta) }))
-    .filter(status => status.remainingSeconds > 0)
+  target.statuses = tickTimedEffects(target.statuses, delta)
   target.resources.posture = clamp(
     target.resources.posture - VEILBORNE_DEFAULT_COMBAT_CONFIG.postureRecoveryPerSecond * delta,
     0,
@@ -234,13 +240,12 @@ export function canVeilborneDodge(combatant: VeilborneCombatant, cost = VEILBORN
 }
 
 export function isVeilborneParrySuccessful(attackTimeSeconds: number, parryStartSeconds: number, windowSeconds = VEILBORNE_DEFAULT_COMBAT_CONFIG.parryWindowSeconds): boolean {
-  if (![attackTimeSeconds, parryStartSeconds, windowSeconds].every(Number.isFinite) || windowSeconds < 0) return false
-  return attackTimeSeconds >= parryStartSeconds && attackTimeSeconds <= parryStartSeconds + windowSeconds
+  return isWithinTimeWindow(attackTimeSeconds, parryStartSeconds, windowSeconds)
 }
 
 export function calculateVeilborneSigilCost(sigil: VeilborneSigilProfile, will: number): number {
   const discount = clamp(Math.max(0, will) * 0.002, 0, 0.35)
-  return Math.max(0, Math.ceil(sigil.etherCost * (1 - discount)))
+  return applyPercentageDiscount(sigil.etherCost, discount)
 }
 
 export interface VeilborneRuntimeWeapon extends VeilborneWeaponProfile {
