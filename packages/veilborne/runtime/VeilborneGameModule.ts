@@ -6,7 +6,6 @@ import { VeilborneDeathRespawnSystem } from './VeilborneDeathRespawnSystem'
 import { VeilborneEnemyAISystem } from './VeilborneEnemyAISystem'
 import { VeilborneHealthBarSystem } from './VeilborneHealthBarSystem'
 import { VeilborneInventorySystem } from './VeilborneInventorySystem'
-import { VeilborneItemUseSystem } from './VeilborneItemUseSystem'
 import { VeilborneLootSystem } from './VeilborneLootSystem'
 import { VeilborneProgressionSystem } from './VeilborneProgressionSystem'
 import { VeilborneTargetLockController } from './VeilborneTargetLockController'
@@ -33,7 +32,6 @@ export class VeilborneGameModule implements EngineGameModule {
   private targetLock: VeilborneTargetLockController | null = null
   private visualEffects: VeilborneVisualEffects | null = null
   private healthBars: VeilborneHealthBarSystem | null = null
-  private itemUse: VeilborneItemUseSystem | null = null
   private loot: VeilborneLootSystem | null = null
   private progression: VeilborneProgressionSystem | null = null
   private deathRespawn: VeilborneDeathRespawnSystem | null = null
@@ -160,26 +158,6 @@ export class VeilborneGameModule implements EngineGameModule {
       deathRespawn.handlePlayerDeath()
     })
 
-    const itemUse = new VeilborneItemUseSystem({
-      logic: context.logic,
-      inventory,
-      isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
-      isRuntimeModeActive: () => context.isRuntimeActive(),
-      getPlayer: () => this.combatRuntime!.getPlayerCombatant(),
-      syncPlayer: player => this.combatRuntime?.syncPlayerCombatant(player),
-      readEchoes: () => this.combatRuntime?.readNumber('ecos', 0) ?? 0,
-      findTarget: maxRange => this.combatRuntime?.findTarget(maxRange) ?? null,
-      getHostiles: () => this.combatRuntime?.getHostilePackages() ?? [],
-      getAvatarMesh: () => context.avatar.mesh,
-      spawnEffect,
-      applyHit: (instance, amount, damageType, postureDamage, status) =>
-        combatRuntime.applyDamageToTarget(instance, amount, damageType, postureDamage, status)
-          ?? { damage: 0, killed: false },
-      showNotice: (message, duration) => this.showNotice(context, message, duration),
-      invalidate: () => context.invalidate(),
-    })
-    this.itemUse = itemUse
-
     this.enemyAI = new VeilborneEnemyAISystem(context, combatRuntime, visualEffects)
     this.loot?.placeExistingLootOnGround()
   }
@@ -277,7 +255,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.combatRuntime?.update(dt)
     if (!enabled) return
 
-    this.itemUse?.processRequest()
+    this.processItemUseRequest(context)
     this.targetLock?.update(this.combatRuntime!.getPlayerCombatant().alive)
     this.enemyAI?.update(dt)
     this.deathRespawn?.update(dt, this.combatRuntime!.getPlayerCombatant())
@@ -319,12 +297,46 @@ export class VeilborneGameModule implements EngineGameModule {
     this.combatRuntime = null
     this.visualEffects = null
     this.healthBars = null
-    this.itemUse = null
     this.loot = null
     this.progression = null
     this.deathRespawn = null
     this.defaultSpawnPosition = null
     this.context = null
+  }
+
+  /** The game module only forwards avatar context; item rules execute in generic Visual Scripts. */
+  private processItemUseRequest(context: GameModuleContext): void {
+    const request = context.logic.getVariable('item_use_request')
+    if (typeof request !== 'string' || !request.trim()) return
+
+    const position = context.avatar.mesh.position
+    const yaw = context.avatar.mesh.rotation.y
+    context.logic.triggerGlobalEvent('veilborne:item_use_request', {
+      avatarX: position.x,
+      avatarY: position.y,
+      avatarZ: position.z,
+      forwardX: Math.sin(yaw),
+      forwardZ: Math.cos(yaw),
+    })
+
+    const result = context.logic.getVariable('item_use_result')
+    if (result === 'used') {
+      const rawColor = context.logic.getVariable('item_use_visual_color')
+      const color = typeof rawColor === 'number' && Number.isFinite(rawColor) ? rawColor : 0xe9bf75
+      this.visualEffects?.spawnEffect(
+        position.clone().add(new THREE.Vector3(0, 0.9, 0)),
+        color,
+        0.34,
+        0.32,
+      )
+      this.lootNoticeRemainingSeconds = 2
+      context.invalidate()
+    } else if (result === 'blocked') {
+      this.lootNoticeRemainingSeconds = 1.8
+      context.invalidate()
+    }
+    context.logic.setVariable('item_use_result', '')
+    context.logic.setVariable('item_use_visual_color', 0)
   }
 
   private restoreEchoCacheIfNeeded(context: GameModuleContext): void {
