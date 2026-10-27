@@ -28,6 +28,22 @@ assert.equal(hit.postureBroken, true)
 assert.equal(actor.resources.posture, 100)
 assert.equal(hit.killed, false)
 
+// Corrupted numeric resources must fail explicitly instead of returning NaN damage.
+for (const [key, value] of [['health', Number.NaN], ['maxHealth', Number.POSITIVE_INFINITY]]) {
+  const invalidActor = {
+    id: `invalid-${key}`,
+    resources: { health: 100, maxHealth: 100, [key]: value },
+    attributes: {},
+    resistances: {},
+    statuses: [],
+    alive: true,
+  }
+  assert.throws(
+    () => applyCombatDamage(invalidActor, { amount: 10, damageType: 'physical' }),
+    /numéricos finitos/,
+  )
+}
+
 applyCombatStatus(actor, { id: 'slow', potency: 2, stacks: 1, remainingSeconds: 3 })
 applyCombatStatus(actor, { id: 'slow', potency: 3, stacks: 1, remainingSeconds: 4 })
 assert.equal(actor.statuses.length, 1)
@@ -44,6 +60,16 @@ updateCombatActor(actor, 0.5, {
 assert.equal(actor.resources.stamina, 45)
 assert.equal(actor.resources.posture, 96)
 assert.equal(actor.statuses[0].remainingSeconds, 3.5)
+
+// A malformed recovery rate must not reset a resource to zero.
+updateCombatActor(actor, 0.5, {
+  resourceRecoveryPerSecond: { stamina: Number.NaN },
+  resourceLimits: { stamina: 'maxStamina', posture: 'maxPosture' },
+  postureResourceKey: 'posture',
+  postureRecoveryPerSecond: Number.NaN,
+})
+assert.equal(actor.resources.stamina, 45)
+assert.equal(actor.resources.posture, 96)
 
 const lethal = applyCombatDamage(actor, {
   amount: 1000,
