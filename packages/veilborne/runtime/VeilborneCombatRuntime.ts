@@ -575,10 +575,16 @@ export class VeilborneCombatRuntime {
     this.parryStartedAt = Number.NEGATIVE_INFINITY
     this.parrySuccessRemaining = 0
     if (!this.isEnabled()) return
-    this.context.logic.setVariable('carregando_ataque', false)
-    this.context.logic.setVariable('carga_ataque', 0)
-    this.context.logic.setVariable('bloqueando', false)
-    this.context.logic.setVariable('aparo_sucesso', false)
+
+    // Evita manter stagger e bloqueio de ações depois que a janela perde foco.
+    this.playerStaggerRemaining = 0
+    this.context.avatar.setActionLock(0)
+    const { logic } = this.context
+    if (logic.getVariable('jogador_atordoado') !== undefined) logic.setVariable('jogador_atordoado', false)
+    if (logic.getVariable('carregando_ataque') !== undefined) logic.setVariable('carregando_ataque', false)
+    if (logic.getVariable('carga_ataque') !== undefined) logic.setVariable('carga_ataque', 0)
+    if (logic.getVariable('bloqueando') !== undefined) logic.setVariable('bloqueando', false)
+    if (logic.getVariable('aparo_sucesso') !== undefined) logic.setVariable('aparo_sucesso', false)
   }
 
   update(dt: number): void {
