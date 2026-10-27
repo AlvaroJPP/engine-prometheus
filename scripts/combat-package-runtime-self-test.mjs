@@ -59,6 +59,25 @@ assert.equal(runtime.spend('guard-01', {
   amount: 30,
 }), false)
 
+// Invalid status requests must not pretend an effect was applied.
+const appliedEventCount = events.filter(event => event.eventId === 'status_applied').length
+const changeCountBeforeInvalidStatus = changed.length
+runtime.applyStatus('guard-01', {
+  id: 'invalid-duration',
+  remainingSeconds: Number.NaN,
+  potency: 1,
+  stacks: 1,
+})
+runtime.applyStatus('guard-01', {
+  id: '   ',
+  remainingSeconds: 1,
+  potency: 1,
+  stacks: 1,
+})
+assert.equal(instance.config.statuses.length, 0)
+assert.equal(events.filter(event => event.eventId === 'status_applied').length, appliedEventCount)
+assert.equal(changed.length, changeCountBeforeInvalidStatus)
+
 runtime.applyStatus('guard-01', { id: 'slow', remainingSeconds: 1, potency: 2, stacks: 1 })
 runtime.applyStatus('guard-01', { id: 'slow', remainingSeconds: 2, potency: 3, stacks: 1 })
 assert.equal(instance.config.statuses.length, 1)
