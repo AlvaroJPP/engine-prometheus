@@ -194,6 +194,40 @@ export class EngineBehaviorTreeRuntime {
             context.notifyPackageChanged(objectId)
             return 'success'
           }
+          case 'set_object_rotation': {
+            const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
+            if (!context.world.get(objectId)) return 'failure'
+            const rotationX = numberParam(params, 'x')
+            const rotationY = numberParam(params, 'y')
+            const rotationZ = numberParam(params, 'z')
+            if (rotationX === null && rotationY === null && rotationZ === null) return 'failure'
+            context.world.update(objectId, {
+              ...(rotationX !== null ? { rotationX } : {}),
+              ...(rotationY !== null ? { rotationY } : {}),
+              ...(rotationZ !== null ? { rotationZ } : {}),
+            })
+            context.invalidate()
+            context.notifyPackageChanged(objectId)
+            return 'success'
+          }
+          case 'set_object_scale': {
+            const objectId = stringParam(params, 'objectId') ?? instance.ownerObjectId
+            if (!context.world.get(objectId)) return 'failure'
+            const scaleX = numberParam(params, 'x')
+            const scaleY = numberParam(params, 'y')
+            const scaleZ = numberParam(params, 'z')
+            const uniform = numberParam(params, 'value')
+            if (scaleX === null && scaleY === null && scaleZ === null && uniform === null) return 'failure'
+            context.world.update(objectId, {
+              ...(uniform !== null ? { scale: uniform } : {}),
+              ...(scaleX !== null ? { scaleX } : {}),
+              ...(scaleY !== null ? { scaleY } : {}),
+              ...(scaleZ !== null ? { scaleZ } : {}),
+            })
+            context.invalidate()
+            context.notifyPackageChanged(objectId)
+            return 'success'
+          }
           default:
             return 'failure'
         }
