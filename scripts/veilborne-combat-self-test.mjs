@@ -129,7 +129,6 @@ const genericCoreFiles = [
   '../engine/world/HumanoidAvatar.ts',
   '../src/App.vue',
   '../src/main.ts',
-  '../src/components/AppWorkspace.vue',
   '../src/components/RuntimeHUD.vue',
   '../src/components/RuntimeHUD.css',
   '../src/components/EditorViewport.vue',
