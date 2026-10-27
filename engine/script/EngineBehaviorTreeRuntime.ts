@@ -132,7 +132,11 @@ export class EngineBehaviorTreeRuntime {
             const object = context.world.get(objectId)
             const target = targetId ? context.world.get(targetId) : undefined
             if (!object || !target || maxDistance === null || maxDistance < 0) return false
-            return object.mesh.position.distanceTo(target.mesh.position) <= maxDistance
+            return Math.hypot(
+              object.mesh.position.x - target.mesh.position.x,
+              object.mesh.position.y - target.mesh.position.y,
+              object.mesh.position.z - target.mesh.position.z,
+            ) <= maxDistance
           }
           default:
             return false
