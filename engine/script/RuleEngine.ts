@@ -203,13 +203,17 @@ export class RuleEngine {
     if (!instance) return
     const plain = JSON.parse(JSON.stringify(patch)) as typeof patch
     if (typeof plain.enabled === 'boolean') instance.enabled = plain.enabled
-    if (plain.variables) instance.variables = { ...instance.variables, ...plain.variables }
+    if (plain.variables) {
+      for (const [name, value] of Object.entries(plain.variables)) {
+        if (name.trim() && isValidPackageScalar(value)) instance.variables[name] = value
+      }
+    }
     if (plain.config) instance.config = { ...instance.config, ...plain.config }
   }
 
   setPackageVariable(id: string, name: string, value: PackageScalar): void {
     const instance = (this.data.packages ?? []).find(item => item.id === id)
-    if (!instance || !name.trim()) return
+    if (!instance || !name.trim() || !isValidPackageScalar(value)) return
     instance.variables[name] = value
   }
 
@@ -242,6 +246,7 @@ export class RuleEngine {
   setVariable(name: string, value: boolean | number | string, objectId?: string | null): void {
     const key = name.trim()
     if (!key) throw new Error('O nome da variável é obrigatório.')
+    if (!isValidPackageScalar(value)) return
     if (objectId) {
       this.data.objectVariables ??= {}
       this.data.objectVariables[objectId] ??= {}
@@ -583,10 +588,20 @@ export class RuleEngine {
       global: {
         get: (name: string) => this.data.variables[name],
         set: (name: string, value: boolean | number | string) => this.setVariable(name, value),
-        add: (name: string, amount: number) => { const current = this.data.variables[name]; if (typeof current !== 'number') throw new Error(`A variável global "${name}" precisa ser numérica.`); this.setVariable(name, current + amount) },
+        add: (name: string, amount: number) => {
+          const current = this.data.variables[name]
+          if (typeof current !== 'number' || !Number.isFinite(current)) throw new Error(`A variável global "${name}" precisa ser numérica finita.`)
+          if (!Number.isFinite(amount) || !Number.isFinite(current + amount)) return
+          this.setVariable(name, current + amount)
+        },
         toggle: (name: string) => { const current = this.data.variables[name]; if (typeof current !== 'boolean') throw new Error(`A variável global "${name}" precisa ser booleana.`); this.setVariable(name, !current) },
       },
-      add: (name: string, amount: number) => { const current = getScoped(name); if (typeof current !== 'number') throw new Error(`A variável "${name}" precisa ser numérica.`); this.setVariable(name, current + amount, scopeId) },
+      add: (name: string, amount: number) => {
+        const current = getScoped(name)
+        if (typeof current !== 'number' || !Number.isFinite(current)) throw new Error(`A variável "${name}" precisa ser numérica finita.`)
+        if (!Number.isFinite(amount) || !Number.isFinite(current + amount)) return
+        this.setVariable(name, current + amount, scopeId)
+      },
       toggle: (name: string) => { const current = getScoped(name); if (typeof current !== 'boolean') throw new Error(`A variável "${name}" precisa ser booleana.`); this.setVariable(name, !current, scopeId) },
       move: (objectId: string, x: number, y: number, z: number) => this.apply({ type: 'move', objectId, x, y, z }),
       rotate: (objectId: string, degrees: number) => this.apply({ type: 'rotate', objectId, degrees }),
@@ -615,6 +630,7 @@ export class RuleEngine {
           )
           if (!instance) throw new Error(`O objeto "${ownerObjectId}" não possui o pacote "${packageId}".`)
           if (!variableName.trim()) throw new Error('O nome da variável de pacote é obrigatório.')
+          if (!isValidPackageScalar(value)) return
           instance.variables[variableName] = value
           this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
         },
@@ -629,7 +645,7 @@ export class RuleEngine {
           if (!instance) throw new Error(`O objeto "${ownerObjectId}" não possui o pacote "${packageId}".`)
           for (const [name, value] of Object.entries(variables)) {
             if (!name.trim()) continue
-            if (typeof value !== 'boolean' && typeof value !== 'number' && typeof value !== 'string') continue
+            if (!isValidPackageScalar(value)) continue
             instance.variables[name] = value
           }
           this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
@@ -807,7 +823,9 @@ export class RuleEngine {
         const instance = (this.data.packages ?? []).find(item =>
           item.ownerObjectId === action.objectId && item.packageId === action.packageId,
         )
-        if (instance && action.name.trim()) instance.variables[action.name] = action.value
+        if (instance && action.name.trim() && isValidPackageScalar(action.value)) {
+          instance.variables[action.name] = action.value
+        }
         break
       }
       case 'script':
@@ -822,6 +840,12 @@ export class RuleEngine {
   }
 }
 
+
+function isValidPackageScalar(value: unknown): value is PackageScalar {
+  return typeof value === 'string'
+    || typeof value === 'boolean'
+    || (typeof value === 'number' && Number.isFinite(value))
+}
 
 function normalizeConditionValue(value: boolean | number | string, actual: boolean | number | string): boolean | number | string {
   if (typeof actual === 'boolean' && typeof value === 'string') {
