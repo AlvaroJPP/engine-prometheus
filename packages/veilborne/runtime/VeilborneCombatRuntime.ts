@@ -43,6 +43,7 @@ export class VeilborneCombatRuntime {
   private readonly cooldowns = new Map<string, number>()
   private heavyChargeStartedAt: number | null = null
   private onPlayerDeath: (() => void) | null = null
+  private onEnemyKilled: ((instance: BehaviorPackageInstance) => void) | null = null
   private wardMesh: THREE.Mesh | null = null
   private wardRemainingSeconds = 0
   private wardAbsorption = 0
@@ -272,6 +273,10 @@ export class VeilborneCombatRuntime {
 
   setPlayerDeathHandler(handler: (() => void) | null): void {
     this.onPlayerDeath = handler
+  }
+
+  setEnemyKilledHandler(handler: ((instance: BehaviorPackageInstance) => void) | null): void {
+    this.onEnemyKilled = handler
   }
 
   resetCombatInputs(): void {
@@ -863,6 +868,7 @@ export class VeilborneCombatRuntime {
     this.context.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
     this.context.world.events.emit('behaviorPackageChanged', { ownerObjectId: instance.ownerObjectId })
     this.awardKillReward(instance)
+    this.onEnemyKilled?.(instance)
     this.targetStates.delete(instance.ownerObjectId)
     this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_killed')
     this.context.invalidate()
@@ -960,6 +966,7 @@ export class VeilborneCombatRuntime {
       if (wasAlive && !target.alive) {
         this.context.logic.setPackageVariable(instance.id, 'ai_state', 'dead')
         this.awardKillReward(instance)
+        this.onEnemyKilled?.(instance)
         this.targetStates.delete(instance.ownerObjectId)
         this.context.logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_killed')
       }
