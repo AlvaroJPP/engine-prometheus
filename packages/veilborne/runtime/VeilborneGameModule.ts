@@ -221,7 +221,19 @@ export class VeilborneGameModule implements EngineGameModule {
       return true
     }
     if (event.code === bindings.interact) {
-      if (this.progression?.activateCheckpoint() || this.progression?.pickupEchoCache() || this.loot?.pickup()) return true
+      if (this.progression?.activateCheckpoint() || this.progression?.pickupEchoCache()) return true
+      const position = context.avatar.mesh.position
+      const collectedByScript = context.logic.triggerNearestPackageEvent(
+        { x: position.x, y: position.y, z: position.z },
+        {
+          eventId: 'interact',
+          packageId: PACKAGE_ID,
+          radius: 2.4,
+          verticalTolerance: 3,
+          variableEquals: { entity_role: 'loot' },
+        },
+      )
+      if (collectedByScript || this.loot?.pickup()) return true
     }
     return this.combatRuntime?.handleKeyDown(event) ?? false
   }
