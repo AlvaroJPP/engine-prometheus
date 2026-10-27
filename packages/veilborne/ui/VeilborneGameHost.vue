@@ -26,15 +26,23 @@ const emit = defineEmits<{
 let unregisterGameModule: (() => void) | null = null
 
 watch(
-  () => [props.engine, props.enabled, props.controls] as const,
-  ([engine, enabled, controls]) => {
+  [
+    () => props.engine,
+    () => props.enabled,
+    () => props.controls?.block,
+    () => props.controls?.parry,
+    () => props.controls?.targetLock,
+  ],
+  ([engine, enabled]) => {
     unregisterGameModule?.()
     unregisterGameModule = null
     if (!engine || !enabled) return
 
     // O host do jogo é o único local que registra o módulo; o editor genérico
     // continua sem importações ou ativação automática de regras VEILBORNE.
-    unregisterGameModule = engine.registerGameModule(new VeilborneGameModule({ controls }))
+    unregisterGameModule = engine.registerGameModule(
+      new VeilborneGameModule({ controls: props.controls }),
+    )
   },
   { immediate: true },
 )
