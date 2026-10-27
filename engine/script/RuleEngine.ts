@@ -49,6 +49,7 @@ type ScriptApi = {
   animation: { playOnce: (objectId: string, role: string, restart?: boolean, holdAtEnd?: boolean) => boolean }
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
+    setVisibleTemporary: (objectId: string, visible: boolean) => boolean
     nearby: (center: { x: number; y: number; z: number }, radius: number) => Array<{ id: string; name: string; x: number; y: number; z: number; distance: number; visible: boolean }>
     bounds: (objectId: string) => { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null
     groundHeightAt: (x: number, z: number, maxStepUp?: number) => number
@@ -64,6 +65,7 @@ export class RuleEngine {
   private readonly combatPackages: CombatPackageRuntime
   private readonly noticeTimers = new Map<string, number>()
   private currentGlobalEventPayload: Record<string, PackageScalar> = {}
+  private readonly temporaryVisibility = new Map<string, boolean>()
 
   constructor(world: World) {
     this.world = world
@@ -83,6 +85,7 @@ export class RuleEngine {
     this.data.packages ??= []
     this.data.disabledPackageScripts ??= []
     this.noticeTimers.clear()
+    this.temporaryVisibility.clear()
     for (const rule of this.data.events) {
       rule.lastInside = false
       if (rule.trigger.type === 'global_event') {
@@ -261,6 +264,7 @@ export class RuleEngine {
   }
 
   removeObjectVariables(objectId: string): void {
+    this.temporaryVisibility.delete(objectId)
     if (this.data.objectVariables) delete this.data.objectVariables[objectId]
     const removed = new Set((this.data.packages ?? []).filter(instance => instance.ownerObjectId === objectId).map(instance => instance.id))
     const removedPackages = (this.data.packages ?? []).filter(instance => removed.has(instance.id))
@@ -386,6 +390,14 @@ export class RuleEngine {
   }
 
   /** Dispara regras globais definidas por pacotes, transportando dados de evento transitórios. */
+  /** Restores temporary visibility changes made by scripts when Run ends. */
+  restoreRuntimeWorldChanges(): void {
+    for (const [objectId, visible] of this.temporaryVisibility) {
+      if (this.world.get(objectId)) this.world.update(objectId, { visible })
+    }
+    this.temporaryVisibility.clear()
+  }
+
   triggerGlobalEvent(eventId: string, payload: Record<string, PackageScalar> = {}): boolean {
     const key = eventId.trim()
     if (!key) return false
@@ -659,6 +671,15 @@ export class RuleEngine {
             z: object.mesh.position.z,
             visible: this.world.isObjectVisible(object),
           } : null
+        },
+        setVisibleTemporary: (objectId: string, visible: boolean) => {
+          const object = this.world.get(objectId)
+          if (!object) return false
+          if (!this.temporaryVisibility.has(objectId)) {
+            this.temporaryVisibility.set(objectId, this.world.isObjectVisible(object))
+          }
+          this.world.update(objectId, { visible })
+          return true
         },
         nearby: (center: { x: number; y: number; z: number }, radius: number) => {
           const maximum = Number.isFinite(radius) ? Math.max(0, radius) : 0
