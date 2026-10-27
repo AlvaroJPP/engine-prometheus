@@ -138,9 +138,12 @@ export class GameModuleRegistry {
 
   private attachOne(record: RegisteredModule): void {
     if (record.attached || record.faulted || !this.context) return
-    if (this.invoke(record, 'associar', () => record.module.onAttach?.(this.context!))) {
-      record.attached = true
-    }
+
+    // Marque a tentativa antes do callback: onAttach pode criar recursos e falhar
+    // no meio. Nesse caso, unregister/dispose ainda deve chamar onDispose para
+    // permitir que o módulo limpe os recursos parcialmente inicializados.
+    record.attached = true
+    this.invoke(record, 'associar', () => record.module.onAttach?.(this.context!))
   }
 
   private invoke(record: RegisteredModule, phase: string, callback: () => void): boolean {
