@@ -108,7 +108,7 @@ const veilborneArchetypes: Array<{
 const selectedVeilborneArchetype = ref<string>('custom')
 watch(() => props.gameVariables.arquetipo, value => {
   if (typeof value === 'string') selectedVeilborneArchetype.value = value
-})
+}, { immediate: true })
 const veilborneAttributes = computed(() => [
   { key: 'forca', label: 'Força' },
   { key: 'destreza', label: 'Destreza' },
