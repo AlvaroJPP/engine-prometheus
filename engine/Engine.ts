@@ -6,6 +6,7 @@ import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
 import type { BrushSettings, EditorState, ToolMode, TransformMode } from './EditorState'
 import { randomSeed, resetIds, uuid } from './lib/id'
+import { removeTransientScriptObjects } from './script/TransientScriptObjectCleanup'
 import type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 import { MAIN_SCENE_PATH } from './project/format'
 import type { CameraPreset, ObjectType, PlayerModelData, ProjectBundle, SceneObjectData } from './project/format'
@@ -657,6 +658,9 @@ export class Engine {
     }
 
     this.gameModules.stop()
+    for (const objectId of removeTransientScriptObjects(this.world)) {
+      this.logic.removeObjectVariables(objectId)
+    }
     this.runtimeModeActive = false
     for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
     this.pressedMouseBindings.clear()
