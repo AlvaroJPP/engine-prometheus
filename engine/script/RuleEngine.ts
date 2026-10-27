@@ -9,6 +9,7 @@ import { CombatPackageRuntime } from './CombatPackageRuntime.ts'
 import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime.ts'
 import { InventoryRuntime } from './InventoryRuntime.ts'
 import { newId } from '../lib/id.ts'
+import { getAnimationControllerFromObject } from '../world/AnimationController.ts'
 import type { ObjectType } from '../project/format.ts'
 import type { InventoryStack } from './InventoryRuntime.ts'
 
@@ -45,6 +46,7 @@ type ScriptApi = {
     quantity: (itemId: string, variableName?: string) => number
   }
   notice: (message: string, durationSeconds: number, variableName?: string) => void
+  animation: { playOnce: (objectId: string, role: string, restart?: boolean, holdAtEnd?: boolean) => boolean }
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
     nearby: (center: { x: number; y: number; z: number }, radius: number) => Array<{ id: string; name: string; x: number; y: number; z: number; distance: number; visible: boolean }>
@@ -634,6 +636,14 @@ export class RuleEngine {
         const duration = Number.isFinite(durationSeconds) ? Math.max(0, durationSeconds) : 0
         if (duration > 0) this.noticeTimers.set(key, duration)
         else this.noticeTimers.delete(key)
+      },
+      animation: {
+        playOnce: (objectId: string, role: string, restart = true, holdAtEnd = role === 'death') => {
+          const object = this.world.get(objectId)
+          if (!object) return false
+          const controller = getAnimationControllerFromObject(object.mesh)
+          return controller?.playOneShot(role, restart, holdAtEnd) ?? false
+        },
       },
       world: {
         position: (objectId: string) => {
