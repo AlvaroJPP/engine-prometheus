@@ -20,7 +20,7 @@ Em uma aplicação que já criou a instância de `Engine`, monte o host do pacot
 
 ```vue
 <script setup lang="ts">
-import VeilborneGameHost from './packages/veilborne/ui/VeilborneGameHost.vue'
+import { VeilborneGameHost } from './packages/veilborne'
 
 // engine: instância de Engine criada pelo host;
 // activeBindings: mapa de controles ativo;
@@ -56,7 +56,7 @@ No mapa WASD padrão, os atalhos defensivos são R para bloquear (segurar), Y pa
 Um host que gerencia a HUD por conta própria pode registrar somente o módulo:
 
 ```ts
-import { VeilborneGameModule } from './packages/veilborne/runtime'
+import { VeilborneGameModule } from './packages/veilborne'
 
 const unregisterVeilborne = engine.registerGameModule(new VeilborneGameModule())
 // Chame unregisterVeilborne() ao desmontar o host.
