@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import {
   applyVeilborneDamage,
   applyVeilborneStatus,
@@ -87,4 +88,27 @@ assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), testPackageDefinitio
 unregister()
 assert.equal(getBehaviorPackageDefinition('veilborne_rpg'), undefined)
 
-console.log('VEILBORNE combat and optional package registration self-test passed.')
+// Architectural regression guard: game-specific behavior and UI must stay
+// outside the reusable engine/editor files.
+const genericCoreFiles = [
+  '../engine/Engine.ts',
+  '../engine/index.ts',
+  '../engine/script/packages.ts',
+  '../engine/input/ControlMaps.ts',
+  '../engine/world/HumanoidAvatar.ts',
+  '../src/components/RuntimeHUD.vue',
+  '../src/components/RuntimeHUD.css',
+  '../src/components/EditorViewport.vue',
+  '../src/components/StarterAssetCatalogDialog.vue',
+  '../src/components/ControlMapsDialog.vue',
+]
+for (const relativePath of genericCoreFiles) {
+  const source = await readFile(new URL(relativePath, import.meta.url), 'utf8')
+  assert.doesNotMatch(
+    source,
+    /veilborne/i,
+    relativePath + ' must not import or reference game-specific VEILBORNE logic',
+  )
+}
+
+console.log('VEILBORNE combat, opt-in registration and core-isolation self-test passed.')
