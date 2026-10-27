@@ -1,4 +1,19 @@
-
+import * as THREE from 'three'
+import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
+import type { BehaviorPackageInstance } from '../../../engine/script/packages'
+import {
+  applyVeilborneDamage,
+  applyVeilborneStatus,
+  calculateVeilborneSpellDamage,
+  calculateVeilborneWeaponDamage,
+  restoreVeilborneResource,
+  spendVeilborneResource,
+  VEILBORNE_DEFAULT_SPELL_SLOTS,
+  VEILBORNE_RUNTIME_SPELLS,
+  VEILBORNE_RUNTIME_WEAPONS,
+  VeilborneDamageType,
+  VeilborneStatusId,
+} from './VeilborneCombat'
 
 import { VeilborneCombatRuntimeBase } from './VeilborneCombatRuntimeBase'
 
