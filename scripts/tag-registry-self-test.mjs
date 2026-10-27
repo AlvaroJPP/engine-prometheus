@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict'
+import { TagRegistry } from '../engine/world/TagRegistry.ts'
+
+const tags = new TagRegistry()
+assert.equal(tags.add('npc-1', ' enemy '), true)
+tags.add('npc-1', 'alive')
+tags.add('npc-2', 'enemy')
+tags.add('npc-2', 'alive')
+tags.add('npc-3', 'alive')
+assert.equal(tags.add('npc-1', 'enemy'), false)
+assert.deepEqual(tags.query('enemy'), ['npc-1', 'npc-2'])
+assert.deepEqual(tags.queryAll(['alive', 'enemy']), ['npc-1', 'npc-2'])
+assert.equal(tags.has('npc-1', 'alive'), true)
+assert.deepEqual(tags.getTags('npc-1'), ['enemy', 'alive'])
+assert.equal(tags.remove('npc-1', 'enemy'), true)
+assert.deepEqual(tags.query('enemy'), ['npc-2'])
+assert.equal(tags.removeId('npc-2'), true)
+assert.deepEqual(tags.queryAll(['alive', 'enemy']), [])
+tags.clear()
+assert.equal(tags.size, 0)
+console.log('Tag registry self-test passed.')
