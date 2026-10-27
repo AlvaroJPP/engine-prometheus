@@ -214,9 +214,6 @@ onBeforeUnmount(() => {
   setPlayerModelFile,
 })
 
-imeOfDay(Number(Math.max(0, Math.min(24, timeOfDay.value + step)).toFixed(4)))
-}
-
 const newVariableName = ref('')
 const newVariableValue = ref('false')
 const newVariableType = ref<'string' | 'number' | 'boolean'>('boolean')
