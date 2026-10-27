@@ -40,6 +40,23 @@ export interface PackageCombatStatus extends TimedCombatStatus {
   source?: string
   damageType?: string
   modifiers?: Record<string, PackageScalar>
+  /** Generic periodic damage effect; resource names adapt it to any package schema. */
+  effect?: 'damage_over_time'
+  tickDamage?: number
+  tickIntervalSeconds?: number
+  tickElapsedSeconds?: number
+  healthVariable?: string
+  maximumHealthVariable?: string
+  resistanceVariable?: string
+  postureVariable?: string
+  maximumPostureVariable?: string
+  postureDamagePerTick?: number
+  aliveVariable?: string
+  deadVariable?: string
+  damagedEvent?: string
+  healthChangedEvent?: string
+  postureBrokenEvent?: string
+  defeatedEvent?: string
 }
 
 /** Adaptador genérico entre pacotes serializados e o modelo de combate reutilizável. */
@@ -169,12 +186,22 @@ export class CombatPackageRuntime {
   update(deltaSeconds: number): void {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return
     const delta = Math.min(deltaSeconds, 0.1)
+
     for (const instance of this.getPackages()) {
       if (!Array.isArray(instance.config.statuses)) continue
       const before = this.readStatuses(instance.config.statuses)
       if (!before.length) continue
-      const next = tickTimedEffects(before, delta)
-      if (next.every((status, index) => status.remainingSeconds === before[index]?.remainingSeconds) && next.length === before.length) continue
+
+      const ticking = before.map(status => ({ ...status }))
+      for (const status of ticking) this.applyPeriodicDamage(instance, status, delta)
+      const next = tickTimedEffects(ticking, delta)
+      const changed = next.length !== before.length
+        || next.some((status, index) =>
+          status.remainingSeconds !== before[index]?.remainingSeconds
+          || status.tickElapsedSeconds !== before[index]?.tickElapsedSeconds,
+        )
+      if (!changed) continue
+
       instance.config.statuses = next as unknown as PackageJsonValue
       const stillActive = new Set(next.map(status => status.id))
       for (const status of before) {
@@ -182,6 +209,44 @@ export class CombatPackageRuntime {
       }
       this.emitChanged(instance.ownerObjectId)
     }
+  }
+
+  private applyPeriodicDamage(
+    instance: BehaviorPackageInstance,
+    status: PackageCombatStatus,
+    deltaSeconds: number,
+  ): void {
+    if (status.effect !== 'damage_over_time' || !Number.isFinite(status.tickDamage) || status.tickDamage! <= 0) return
+    if (status.deadVariable && instance.variables[status.deadVariable] === true) return
+    if (!status.deadVariable && status.aliveVariable && instance.variables[status.aliveVariable] === false) return
+
+    const interval = clampFinite(status.tickIntervalSeconds ?? 1, 0.05, 60, 1)
+    let elapsed = Math.max(0, status.tickElapsedSeconds ?? 0) + deltaSeconds
+    while (elapsed + 1e-9 >= interval && status.remainingSeconds > 0) {
+      const result = this.damage(instance.ownerObjectId, {
+        packageId: instance.packageId,
+        amount: status.tickDamage! * Math.max(0, status.potency) * Math.max(1, status.stacks),
+        damageType: status.damageType ?? 'physical',
+        healthVariable: status.healthVariable,
+        maximumHealthVariable: status.maximumHealthVariable,
+        resistanceVariable: status.resistanceVariable,
+        postureVariable: status.postureVariable,
+        maximumPostureVariable: status.maximumPostureVariable,
+        postureDamage: status.postureDamagePerTick,
+        aliveVariable: status.aliveVariable,
+        deadVariable: status.deadVariable,
+        damagedEvent: status.damagedEvent,
+        healthChangedEvent: status.healthChangedEvent,
+        postureBrokenEvent: status.postureBrokenEvent,
+        defeatedEvent: status.defeatedEvent,
+      })
+      elapsed -= interval
+      if (result.killed) {
+        elapsed = 0
+        break
+      }
+    }
+    status.tickElapsedSeconds = Math.min(interval, elapsed)
   }
 
   private findInstance(ownerObjectId: string, packageId = 'combatant'): BehaviorPackageInstance {
@@ -235,6 +300,21 @@ export class CombatPackageRuntime {
       }
       if (typeof record.source === 'string') status.source = record.source
       if (typeof record.damageType === 'string') status.damageType = record.damageType
+      if (record.effect === 'damage_over_time') status.effect = record.effect
+      for (const key of [
+        'tickDamage', 'tickIntervalSeconds', 'tickElapsedSeconds', 'postureDamagePerTick',
+      ] as const) {
+        const value = record[key]
+        if (typeof value === 'number' && Number.isFinite(value)) status[key] = value
+      }
+      for (const key of [
+        'healthVariable', 'maximumHealthVariable', 'resistanceVariable',
+        'postureVariable', 'maximumPostureVariable', 'aliveVariable', 'deadVariable',
+        'damagedEvent', 'healthChangedEvent', 'postureBrokenEvent', 'defeatedEvent',
+      ] as const) {
+        const value = record[key]
+        if (typeof value === 'string') status[key] = value
+      }
       if (record.modifiers && typeof record.modifiers === 'object' && !Array.isArray(record.modifiers)) {
         const modifiers: Record<string, PackageScalar> = {}
         for (const [name, modifier] of Object.entries(record.modifiers)) {
