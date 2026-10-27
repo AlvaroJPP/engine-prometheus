@@ -12,6 +12,7 @@ interface TimedDamageNumber extends TimedVisual {
 interface TimedProjectile extends TimedVisual {
   start: THREE.Vector3
   end: THREE.Vector3
+  trail: THREE.Line
 }
 
 /**
@@ -44,12 +45,31 @@ export class VeilborneVisualEffects {
     projectile.position.copy(start)
     projectile.renderOrder = 24
     this.scene.add(projectile)
+
+    // Linha aditiva que expõe a trajetória percorrida até a frente do projétil.
+    const trailGeometry = new THREE.BufferGeometry()
+    const trailPositions = new Float32Array(6)
+    trailPositions.set([start.x, start.y, start.z, start.x, start.y, start.z])
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3))
+    const trailMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    const trail = new THREE.Line(trailGeometry, trailMaterial)
+    trail.frustumCulled = false
+    trail.renderOrder = 23
+    this.scene.add(trail)
+
     const safeDuration = Math.max(0.05, duration)
     this.projectiles.set(projectile, {
       remaining: safeDuration,
       duration: safeDuration,
       start: start.clone(),
       end: end.clone(),
+      trail,
     })
     this.invalidate()
   }
@@ -106,9 +126,14 @@ export class VeilborneVisualEffects {
   }
 
   clear(): void {
-    for (const [projectile] of this.projectiles) {
+    for (const [projectile, state] of this.projectiles) {
       this.scene.remove(projectile)
       this.disposeGroup(projectile)
+      this.scene.remove(state.trail)
+      state.trail.geometry.dispose()
+      const trailMaterial = state.trail.material
+      if (Array.isArray(trailMaterial)) trailMaterial.forEach(material => material.dispose())
+      else trailMaterial.dispose()
     }
     this.projectiles.clear()
 
@@ -136,11 +161,21 @@ export class VeilborneVisualEffects {
       state.remaining -= delta
       const progress = THREE.MathUtils.clamp(1 - state.remaining / state.duration, 0, 1)
       projectile.position.lerpVectors(state.start, state.end, progress)
+      const positions = state.trail.geometry.getAttribute('position') as THREE.BufferAttribute
+      positions.setXYZ(0, state.start.x, state.start.y, state.start.z)
+      positions.setXYZ(1, projectile.position.x, projectile.position.y, projectile.position.z)
+      positions.needsUpdate = true
+      const trailMaterial = state.trail.material
+      if (!Array.isArray(trailMaterial)) trailMaterial.opacity = 0.9 * (1 - progress * 0.2)
       projectile.rotation.y += delta * 12
       projectile.scale.setScalar(0.9 + Math.sin(progress * Math.PI) * 0.3)
       if (state.remaining <= 0) {
         this.scene.remove(projectile)
         this.disposeGroup(projectile)
+        this.scene.remove(state.trail)
+        state.trail.geometry.dispose()
+        if (Array.isArray(trailMaterial)) trailMaterial.forEach(material => material.dispose())
+        else trailMaterial.dispose()
         this.projectiles.delete(projectile)
       }
     }
