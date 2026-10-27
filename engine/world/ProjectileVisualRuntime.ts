@@ -7,6 +7,7 @@ interface ActiveProjectile {
   end: THREE.Vector3
   mesh: THREE.Group
   trail: THREE.Line
+  trailOpacity: number
 }
 
 /** Reusable visual-only projectile renderer for any game module. */
@@ -88,6 +89,7 @@ export class ProjectileVisualRuntime {
       end: end.clone(),
       mesh,
       trail,
+      trailOpacity,
     })
     this.invalidate()
   }
@@ -96,7 +98,7 @@ export class ProjectileVisualRuntime {
     const delta = Number.isFinite(deltaSeconds) ? Math.max(0, deltaSeconds) : 0
     if (delta === 0) return
 
-    for (const [key, projectile] of this.active) {
+    for (const projectile of this.active.values()) {
       projectile.remainingSeconds -= delta
       const progress = THREE.MathUtils.clamp(
         1 - projectile.remainingSeconds / projectile.durationSeconds,
@@ -115,11 +117,10 @@ export class ProjectileVisualRuntime {
       positions.needsUpdate = true
 
       const trailMaterial = projectile.trail.material
-      if (!Array.isArray(trailMaterial)) trailMaterial.opacity = 0.9 * (1 - progress * 0.2)
+      if (!Array.isArray(trailMaterial)) trailMaterial.opacity = projectile.trailOpacity * (1 - progress * 0.2)
       projectile.mesh.rotation.y += delta * 12
       projectile.mesh.scale.setScalar(0.9 + Math.sin(progress * Math.PI) * 0.3)
       if (projectile.remainingSeconds <= 0) this.remove(projectile)
-      if (key !== projectile.mesh) this.active.delete(key)
     }
   }
 
