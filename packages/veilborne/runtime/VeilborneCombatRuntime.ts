@@ -979,6 +979,5 @@ export class VeilborneCombatRuntime {
     this.pendingCast = null
     this.clearActiveSigils()
     this.clearWard()
-    this.onPlayerDeath = null
   }
 }
