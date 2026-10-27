@@ -163,7 +163,6 @@ export class VeilborneGameModule implements EngineGameModule {
       targetLock.clear()
       deathRespawn.handlePlayerDeath()
     })
-    combatRuntime.setEnemyKilledHandler(instance => loot.spawnDrop(instance))
 
     const itemUse = new VeilborneItemUseSystem({
       logic: context.logic,
