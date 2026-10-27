@@ -34,13 +34,17 @@ interface BehaviorRecord<TContext> {
 export class EntityBehaviorRuntime<TComponents extends object, TContext> {
   private readonly byEntity = new Map<string, Map<string, BehaviorRecord<TContext>>>()
   private readonly unsubscribeEntities: () => void
+  private readonly entities: EntityComponentRuntime<TComponents>
+  private readonly createContext: (entityId: string) => TContext
   private runtimeActive = false
   private disposed = false
 
   constructor(
-    private readonly entities: EntityComponentRuntime<TComponents>,
-    private readonly createContext: (entityId: string) => TContext,
+    entities: EntityComponentRuntime<TComponents>,
+    createContext: (entityId: string) => TContext,
   ) {
+    this.entities = entities
+    this.createContext = createContext
     this.unsubscribeEntities = entities.subscribe(event => {
       if (event.type === 'entity-destroyed') this.removeEntity(event.entityId)
       if (event.type === 'entity-enabled-changed') {
