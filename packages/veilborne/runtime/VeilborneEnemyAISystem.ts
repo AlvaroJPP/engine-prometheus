@@ -2,30 +2,13 @@ import * as THREE from 'three'
 import type { GameModuleContext } from '../../../engine/runtime/GameModule'
 import { getAnimationControllerFromObject } from '../../../engine/world/AnimationController'
 import { TimedCombatActionScheduler } from '../../../engine/script/TimedCombatActionScheduler.ts'
+import { resolveVeilborneAIProfile } from './VeilborneAIProfiles.ts'
 import { calculateVeilborneWeaponDamage, VEILBORNE_RUNTIME_WEAPONS, type VeilborneDamageType } from './VeilborneCombat'
 import type { BehaviorPackageInstance } from '../../../engine/script/packages'
 import type { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
 import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
 
 const PACKAGE_ID = 'veilborne_rpg'
-
-type AIProfile = {
-  attackRange: number
-  moveSpeed: number
-  damage: number
-  cooldown: number
-  damageType: VeilborneDamageType
-  postureDamage: number
-  ranged: boolean
-}
-
-const PROFILES: Record<string, AIProfile> = {
-  melee: { attackRange: 2, moveSpeed: 2.8, damage: 12, cooldown: 1.4, damageType: 'physical', postureDamage: 8, ranged: false },
-  ranged_caster: { attackRange: 9, moveSpeed: 2.3, damage: 18, cooldown: 1.8, damageType: 'arcane', postureDamage: 6, ranged: true },
-  flanker: { attackRange: 1.8, moveSpeed: 4, damage: 10, cooldown: 1.05, damageType: 'physical', postureDamage: 7, ranged: false },
-  guard_breaker: { attackRange: 2.7, moveSpeed: 1.7, damage: 24, cooldown: 2, damageType: 'physical', postureDamage: 20, ranged: false },
-  boss_phases: { attackRange: 3.2, moveSpeed: 2.3, damage: 28, cooldown: 1.7, damageType: 'shadow', postureDamage: 24, ranged: false },
-}
 
 interface PendingEnemyProjectile {
   attackerObjectId: string
@@ -110,7 +93,7 @@ export class VeilborneEnemyAISystem {
       const profileName = typeof hostile.variables.ai_profile === 'string'
         ? hostile.variables.ai_profile.trim().toLowerCase()
         : 'melee'
-      const profile = PROFILES[profileName] ?? PROFILES.melee!
+      const profile = resolveVeilborneAIProfile(profileName, hostile.config)
       const customStats = hostile.variables.ai_custom_stats === true
       const number = (name: string, fallback: number): number => {
         const value = hostile.variables[name]
@@ -176,7 +159,7 @@ export class VeilborneEnemyAISystem {
       const profileName = typeof instance.variables.ai_profile === 'string'
         ? instance.variables.ai_profile.trim().toLowerCase()
         : 'melee'
-      const profile = PROFILES[profileName] ?? PROFILES.melee!
+      const profile = resolveVeilborneAIProfile(profileName, instance.config)
       const customStats = instance.variables.ai_custom_stats === true
       const number = (name: string, fallback: number): number => {
         const value = instance.variables[name]
@@ -202,14 +185,6 @@ export class VeilborneEnemyAISystem {
       }
 
       const targetState = this.combat.getTargetCombatant(instance)
-      const ratio = targetState.resources.vitality / Math.max(1, targetState.resources.maxVitality)
-      if (profileName === 'boss_phases') {
-        const phase = ratio <= 0.25 ? 3 : ratio <= 0.6 ? 2 : 1
-        if (instance.variables.boss_phase !== phase) logic.setPackageVariable(instance.id, 'boss_phase', phase)
-        if (phase === 2) attackDamage *= 1.2
-        if (phase === 3) attackDamage *= 1.45
-      }
-
       const stagger = targetState.statuses.some(status => status.id === 'stagger')
       if (stagger) {
         this.setState(instance, 'staggered')
@@ -234,6 +209,11 @@ export class VeilborneEnemyAISystem {
             const controller = getAnimationControllerFromObject(object.mesh)
             if (controller) controller.playOneShot(profile.ranged ? 'ability_1' : 'primary_action')
             logic.triggerPackageEvent(instance.ownerObjectId, PACKAGE_ID, 'enemy_attack')
+            const updatedInstance = logic.listPackages(instance.ownerObjectId).find(item => item.packageId === PACKAGE_ID)
+            const multiplier = updatedInstance?.variables.ai_damage_multiplier
+            if (typeof multiplier === 'number' && Number.isFinite(multiplier)) {
+              attackDamage *= Math.max(0, multiplier)
+            }
             const source = object.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0))
             if (profile.ranged) {
               const impact = avatar.mesh.position.clone().add(new THREE.Vector3(0, 0.85, 0))
