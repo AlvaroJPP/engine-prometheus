@@ -22,6 +22,7 @@ const PACKAGE_ID = 'veilborne_rpg'
 export class VeilborneGameModule implements EngineGameModule {
   readonly id = 'veilborne'
 
+  private context: GameModuleContext | null = null
   private unregisterPackage: (() => void) | null = null
   private combatRuntime: VeilborneCombatRuntime | null = null
   private enemyAI: VeilborneEnemyAISystem | null = null
@@ -38,6 +39,7 @@ export class VeilborneGameModule implements EngineGameModule {
   private lootNoticeRemainingSeconds = 0
 
   onAttach(context: GameModuleContext): void {
+    this.context = context
     this.unregisterPackage = registerVeilborneBehaviorPackage()
     this.visualEffects = new VeilborneVisualEffects(context.world.scene, context.invalidate)
     this.combatRuntime = new VeilborneCombatRuntime(context, this.visualEffects)
@@ -69,7 +71,7 @@ export class VeilborneGameModule implements EngineGameModule {
       avatar: context.avatar.mesh,
       inventory: this.inventory,
       isEnabled: () => this.combatRuntime?.isEnabled() ?? false,
-      isRuntimeModeActive: context.isRuntimeActive,
+      isRuntimeModeActive: () => context.isRuntimeActive(),
       installBehaviorPackage,
       notifyBehaviorPackageChanged: notifyPackageChanged,
       removeObject,
@@ -78,7 +80,7 @@ export class VeilborneGameModule implements EngineGameModule {
         if (context.logic.getVariable('loot_notice') !== undefined) context.logic.setVariable('loot_notice', '')
         this.lootNoticeRemainingSeconds = 0
       },
-      invalidate: context.invalidate,
+      invalidate: () => context.invalidate(),
     })
 
     this.progression = new VeilborneProgressionSystem({
@@ -156,7 +158,10 @@ export class VeilborneGameModule implements EngineGameModule {
 
     this.combatRuntime?.ensurePlayerVariables()
     const lostEchoes = this.combatRuntime?.readNumber('ecos_perdidos', 0) ?? 0
-    if (lostEchoes > 0 && this.progression) {
+    const existingEchoCache = context.logic.listPackages().some(
+      instance => instance.enabled && instance.packageId === PACKAGE_ID && instance.variables.entity_role === 'echo_cache',
+    )
+    if (lostEchoes > 0 && this.progression && !existingEchoCache) {
       const cachePosition = new THREE.Vector3(
         this.combatRuntime?.readNumber('ponto_de_morte_x', context.avatar.mesh.position.x) ?? context.avatar.mesh.position.x,
         this.combatRuntime?.readNumber('ponto_de_morte_y', context.avatar.mesh.position.y) ?? context.avatar.mesh.position.y,
@@ -202,8 +207,9 @@ export class VeilborneGameModule implements EngineGameModule {
   }
 
   onRuntimeStop(): void {
+    const hadGameRuntime = this.active || (this.combatRuntime?.isEnabled() ?? false)
     this.active = false
-    this.combatRuntime?.resetCombatInputs()
+    if (hadGameRuntime) this.combatRuntime?.resetCombatInputs()
     this.combatRuntime?.resetRuntimeState()
     this.enemyAI?.clear()
     this.loot?.resetForEditor()
@@ -231,6 +237,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.progression = null
     this.deathRespawn = null
     this.defaultSpawnPosition = null
+    this.context = null
   }
 
   private showNotice(context: GameModuleContext, message: string, durationSeconds: number): void {
@@ -243,11 +250,9 @@ export class VeilborneGameModule implements EngineGameModule {
     if (this.lootNoticeRemainingSeconds <= 0) return
     this.lootNoticeRemainingSeconds = Math.max(0, this.lootNoticeRemainingSeconds - Math.max(0, dt))
     if (this.lootNoticeRemainingSeconds <= 0 && this.combatRuntime?.isEnabled()) {
-      // Mantém o campo opcional do jogo ausente nos projetos que nunca usaram o módulo.
-      const current = this.deathRespawn ? true : false
-      if (current) {
-        const context = (this as unknown as { context?: GameModuleContext }).context
-        if (context?.logic.getVariable('loot_notice') !== undefined) context.logic.setVariable('loot_notice', '')
+      const context = this.context
+      if (context?.logic.getVariable('loot_notice') !== undefined) {
+        context.logic.setVariable('loot_notice', '')
       }
     }
   }
