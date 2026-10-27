@@ -138,6 +138,7 @@ export class BehaviorTreeRuntime<TContext = unknown> {
   private tree: BehaviorTreeNode | null = null
   private readonly sequenceCursors = new Map<string, number>()
   private readonly waitRemaining = new Map<string, number>()
+  private readonly parallelResults = new Map<string, Map<string, BehaviorTreeStatus>>()
 
   constructor(private readonly handlers: BehaviorTreeHandlers<TContext> = {}) {}
 
@@ -159,6 +160,7 @@ export class BehaviorTreeRuntime<TContext = unknown> {
   reset(): void {
     this.sequenceCursors.clear()
     this.waitRemaining.clear()
+    this.parallelResults.clear()
   }
 
   hasTree(): boolean {
@@ -240,13 +242,19 @@ export class BehaviorTreeRuntime<TContext = unknown> {
     let running = 0
     const successThreshold = node.successThreshold ?? node.children.length
     const failureThreshold = node.failureThreshold ?? 1
+    const results = this.parallelResults.get(node.id) ?? new Map<string, BehaviorTreeStatus>()
 
     for (const child of node.children) {
-      const status = this.tickNode(child, context, dt)
+      const previous = results.get(child.id)
+      const status = previous && previous !== 'running'
+        ? previous
+        : this.tickNode(child, context, dt)
+      results.set(child.id, status)
       if (status === 'success') successes += 1
       else if (status === 'failure') failures += 1
       else running += 1
     }
+    this.parallelResults.set(node.id, results)
 
     if (successes >= successThreshold) {
       this.resetSubtree(node)
@@ -276,6 +284,7 @@ export class BehaviorTreeRuntime<TContext = unknown> {
   private resetSubtree(node: BehaviorTreeNode): void {
     this.sequenceCursors.delete(node.id)
     this.waitRemaining.delete(node.id)
+    this.parallelResults.delete(node.id)
     if ('children' in node) {
       for (const child of node.children) this.resetSubtree(child)
     }
