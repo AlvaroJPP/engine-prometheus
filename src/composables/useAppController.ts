@@ -10,6 +10,7 @@ import { useComponentLibraryController } from '@/composables/useComponentLibrary
 import { useMountModelStates } from '@/composables/useMountModelStates'
 import { useBehaviorPackageEditor } from '@/composables/useBehaviorPackageEditor'
 import { useEnvironmentController } from '@/composables/useEnvironmentController'
+import { useHudRuntimeSync } from '@/composables/useHudRuntimeSync'
 
 export function useAppController() {
 const appRoot = ref<HTMLElement | null>(null)
@@ -181,23 +182,10 @@ watch(activeControlMap, profile => {
   if (profile) setControlBindings(profile.bindings)
 }, { immediate: true, deep: true })
 
-// Mantém as variáveis expostas ao HUD sincronizadas com eventos e scripts executados no modo Run.
-let hudVariablePollTimer: number | null = null
-function syncHudRuntimeVariables() {
-  globalLogicVariables.value = readRuntimeGlobalVariables()
-}
-watch(executionMode, mode => {
-  if (hudVariablePollTimer !== null) {
-    window.clearInterval(hudVariablePollTimer)
-    hudVariablePollTimer = null
-  }
-  syncHudRuntimeVariables()
-  if (mode === 'running') {
-    hudVariablePollTimer = window.setInterval(syncHudRuntimeVariables, 100)
-  }
-}, { immediate: true })
-onBeforeUnmount(() => {
-  if (hudVariablePollTimer !== null) window.clearInterval(hudVariablePollTimer)
+useHudRuntimeSync({
+  executionMode,
+  globalLogicVariables,
+  readRuntimeGlobalVariables,
 })
 
 const {
