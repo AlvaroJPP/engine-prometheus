@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventBus } from '../engine/world/events/EventBus.ts'
 
-interface TestEvents {
-  value: { count: number }
-  empty: undefined
-}
-
-const bus = new EventBus<TestEvents>()
+const bus = new EventBus()
 const calls: string[] = []
 
 const unsubscribeFirst = bus.on('value', ({ count }) => calls.push(`first:${count}`))
@@ -30,7 +25,7 @@ bus.emit('empty', undefined)
 assert.equal(onceCount, 1)
 assert.equal(bus.listenerCount('empty'), 0)
 
-const mutationBus = new EventBus<TestEvents>()
+const mutationBus = new EventBus()
 const mutationCalls: string[] = []
 let unsubscribeLater = () => {}
 mutationBus.on('empty', () => {
@@ -44,7 +39,7 @@ assert.deepEqual(mutationCalls, ['mutator'], 'listeners added mid-dispatch wait 
 mutationBus.emit('empty', undefined)
 assert.deepEqual(mutationCalls, ['mutator', 'mutator', 'added'], 'new listeners run on the next emission')
 
-const clearBus = new EventBus<TestEvents>()
+const clearBus = new EventBus()
 clearBus.on('value', () => calls.push('clear-value'))
 clearBus.on('empty', () => calls.push('clear-empty'))
 clearBus.clear('value')
