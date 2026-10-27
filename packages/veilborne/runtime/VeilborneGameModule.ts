@@ -43,7 +43,6 @@ export class VeilborneGameModule implements EngineGameModule {
   private targetLock: VeilborneTargetLockController | null = null
   private visualEffects: VeilborneVisualEffects | null = null
   private healthBars: VeilborneHealthBarSystem | null = null
-  private inventory: VeilborneInventorySystem | null = null
   private itemUse: VeilborneItemUseSystem | null = null
   private loot: VeilborneLootSystem | null = null
   private progression: VeilborneProgressionSystem | null = null
@@ -69,7 +68,6 @@ export class VeilborneGameModule implements EngineGameModule {
     const inventory = new VeilborneInventorySystem(context.logic, (message, duration) => {
       this.showNotice(context, message, duration)
     })
-    this.inventory = inventory
 
     const notifyPackageChanged = (ownerObjectId: string): void => {
       context.world.events.emit('behaviorPackageChanged', { ownerObjectId })
@@ -202,18 +200,7 @@ export class VeilborneGameModule implements EngineGameModule {
     if (!this.active) return
 
     this.combatRuntime?.ensurePlayerVariables()
-    const lostEchoes = this.combatRuntime?.readNumber('ecos_perdidos', 0) ?? 0
-    const existingEchoCache = context.logic.listPackages().some(
-      instance => instance.enabled && instance.packageId === PACKAGE_ID && instance.variables.entity_role === 'echo_cache',
-    )
-    if (lostEchoes > 0 && this.progression && !existingEchoCache) {
-      const cachePosition = new THREE.Vector3(
-        this.combatRuntime?.readNumber('ponto_de_morte_x', context.avatar.mesh.position.x) ?? context.avatar.mesh.position.x,
-        this.combatRuntime?.readNumber('ponto_de_morte_y', context.avatar.mesh.position.y) ?? context.avatar.mesh.position.y,
-        this.combatRuntime?.readNumber('ponto_de_morte_z', context.avatar.mesh.position.z) ?? context.avatar.mesh.position.z,
-      )
-      this.progression.spawnEchoCache(lostEchoes, cachePosition)
-    }
+    this.restoreEchoCacheIfNeeded(context)
   }
 
   onKeyDown(event: KeyboardEvent, context: GameModuleContext): boolean {
@@ -256,9 +243,20 @@ export class VeilborneGameModule implements EngineGameModule {
     if (!context.isRuntimeActive()) return
 
     const enabled = this.combatRuntime?.isEnabled() ?? false
-    if (enabled && !this.active) this.combatRuntime?.ensurePlayerVariables()
-    if (!enabled && this.active) this.healthBars?.clear()
-    this.active = enabled
+    if (enabled && !this.active) {
+      this.combatRuntime?.ensurePlayerVariables()
+      this.restoreEchoCacheIfNeeded(context)
+      this.active = true
+    } else if (!enabled && this.active) {
+      this.active = false
+      this.targetLock?.clear()
+      this.combatRuntime?.resetCombatInputs()
+      this.combatRuntime?.resetRuntimeState()
+      context.avatar.setActionLock(0)
+      this.enemyAI?.clear()
+      this.healthBars?.clear()
+      this.visualEffects?.clear()
+    }
 
     this.combatRuntime?.update(dt)
     if (!enabled) return
@@ -300,13 +298,27 @@ export class VeilborneGameModule implements EngineGameModule {
     this.combatRuntime = null
     this.visualEffects = null
     this.healthBars = null
-    this.inventory = null
     this.itemUse = null
     this.loot = null
     this.progression = null
     this.deathRespawn = null
     this.defaultSpawnPosition = null
     this.context = null
+  }
+
+  private restoreEchoCacheIfNeeded(context: GameModuleContext): void {
+    const progression = this.progression
+    if (!progression) return
+    progression.syncEchoCacheReference()
+    const lostEchoes = this.combatRuntime?.readNumber('ecos_perdidos', 0) ?? 0
+    if (lostEchoes <= 0 || progression.echoCacheObjectId) return
+
+    const cachePosition = new THREE.Vector3(
+      this.combatRuntime?.readNumber('ponto_de_morte_x', context.avatar.mesh.position.x) ?? context.avatar.mesh.position.x,
+      this.combatRuntime?.readNumber('ponto_de_morte_y', context.avatar.mesh.position.y) ?? context.avatar.mesh.position.y,
+      this.combatRuntime?.readNumber('ponto_de_morte_z', context.avatar.mesh.position.z) ?? context.avatar.mesh.position.z,
+    )
+    progression.spawnEchoCache(lostEchoes, cachePosition)
   }
 
   private getExtraControls(context: GameModuleContext): { block: string; parry: string; targetLock: string } {
