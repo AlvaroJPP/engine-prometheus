@@ -11,8 +11,8 @@ import {
   VEILBORNE_DEFAULT_SPELL_SLOTS,
   VEILBORNE_RUNTIME_SPELLS,
   VEILBORNE_RUNTIME_WEAPONS,
-  VeilborneDamageType,
-  VeilborneStatusId,
+  type VeilborneDamageType,
+  type VeilborneStatusId,
 } from './VeilborneCombat'
 
 import { VeilborneCombatRuntimeBase } from './VeilborneCombatRuntimeBase'
