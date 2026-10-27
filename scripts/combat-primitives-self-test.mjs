@@ -32,6 +32,61 @@ assert.equal(merged[0]?.stacks, 3)
 assert.equal(merged[0]?.source, 'fire', 'reapplication preserves existing metadata')
 assert.equal(tickTimedEffects(merged, 0.5)[0]?.remainingSeconds, 2.5)
 assert.equal(tickTimedEffects(merged, 3).length, 0)
+
+// Timed effects are shared engine data: malformed values must not poison runtime math.
+assert.equal(mergeTimedEffect([], {
+  id: 'nan-duration',
+  potency: 1,
+  remainingSeconds: Number.NaN,
+  stacks: 1,
+}).length, 0)
+assert.equal(mergeTimedEffect([], {
+  id: 'infinite-duration',
+  potency: 1,
+  remainingSeconds: Number.POSITIVE_INFINITY,
+  stacks: 1,
+}).length, 0)
+assert.equal(mergeTimedEffect([], {
+  id: '  ',
+  potency: 1,
+  remainingSeconds: 1,
+  stacks: 1,
+}).length, 0)
+
+const sanitizedIncoming = mergeTimedEffect([], {
+  id: 'safe-effect',
+  potency: Number.NaN,
+  remainingSeconds: 2,
+  stacks: Number.NaN,
+})
+assert.equal(sanitizedIncoming[0]?.potency, 0)
+assert.equal(sanitizedIncoming[0]?.stacks, 1)
+
+const repairedExisting = mergeTimedEffect([{
+  id: 'burn',
+  potency: Number.NaN,
+  remainingSeconds: Number.NaN,
+  stacks: Number.NaN,
+}], {
+  id: 'burn',
+  potency: 3,
+  remainingSeconds: 2,
+  stacks: 1,
+})
+assert.equal(repairedExisting[0]?.potency, 3)
+assert.equal(repairedExisting[0]?.remainingSeconds, 2)
+assert.equal(repairedExisting[0]?.stacks, 2)
+
+const sanitizedTick = tickTimedEffects([
+  { id: 'infinite', potency: 1, remainingSeconds: Number.POSITIVE_INFINITY, stacks: 1 },
+  { id: 'empty-id', potency: 1, remainingSeconds: 2, stacks: 1 },
+  { id: 'valid', potency: Number.POSITIVE_INFINITY, remainingSeconds: 2, stacks: 0 },
+], 0.1)
+assert.equal(sanitizedTick.length, 1)
+assert.equal(sanitizedTick[0]?.id, 'valid')
+assert.equal(sanitizedTick[0]?.potency, 0)
+assert.equal(sanitizedTick[0]?.stacks, 1)
+assert.ok(Math.abs(sanitizedTick[0]!.remainingSeconds - 1.9) < 1e-9)
 assert.equal(isWithinTimeWindow(10.2, 10, 0.2), true)
 assert.equal(isWithinTimeWindow(10.21, 10, 0.2), false)
 assert.equal(isWithinTimeWindow(10, 10, -1), false)
