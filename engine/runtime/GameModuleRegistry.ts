@@ -43,7 +43,9 @@ export class GameModuleRegistry {
   start(): void {
     if (this.disposed || !this.context || this.runtimeActive) return
     this.runtimeActive = true
-    for (const record of this.modules.values()) {
+    // Um callback pode registrar outros módulos. Use um snapshot para que
+    // módulos anexados dinamicamente sejam iniciados uma única vez por register().
+    for (const record of [...this.modules.values()]) {
       if (!record.attached || record.faulted) continue
       if (this.invoke(record, 'iniciar runtime', () => record.module.onRuntimeStart?.(this.context!))) {
         record.active = true
@@ -100,12 +102,14 @@ export class GameModuleRegistry {
 
   stop(): void {
     if (!this.runtimeActive) return
+    // Feche a janela de registro dinâmico antes dos callbacks de encerramento.
+    // Um módulo criado durante onRuntimeStop será anexado, mas não iniciado.
+    this.runtimeActive = false
     for (const record of [...this.modules.values()].reverse()) {
       if (!record.active) continue
       this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
       record.active = false
     }
-    this.runtimeActive = false
   }
 
   unregister(id: string, expectedModule?: EngineGameModule): void {
