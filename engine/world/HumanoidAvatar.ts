@@ -38,7 +38,7 @@ import {
   getColliderBounds,
 } from './HumanoidAvatarShared'
 import type { PlayerManeuver, PlayerPosture } from './HumanoidAvatarShared'
-import { createHumanoidAvatarMountMethods } from './HumanoidAvatarMountMethods'
+import { createHumanoidAvatarMountMethods, createHumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
 import type { HumanoidAvatarMountMethods } from './HumanoidAvatarMountMethods'
 
 
@@ -100,11 +100,7 @@ export class HumanoidAvatar {
   private mountedStartPosition: THREE.Vector3 | null = null
   private mountedStartRotation: THREE.Euler | null = null
   private mountedVisualPivot: THREE.Object3D | null = null
-  private mountedVisualBaseQuaternion: THREE.Quaternion | null = null
   /** Evita executar nove raycasts de suporte em cada subpasso de movimento da montaria. */
-  private mountedSupportProbeElapsed = 0
-  private mountedHasSupportProbe = false
-  private readonly mountedLastSupportProbePosition = new THREE.Vector3()
   private controlBindings(): ControlMapBindings {
     if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
 
@@ -369,6 +365,7 @@ export class HumanoidAvatar {
   }
 
   constructor(world: World, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
+    Object.assign(this, createHumanoidAvatarMountState())
     this.world = world
     this.cameraTarget = cameraTarget
     this.getCameraYaw = getCameraYaw
