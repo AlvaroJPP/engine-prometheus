@@ -26,6 +26,7 @@
     "model:resource-cleanup:self-test": "node --experimental-strip-types scripts/model-import-resource-cleanup-self-test.mjs",
     "behavior:autonomous:self-test": "node --experimental-strip-types scripts/autonomous-behavior-self-test.mjs",
     "behavior:package-config:self-test": "node --experimental-strip-types scripts/import-behavior-package-config-self-test.mjs",
+    "behavior:package-scripts:self-test": "node --experimental-strip-types scripts/behavior-package-scripts-self-test.mjs",
     "combat:primitives:self-test": "node --experimental-strip-types scripts/combat-primitives-self-test.mjs",
     "combat:model:self-test": "node --experimental-strip-types scripts/combat-model-self-test.mjs",
     "combat:packages:self-test": "node --experimental-strip-types scripts/combat-package-runtime-self-test.mjs",
