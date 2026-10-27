@@ -21,11 +21,16 @@ export class ViewportDiagnostics {
   markWebglReady(): void {
     this.canvas.dataset.engineWebglReady = 'true'
     delete this.canvas.dataset.engineWebglError
+    window.dispatchEvent(new CustomEvent('engine-prometheus:webgl-ready'))
   }
 
   markWebglInitializationError(error: unknown): void {
+    const message = this.describeError(error)
     this.canvas.dataset.engineWebglReady = 'false'
-    this.canvas.dataset.engineWebglError = this.describeError(error)
+    this.canvas.dataset.engineWebglError = message
+    window.dispatchEvent(new CustomEvent('engine-prometheus:webgl-init-error', {
+      detail: { message },
+    }))
   }
 
   markResizeBlocked(width: number, height: number): void {
@@ -50,11 +55,25 @@ export class ViewportDiagnostics {
     this.canvas.dataset.engineLines = String(stats.lines)
     delete this.canvas.dataset.engineLastRenderError
     delete this.canvas.dataset.engineLastRenderErrorAt
+    window.dispatchEvent(new CustomEvent('engine-prometheus:first-render', {
+      detail: {
+        drawCalls: stats.calls,
+        triangles: stats.triangles,
+        points: stats.points,
+        lines: stats.lines,
+        canvasClientSize: `${this.canvas.clientWidth}x${this.canvas.clientHeight}`,
+        canvasBufferSize: `${this.canvas.width}x${this.canvas.height}`,
+      },
+    }))
   }
 
   markRenderError(error: unknown): void {
-    this.canvas.dataset.engineLastRenderError = this.describeError(error)
+    const message = this.describeError(error)
+    this.canvas.dataset.engineLastRenderError = message
     this.canvas.dataset.engineLastRenderErrorAt = String(Date.now())
+    window.dispatchEvent(new CustomEvent('engine-prometheus:render-error', {
+      detail: { message },
+    }))
   }
 
   dispose(): void {
