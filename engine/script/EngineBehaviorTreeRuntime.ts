@@ -55,13 +55,23 @@ export class EngineBehaviorTreeRuntime {
   private readonly system = new BehaviorTreePackageSystem<EngineBehaviorTreeContext>()
 
   update(context: EngineBehaviorTreeContext, dt: number, runtimeEnabled: boolean): void {
+    const instances = context.logic.listPackages()
     const transitions = this.system.update({
-      instances: context.logic.listPackages(),
+      instances,
       context,
       dt,
       runtimeEnabled,
       handlersFor: instance => this.createHandlers(instance),
     })
+
+    for (const instance of instances) {
+      const hasTree = instance.config.behaviorTree !== undefined && instance.config.behaviorTree !== null
+      if (!runtimeEnabled || !instance.enabled || !hasTree) {
+        if (context.logic.removePackageVariable(instance.id, 'behavior_tree_status')) {
+          context.notifyPackageChanged(instance.ownerObjectId)
+        }
+      }
+    }
 
     for (const transition of transitions) {
       context.logic.setPackageVariable(
