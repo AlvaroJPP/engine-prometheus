@@ -126,7 +126,6 @@ export class VeilborneGameModule implements EngineGameModule {
       },
       spawnEffect,
       invalidate: () => context.invalidate(),
-      setLootNoticeDuration: seconds => { this.lootNoticeRemainingSeconds = seconds },
     })
     this.deathRespawn = deathRespawn
     combatRuntime.setPlayerDeathHandler(() => {
