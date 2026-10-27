@@ -193,6 +193,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.active = this.combatRuntime?.isEnabled() ?? context.logic.listPackages().some(
       instance => instance.enabled && instance.packageId === PACKAGE_ID,
     )
+    this.enemyAI?.syncAutonomousPackages(this.active)
     if (!this.active) return
 
     this.combatRuntime?.ensurePlayerVariables()
@@ -257,6 +258,7 @@ export class VeilborneGameModule implements EngineGameModule {
       this.visualEffects?.clear()
     }
 
+    this.enemyAI?.syncAutonomousPackages(enabled)
     this.combatRuntime?.update(dt)
     if (!enabled) return
 
