@@ -32,7 +32,7 @@ watch(
     () => props.controls?.block,
     () => props.controls?.parry,
     () => props.controls?.targetLock,
-  ],
+  ] as const,
   ([engine, enabled]) => {
     unregisterGameModule?.()
     unregisterGameModule = null
