@@ -211,10 +211,35 @@ export class CombatPackageRuntime {
 
   private readStatuses(value: PackageJsonValue | undefined): PackageCombatStatus[] {
     if (!Array.isArray(value)) return []
-    return value.filter((item): item is PackageCombatStatus =>
-      !!item && typeof item === 'object' && !Array.isArray(item) &&
-      typeof item.id === 'string' && typeof item.remainingSeconds === 'number' &&
-      typeof item.potency === 'number' && typeof item.stacks === 'number',
-    )
+    const result: PackageCombatStatus[] = []
+    for (const item of value) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+      const record = item as Record<string, PackageJsonValue>
+      if (
+        typeof record.id !== 'string'
+        || typeof record.remainingSeconds !== 'number'
+        || typeof record.potency !== 'number'
+        || typeof record.stacks !== 'number'
+      ) continue
+      const status: PackageCombatStatus = {
+        id: record.id,
+        remainingSeconds: record.remainingSeconds,
+        potency: record.potency,
+        stacks: record.stacks,
+      }
+      if (typeof record.source === 'string') status.source = record.source
+      if (typeof record.damageType === 'string') status.damageType = record.damageType
+      if (record.modifiers && typeof record.modifiers === 'object' && !Array.isArray(record.modifiers)) {
+        const modifiers: Record<string, PackageScalar> = {}
+        for (const [name, modifier] of Object.entries(record.modifiers)) {
+          if (typeof modifier === 'string' || typeof modifier === 'number' || typeof modifier === 'boolean') {
+            modifiers[name] = modifier
+          }
+        }
+        status.modifiers = modifiers
+      }
+      result.push(status)
+    }
+    return result
   }
 }
