@@ -263,7 +263,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            nextState = this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime, input.canMoveTo, input.findPath)
+            nextState = this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime, input.canMoveTo)
               ? 'fleeing'
               : 'waiting'
           }
