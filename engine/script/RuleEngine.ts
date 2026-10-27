@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { ObjectInfo } from '../model/object/GameObject'
+import type { ObjectInfo, GameObject } from '../model/object/GameObject'
 import type { World } from '../world/World'
 import { EMPTY_LOGIC } from './types.ts'
 import { createBehaviorPackageInstance, getBehaviorPackageDefinition } from './packages.ts'
@@ -8,6 +8,8 @@ import type { LogicEventsFile, LogicRule, RuleAction, RuleTrigger } from './type
 import { CombatPackageRuntime } from './CombatPackageRuntime.ts'
 import type { PackageCombatStatus, PackageDamageOptions, PackageResourceOptions } from './CombatPackageRuntime.ts'
 import { InventoryRuntime } from './InventoryRuntime.ts'
+import { newId } from '../lib/id.ts'
+import type { ObjectType } from '../project/format.ts'
 import type { InventoryStack } from './InventoryRuntime.ts'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
@@ -32,6 +34,8 @@ type ScriptApi = {
     set: (ownerObjectId: string, packageId: string, variableName: string, value: PackageScalar) => void
     list: (packageId?: string, ownerObjectId?: string) => BehaviorPackageInstance[]
     triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) => boolean
+    install: (ownerObjectId: string, packageId: string) => string
+    configure: (ownerObjectId: string, packageId: string, variables: Record<string, PackageScalar>) => void
   }
   inventory: {
     read: (variableName?: string) => InventoryStack[]
@@ -43,6 +47,8 @@ type ScriptApi = {
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
     bounds: (objectId: string) => { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null
+    groundHeightAt: (x: number, z: number, maxStepUp?: number) => number
+    spawnPrimitive: (options: { name?: string; shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'octahedron'; x: number; y: number; z: number; size?: number; color?: number; emissive?: number; emissiveIntensity?: number; metalness?: number; roughness?: number; objectType?: ObjectType }) => string
     remove: (objectId: string) => void
   }
 }
@@ -531,6 +537,20 @@ export class RuleEngine {
         },
         list: (packageId?: string, ownerObjectId?: string) =>
           this.listPackages(ownerObjectId).filter(instance => !packageId || instance.packageId === packageId),
+        install: (ownerObjectId: string, packageId: string) =>
+          this.installPackage(ownerObjectId, packageId).id,
+        configure: (ownerObjectId: string, packageId: string, variables: Record<string, PackageScalar>) => {
+          const instance = (this.data.packages ?? []).find(item =>
+            item.ownerObjectId === ownerObjectId && item.packageId === packageId,
+          )
+          if (!instance) throw new Error(`O objeto "${ownerObjectId}" não possui o pacote "${packageId}".`)
+          for (const [name, value] of Object.entries(variables)) {
+            if (!name.trim()) continue
+            if (typeof value !== 'boolean' && typeof value !== 'number' && typeof value !== 'string') continue
+            instance.variables[name] = value
+          }
+          this.world.events.emit('behaviorPackageChanged', { ownerObjectId })
+        },
         triggerEvent: (ownerObjectId: string, packageId: string, eventId: string) =>
           this.triggerPackageEvent(ownerObjectId, packageId, eventId),
       },
@@ -571,6 +591,60 @@ export class RuleEngine {
             min: { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },
             max: { x: bounds.max.x, y: bounds.max.y, z: bounds.max.z },
           }
+        },
+        groundHeightAt: (x: number, z: number, maxStepUp?: number) =>
+          this.world.getGroundHeightAt(x, z, maxStepUp),
+        spawnPrimitive: (options: {
+          name?: string; shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'octahedron'
+          x: number; y: number; z: number; size?: number; color?: number; emissive?: number
+          emissiveIntensity?: number; metalness?: number; roughness?: number; objectType?: ObjectType
+        }) => {
+          const shape = options.shape ?? 'box'
+          const size = typeof options.size === 'number' && Number.isFinite(options.size)
+            ? Math.max(0.05, Math.min(100, options.size))
+            : 0.25
+          const geometry = shape === 'sphere'
+            ? new THREE.SphereGeometry(1, 12, 8)
+            : shape === 'cylinder'
+              ? new THREE.CylinderGeometry(0.72, 0.72, 1, 8)
+              : shape === 'cone'
+                ? new THREE.ConeGeometry(0.65, 1, 8)
+                : shape === 'octahedron'
+                  ? new THREE.OctahedronGeometry(1, 0)
+                  : new THREE.BoxGeometry(1, 1, 1)
+          const color = Number.isInteger(options.color) && options.color! >= 0 && options.color! <= 0xffffff
+            ? options.color!
+            : 0xd3d8e8
+          const emissive = Number.isInteger(options.emissive) && options.emissive! >= 0 && options.emissive! <= 0xffffff
+            ? options.emissive!
+            : 0x000000
+          const material = new THREE.MeshStandardMaterial({
+            color,
+            emissive,
+            emissiveIntensity: Number.isFinite(options.emissiveIntensity) ? Math.max(0, Math.min(5, options.emissiveIntensity!)) : 0,
+            metalness: Number.isFinite(options.metalness) ? Math.max(0, Math.min(1, options.metalness!)) : 0,
+            roughness: Number.isFinite(options.roughness) ? Math.max(0, Math.min(1, options.roughness!)) : 0.6,
+          })
+          const mesh = new THREE.Mesh(geometry, material)
+          mesh.position.set(
+            Number.isFinite(options.x) ? options.x : 0,
+            Number.isFinite(options.y) ? options.y : 0,
+            Number.isFinite(options.z) ? options.z : 0,
+          )
+          mesh.scale.setScalar(size)
+          mesh.castShadow = true
+          mesh.receiveShadow = true
+          mesh.userData.id = newId('script')
+          mesh.userData.scriptSpawned = true
+          const objectId = String(mesh.userData.id)
+          const object: GameObject = {
+            id: objectId,
+            name: options.name?.trim() || `Script Object ${objectId}`,
+            type: options.objectType ?? 'cube',
+            mesh,
+          }
+          this.world.add(object)
+          return objectId
         },
         remove: (objectId: string) => {
           if (this.world.get(objectId)) this.world.remove(objectId)
