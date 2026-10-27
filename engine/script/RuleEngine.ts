@@ -38,6 +38,7 @@ type ScriptApi = {
     consume: (itemId: string, quantity?: number, variableName?: string) => boolean
     quantity: (itemId: string, variableName?: string) => number
   }
+  notice: (message: string, durationSeconds: number, variableName?: string) => void
   world: {
     position: (objectId: string) => { x: number; y: number; z: number; visible: boolean } | null
     remove: (objectId: string) => void
@@ -48,6 +49,7 @@ export class RuleEngine {
   private data: LogicEventsFile = structuredClone(EMPTY_LOGIC)
   private readonly world: World
   private readonly combatPackages: CombatPackageRuntime
+  private readonly noticeTimers = new Map<string, number>()
 
   constructor(world: World) {
     this.world = world
@@ -66,6 +68,7 @@ export class RuleEngine {
     this.data = data ? structuredClone(data) : structuredClone(EMPTY_LOGIC)
     this.data.packages ??= []
     this.data.disabledPackageScripts ??= []
+    this.noticeTimers.clear()
     for (const rule of this.data.events) {
       rule.lastInside = false
       // Migra projetos antigos para uma regra pertencente a um único objeto.
@@ -305,6 +308,20 @@ export class RuleEngine {
     return executed
   }
 
+  private updateNoticeTimers(deltaSeconds: number): void {
+    const delta = Number.isFinite(deltaSeconds) ? Math.max(0, deltaSeconds) : 0
+    if (delta <= 0) return
+    for (const [variableName, remaining] of this.noticeTimers) {
+      const next = remaining - delta
+      if (next > 0) {
+        this.noticeTimers.set(variableName, next)
+        continue
+      }
+      this.noticeTimers.delete(variableName)
+      if (typeof this.getVariable(variableName) === 'string') this.setVariable(variableName, '')
+    }
+  }
+
   private createInventoryRuntime(variableName: string): InventoryRuntime {
     const name = variableName.trim()
     if (!name) throw new Error('O nome da variável de inventário é obrigatório.')
@@ -369,6 +386,7 @@ export class RuleEngine {
 
   update(deltaSeconds = 0): void {
     this.combatPackages.update(deltaSeconds)
+    this.updateNoticeTimers(deltaSeconds)
     const objects = this.world.info()
     // Eventos contínuos/por área também respeitam a ordem dos objetos da Hierarquia.
     for (const rule of this.rulesInHierarchyOrder()) {
@@ -522,6 +540,14 @@ export class RuleEngine {
           this.createInventoryRuntime(variableName).consume(itemId, quantity),
         quantity: (itemId: string, variableName = 'inventory_json') =>
           this.createInventoryRuntime(variableName).quantity(itemId),
+      },
+      notice: (message: string, durationSeconds: number, variableName = 'notice') => {
+        const key = variableName.trim()
+        if (!key) throw new Error('O nome da variável de aviso é obrigatório.')
+        this.setVariable(key, message)
+        const duration = Number.isFinite(durationSeconds) ? Math.max(0, durationSeconds) : 0
+        if (duration > 0) this.noticeTimers.set(key, duration)
+        else this.noticeTimers.delete(key)
       },
       world: {
         position: (objectId: string) => {
