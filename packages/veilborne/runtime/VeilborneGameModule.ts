@@ -72,11 +72,6 @@ export class VeilborneGameModule implements EngineGameModule {
       if (context.world.get(id)) context.world.remove(id)
       context.logic.removeObjectVariables(id)
     }
-    const installBehaviorPackage = (ownerObjectId: string, packageId: string) => {
-      const instance = context.logic.installPackage(ownerObjectId, packageId)
-      notifyPackageChanged(ownerObjectId)
-      return instance
-    }
     const spawnEffect = (position: THREE.Vector3, color: number, scale: number, durationSeconds = 0.32): void => {
       visualEffects.spawnEffect(position, color, scale, durationSeconds)
     }
