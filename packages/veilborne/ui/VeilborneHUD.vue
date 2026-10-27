@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { VeilborneGameModuleControls } from '../runtime/VeilborneControls'
 
 const props = defineProps<{
   bindings: Record<string, string>
+  defensiveControls?: VeilborneGameModuleControls
   gameVariables: Record<string, boolean | number | string>
   editorPreview?: boolean
 }>()
@@ -269,6 +271,12 @@ onBeforeUnmount(() => {
       <span><small>VEILBORNE</small><strong>Arsenal</strong></span>
       <kbd>{{ keyLabel(bindings.inventory) }}</kbd>
     </button>
+
+    <div v-if="veilborneActive" class="veilborne-defensive-controls" aria-label="Atalhos defensivos">
+      <span><kbd>{{ keyLabel(defensiveControls?.block ?? 'KeyR') }}</kbd> Bloquear</span>
+      <span><kbd>{{ keyLabel(defensiveControls?.parry ?? 'KeyY') }}</kbd> Aparo</span>
+      <span><kbd>{{ keyLabel(defensiveControls?.targetLock ?? 'KeyO') }}</kbd> Travar alvo</span>
+    </div>
 
     <aside
       v-if="veilborneActive && veilborneLoadoutOpen"
