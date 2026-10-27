@@ -51,10 +51,15 @@ export class VeilborneGameModule implements EngineGameModule {
   private defaultSpawnPosition: THREE.Vector3 | null = null
   private respawnRemainingSeconds = 0
   private lootNoticeRemainingSeconds = 0
-  private readonly configuredControls: Partial<VeilborneGameModuleControls>
+  private configuredControls: Partial<VeilborneGameModuleControls>
 
   constructor(options: VeilborneGameModuleOptions = {}) {
     this.configuredControls = { ...options.controls }
+  }
+
+  /** Atualiza os atalhos do host sem reiniciar o estado de gameplay. */
+  setControls(controls: Partial<VeilborneGameModuleControls> = {}): void {
+    this.configuredControls = { ...controls }
   }
 
   onAttach(context: GameModuleContext): void {
