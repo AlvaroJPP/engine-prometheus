@@ -19,6 +19,7 @@ const packageInstance = {
         { id: 'move', type: 'action', action: 'set_object_position', parameters: { x: 2, z: 3 } },
         { id: 'rotate', type: 'action', action: 'set_object_rotation', parameters: { y: 90 } },
         { id: 'scale', type: 'action', action: 'set_object_scale', parameters: { value: 2 } },
+        { id: 'destroy-target', type: 'action', action: 'destroy_object', parameters: { objectId: 'target' } },
         {
           id: 'mark',
           type: 'action',
@@ -45,11 +46,13 @@ const packages = [packageInstance]
 const globals = { health: 75 }
 const emitted = []
 const changed = []
+const removed = new Set()
 const object = { id: 'npc', mesh: { visible: true, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 }, position: { x: 0, y: 0, z: 0 } } }
 const target = { id: 'target', mesh: { visible: true, position: { x: 5, y: 0, z: 0 } } }
 const context = {
   world: {
-    get: id => id === 'npc' ? object : id === 'target' ? target : undefined,
+    get: id => removed.has(id) ? undefined : id === 'npc' ? object : id === 'target' ? target : undefined,
+    remove: id => { removed.add(id) },
     isObjectVisible: candidate => candidate.mesh.visible,
     update: (id, patch) => {
       const candidate = id === 'npc' ? object : id === 'target' ? target : undefined
@@ -101,6 +104,7 @@ assert.equal(packages[0].variables.behavior_tree_status, 'success')
 assert.equal(globals.tree_completed, 'yes')
 assert.deepEqual(emitted, [['npc', 'custom', 'tree_finished']])
 assert.ok(changed.includes('npc'))
+assert.ok(removed.has('target'), 'destroy_object should remove an existing world object')
 
 runtime.update(context, 0.016, false)
 assert.equal('behavior_tree_status' in packages[0].variables, false, 'stopping Run clears the transient status')
