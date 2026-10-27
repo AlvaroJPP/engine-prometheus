@@ -21,6 +21,7 @@ import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from './lib/BinaryEn
 import { World } from './world/World'
 import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
+import { GridPathfinder } from './navigation/GridPathfinder'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
@@ -67,6 +68,7 @@ export class Engine {
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private readonly autonomousBehaviorSystem = new AutonomousBehaviorSystem()
+  private readonly autonomousPathfinder = new GridPathfinder()
   private readonly behaviorTreeRuntime = new EngineBehaviorTreeRuntime()
   private orbit = new OrbitCamera()
   private viewport: Viewport
@@ -394,6 +396,7 @@ export class Engine {
       packages: this.logic.listPackages(),
       playerPosition: this.avatar.mesh.position,
       canMoveTo: (objectId, target) => this.collisions.canMoveObjectTo(objectId, target),
+      findPath: (objectId, start, goal) => this.findAutonomousPath(objectId, start, goal),
     })
 
     for (const transition of transitions) {
@@ -416,6 +419,67 @@ export class Engine {
         this.notifyBehaviorPackageChanged(transition.ownerObjectId)
       }
     }
+  }
+
+  /**
+   * Planeja uma rota para os comportamentos autônomos usando os colisores da cena
+   * como obstáculos aproximados. A verificação é independente de qualquer jogo.
+   */
+  private findAutonomousPath(
+    objectId: string,
+    start: { x: number; y: number; z: number },
+    goal: { x: number; y: number; z: number },
+  ): Array<{ x: number; y: number; z: number }> {
+    const agent = this.world.get(objectId)
+    if (!agent) return []
+
+    const agentBounds = new THREE.Box3().setFromObject(agent.mesh)
+    const agentSize = agentBounds.getSize(new THREE.Vector3())
+    const halfWidth = Math.max(0.15, agentSize.x * 0.5)
+    const halfDepth = Math.max(0.15, agentSize.z * 0.5)
+    const bottomOffset = agentBounds.isEmpty() ? 0 : agent.mesh.position.y - agentBounds.min.y
+    const agentHeight = agentBounds.isEmpty() ? 1 : Math.max(0.5, agentSize.y)
+    const startGround = start.y - bottomOffset
+
+    const obstacles = this.world.list()
+      .filter(object => object.id !== objectId
+        && this.world.isObjectVisible(object)
+        && object.mesh.userData.colliderType !== 'none')
+      .map(object => ({ bounds: new THREE.Box3().setFromObject(object.mesh) }))
+      .filter(item => !item.bounds.isEmpty())
+
+    const result = this.autonomousPathfinder.findPath(
+      { x: start.x, z: start.z },
+      { x: goal.x, z: goal.z },
+      {
+        bounds: { minX: -49, maxX: 49, minZ: -49, maxZ: 49 },
+        cellSize: 1,
+        allowDiagonal: true,
+        maxVisitedNodes: 12000,
+        isWalkable: point => {
+          const ground = this.world.getGroundHeightAt(point.x, point.z, startGround + 0.6)
+          if (!Number.isFinite(ground) || ground > startGround + 0.6) return false
+          const feet = ground
+          const head = feet + agentHeight
+          return obstacles.every(({ bounds }) => {
+            const overlapsXZ = point.x + halfWidth > bounds.min.x
+              && point.x - halfWidth < bounds.max.x
+              && point.z + halfDepth > bounds.min.z
+              && point.z - halfDepth < bounds.max.z
+            const overlapsY = bounds.max.y > feet + 0.05 && bounds.min.y < head - 0.05
+            return !(overlapsXZ && overlapsY)
+          })
+        },
+      },
+    )
+
+    return result.reached
+      ? result.path.map(point => ({
+        x: point.x,
+        y: this.world.getGroundHeightAt(point.x, point.z, startGround + 0.6) + bottomOffset,
+        z: point.z,
+      }))
+      : []
   }
 
   /** Executa árvores de comportamento genéricas dos pacotes durante o modo Run. */
