@@ -596,6 +596,10 @@ export class VeilborneCombatRuntime {
       this.pendingCast.remainingSeconds -= step
       if (this.pendingCast.remainingSeconds <= 0) this.resolveSpellCast()
     }
+    if (this.heavyChargeStartedAt !== null) {
+      const charge = THREE.MathUtils.clamp(performance.now() / 1000 - this.heavyChargeStartedAt, 0, 2) / 2
+      this.context.logic.setVariable('carga_ataque', charge)
+    }
     if (this.playerStaggerRemaining > 0) {
       this.playerStaggerRemaining = Math.max(0, this.playerStaggerRemaining - step)
       if (this.playerStaggerRemaining <= 0 && this.context.logic.getVariable('jogador_atordoado') !== undefined) {
