@@ -188,8 +188,13 @@ export class CombatPackageRuntime {
     const delta = Math.min(deltaSeconds, 0.1)
 
     for (const instance of this.getPackages()) {
-      if (!Array.isArray(instance.config.statuses)) continue
-      const before = this.readStatuses(instance.config.statuses)
+      const rawStatuses = instance.config.statuses
+      const before = this.readStatuses(rawStatuses)
+      // Older/imported packages may persist this field as a JSON string.
+      // Normalize it once so subsequent ticks always operate on structured data.
+      if (typeof rawStatuses === 'string') {
+        instance.config.statuses = before as unknown as PackageJsonValue
+      }
       if (!before.length) continue
 
       const ticking = before.map(status => ({ ...status }))
@@ -281,9 +286,17 @@ export class CombatPackageRuntime {
   }
 
   private readStatuses(value: PackageJsonValue | undefined): PackageCombatStatus[] {
-    if (!Array.isArray(value)) return []
+    let decoded: unknown = value
+    if (typeof value === 'string') {
+      try {
+        decoded = JSON.parse(value) as unknown
+      } catch {
+        return []
+      }
+    }
+    if (!Array.isArray(decoded)) return []
     const result: PackageCombatStatus[] = []
-    for (const item of value) {
+    for (const item of decoded) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) continue
       const record = item as Record<string, PackageJsonValue>
       if (
