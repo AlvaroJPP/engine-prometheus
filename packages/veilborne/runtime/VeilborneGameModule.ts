@@ -26,6 +26,7 @@ export class VeilborneGameModule implements EngineGameModule {
 
   private context: GameModuleContext | null = null
   private unregisterPackage: (() => void) | null = null
+  private unregisterManeuverAdmission: (() => void) | null = null
   private combatRuntime: VeilborneCombatRuntime | null = null
   private enemyAI: VeilborneEnemyAISystem | null = null
   private targetLock: VeilborneTargetLockController | null = null
@@ -84,7 +85,9 @@ export class VeilborneGameModule implements EngineGameModule {
     this.targetLock = targetLock
     // Só aplica custos/restrições de combate quando o pacote de jogo está ativo.
     // Assim, carregar o módulo não altera a movimentação de projetos genéricos.
-    context.avatar.setManeuverAdmission(kind => this.active ? combatRuntime.admitManeuver(kind) : true)
+    this.unregisterManeuverAdmission = context.avatar.registerManeuverAdmission(
+      kind => this.active ? combatRuntime.admitManeuver(kind) : true,
+    )
 
     const loot = new VeilborneLootSystem({
       world: context.world,
@@ -264,7 +267,8 @@ export class VeilborneGameModule implements EngineGameModule {
     this.unregisterPackage?.()
     this.unregisterPackage = null
     this.targetLock?.clear()
-    this.context?.avatar.setManeuverAdmission(null)
+    this.unregisterManeuverAdmission?.()
+    this.unregisterManeuverAdmission = null
     this.targetLock = null
     this.combatRuntime?.resetRuntimeState()
     this.enemyAI?.clear()
