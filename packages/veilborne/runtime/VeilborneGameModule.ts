@@ -5,7 +5,6 @@ import { VeilborneCombatRuntime } from './VeilborneCombatRuntime'
 import { VeilborneDeathRespawnSystem } from './VeilborneDeathRespawnSystem'
 import { VeilborneEnemyAISystem } from './VeilborneEnemyAISystem'
 import { VeilborneHealthBarSystem } from './VeilborneHealthBarSystem'
-import { VeilborneInventorySystem } from './VeilborneInventorySystem'
 import { VeilborneLootSystem } from './VeilborneLootSystem'
 import { VeilborneProgressionSystem } from './VeilborneProgressionSystem'
 import { VeilborneTargetLockController } from './VeilborneTargetLockController'
@@ -60,10 +59,6 @@ export class VeilborneGameModule implements EngineGameModule {
     const combatRuntime = new VeilborneCombatRuntime(context, visualEffects)
     this.combatRuntime = combatRuntime
     this.healthBars = new VeilborneHealthBarSystem(context.world.scene)
-    const inventory = new VeilborneInventorySystem(context.logic, (message, duration) => {
-      this.showNotice(context, message, duration)
-    })
-
     const notifyPackageChanged = (ownerObjectId: string): void => {
       context.world.events.emit('behaviorPackageChanged', { ownerObjectId })
       context.invalidate()
@@ -93,8 +88,6 @@ export class VeilborneGameModule implements EngineGameModule {
     const loot = new VeilborneLootSystem({
       world: context.world,
       logic: context.logic,
-      avatar: context.avatar.mesh,
-      inventory,
       notifyBehaviorPackageChanged: notifyPackageChanged,
       removeObject,
       clearNotice: () => {
