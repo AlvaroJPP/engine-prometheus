@@ -777,7 +777,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       e.events.on('objectRemoved', markDirty),
       e.events.on('objectRenamed', markDirty),
       e.events.on('objectChanged', markDirty),
-      e.events.on('behaviorPackageChanged', () => { behaviorPackages.value = e.listBehaviorPackages() }),
+      e.events.on('behaviorPackageChanged', () => { logicRules.value = e.listRules(); behaviorPackages.value = e.listBehaviorPackages() }),
       e.events.on('objectClicked', ({ id }) => e.logic.triggerObjectClicked(id)),
       e.events.on('terrainChanged', markDirty),
       e.events.on('worldReset', refresh),
