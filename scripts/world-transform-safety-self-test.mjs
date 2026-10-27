@@ -54,6 +54,24 @@ mesh.userData.importedModel = true
 World.prototype.update.call(runtime, object.id, { scale: 1e308 })
 assert.deepEqual(mesh.scale.toArray(), [10000, 10000, 10000], 'imported model scale must respect its maximum')
 
+World.prototype.update.call(runtime, object.id, {
+  mass: Number.NaN,
+  colliderSize: [1, Number.POSITIVE_INFINITY, 3],
+  colliderOffset: [1, Number.NaN, 3],
+})
+assert.equal(mesh.userData.mass, undefined, 'invalid mass must be ignored')
+assert.equal(mesh.userData.colliderSize, undefined, 'collider size with invalid components must be ignored')
+assert.equal(mesh.userData.colliderOffset, undefined, 'collider offset with invalid components must be ignored')
+
+World.prototype.update.call(runtime, object.id, {
+  mass: -5,
+  colliderSize: [0, 101, 2],
+  colliderOffset: [-101, 101, 2],
+})
+assert.equal(mesh.userData.mass, 0, 'negative mass must be clamped to zero')
+assert.deepEqual(mesh.userData.colliderSize, [0.05, 100, 2], 'collider size must respect safe bounds')
+assert.deepEqual(mesh.userData.colliderOffset, [-100, 100, 2], 'collider offset must respect safe bounds')
+
 mesh.userData.locked = true
 const lockedPosition = mesh.position.toArray()
 const lockedRotation = mesh.rotation.toArray()
