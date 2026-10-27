@@ -753,7 +753,7 @@ export class Engine {
 
   private isInteractiveRuntimeTarget(target: EventTarget | null): boolean {
     return target instanceof Element && !!target.closest(
-      'button, input, select, textarea, a, [role="dialog"], .hud-settings-panel, .hud-custom-image',
+      'button, input, select, textarea, a, [role="dialog"], [data-no-game-attack], .hud-settings-panel, .hud-custom-image',
     )
   }
 
