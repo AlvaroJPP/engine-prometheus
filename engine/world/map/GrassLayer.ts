@@ -29,6 +29,8 @@ import {
   GRASS_OCCLUSION_EDGE_SAMPLE_POINTS,
   GRASS_OCCLUSION_FINE_SAMPLE_POINTS,
   GRASS_MODEL_URL,
+  createGrassGeometry,
+  createGrassTexture,
   TERRAIN_SAMPLE,
   WORLD_HALF,
 } from './GrassLayerConfig'
