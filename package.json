@@ -61,7 +61,8 @@
     "behavior:handlers:self-test": "node --experimental-strip-types scripts/behavior-tree-handler-registry-self-test.mjs",
     "status:effects:self-test": "node --experimental-strip-types scripts/status-effect-runtime-self-test.mjs",
     "objectives:tracker:self-test": "node --experimental-strip-types scripts/objective-tracker-self-test.mjs",
-    "gameplay:behavior-extensions:self-test": "node --experimental-strip-types scripts/gameplay-behavior-extensions-self-test.mjs"
+    "gameplay:behavior-extensions:self-test": "node --experimental-strip-types scripts/gameplay-behavior-extensions-self-test.mjs",
+    "gameplay:runtime:self-test": "node --experimental-strip-types scripts/gameplay-runtime-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
