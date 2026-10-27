@@ -17,6 +17,30 @@ import {
   smoothTurnYaw,
 } from './HumanoidAvatarShared'
 import type { AnimationRole, MountMovementState, MountPackageSettings } from '../script/packages'
+import type { World } from './World'
+
+
+
+/** Tipos mínimos de estado que os métodos extraídos consultam diretamente. */
+export interface HumanoidAvatarMountContext {
+  readonly world: World
+  mountedRoot: THREE.Mesh | null
+  mountedVisualBaseQuaternion: THREE.Quaternion | null
+  mountedSupportProbeElapsed: number
+  mountedHasSupportProbe: boolean
+  mountedLastSupportProbePosition: THREE.Vector3
+  [key: string]: any
+}
+
+/** Estado inicial mantido pelo fluxo de montaria, fora da classe principal. */
+export function createHumanoidAvatarMountState() {
+  return {
+    mountedVisualBaseQuaternion: null as THREE.Quaternion | null,
+    mountedSupportProbeElapsed: 0,
+    mountedHasSupportProbe: false,
+    mountedLastSupportProbePosition: new THREE.Vector3(),
+  }
+}
 
 export interface HumanoidAvatarMountMethods {
   isMounted(): boolean
@@ -37,23 +61,23 @@ export interface HumanoidAvatarMountMethods {
 }
 
 /** Mantém o fluxo de montaria e seus testes físicos fora da classe de avatar principal. */
-export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
+export function createHumanoidAvatarMountMethods() {
   return {
-    isMounted(this: any): boolean {
+    isMounted(this: HumanoidAvatarMountContext): boolean {
       return this.mountedRoot !== null
     },
 
-    getMountedObjectId(this: any): string | null {
+    getMountedObjectId(this: HumanoidAvatarMountContext): string | null {
       const id = this.mountedRoot?.userData.id
       return typeof id === 'string' ? id : null
     },
 
-    getMountedMovementState(this: any): MountMovementState | null {
+    getMountedMovementState(this: HumanoidAvatarMountContext): MountMovementState | null {
       return this.mountedRoot ? this.mountedMovementState : null
     },
 
     /** Aplica alterações de configuração do pacote enquanto o jogador já está montado. */
-    updateMountSettings(this: any, settings: MountPackageSettings): void {
+    updateMountSettings(this: HumanoidAvatarMountContext, settings: MountPackageSettings): void {
       if (!this.mountedRoot) return
       this.mountSettings = {
         interactionKey: settings.interactionKey,
@@ -67,7 +91,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
     },
 
     /** Vincula o avatar a qualquer objeto que tenha recebido o pacote Montaria. */
-    mount(this: any, root: THREE.Mesh, settings: MountPackageSettings): boolean {
+    mount(this: HumanoidAvatarMountContext, root: THREE.Mesh, settings: MountPackageSettings): boolean {
       if (!this.enabled || this.mountedRoot || !root.visible) return false
 
       this.mountedRoot = root
@@ -118,7 +142,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       return true
     },
 
-    updateMountedPlayerTransition(this: any, dt: number): void {
+    updateMountedPlayerTransition(this: HumanoidAvatarMountContext, dt: number): void {
       if (!this.animationController || !this.playerMountTransition) return
       this.animationController.update(dt)
       if (this.animationController.isOneShotPlaying &&
@@ -128,7 +152,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
     },
 
     /** Desvincula o jogador e o posiciona junto ao lado livre da montaria. */
-    dismount(this: any): string | null {
+    dismount(this: HumanoidAvatarMountContext): string | null {
       const root = this.mountedRoot
       if (!root) return null
 
@@ -247,7 +271,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       return rootId
     },
 
-    placeAvatarAtMountSeat(this: any): void {
+    placeAvatarAtMountSeat(this: HumanoidAvatarMountContext): void {
       const root = this.mountedRoot
       const settings = this.mountSettings
       if (!root || !settings) return
@@ -263,7 +287,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * A altura do terreno é apenas um fallback; plataformas, rampas e objetos
      * elevados têm prioridade quando existe piso sob o candidato.
      */
-    findDismountSupportY(this: any,
+    findDismountSupportY(this: HumanoidAvatarMountContext,
       x: number,
       z: number,
       referenceFeetY: number,
@@ -338,7 +362,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       return supportY
     },
 
-    playMountAnimation(this: any, root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
+    playMountAnimation(this: HumanoidAvatarMountContext, root: THREE.Mesh, role: AnimationRole, oneShot = false): void {
       const controller = getAnimationControllerFromObject(root)
       if (!controller) return
       if (oneShot) controller.playOneShot(role, false)
@@ -351,7 +375,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * A raiz invisível permanece nivelada e continua sendo a fonte da colisão;
      * assim a inclinação visual não gira a caixa física nem altera o movimento.
      */
-    updateMountedVisualSlope(this: any, root: THREE.Mesh, dt: number): void {
+    updateMountedVisualSlope(this: HumanoidAvatarMountContext, root: THREE.Mesh, dt: number): void {
       const pivot = this.mountedVisualPivot
       const baseQuaternion = this.mountedVisualBaseQuaternion
       if (!pivot || !baseQuaternion) return
@@ -452,7 +476,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       root.updateWorldMatrix(true, true)
     },
 
-    updateMountedMovement(this: any,
+    updateMountedMovement(this: HumanoidAvatarMountContext,
       dt: number,
       forwardInput: number,
       sideInput: number,
@@ -657,7 +681,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * positions. Reuse the last result for short intervals instead of repeating
      * those raycasts every movement micro-step and every idle frame.
      */
-    shouldRefreshMountedSupport(this: any, root: THREE.Mesh, moving: boolean): boolean {
+    shouldRefreshMountedSupport(this: HumanoidAvatarMountContext, root: THREE.Mesh, moving: boolean): boolean {
       const movedDistanceSq = this.mountedHasSupportProbe
         ? this.mountedLastSupportProbePosition.distanceToSquared(root.position)
         : Number.POSITIVE_INFINITY
@@ -676,12 +700,12 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
     },
 
     /** Bounds de movimento da montaria, usando o colisor configurado ou o modelo visual como fallback. */
-    getMountedBounds(this: any, root: THREE.Mesh): THREE.Box3 {
+    getMountedBounds(this: HumanoidAvatarMountContext, root: THREE.Mesh): THREE.Box3 {
       return getColliderBounds(root) ?? new THREE.Box3().setFromObject(root)
     },
 
     /** Cacheia a complexidade uma vez; não conte vértices novamente em cada quadro. */
-    getImportedTriangleCount(this: any, root: THREE.Mesh): number {
+    getImportedTriangleCount(this: HumanoidAvatarMountContext, root: THREE.Mesh): number {
       const cached = root.userData.mountCollisionTriangleCount
       if (typeof cached === 'number') return cached
 
@@ -701,7 +725,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * Verifica colisão da montaria com o mesmo princípio usado pelo player:
      * colisor configurado para modelos importados e triângulos reais para colisão automática.
      */
-    mountedCollidesWithObjects(this: any, root: THREE.Mesh): boolean {
+    mountedCollidesWithObjects(this: HumanoidAvatarMountContext, root: THREE.Mesh): boolean {
       const mountBounds = getColliderBounds(root)
       if (!mountBounds || root.userData.colliderType === 'none') return false
 
@@ -828,7 +852,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * Detecta colisão ascendente com tetos. Usa colisores simplificados nos modelos
      * configurados manualmente e triângulos reais quando a colisão é automática.
      */
-    mountedCollidesWithCeiling(this: any, root: THREE.Mesh, previousRootY: number): boolean {
+    mountedCollidesWithCeiling(this: HumanoidAvatarMountContext, root: THREE.Mesh, previousRootY: number): boolean {
       const currentBounds = this.getMountedBounds(root)
       const normal = new THREE.Vector3()
       const previousBounds = currentBounds.clone().translate(
@@ -927,7 +951,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * Consultar somente o centro falha em rampas compridas: a lateral da rampa
      * colide com a montaria antes de o centro chegar à superfície inclinada.
      */
-    findMountedStepUpSurface(this: any,
+    findMountedStepUpSurface(this: HumanoidAvatarMountContext,
       root: THREE.Mesh,
       feetY: number,
       axis: 'x' | 'z',
@@ -1017,7 +1041,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * da pegada acompanhe a descida da rampa em vez de manter o corpo suspenso
      * na altura do lado mais alto.
      */
-    sampleMountedSupportSurfaces(this: any,
+    sampleMountedSupportSurfaces(this: HumanoidAvatarMountContext,
       root: THREE.Mesh,
       bounds: THREE.Box3,
       maxFlatDrop: number,
@@ -1157,7 +1181,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       return { flat, inclined, terrain }
     },
 
-    chooseMountedSupportSurface(this: any,
+    chooseMountedSupportSurface(this: HumanoidAvatarMountContext,
       surfaces: { flat: number[]; inclined: number[]; terrain: number[] },
       feetY: number,
       maxRise: number,
@@ -1190,7 +1214,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
       return null
     },
 
-    findMountedGroundSurface(this: any, root: THREE.Mesh, bounds: THREE.Box3): number {
+    findMountedGroundSurface(this: HumanoidAvatarMountContext, root: THREE.Mesh, bounds: THREE.Box3): number {
       const feetY = bounds.min.y
       const terrainY = this.world.terrain.heightAt(root.position.x, root.position.z)
       const size = bounds.getSize(new THREE.Vector3())
@@ -1210,7 +1234,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * da transição e não deve bloquear o cruzamento. A tolerância para baixo é
      * ampliada somente quando uma rampa adjacente também sustenta a montaria.
      */
-    hasConnectedFlatPlatformSurfaceBelow(this: any,
+    hasConnectedFlatPlatformSurfaceBelow(this: HumanoidAvatarMountContext,
       platform: THREE.Mesh,
       mountBounds: THREE.Box3,
       collisionRoots: THREE.Mesh[],
@@ -1293,7 +1317,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * a área da montaria. Só então as faces laterais daquele prisma deixam de ser
      * consideradas paredes; lados expostos continuam bloqueando normalmente.
      */
-    hasWalkableRampSurfaceBelow(this: any, obstacle: THREE.Mesh, mountBounds: THREE.Box3): boolean {
+    hasWalkableRampSurfaceBelow(this: HumanoidAvatarMountContext, obstacle: THREE.Mesh, mountBounds: THREE.Box3): boolean {
       obstacle.updateWorldMatrix(true, true)
       const size = mountBounds.getSize(new THREE.Vector3())
       const centerX = (mountBounds.min.x + mountBounds.max.x) * 0.5
@@ -1351,7 +1375,7 @@ export function createHumanoidAvatarMountMethods(): HumanoidAvatarMountMethods {
      * perdeu a face inclinada; nesse caso, aceita a própria face de rampa como apoio.
      * Retorna false apenas quando não encontra suporte alcançável, para ativar a queda.
      */
-    followMountedSurfaceAtStep(this: any, root: THREE.Mesh, horizontalStep: number): boolean {
+    followMountedSurfaceAtStep(this: HumanoidAvatarMountContext, root: THREE.Mesh, horizontalStep: number): boolean {
       const bounds = this.getMountedBounds(root)
       const bottomOffset = root.position.y - bounds.min.y
       const feetY = bounds.min.y
