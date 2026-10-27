@@ -75,3 +75,8 @@ export type { GameplayBehaviorServices } from './script/GameplayBehaviorExtensio
 
 export { GameplayRuntime } from './runtime/GameplayRuntime'
 export type { GameplayRuntimeOptions, GameplayRuntimeUpdate, GameplayEntityCleanup, GameplayRuntimeAccessors } from './runtime/GameplayRuntime'
+
+export { EntityComponentRuntime } from './runtime/EntityComponentRuntime'
+export type { EntityComponentKey, EntitySnapshot, EntityComponentDefinition, EntityComponentEvent } from './runtime/EntityComponentRuntime'
+export { EntityBehaviorRuntime } from './runtime/EntityBehaviorRuntime'
+export type { EntityBehavior, EntityBehaviorSnapshot } from './runtime/EntityBehaviorRuntime'
