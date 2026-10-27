@@ -302,9 +302,9 @@
       "usesActiveControlMap": true,
       "sigilCycle": "reload (T in the default WASD profile)",
       "sigilActivate": "useItem (H in the default WASD profile)",
-      "block": "block (R in the default WASD profile; hold)",
-      "parry": "parry (Y by default; costs 14 stamina; a successful parry refunds 12 and triggers a weapon-scaled counterattack)",
-      "targetLock": "targetLock (O default for WASD/arrows/ESDF; M for IJKL profile)",
+      "block": "Optional VEILBORNE module control; defaults to R when free and selects another unused key if the active control map already uses it; hold to block",
+      "parry": "Optional VEILBORNE module control; defaults to Y when free and selects another unused key if the active control map already uses it; costs 14 stamina and can trigger a weapon-scaled counterattack",
+      "targetLock": "Optional VEILBORNE module control; defaults to O when free (M when O is assigned to first-person camera); selects another unused key if needed",
       "inventory": "inventory (Tab default; opens/closes the runtime Arsenal do Véu panel)"
     },
     "playerGlobalVariables": [
