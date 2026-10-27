@@ -67,6 +67,7 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
     triggers: [
       { id: 'interact', label: 'Interação próxima', description: 'Um jogador interagiu com este objeto através do sistema genérico de proximidade.' },
       { id: 'loot_collected', label: 'Loot coletado', description: 'Um item deste objeto foi concedido pelo inventário genérico.' },
+      { id: 'echo_cache_collected', label: 'Ecos recuperados', description: 'O jogador recuperou os Ecos deixados ao morrer.' },
       { id: 'combat_started', label: 'Combate iniciado', description: 'Um alvo hostil detectou o personagem ou recebeu o primeiro ataque.' },
       { id: 'quick_attack', label: 'Ataque rápido', description: 'O jogador solicita um ataque rápido com a arma equipada.' },
       { id: 'heavy_attack', label: 'Ataque pesado', description: 'O jogador solicita um ataque pesado ou carregado.' },
@@ -104,6 +105,83 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { id: 'respawn_at_checkpoint', label: 'Renascer no santuário', description: 'Reposiciona o jogador no último ponto de descanso salvo.' },
     ],
     scripts: [
+      {
+        id: 'checkpoint-activate',
+        name: 'Ativar santuário e salvar ponto de retorno',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'interact',
+        },
+        conditions: [
+          { type: 'variable', name: 'entity_role', operator: 'equals', value: 'checkpoint' },
+        ],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const position = api.world.position(owner);
+const bounds = api.world.bounds(owner);
+if (!position || !bounds) return;
+api.global.set('checkpoint_id', owner);
+api.global.set('checkpoint_x', position.x);
+api.global.set('checkpoint_y', bounds.max.y + 0.05);
+api.global.set('checkpoint_z', position.z);
+for (const checkpoint of api.package.list('veilborne_rpg')) {
+  if (checkpoint.variables.entity_role !== 'checkpoint') continue;
+  api.package.set(checkpoint.ownerObjectId, 'veilborne_rpg', 'checkpoint_active', checkpoint.ownerObjectId === owner);
+}
+const restore = api.package.get(owner, 'veilborne_rpg', 'checkpoint_restore_resources') !== false;
+api.global.set('checkpoint_restore_completed', restore);
+if (restore) {
+  const current = (name, fallback) => {
+    const value = api.global.get(name);
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  };
+  api.global.set('vida', current('vida_max', 100));
+  api.global.set('eter', current('eter_max', 100));
+  api.global.set('vigor', current('vigor_max', 100));
+  api.global.set('postura', 0);
+  api.global.set('morto', false);
+  api.global.set('jogador_morreu', false);
+  api.global.set('jogador_atordoado', false);
+}
+const rawName = api.package.get(owner, 'veilborne_rpg', 'checkpoint_name');
+api.notice('Santuário ativado: ' + (typeof rawName === 'string' ? rawName : 'Santuário'), 2.4, 'loot_notice');
+api.package.triggerEvent(owner, 'veilborne_rpg', 'checkpoint_used');`,
+        }],
+      },
+      {
+        id: 'echo-cache-pickup',
+        name: 'Recuperar Ecos perdidos',
+        enabled: true,
+        trigger: {
+          type: 'package_event',
+          objectId: '{ID_OBJECT}',
+          packageId: 'veilborne_rpg',
+          eventId: 'interact',
+        },
+        conditions: [
+          { type: 'variable', name: 'entity_role', operator: 'equals', value: 'echo_cache' },
+        ],
+        actions: [{
+          type: 'javascript',
+          code: `const owner = '{ID_OBJECT}';
+const rawAmount = api.package.get(owner, 'veilborne_rpg', 'echoes_amount');
+const fallback = api.global.get('ecos_perdidos');
+const amount = typeof rawAmount === 'number' && Number.isFinite(rawAmount)
+  ? Math.max(0, Math.floor(rawAmount))
+  : typeof fallback === 'number' && Number.isFinite(fallback) ? Math.max(0, Math.floor(fallback)) : 0;
+if (amount <= 0) return;
+const current = api.global.get('ecos');
+api.global.set('ecos', Math.max(0, typeof current === 'number' && Number.isFinite(current) ? current : 0) + amount);
+api.global.set('ecos_perdidos', 0);
+api.notice('Ecos recuperados: ' + amount, 2.6, 'loot_notice');
+api.package.triggerEvent(owner, 'veilborne_rpg', 'echo_cache_collected');
+api.world.remove(owner);`,
+        }],
+      },
       {
         id: 'loot-pickup',
         name: 'Conceder item ao interagir',
