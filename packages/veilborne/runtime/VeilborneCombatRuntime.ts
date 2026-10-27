@@ -18,7 +18,6 @@ import {
   type VeilborneCombatant,
   type VeilborneDamageType,
   type VeilborneStatusId,
-  type VeilborneRuntimeSigil,
 } from './VeilborneCombat'
 import { createVeilborneSigilVisual, createVeilborneWardMesh, disposeVeilborneVisual } from './VeilborneSigilVisuals'
 import type { VeilborneVisualEffects } from './VeilborneVisualEffects'
@@ -679,7 +678,7 @@ export class VeilborneCombatRuntime {
       )
     this.visualEffects.spawnEffect(position, weapon.damageType === 'arcane' ? 0x9c77ff : 0xd3d8e8, heavy ? 0.95 : 0.7, 0.24, true)
     if (target) {
-      const hit = this.applyHit(
+      const hit = this.applyDamageToTarget(
         target.instance,
         damage,
         weapon.damageType,
@@ -776,7 +775,7 @@ export class VeilborneCombatRuntime {
 
     let totalDamage = 0
     for (const candidate of candidates) {
-      const result = this.applyHit(
+      const result = this.applyDamageToTarget(
         candidate.instance,
         calculateVeilborneSpellDamage(spell, player.attributes),
         spell.damageType,
