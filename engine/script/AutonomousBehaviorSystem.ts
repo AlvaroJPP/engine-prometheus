@@ -384,7 +384,7 @@ export class AutonomousBehaviorSystem {
     const maxStepUp = currentGroundY + 0.6
 
     if (world.getGroundHeightAt) return world.getGroundHeightAt(x, z, maxStepUp)
-    return world.terrain.mesh.visible ? world.terrain.heightAt(x, z) : 0
+    return (world.terrain.mesh?.visible ?? true) ? world.terrain.heightAt(x, z) : 0
   }
 
   private moveTowards(
