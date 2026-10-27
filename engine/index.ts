@@ -33,3 +33,6 @@ export type {
   BehaviorTreeActionNode,
   BehaviorTreeWaitNode,
 } from './script/BehaviorTree'
+
+export { BehaviorTreePackageSystem, BEHAVIOR_TREE_CONFIG_KEY, BEHAVIOR_TREE_STATUS_VARIABLE } from './script/BehaviorTreePackageSystem'
+export type { BehaviorTreePackageTransition } from './script/BehaviorTreePackageSystem'
