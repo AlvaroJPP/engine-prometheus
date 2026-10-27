@@ -13,6 +13,7 @@ export class GameModuleRegistry {
   private readonly modules = new Map<string, RegisteredModule>()
   private context: GameModuleContext | null = null
   private runtimeActive = false
+  private stopping = false
   private disposed = false
 
   register(module: EngineGameModule): () => void {
@@ -55,7 +56,7 @@ export class GameModuleRegistry {
   }
 
   start(): void {
-    if (this.disposed || !this.context || this.runtimeActive) return
+    if (this.disposed || this.stopping || !this.context || this.runtimeActive) return
     this.runtimeActive = true
     // Um callback pode registrar outros módulos. Use um snapshot para que
     // módulos anexados dinamicamente sejam iniciados uma única vez por register().
@@ -126,14 +127,21 @@ export class GameModuleRegistry {
   }
 
   stop(): void {
-    if (!this.runtimeActive) return
-    // Feche a janela de registro dinâmico antes dos callbacks de encerramento.
+    if (!this.runtimeActive || this.stopping) return
+    // Capture o contexto e bloqueie transições reentrantes antes dos callbacks.
+    // Um onRuntimeStop pode chamar dispose(), que limpa this.context.
+    const context = this.context
     this.runtimeActive = false
-    for (const record of [...this.modules.values()].reverse()) {
-      if (!record.active || this.modules.get(record.id) !== record) continue
-      // Atualize o estado antes do callback para impedir stop reentrante duplicado.
-      record.active = false
-      this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(this.context!))
+    this.stopping = true
+    try {
+      for (const record of [...this.modules.values()].reverse()) {
+        if (!record.active || this.modules.get(record.id) !== record) continue
+        // Atualize o estado antes do callback para impedir stop reentrante duplicado.
+        record.active = false
+        if (context) this.invoke(record, 'encerrar runtime', () => record.module.onRuntimeStop?.(context))
+      }
+    } finally {
+      this.stopping = false
     }
   }
 
