@@ -35,6 +35,9 @@ jobs:
       - name: Test VEILBORNE combat rules and opt-in registration
         run: npm run veilborne:combat:self-test
 
+      - name: Test VEILBORNE defensive key resolution
+        run: npm run veilborne:controls:self-test
+
       - name: Test autonomous behaviors
         run: npm run behavior:autonomous:self-test
 
