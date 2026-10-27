@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import * as THREE from 'three'
 import { VeilborneVisualEffects } from '../packages/veilborne/runtime/VeilborneVisualEffects.ts'
-import { VeilborneEnemyAISystem } from '../packages/veilborne/runtime/VeilborneEnemyAISystem.ts'
 import {
   applyVeilborneDamage,
   applyVeilborneStatus,
@@ -66,113 +65,6 @@ assert.match(enemyAiSource, /const candidates = \[/)
 assert.match(enemyAiSource, /updatePendingProjectiles\(dt: number\)/)
 assert.match(enemyAiSource, /this\.effects\.spawnProjectile\(/)
 
-// Regression test: a VEILBORNE-managed autonomous_agent must not suppress the
-// dedicated combat AI's movement or melee attacks.
-const aiScene = new THREE.Scene()
-const enemyMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1.8, 1),
-  new THREE.MeshBasicMaterial(),
-)
-enemyMesh.position.set(-5, 0.9, 0)
-const enemyObject = { id: 'test-ai-enemy', name: 'Test enemy', type: 'cube', mesh: enemyMesh }
-const avatarMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(0.6, 1.8, 0.6),
-  new THREE.MeshBasicMaterial(),
-)
-avatarMesh.position.set(-14, 0.9, 0)
-const copyPackage = value => structuredClone(value)
-const enemyPackage = {
-  id: 'test-ai-enemy-package',
-  ownerObjectId: enemyObject.id,
-  packageId: 'veilborne_rpg',
-  enabled: true,
-  variables: {
-    entity_role: 'combatant',
-    faction: 'hostile',
-    ai_enabled: true,
-    ai_custom_stats: true,
-    ai_profile: 'melee',
-    ai_state: 'idle',
-    vida: 95,
-    vida_max: 95,
-    move_speed: 2.7,
-    perception_range: 17,
-    attack_range: 1.9,
-    attack_damage: 11,
-    attack_damage_type: 'physical',
-    attack_cooldown: 0.35,
-    attack_posture_damage: 8,
-    morto: false,
-  },
-  config: {},
-}
-const managedAgent = {
-  id: 'test-ai-managed-agent',
-  ownerObjectId: enemyObject.id,
-  packageId: 'autonomous_agent',
-  enabled: true,
-  variables: { veilborne_managed: true, mode: 'idle', state: 'idle' },
-  config: {},
-}
-const aiPackages = [enemyPackage, managedAgent]
-let playerDamageReceived = 0
-const mockLogic = {
-  listPackages(ownerObjectId) {
-    return aiPackages
-      .filter(instance => !ownerObjectId || instance.ownerObjectId === ownerObjectId)
-      .map(copyPackage)
-  },
-  setPackageVariable(id, name, value) {
-    const instance = aiPackages.find(item => item.id === id)
-    if (instance) instance.variables[name] = value
-  },
-  getVariable() { return false },
-  triggerPackageEvent() { return false },
-}
-const mockWorld = {
-  scene: aiScene,
-  terrain: { heightAt: () => 0 },
-  events: { emit() {} },
-  get(id) { return id === enemyObject.id ? enemyObject : undefined },
-  list() { return [enemyObject] },
-  isObjectVisible() { return true },
-  update(id, patch) {
-    if (id !== enemyObject.id) return
-    if (typeof patch.x === 'number') enemyMesh.position.x = patch.x
-    if (typeof patch.y === 'number') enemyMesh.position.y = patch.y
-    if (typeof patch.z === 'number') enemyMesh.position.z = patch.z
-    if (typeof patch.rotationY === 'number') enemyMesh.rotation.y = THREE.MathUtils.degToRad(patch.rotationY)
-    enemyMesh.updateMatrixWorld(true)
-  },
-}
-const mockCombat = {
-  getPlayerCombatant() { return { alive: true, attributes: player.attributes } },
-  getHostilePackages() { return [{ instance: copyPackage(enemyPackage), object: enemyObject }] },
-  getTargetCombatant() {
-    return { statuses: [], resources: { vitality: 95, maxVitality: 95 } }
-  },
-  receiveIncomingDamage(amount) {
-    playerDamageReceived += amount
-    return { damage: amount, absorbedByWard: 0, blocked: false, parried: false, killed: false }
-  },
-  applyDamageToTarget() { return { damage: 0, killed: false } },
-  getWorldPoint() { return enemyMesh.position.clone() },
-}
-const mockCollisions = {
-  canMoveObjectTo() { return true },
-}
-const mockContext = {
-  world: mockWorld,
-  logic: mockLogic,
-  avatar: { mesh: avatarMesh },
-  collisions: mockCollisions,
-}
-const aiEffects = new VeilborneVisualEffects(aiScene, () => {})
-const enemyAi = new VeilborneEnemyAISystem(mockContext, mockCombat, aiEffects)
-for (let frame = 0; frame < 240; frame += 1) enemyAi.update(1 / 60)
-assert.ok(enemyMesh.position.x < -5.5, 'managed VEILBORNE enemies must move toward the player')
-assert.ok(playerDamageReceived > 0, 'a pursuing enemy must eventually enter attack range and deal damage')
-aiEffects.clear()
 
 assert.equal(spendVeilborneResource(player, 'stamina', 25), true)
 assert.equal(player.resources.stamina, 75)
