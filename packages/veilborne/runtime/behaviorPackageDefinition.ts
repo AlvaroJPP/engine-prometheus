@@ -57,7 +57,6 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { name: 'loot_item_id', label: 'ID do item coletável', type: 'string', defaultValue: 'lesser_vitality_vial', description: 'ID do item que o jogador recebe ao interagir com este objeto configurado como loot.' },
       { name: 'loot_quantity', label: 'Quantidade coletável', type: 'number', defaultValue: 1, description: 'Quantidade de itens recebida ao coletar este objeto.', min: 1, max: 99, step: 1 },
       { name: 'loot_collected', label: 'Já coletado', type: 'boolean', defaultValue: false, description: 'Estado usado pelo runtime para evitar coleta repetida.', readOnly: true },
-      { name: 'loot_original_visible', label: 'Visibilidade original do loot', type: 'boolean', defaultValue: true, description: 'Estado temporário usado para restaurar itens coletados ao voltar ao editor.', readOnly: true },
       { name: 'loot_spawned', label: 'Drop temporário', type: 'boolean', defaultValue: false, description: 'Marca itens criados durante Run para removê-los ao voltar ao editor.', readOnly: true },
       { name: 'checkpoint_name', label: 'Nome do santuário', type: 'string', defaultValue: 'Santuário', description: 'Nome exibido quando o jogador ativa este checkpoint.' },
       { name: 'checkpoint_active', label: 'Santuário ativo', type: 'boolean', defaultValue: false, description: 'Indica se este é o último checkpoint ativado.', readOnly: true },
@@ -543,14 +542,12 @@ const validItemIds = ${JSON.stringify(VEILBORNE_ITEM_IDS)};
 if (typeof itemId !== 'string' || !validItemIds.includes(itemId)) return;
 const rawQuantity = api.package.get(owner, 'veilborne_rpg', 'loot_quantity');
 const quantity = typeof rawQuantity === 'number' && Number.isFinite(rawQuantity) ? Math.max(1, Math.min(99, Math.floor(rawQuantity))) : 1;
-const visible = api.world.position(owner)?.visible ?? true;
 if (!api.inventory.grant(itemId, quantity, 'inventario_json')) {
   api.notice('Não foi possível adicionar o item.', 1.8, 'loot_notice');
   return;
 }
-api.package.set(owner, 'veilborne_rpg', 'loot_original_visible', visible);
+if (!api.world.setVisibleTemporary(owner, false)) return;
 api.package.set(owner, 'veilborne_rpg', 'loot_collected', true);
-api.setVisible(owner, false);
 api.notice('Item coletado ×' + quantity, 2.4, 'loot_notice');
 api.package.triggerEvent(owner, 'veilborne_rpg', 'loot_collected');`,
         }],
