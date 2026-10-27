@@ -235,4 +235,49 @@ selfRemovingRegistry.stop()
 selfRemovingRegistry.dispose()
 assert.deepEqual(selfRemovingCalls, ['start', 'dispose'])
 
+// Registro dinâmico que encerra o runtime durante onRuntimeStart precisa
+// receber onRuntimeStop e não pode deixar módulos seguintes ativos.
+const dynamicStopRegistry = new GameModuleRegistry()
+const dynamicStopCalls = []
+dynamicStopRegistry.attach(context)
+dynamicStopRegistry.start()
+const unregisterDynamicStop = dynamicStopRegistry.register({
+  id: 'dynamic-stop-during-start',
+  onRuntimeStart: () => {
+    dynamicStopCalls.push('start')
+    dynamicStopRegistry.stop()
+  },
+  onRuntimeStop: () => dynamicStopCalls.push('stop'),
+  update: () => dynamicStopCalls.push('update'),
+})
+assert.deepEqual(dynamicStopCalls, ['start', 'stop'])
+dynamicStopRegistry.update(0.016)
+assert.deepEqual(dynamicStopCalls, ['start', 'stop'])
+unregisterDynamicStop()
+dynamicStopRegistry.dispose()
+
+// Um módulo registrado dinamicamente pode se remover dentro de onRuntimeStart.
+// Ele deve ser descartado uma vez e nunca marcado como ativo.
+const dynamicSelfRemoveRegistry = new GameModuleRegistry()
+const dynamicSelfRemoveCalls = []
+let unregisterDynamicSelf = null
+dynamicSelfRemoveRegistry.attach(context)
+dynamicSelfRemoveRegistry.start()
+unregisterDynamicSelf = dynamicSelfRemoveRegistry.register({
+  id: 'dynamic-self-removing-module',
+  onRuntimeStart: () => {
+    dynamicSelfRemoveCalls.push('start')
+    unregisterDynamicSelf?.()
+  },
+  onRuntimeStop: () => dynamicSelfRemoveCalls.push('stop'),
+  onDispose: () => dynamicSelfRemoveCalls.push('dispose'),
+  update: () => dynamicSelfRemoveCalls.push('update'),
+})
+assert.deepEqual(dynamicSelfRemoveCalls, ['start', 'dispose'])
+dynamicSelfRemoveRegistry.update(0.016)
+assert.deepEqual(dynamicSelfRemoveCalls, ['start', 'dispose'])
+dynamicSelfRemoveRegistry.stop()
+dynamicSelfRemoveRegistry.dispose()
+assert.deepEqual(dynamicSelfRemoveCalls, ['start', 'dispose'])
+
 console.log('Game module registry self-test passed.')
