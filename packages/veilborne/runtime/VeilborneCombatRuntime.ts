@@ -339,6 +339,8 @@ export class VeilborneCombatRuntime {
   resetCombatInputs(): void {
     this.heavyChargeStartedAt = null
     this.pendingCast = null
+    this.parryStartedAt = Number.NEGATIVE_INFINITY
+    this.parrySuccessRemaining = 0
     const { logic } = this.context
     if (logic.getVariable('carregando_ataque') !== undefined) logic.setVariable('carregando_ataque', false)
     if (logic.getVariable('carga_ataque') !== undefined) logic.setVariable('carga_ataque', 0)
@@ -570,6 +572,8 @@ export class VeilborneCombatRuntime {
   handleInputBlur(): void {
     this.heavyChargeStartedAt = null
     this.pendingCast = null
+    this.parryStartedAt = Number.NEGATIVE_INFINITY
+    this.parrySuccessRemaining = 0
     if (!this.isEnabled()) return
     this.context.logic.setVariable('carregando_ataque', false)
     this.context.logic.setVariable('carga_ataque', 0)
@@ -697,6 +701,7 @@ export class VeilborneCombatRuntime {
     const postureBroken = player.alive && player.resources.posture >= player.resources.maxPosture
     if (postureBroken) {
       player.resources.posture = 0
+      this.resetCombatInputs()
       this.playerStaggerRemaining = 0.85
       this.context.avatar.setActionLock(0.85)
       this.context.logic.setVariable('jogador_atordoado', true)
