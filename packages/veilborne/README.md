@@ -13,6 +13,7 @@ VEILBORNE é um jogo de fantasia sombria feito sobre o Engine Prometheus. As reg
 - `runtime/VeilborneControls.ts`: resolução pura e testável dos atalhos defensivos, sem colisões com o mapa ativo.
 - `runtime/VeilborneVisualEffects.ts` e `VeilborneHealthBarSystem.ts`: efeitos visuais temporários e barras de vida.
 - `ui/VeilborneGameHost.vue`: host de UI que registra o módulo opcional e monta a HUD do jogo.
+- A HUD mostra as teclas efetivamente resolvidas para bloquear, aparar e travar alvo, inclusive quando o mapa ativo exige alternativas.
 - `ui/VeilborneHUD.vue` e `ui/VeilborneHUD.css`: interface própria de VEILBORNE.
 
 ## Integração preferida: host de jogo
@@ -58,7 +59,7 @@ O host também aceita controles defensivos personalizados, quando necessário:
 />
 ```
 
-No mapa WASD padrão, os atalhos defensivos são R para bloquear (segurar), Y para aparar e O para travar o alvo. Para outros mapas, o módulo procura teclas livres quando um padrão conflita com um comando atribuído. O host pode fixar os atalhos com a opção `controls`.
+No mapa WASD padrão, os atalhos defensivos são R para bloquear (segurar), Y para aparar e O para travar o alvo. Para outros mapas, o módulo procura teclas livres quando um padrão conflita com um comando atribuído. O host pode pedir atalhos com a opção `controls`; chaves ocupadas ou repetidas são substituídas por alternativas livres. A HUD mostra os três atalhos selecionados.
 
 ### Registro manual, sem o host de UI
 
