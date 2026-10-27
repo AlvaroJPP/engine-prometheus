@@ -159,6 +159,19 @@ export class VeilborneEnemyAISystem {
     }
 
     const playerPosition = avatar.mesh.position
+    // A altura da malha procedural não é o piso quando o terreno está oculto.
+    // Cacheie os topos das plataformas visíveis para manter NPCs na superfície real.
+    const groundSurfaces = world.list()
+      .filter(candidate =>
+        candidate.type === 'platform'
+        && candidate.mesh.userData.colliderType !== 'none'
+        && world.isObjectVisible(candidate),
+      )
+      .map(candidate => {
+        candidate.mesh.updateMatrixWorld(true)
+        return { id: candidate.id, bounds: new THREE.Box3().setFromObject(candidate.mesh) }
+      })
+
     for (const { instance, object } of this.combat.getHostilePackages()) {
       if (instance.variables.ai_enabled === false) {
         this.setState(instance, 'idle')
@@ -249,8 +262,23 @@ export class VeilborneEnemyAISystem {
         const bounds = new THREE.Box3().setFromObject(object.mesh)
         const bottomOffset = bounds.isEmpty() ? 0 : object.mesh.position.y - bounds.min.y
         const groundAt = (x: number, z: number): number => {
-          const height = world.terrain.heightAt(x, z)
-          return Number.isFinite(height) ? height + bottomOffset : object.mesh.position.y
+          const terrainVisible = world.terrain.mesh.visible === true
+          const terrainHeight = terrainVisible ? world.terrain.heightAt(x, z) : 0
+          let surfaceY = Number.isFinite(terrainHeight) ? terrainHeight : 0
+          const currentGroundY = object.mesh.position.y - bottomOffset
+          const maxStepUp = currentGroundY + 0.6
+
+          for (const surface of groundSurfaces) {
+            const bounds = surface.bounds
+            if (bounds.isEmpty() || bounds.max.y > maxStepUp) continue
+            if (
+              x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03
+              || z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03
+            ) continue
+            surfaceY = Math.max(surfaceY, bounds.max.y)
+          }
+
+          return surfaceY + bottomOffset + 0.02
         }
         let actualX = object.mesh.position.x
         let actualZ = object.mesh.position.z

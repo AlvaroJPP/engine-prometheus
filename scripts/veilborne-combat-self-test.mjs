@@ -62,7 +62,10 @@ assert.match(enemyAiSource, /syncAutonomousPackages\(runtimeEnabled: boolean\)/)
 assert.match(enemyAiSource, /const mode = 'idle'/)
 assert.match(enemyAiSource, /autonomousAgent\.variables\.veilborne_managed !== true/)
 assert.match(enemyAiSource, /const candidates = \[/)
+assert.match(enemyAiSource, /world\.terrain\.mesh\.visible === true/)
+assert.match(enemyAiSource, /const groundSurfaces = world\.list\(\)/)
 assert.match(enemyAiSource, /updatePendingProjectiles\(dt: number\)/)
+assert.match(lootSource, /this\.d\.world\.terrain\.mesh\.visible/)
 assert.match(enemyAiSource, /this\.effects\.spawnProjectile\(/)
 
 

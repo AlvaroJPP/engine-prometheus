@@ -188,7 +188,9 @@ export class VeilborneLootSystem {
     excludedLootIds: Set<string>,
     excludedObjectId?: string,
   ): number {
-    const terrainHeight = this.d.world.terrain.heightAt(x, z)
+    const terrainHeight = this.d.world.terrain.mesh.visible
+      ? this.d.world.terrain.heightAt(x, z)
+      : 0
     let groundY = Number.isFinite(terrainHeight) ? terrainHeight : 0
 
     for (const candidate of this.d.world.list()) {
