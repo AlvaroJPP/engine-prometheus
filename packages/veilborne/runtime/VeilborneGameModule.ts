@@ -11,21 +11,11 @@ import { VeilborneLootSystem } from './VeilborneLootSystem'
 import { VeilborneProgressionSystem } from './VeilborneProgressionSystem'
 import { VeilborneTargetLockController } from './VeilborneTargetLockController'
 import { VeilborneVisualEffects } from './VeilborneVisualEffects'
+import { resolveVeilborneGameModuleControls } from './VeilborneControls'
+import type { VeilborneGameModuleControls, VeilborneGameModuleOptions } from './VeilborneControls'
+export type { VeilborneGameModuleControls, VeilborneGameModuleOptions } from './VeilborneControls'
 
 const PACKAGE_ID = 'veilborne_rpg'
-
-export interface VeilborneGameModuleControls {
-  /** Tecla mantida para bloquear; padrão: R. */
-  block: string
-  /** Tecla de aparo; padrão: Y. */
-  parry: string
-  /** Tecla de travamento de alvo; padrão: O (M no perfil IJKL). */
-  targetLock: string
-}
-
-export interface VeilborneGameModuleOptions {
-  controls?: Partial<VeilborneGameModuleControls>
-}
 
 /**
  * Módulo opcional do jogo VEILBORNE.
@@ -335,36 +325,11 @@ export class VeilborneGameModule implements EngineGameModule {
     progression.spawnEchoCache(lostEchoes, cachePosition)
   }
 
-  private getExtraControls(context: GameModuleContext): { block: string; parry: string; targetLock: string } {
-    const bindings = context.getControlBindings()
-    const occupied = new Set(Object.values(bindings))
-    const selected = new Set<string>()
-
-    const choose = (
-      configured: string | undefined,
-      candidates: string[],
-    ): string => {
-      if (configured) {
-        selected.add(configured)
-        return configured
-      }
-      const available = candidates.find(code => !occupied.has(code) && !selected.has(code))
-      const fallback = available ?? candidates.find(code => !selected.has(code)) ?? 'F8'
-      selected.add(fallback)
-      return fallback
-    }
-
-    const block = choose(this.configuredControls.block, [
-      'KeyR', 'KeyH', 'KeyU', 'KeyP', 'KeyJ', 'KeyM', 'F8',
-    ])
-    const parry = choose(this.configuredControls.parry, [
-      'KeyY', 'KeyJ', 'KeyU', 'KeyP', 'KeyM', 'KeyH', 'F9',
-    ])
-    const targetLock = choose(this.configuredControls.targetLock, [
-      bindings.toggleFirstPerson === 'KeyO' ? 'KeyM' : 'KeyO',
-      'KeyO', 'KeyM', 'KeyJ', 'KeyU', 'KeyP', 'KeyK', 'F10',
-    ])
-    return { block, parry, targetLock }
+  private getExtraControls(context: GameModuleContext): VeilborneGameModuleControls {
+    return resolveVeilborneGameModuleControls(
+      context.getControlBindings(),
+      this.configuredControls,
+    )
   }
 
   private showNotice(context: GameModuleContext, message: string, durationSeconds: number): void {
