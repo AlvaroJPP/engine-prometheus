@@ -1,14 +1,32 @@
 import assert from 'node:assert/strict'
+import * as THREE from 'three'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
 import { registerVeilborneBehaviorPackage } from '../packages/veilborne/runtime/behaviorPackageDefinition.ts'
 
-const target = { id: 'enemy-01', name: 'Test boss' }
+const target = {
+  id: 'enemy-01',
+  name: 'Test boss',
+  mesh: new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial()),
+}
+const objects = new Map([[target.id, target]])
 const world = {
   events: { emit: () => {} },
-  get: id => id === target.id ? target : undefined,
-  info: () => [{ id: target.id, name: target.name }],
+  get: id => objects.get(id),
+  list: () => [...objects.values()],
+  isObjectVisible: object => object.mesh.visible,
+  add: object => { objects.set(object.id, object); return object },
+  remove: id => { objects.delete(id) },
+  info: () => [...objects.values()].map(object => ({ id: object.id, name: object.name })),
   getSelectedId: () => null,
-  update: () => {},
+  update: (id, patch) => {
+    const object = objects.get(id)
+    if (!object) return
+    if (typeof patch.visible === 'boolean') object.mesh.visible = patch.visible
+    for (const axis of ['x', 'y', 'z']) {
+      if (typeof patch[axis] === 'number) object.mesh.position[axis] = patch[axis]
+    }
+  },
+  getGroundHeightAt: () => 0,
 }
 const unregister = registerVeilborneBehaviorPackage()
 try {
@@ -46,6 +64,39 @@ try {
   assert.equal(logic.getVariable('pontos_atributo'), 1)
   assert.equal(logic.triggerPackageEvent(target.id, 'veilborne_rpg', 'enemy_killed'), true)
   assert.equal(logic.getVariable('ecos'), 200, 'the reward rule is reusable for each defeat event')
+
+  const globalRules = logic.list().filter(rule => rule.sourcePackageDefinitionId === 'veilborne_rpg')
+  assert.ok(globalRules.some(rule => rule.trigger.type === 'global_event' && rule.trigger.eventId === 'veilborne:player_died'))
+  assert.ok(globalRules.some(rule => rule.trigger.type === 'global_event' && rule.trigger.eventId === 'veilborne:respawn_requested'))
+  assert.ok(globalRules.some(rule => rule.trigger.type === 'global_event' && rule.trigger.eventId === 'veilborne:restore_echo_cache'))
+
+  logic.setVariable('ecos', 75)
+  assert.equal(logic.triggerGlobalEvent('veilborne:player_died', { avatarX: 4, avatarY: 0, avatarZ: -2 }), true)
+  assert.equal(logic.getVariable('ecos'), 0)
+  assert.equal(logic.getVariable('ecos_perdidos'), 75)
+  assert.equal(logic.getVariable('ponto_de_morte_x'), 4)
+  let cache = logic.listPackages().find(item => item.packageId === 'veilborne_rpg' && item.variables.entity_role === 'echo_cache')
+  assert.ok(cache, 'the global death script creates an Echo cache through generic object/package APIs')
+  assert.deepEqual([objects.get(cache.ownerObjectId).mesh.position.x, objects.get(cache.ownerObjectId).mesh.position.z], [4, -2])
+
+  const cacheId = cache.ownerObjectId
+  world.remove(cacheId)
+  logic.removeObjectVariables(cacheId)
+  assert.equal(logic.triggerGlobalEvent('veilborne:restore_echo_cache'), true)
+  cache = logic.listPackages().find(item => item.packageId === 'veilborne_rpg' && item.variables.entity_role === 'echo_cache')
+  assert.ok(cache, 'saved lost Echoes recreate their cache through a global script')
+  assert.equal(cache.variables.echoes_amount, 75)
+
+  assert.equal(logic.triggerGlobalEvent('veilborne:respawn_requested', {
+    defaultSpawnX: 10, defaultSpawnY: 2, defaultSpawnZ: -8,
+  }), true)
+  assert.deepEqual([
+    logic.getVariable('respawn_x'),
+    logic.getVariable('respawn_y'),
+    logic.getVariable('respawn_z'),
+  ], [10, 2, -8])
+  assert.equal(logic.getVariable('vida'), logic.getVariable('vida_max'))
+  assert.equal(logic.getVariable('ecos_perdidos'), 75, 'respawning does not collect the Echo cache')
 } finally {
   unregister()
 }
