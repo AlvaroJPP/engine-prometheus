@@ -185,4 +185,29 @@ assert.deepEqual(
 unregisterLateStop?.()
 reentrantStopRegistry.dispose()
 
+// Se um módulo encerrar o runtime dentro de onRuntimeStart, a inicialização
+// deve parar e o módulo parcialmente iniciado precisa receber onRuntimeStop.
+const stopDuringStartRegistry = new GameModuleRegistry()
+const stopDuringStartCalls = []
+stopDuringStartRegistry.register({
+  id: 'stop-during-start',
+  onRuntimeStart: () => {
+    stopDuringStartCalls.push('first-start')
+    stopDuringStartRegistry.stop()
+  },
+  onRuntimeStop: () => stopDuringStartCalls.push('first-stop'),
+})
+stopDuringStartRegistry.register({
+  id: 'must-not-start-after-stop',
+  onRuntimeStart: () => stopDuringStartCalls.push('second-start'),
+})
+stopDuringStartRegistry.attach(context)
+stopDuringStartRegistry.start()
+assert.deepEqual(
+  stopDuringStartCalls,
+  ['first-start', 'first-stop'],
+  'start deve interromper a iteração quando um callback encerra o runtime',
+)
+stopDuringStartRegistry.dispose()
+
 console.log('Game module registry self-test passed.')
