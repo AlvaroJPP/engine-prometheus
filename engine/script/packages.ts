@@ -128,6 +128,8 @@ export interface BehaviorPackageDefinition {
   defaultConfig: Record<string, PackageJsonValue>
   /** Regras prontas que são instaladas como nós do Visual Script ao anexar o pacote. */
   scripts?: BehaviorPackageScriptDefinition[]
+  /** Shared rules installed once per package type rather than once per scene object. */
+  globalScripts?: BehaviorPackageScriptDefinition[]
 }
 
 export interface BehaviorPackageInstance {
