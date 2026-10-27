@@ -8,7 +8,7 @@ import {
   visitStaticMeshTriangles,
 } from './StaticMeshCollider'
 import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
-import type { MountPackageSettings, AnimationRole, MountMovementState, ModelControlBindings } from '../script/packages'
+import type { MountPackageSettings, AnimationRole, ModelControlBindings } from '../script/packages'
 import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
 import type { ControlMapBindings } from '../input/ControlMaps'
 import {
@@ -39,10 +39,11 @@ import {
 } from './HumanoidAvatarShared'
 import type { PlayerManeuver, PlayerPosture } from './HumanoidAvatarShared'
 import { createHumanoidAvatarMountMethods, createHumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
+import type { HumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
 import type { HumanoidAvatarMountMethods } from './HumanoidAvatarMountMethods'
 
 
-export interface HumanoidAvatar extends HumanoidAvatarMountMethods {}
+export interface HumanoidAvatar extends HumanoidAvatarMountMethods, HumanoidAvatarMountState {}
 
 /** Avatar humanoide controlável por teclado, com gravidade e colisões com terreno/objetos. */
 export class HumanoidAvatar {
@@ -55,7 +56,6 @@ export class HumanoidAvatar {
   private animationActions = new Map<string, THREE.AnimationAction>()
   private animationController: AnimationController | null = null
   private activeAnimation = ''
-  private playerMountTransition: 'mount' | null = null
   private animationTime = 0
   private proceduralLocomotionBlend = 0
   private proceduralRunBlend = 0
@@ -93,13 +93,6 @@ export class HumanoidAvatar {
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
   private mountedRoot: THREE.Mesh | null = null
   private mountSettings: MountPackageSettings | null = null
-  private mountedMovementState: MountMovementState = 'idle'
-  private mountedJumpRequested = false
-  private mountedAirborne = false
-  private mountedVerticalVelocity = 0
-  private mountedStartPosition: THREE.Vector3 | null = null
-  private mountedStartRotation: THREE.Euler | null = null
-  private mountedVisualPivot: THREE.Object3D | null = null
   /** Evita executar nove raycasts de suporte em cada subpasso de movimento da montaria. */
   private controlBindings(): ControlMapBindings {
     if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
