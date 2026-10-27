@@ -107,6 +107,146 @@ export const VEILBORNE_BEHAVIOR_PACKAGE_DEFINITION: BehaviorPackageDefinition = 
       { id: 'add_echoes', label: 'Adicionar Ecos', description: 'Adiciona recurso de progressão por vitória ou recompensa.' },
       { id: 'respawn_at_checkpoint', label: 'Renascer no santuário', description: 'Reposiciona o jogador no último ponto de descanso salvo.' },
     ],
+    globalScripts: [
+      {
+        id: 'item-use-request',
+        name: 'Usar item selecionado',
+        enabled: true,
+        trigger: { type: 'global_event', eventId: 'veilborne:item_use_request' },
+        conditions: [],
+        actions: [{
+          type: 'javascript',
+          code: `const itemId = api.global.get('item_use_request');
+api.global.set('item_use_request', '');
+api.global.set('item_use_result', '');
+api.global.set('item_use_visual_color', 0);
+if (typeof itemId !== 'string' || !itemId.trim()) return;
+const catalog = ${JSON.stringify(VEILBORNE_RUNTIME_ITEMS)};
+const item = catalog[itemId];
+if (!item || api.inventory.quantity(itemId, 'inventario_json') < 1) return;
+const readNumber = (name, fallback) => {
+  const value = api.global.get(name);
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+};
+if (api.global.get('morto') === true || api.global.get('jogador_morreu') === true || readNumber('vida', 100) <= 0) {
+  api.notice('Não é possível usar itens enquanto o personagem está morto.', 1.8, 'loot_notice');
+  api.global.set('item_use_result', 'blocked');
+  return;
+}
+let consumed = false;
+if (item.effect === 'restore_vitality') {
+  const current = readNumber('vida', 100);
+  const maximum = Math.max(1, readNumber('vida_max', 100));
+  const next = Math.min(maximum, current + item.amount);
+  consumed = next > current;
+  if (consumed) api.global.set('vida', next);
+} else if (item.effect === 'restore_ether') {
+  const current = readNumber('eter', 100);
+  const maximum = Math.max(1, readNumber('eter_max', 100));
+  const next = Math.min(maximum, current + item.amount);
+  consumed = next > current;
+  if (consumed) api.global.set('eter', next);
+} else if (item.effect === 'restore_stamina') {
+  const current = readNumber('vigor', 100);
+  const maximum = Math.max(1, readNumber('vigor_max', 100));
+  const next = Math.min(maximum, current + item.amount);
+  consumed = next > current;
+  if (consumed) api.global.set('vigor', next);
+} else if (item.effect === 'add_echoes') {
+  api.global.set('ecos', Math.max(0, readNumber('ecos', 0)) + item.amount);
+  consumed = true;
+} else if (item.effect === 'area_damage') {
+  const numberFromEvent = (name, fallback) => {
+    const value = api.event.get(name);
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  };
+  const player = {
+    x: numberFromEvent('avatarX', 0),
+    y: numberFromEvent('avatarY', 0),
+    z: numberFromEvent('avatarZ', 0),
+  };
+  const forward = {
+    x: numberFromEvent('forwardX', 0),
+    z: numberFromEvent('forwardZ', 1),
+  };
+  const hostiles = api.package.list('veilborne_rpg')
+    .filter(candidate => candidate.enabled
+      && candidate.variables.entity_role === 'combatant'
+      && candidate.variables.faction === 'hostile'
+      && candidate.variables.morto !== true)
+    .map(candidate => ({ instance: candidate, position: api.world.position(candidate.ownerObjectId) }))
+    .filter(candidate => candidate.position && candidate.position.visible)
+    .map(candidate => ({
+      ...candidate,
+      distance: Math.hypot(candidate.position.x - player.x, candidate.position.z - player.z),
+    }));
+  const target = hostiles
+    .filter(candidate => candidate.distance <= (item.range ?? 8) && candidate.distance > 0.001)
+    .sort((a, b) => a.distance - b.distance)[0];
+  const center = target
+    ? { ...target.position }
+    : {
+        x: player.x + forward.x * Math.min(item.range ?? 4, 3.5),
+        y: player.y + 0.6,
+        z: player.z + forward.z * Math.min(item.range ?? 4, 3.5),
+      };
+  const radius = item.radius ?? 3;
+  const resistanceVariables = {
+    physical: 'res_fisica',
+    fire: 'res_chama',
+    frost: 'res_geada',
+    storm: 'res_tempestade',
+    blood: 'res_sangue',
+    shadow: 'res_sombra',
+    spirit: 'res_espirito',
+    arcane: 'res_arcano',
+  };
+  for (const candidate of hostiles) {
+    if (Math.hypot(candidate.position.x - center.x, candidate.position.z - center.z) > radius) continue;
+    const owner = candidate.instance.ownerObjectId;
+    const damageType = item.damageType ?? 'fire';
+    const result = api.combat.damage(owner, {
+      packageId: 'veilborne_rpg',
+      amount: item.amount,
+      damageType,
+      healthVariable: 'vida',
+      maximumHealthVariable: 'vida_max',
+      resistanceVariable: resistanceVariables[damageType] ?? 'res_fisica',
+      postureVariable: 'postura',
+      maximumPostureVariable: 'postura_max',
+      postureDamage: item.postureDamage ?? 10,
+      deadVariable: 'morto',
+      defeatedEvent: 'enemy_killed',
+    });
+    if (item.effect === 'area_damage' && !result.killed) {
+      api.combat.applyStatus(owner, {
+        id: 'burn',
+        potency: 2,
+        remainingSeconds: 3,
+        stacks: 1,
+        source: 'item:' + itemId,
+        damageType,
+      }, 'veilborne_rpg');
+    }
+    if (result.killed) {
+      api.package.set(owner, 'veilborne_rpg', 'ai_state', 'dead');
+      api.animation.playOnce(owner, 'death', true, true);
+    }
+  }
+  consumed = true;
+}
+if (!consumed) {
+  api.notice('Não é possível usar este item agora.', 1.8, 'loot_notice');
+  api.global.set('item_use_result', 'blocked');
+  return;
+}
+if (!api.inventory.consume(itemId, 1, 'inventario_json')) return;
+api.global.set('item_use_visual_color', item.visualColor);
+api.global.set('item_use_result', 'used');
+api.notice('Usado: ' + item.name, 2, 'loot_notice');`,
+        }],
+      },
+    ],
     scripts: [
       {
         id: 'boss-phase-scaling',
