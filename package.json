@@ -45,7 +45,8 @@
     "behavior:package-registration:self-test": "node --experimental-strip-types scripts/behavior-package-registration-self-test.mjs",
     "events:bus:self-test": "node --experimental-strip-types scripts/event-bus-self-test.mjs",
     "behavior:tree:self-test": "node --experimental-strip-types scripts/behavior-tree-self-test.mjs",
-    "behavior:tree-package:self-test": "node --experimental-strip-types scripts/behavior-tree-package-self-test.mjs"
+    "behavior:tree-package:self-test": "node --experimental-strip-types scripts/behavior-tree-package-self-test.mjs",
+    "behavior:tree-runtime:self-test": "node --experimental-strip-types scripts/engine-behavior-tree-runtime-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
