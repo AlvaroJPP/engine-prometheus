@@ -1,6 +1,7 @@
 import type { BehaviorPackageInstance, PackageScalar } from './packages'
 import type { BehaviorTreeHandlers, BehaviorTreeParameters } from './BehaviorTree.ts'
 import { BehaviorTreePackageSystem } from './BehaviorTreePackageSystem.ts'
+import { BehaviorTreeHandlerRegistry } from './BehaviorTreeHandlerRegistry.ts'
 import type { RuleEngine } from './RuleEngine'
 import type { World } from '../world/World'
 
@@ -68,6 +69,33 @@ function findPackage(
  */
 export class EngineBehaviorTreeRuntime {
   private readonly system = new BehaviorTreePackageSystem<EngineBehaviorTreeContext>()
+  private readonly extensions = new BehaviorTreeHandlerRegistry<EngineBehaviorTreeContext>()
+
+  registerCondition(
+    name: string,
+    handler: (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => boolean,
+    replace = false,
+  ): () => void {
+    return this.extensions.registerCondition(name, handler, replace)
+  }
+
+  registerAction(
+    name: string,
+    handler: (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => import('./BehaviorTree.ts').BehaviorTreeStatus,
+    replace = false,
+  ): () => void {
+    return this.extensions.registerAction(name, handler, replace)
+  }
+
+  registerNamespace(
+    namespace: string,
+    handlers: {
+      readonly conditions?: Readonly<Record<string, (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => boolean>>
+      readonly actions?: Readonly<Record<string, (parameters: BehaviorTreeParameters, context: EngineBehaviorTreeContext) => import('./BehaviorTree.ts').BehaviorTreeStatus>>
+    },
+  ): () => void {
+    return this.extensions.registerNamespace(namespace, handlers)
+  }
 
   update(context: EngineBehaviorTreeContext, dt: number, runtimeEnabled: boolean): void {
     const instances = context.logic.listPackages()
@@ -103,7 +131,7 @@ export class EngineBehaviorTreeRuntime {
   }
 
   private createHandlers(instance: BehaviorPackageInstance): BehaviorTreeHandlers<EngineBehaviorTreeContext> {
-    return {
+    const builtins: BehaviorTreeHandlers<EngineBehaviorTreeContext> = {
       condition: (name, params, context) => {
         switch (name) {
           case 'object_exists': {
@@ -270,5 +298,6 @@ export class EngineBehaviorTreeRuntime {
         }
       },
     }
+    return this.extensions.createHandlers(builtins)
   }
 }
