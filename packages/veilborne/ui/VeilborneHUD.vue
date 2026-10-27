@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
           </span>
         </div>
       </div>
-      <p class="veilborne-loadout-note">As seleções alteram as variáveis globais da sessão. O inventário de itens coletáveis e a persistência entre sessões ainda serão implementados.</p>
+      <p class="veilborne-loadout-note">As seleções alteram as variáveis globais da sessão. O inventário de itens coletados funciona durante a sessão; a persistência entre sessões ainda será implementada.</p>
     </aside>
 
   </div>
