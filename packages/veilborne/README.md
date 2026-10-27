@@ -76,9 +76,9 @@ Nesse caso, o host é responsável por montar a HUD e encaminhar seu evento `set
 
 ## Estado atual
 
-O adaptador liga os serviços de combate, IA, efeitos, barras de vida, itens, drops, progressão, pontos de controle e renascimento ao ciclo de runtime. A definição de comportamento é registrada apenas quando o host registra o módulo; nada é ativado automaticamente pelo editor genérico.
+O adaptador liga os serviços de combate, IA, efeitos, barras de vida, itens, drops, progressão, pontos de controle e renascimento ao ciclo de runtime. A definição de comportamento é registrada quando o host da aplicação detecta instâncias de `veilborne_rpg` no projeto. O editor genérico continua sem importar ou inicializar regras de VEILBORNE automaticamente; projetos sem esse pacote não montam o host.
 
-**A build de produção e os autotestes automatizados de runtime passaram no GitHub Actions.** Ainda não fiz uma sessão manual do jogo; por isso, a aprovação da build não substitui testes de combate dentro da aplicação. A HUD está disponível pelo host opt-in, mas não é montada automaticamente pelo editor genérico. A IA usa perseguição direta por distância e ainda não tem pathfinding nem teste de linha de visão. Também faltam hitboxes de animação para acerto preciso, persistência dedicada de personagem e conteúdo completo de missões/diálogos.
+O host da aplicação monta a HUD e registra o runtime quando abre um projeto que contém o pacote. O runtime também ajusta os itens importados para que repousem sobre a superfície abaixo deles. A IA usa perseguição direta por distância e ainda não tem pathfinding nem teste de linha de visão. Também faltam hitboxes de animação para acerto preciso, persistência dedicada de personagem e conteúdo completo de missões/diálogos.
 
 ## Verificação local
 

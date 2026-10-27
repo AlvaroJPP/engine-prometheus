@@ -66,6 +66,7 @@ const publicLibraryOpen = ref(false)
 const quickAddOpen = ref(false)
 
 const {
+  engineInstance,
   projectName,
   dirty,
   status,
@@ -446,6 +447,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
   return {
     CAMERA_LABELS,
     ENGINE_VERSION,
+    engineInstance,
     TERRAIN_ID,
     TOOLS,
     TRANSFORMS,

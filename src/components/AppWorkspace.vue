@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useAppController } from '@/composables/useAppController'
 import EditorTopBar from '@/components/EditorTopBar.vue'
 import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
@@ -10,8 +10,12 @@ import InspectorPanel from '@/components/InspectorPanel.vue'
 import EditorViewport from '@/components/EditorViewport.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
 import FullscreenDiagnostics from '@/components/FullscreenDiagnostics.vue'
+import VeilborneGameHost from '../../packages/veilborne/ui/VeilborneGameHost.vue'
 const context = useAppController() as Record<string, any>
 const ctx = reactive(context)
+const hasVeilbornePackage = computed(() => context.behaviorPackages.value.some(
+  (instance: { packageId: string }) => instance.packageId === 'veilborne_rpg',
+))
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
   if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
@@ -217,7 +221,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       />
 
       <!-- Viewport -->
-      <EditorViewport :context="context" />
+      <EditorViewport :context="context">
+        <template #game-overlay>
+          <VeilborneGameHost
+            v-if="hasVeilbornePackage"
+            :engine="ctx.engineInstance"
+            :enabled="hasVeilbornePackage"
+            :bindings="ctx.activeControlMap.bindings"
+            :game-variables="ctx.globalLogicVariables"
+            :editor-preview="ctx.executionMode !== 'running'"
+            @set-global-variable="ctx.markDirty"
+          />
+        </template>
+      </EditorViewport>
 
       <!-- Inspetor -->
       <InspectorPanel :context="context" />

@@ -17,6 +17,7 @@ function setExternalRef(name: string, element: unknown): void {
 <template>
 <main :ref="element => setExternalRef('viewportRoot', element)" class="viewport">
         <canvas :ref="element => setExternalRef('canvas', element)" class="canvas" :class="['tool-' + ctx.tool, ctx.viewportCursorClass]" />
+        <slot name="game-overlay" />
         <RuntimeHUD
           v-if="ctx.executionMode === 'running' || ctx.runtimeHudSettingsOpen"
           :player-name="ctx.playerModelName"

@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS } from '@engine'
@@ -121,6 +121,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
   const ruleConditionEnabled = ref(false)
 
+  const engineInstance = shallowRef<Engine | null>(null)
   let engine: Engine | null = null
   let playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
@@ -742,6 +743,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     loadPerformanceSettings()
     const e = new Engine(canvas.value)
     engine = e
+    engineInstance.value = e
     e.setControlBindings(playerControlBindings)
     appliedPerformancePreset = performanceMode.value === 'auto' ? 'economy' : performanceMode.value
     e.setPerformancePreset(appliedPerformancePreset)
@@ -800,6 +802,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.setRenderStatsListener(null)
     engine?.dispose()
     engine = null
+    engineInstance.value = null
     fps.value = 0
   })
 
@@ -1655,6 +1658,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   return {
+    engineInstance,
     projectName,
     dirty,
     status,

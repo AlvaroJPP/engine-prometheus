@@ -185,6 +185,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.itemUse = itemUse
 
     this.enemyAI = new VeilborneEnemyAISystem(context, combatRuntime, visualEffects)
+    this.loot?.placeExistingLootOnGround()
   }
 
   onRuntimeStart(context: GameModuleContext): void {
@@ -196,6 +197,7 @@ export class VeilborneGameModule implements EngineGameModule {
     this.enemyAI?.syncAutonomousPackages(this.active)
     if (!this.active) return
 
+    this.loot?.placeExistingLootOnGround()
     this.combatRuntime?.ensurePlayerVariables()
     this.restoreEchoCacheIfNeeded(context)
   }
@@ -244,6 +246,7 @@ export class VeilborneGameModule implements EngineGameModule {
 
     const enabled = this.combatRuntime?.isEnabled() ?? false
     if (enabled && !this.active) {
+      this.loot?.placeExistingLootOnGround()
       this.combatRuntime?.ensurePlayerVariables()
       this.restoreEchoCacheIfNeeded(context)
       this.active = true

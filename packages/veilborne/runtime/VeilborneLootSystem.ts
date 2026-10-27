@@ -80,6 +80,47 @@ export class VeilborneLootSystem {
     return true
   }
 
+  /**
+   * Reposiciona o loot inicial quando o projeto carrega modelos importados.
+   * O pivô do modelo é centralizado; usamos o limite visual e a superfície
+   * mais alta sob o objeto para evitar que frascos e fragmentos sejam enterrados.
+   */
+  placeExistingLootOnGround(): void {
+    const d = this.d
+    const packages = d.logic.listPackages().filter(instance =>
+      instance.enabled
+      && instance.packageId === 'veilborne_rpg'
+      && instance.variables.entity_role === 'loot'
+      && instance.variables.loot_collected !== true,
+    )
+    const lootOwnerIds = new Set(packages.map(instance => instance.ownerObjectId))
+    let changed = false
+
+    for (const instance of packages) {
+      const object = d.world.get(instance.ownerObjectId)
+      if (!object) continue
+      object.mesh.updateMatrixWorld(true)
+      const bounds = new THREE.Box3().setFromObject(object.mesh)
+      if (bounds.isEmpty()) continue
+      const modelHeight = Math.max(0.1, bounds.max.y - bounds.min.y)
+      const bottomOffset = object.mesh.position.y - bounds.min.y
+      const ceilingY = object.mesh.position.y + Math.max(0.75, modelHeight)
+      const groundY = this.findGroundHeight(
+        object.mesh.position.x,
+        object.mesh.position.z,
+        ceilingY,
+        lootOwnerIds,
+        object.id,
+      )
+      const targetY = groundY + bottomOffset + 0.12
+      if (!Number.isFinite(targetY) || Math.abs(object.mesh.position.y - targetY) < 0.05) continue
+      d.world.update(object.id, { y: targetY })
+      changed = true
+    }
+
+    if (changed) d.invalidate()
+  }
+
   spawnDrop(instance: BehaviorPackageInstance): void {
     const d = this.d
     const itemId = instance.variables.drop_item_id
@@ -109,8 +150,17 @@ export class VeilborneLootSystem {
     mesh.name = 'VEILBORNE_DROP_' + itemId
     mesh.castShadow = true
     mesh.receiveShadow = true
-    mesh.position.copy(source.mesh.position)
-    mesh.position.y += 0.38
+    mesh.position.set(
+      source.mesh.position.x,
+      this.findGroundHeight(
+        source.mesh.position.x,
+        source.mesh.position.z,
+        source.mesh.position.y + 0.65,
+        new Set(),
+        source.id,
+      ) + 0.3,
+      source.mesh.position.z,
+    )
     mesh.scale.setScalar(0.92)
     const object = d.world.add({
       id: 'veilborne-loot-' + uuid(),
@@ -129,6 +179,31 @@ export class VeilborneLootSystem {
     d.logic.setPackageVariable(installed.id, 'drop_item_id', '')
     d.notifyBehaviorPackageChanged(object.id)
     d.invalidate()
+  }
+
+  private findGroundHeight(
+    x: number,
+    z: number,
+    ceilingY: number,
+    excludedLootIds: Set<string>,
+    excludedObjectId?: string,
+  ): number {
+    const terrainHeight = this.d.world.terrain.heightAt(x, z)
+    let groundY = Number.isFinite(terrainHeight) ? terrainHeight : 0
+
+    for (const candidate of this.d.world.list()) {
+      if (candidate.id === excludedObjectId || excludedLootIds.has(candidate.id)) continue
+      if (candidate.mesh.visible === false || candidate.mesh.userData.colliderType === 'none') continue
+      candidate.mesh.updateMatrixWorld(true)
+      const bounds = new THREE.Box3().setFromObject(candidate.mesh)
+      if (bounds.isEmpty() || bounds.max.y > ceilingY) continue
+      if (
+        x < bounds.min.x - 0.03 || x > bounds.max.x + 0.03
+        || z < bounds.min.z - 0.03 || z > bounds.max.z + 0.03
+      ) continue
+      groundY = Math.max(groundY, bounds.max.y)
+    }
+    return groundY
   }
 
   resetForEditor(): void {
