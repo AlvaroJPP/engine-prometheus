@@ -36,11 +36,15 @@ interface AgentRuntimeState {
   signature: string
   reached: boolean
   avoidanceSide: -1 | 0 | 1
+  path: Position3[]
+  pathGoal: Position3 | null
+  waypointIndex: number
 }
 
 type AutonomousWorld = Pick<World, 'get' | 'update' | 'terrain' | 'isObjectVisible'> & Partial<Pick<World, 'getGroundHeightAt'>>
 type AutonomousObject = NonNullable<ReturnType<World['get']>>
 type MovementSafetyCheck = (objectId: string, target: Position3) => boolean
+type NavigationPlanner = (objectId: string, start: Position3, goal: Position3) => Position3[]
 
 const TRACKING_MODES = new Set<AutonomousBehaviorMode>([
   'follow_player',
@@ -89,7 +93,7 @@ function seedFrom(value: string): number {
 
 /**
  * Runtime autônomo genérico para GameObjects e entidades.
- * A navegação usa direção direta no plano XZ; ainda não usa navmesh/pathfinding.
+ * Pode consumir um planejador de rotas externo sem acoplar os comportamentos ao mundo físico.
  */
 export class AutonomousBehaviorSystem {
   private readonly runtime = new Map<string, AgentRuntimeState>()
@@ -105,6 +109,7 @@ export class AutonomousBehaviorSystem {
     packages: BehaviorPackageInstance[]
     playerPosition: Position3
     canMoveTo?: MovementSafetyCheck
+    findPath?: NavigationPlanner
   }): AutonomousBehaviorTransition[] {
     const transitions: AutonomousBehaviorTransition[] = []
     const agents = input.packages.filter(instance => instance.packageId === AUTONOMOUS_BEHAVIOR_PACKAGE_ID)
@@ -166,6 +171,9 @@ export class AutonomousBehaviorSystem {
           signature,
           reached: false,
           avoidanceSide: 0,
+          path: [],
+          pathGoal: null,
+          waypointIndex: 0,
         }
         this.runtime.set(instance.id, runtime)
       }
@@ -192,7 +200,7 @@ export class AutonomousBehaviorSystem {
             nextState = 'waiting'
             break
           }
-          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo)
+          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo, input.findPath)
           if (result.reached) {
             runtime.destination = null
             runtime.waitRemaining = idleDuration
@@ -220,7 +228,7 @@ export class AutonomousBehaviorSystem {
             nextState = 'waiting'
             break
           }
-          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo)
+          const result = this.moveTowards(input.world, object, runtime.destination, speed, 0.3, dt, runtime, input.canMoveTo, input.findPath)
           if (result.reached) {
             runtime.destination = null
             runtime.patrolDirection = runtime.patrolDirection === 1 ? -1 : 1
@@ -242,7 +250,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, input.playerPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo)
+            const result = this.moveTowards(input.world, object, input.playerPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo, input.findPath)
             nextState = result.moving ? 'following' : 'watching'
           }
           break
@@ -255,7 +263,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            nextState = this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime, input.canMoveTo)
+            nextState = this.moveAway(input.world, object, input.playerPosition, speed, dt, runtime, input.canMoveTo, input.findPath)
               ? 'fleeing'
               : 'waiting'
           }
@@ -280,7 +288,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, targetPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo)
+            const result = this.moveTowards(input.world, object, targetPosition, speed, stoppingDistance, dt, runtime, input.canMoveTo, input.findPath)
             nextState = result.moving ? 'following' : 'watching'
           }
           break
@@ -298,7 +306,7 @@ export class AutonomousBehaviorSystem {
           } else if (speed <= 0) {
             nextState = 'waiting'
           } else {
-            const result = this.moveTowards(input.world, object, target, speed, stoppingDistance, dt, runtime, input.canMoveTo)
+            const result = this.moveTowards(input.world, object, target, speed, stoppingDistance, dt, runtime, input.canMoveTo, input.findPath)
             if (result.reached) {
               runtime.reached = true
               nextState = 'reached'
@@ -402,13 +410,47 @@ export class AutonomousBehaviorSystem {
     dt: number,
     runtime: AgentRuntimeState,
     canMoveTo?: MovementSafetyCheck,
+    findPath?: NavigationPlanner,
   ): { moving: boolean; reached: boolean } {
     const position = object.mesh.position
-    const dx = target.x - position.x
-    const dz = target.z - position.z
+    const current = { x: position.x, y: position.y, z: position.z }
+    const distanceToGoal = planarDistance(current, target)
+    if (distanceToGoal <= stoppingDistance) {
+      runtime.path = []
+      runtime.pathGoal = null
+      runtime.waypointIndex = 0
+      return { moving: false, reached: true }
+    }
+
+    let navigationTarget = target
+    if (findPath) {
+      const goalChanged = !runtime.pathGoal || planarDistance(runtime.pathGoal, target) > 1.25
+      if (goalChanged) {
+        runtime.path = []
+        runtime.pathGoal = { ...target }
+        runtime.waypointIndex = 0
+      }
+      if (runtime.path.length === 0) {
+        const planned = findPath(object.id, current, target)
+        runtime.path = planned.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z))
+        runtime.waypointIndex = 0
+      }
+      while (runtime.waypointIndex < runtime.path.length) {
+        const waypoint = runtime.path[runtime.waypointIndex]!
+        if (planarDistance(current, waypoint) > Math.max(0.35, stoppingDistance * 0.5)) break
+        runtime.waypointIndex += 1
+      }
+      if (runtime.waypointIndex < runtime.path.length) navigationTarget = runtime.path[runtime.waypointIndex]!
+    }
+
+    const dx = navigationTarget.x - position.x
+    const dz = navigationTarget.z - position.z
     const distance = Math.hypot(dx, dz)
-    if (distance <= stoppingDistance) return { moving: false, reached: true }
-    const step = Math.min(speed * dt, Math.max(0, distance - stoppingDistance))
+    if (distance <= 1e-5) {
+      runtime.waypointIndex += 1
+      return { moving: false, reached: false }
+    }
+    const step = Math.min(speed * dt, Math.max(0, distance - Math.min(stoppingDistance, distance * 0.25)))
     if (step <= 1e-6) return { moving: false, reached: false }
 
     const x = clampWorldCoordinate(position.x + (dx / distance) * step)
@@ -425,6 +467,10 @@ export class AutonomousBehaviorSystem {
       runtime,
       canMoveTo,
     )
+    if (!moving && findPath && runtime.path.length > 0) {
+      runtime.path = []
+      runtime.waypointIndex = 0
+    }
 
     const after = object.mesh.position
     return {
