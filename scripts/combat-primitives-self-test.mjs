@@ -79,7 +79,7 @@ assert.equal(repairedExisting[0]?.stacks, 2)
 
 const sanitizedTick = tickTimedEffects([
   { id: 'infinite', potency: 1, remainingSeconds: Number.POSITIVE_INFINITY, stacks: 1 },
-  { id: 'empty-id', potency: 1, remainingSeconds: 2, stacks: 1 },
+  { id: '   ', potency: 1, remainingSeconds: 2, stacks: 1 },
   { id: 'valid', potency: Number.POSITIVE_INFINITY, remainingSeconds: 2, stacks: 0 },
 ], 0.1)
 assert.equal(sanitizedTick.length, 1)
