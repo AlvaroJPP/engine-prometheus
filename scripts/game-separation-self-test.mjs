@@ -52,5 +52,8 @@ assert.match(gameModule, /implements EngineGameModule/, 'VEILBORNE deve implemen
 assert.match(gameModule, /from ['"]\.\.\/\.\.\/\.\.\/engine\/runtime\/GameModule['"]/, 'O pacote deve depender do contrato público do núcleo.')
 assert.match(gameHost, /engine\.registerGameModule\(gameModule\)/, 'O host opcional deve registrar o jogo explicitamente.')
 assert.match(gameHost, /if \(!engine \|\| !enabled\) return/, 'O pacote não pode ser ativado sem opt-in do host.')
+assert.match(gameModule, /setManeuverAdmission\(kind => this\.active \? combatRuntime\.admitManeuver\(kind\) : true\)/, 'Regras de combate não podem restringir a movimentação quando VEILBORNE está inativo.');
+assert.match(gameModule, /onRuntimeStop\(\): void \{[\s\S]*?this\.active = false/, 'O módulo deve desativar as regras específicas ao sair do runtime.');
+assert.match(gameModule, /onDispose\(\): void \{[\s\S]*?setManeuverAdmission\(null\)/, 'O módulo deve remover o callback de movimentação ao ser descartado.');
 
 console.log('Game separation self-test passed: o núcleo/editor não referencia VEILBORNE e o pacote usa o contrato genérico.')
