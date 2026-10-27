@@ -82,7 +82,9 @@ export class VeilborneGameModule implements EngineGameModule {
       invalidate: () => context.invalidate(),
     })
     this.targetLock = targetLock
-    context.avatar.setManeuverAdmission(kind => combatRuntime.admitManeuver(kind))
+    // Só aplica custos/restrições de combate quando o pacote de jogo está ativo.
+    // Assim, carregar o módulo não altera a movimentação de projetos genéricos.
+    context.avatar.setManeuverAdmission(kind => this.active ? combatRuntime.admitManeuver(kind) : true)
 
     const loot = new VeilborneLootSystem({
       world: context.world,
