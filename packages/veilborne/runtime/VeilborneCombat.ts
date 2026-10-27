@@ -290,24 +290,24 @@ export const VEILBORNE_RUNTIME_SPELLS: Readonly<Record<string, VeilborneRuntimeS
   arcane_bolt: {
     id: 'arcane_bolt', name: 'Dardo do Véu', damage: 20, damageType: 'arcane',
     etherCost: 8, castTimeSeconds: 0.18, cooldownSeconds: 0.45, scalingAttribute: 'intellect',
-    scaling: 0.8, postureDamage: 6, range: 24, radius: 0, targeting: 'single', visualColor: 0x8c7cff,
+    scaling: 0.8, postureDamage: 6, range: 24, radius: 0, targeting: 'projectile', projectileSpeed: 26, visualColor: 0x8c7cff,
   },
   cinder_burst: {
     id: 'cinder_burst', name: 'Explosão de Brasa', damage: 34, damageType: 'fire',
     etherCost: 22, castTimeSeconds: 0.48, cooldownSeconds: 4, scalingAttribute: 'intellect',
-    scaling: 1.1, postureDamage: 18, range: 16, radius: 4.5, targeting: 'area', visualColor: 0xff713b,
+    scaling: 1.1, postureDamage: 18, range: 16, radius: 4.5, targeting: 'projectile', projectileSpeed: 18, visualColor: 0xff713b,
     statusEffect: 'burn', statusPotency: 3, statusDurationSeconds: 4,
   },
   frost_chain: {
     id: 'frost_chain', name: 'Corrente Glacial', damage: 16, damageType: 'frost',
     etherCost: 16, castTimeSeconds: 0.3, cooldownSeconds: 3, scalingAttribute: 'intellect',
-    scaling: 0.7, postureDamage: 8, range: 20, radius: 2, targeting: 'area', visualColor: 0x79ddff,
+    scaling: 0.7, postureDamage: 8, range: 20, radius: 2, targeting: 'projectile', projectileSpeed: 24, visualColor: 0x79ddff,
     statusEffect: 'slow', statusPotency: 0.35, statusDurationSeconds: 3,
   },
   blood_siphon: {
     id: 'blood_siphon', name: 'Dreno Rubro', damage: 14, damageType: 'blood',
     etherCost: 18, castTimeSeconds: 0.26, cooldownSeconds: 5, scalingAttribute: 'will',
-    scaling: 0.8, postureDamage: 8, range: 12, radius: 0, targeting: 'single', visualColor: 0xd82e55,
+    scaling: 0.8, postureDamage: 8, range: 12, radius: 0, targeting: 'projectile', projectileSpeed: 20, visualColor: 0xd82e55,
     statusEffect: 'bleed', statusPotency: 2, statusDurationSeconds: 5,
   },
   blink_step: {
@@ -318,7 +318,7 @@ export const VEILBORNE_RUNTIME_SPELLS: Readonly<Record<string, VeilborneRuntimeS
   storm_lance: {
     id: 'storm_lance', name: 'Lança da Tempestade', damage: 39, damageType: 'storm',
     etherCost: 24, castTimeSeconds: 0.42, cooldownSeconds: 4.5, scalingAttribute: 'intellect',
-    scaling: 1.15, postureDamage: 18, range: 26, radius: 0.8, targeting: 'area', visualColor: 0xffe77a,
+    scaling: 1.15, postureDamage: 18, range: 26, radius: 0.8, targeting: 'projectile', projectileSpeed: 28, visualColor: 0xffe77a,
     statusEffect: 'shock', statusPotency: 1, statusDurationSeconds: 2,
   },
 })
