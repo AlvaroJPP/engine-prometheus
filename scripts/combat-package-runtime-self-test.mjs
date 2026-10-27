@@ -90,6 +90,33 @@ runtime.update(0.1)
 assert.equal(instance.config.statuses.length, 0)
 assert.ok(events.some(event => event.eventId === 'status_expired'))
 
+// Generic damage-over-time statuses use the package's own resource schema.
+instance.variables.health = 50
+instance.variables.alive = true
+runtime.applyStatus('guard-01', {
+  id: 'burn',
+  effect: 'damage_over_time',
+  tickDamage: 1,
+  tickIntervalSeconds: 1,
+  remainingSeconds: 3,
+  potency: 2,
+  stacks: 1,
+  damageType: 'fire',
+  healthVariable: 'health',
+  maximumHealthVariable: 'max_health',
+  resistanceVariable: 'resistance',
+  defeatedEvent: 'defeated',
+})
+for (let frame = 0; frame < 9; frame += 1) runtime.update(0.1)
+assert.equal(instance.variables.health, 50, 'periodic damage waits until its configured interval')
+runtime.update(0.1)
+assert.equal(instance.variables.health, 48, 'periodic damage scales by potency and stacks')
+for (let frame = 0; frame < 10; frame += 1) runtime.update(0.1)
+assert.equal(instance.variables.health, 46)
+for (let frame = 0; frame < 10; frame += 1) runtime.update(0.1)
+assert.equal(instance.variables.health, 44)
+assert.equal(instance.config.statuses.length, 0, 'periodic effects still expire on time')
+
 // A target killed by the same generic action may later be restored.
 runtime.damage('guard-01', { amount: 500, damageType: 'physical' })
 assert.equal(instance.variables.health, 0)
