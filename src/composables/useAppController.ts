@@ -416,8 +416,6 @@ const availableBehaviorPackages = computed(() => BEHAVIOR_PACKAGE_DEFINITIONS.fi
   !selectedObjectPackages.value.some(instance => instance.packageId === definition.id),
 ))
 
-fu
-
 const {
   onPackageConfigChange,
   onPackageSeatOffsetChange,
