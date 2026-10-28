@@ -348,7 +348,7 @@ export class Viewport {
         const measuredFps = continuousRendering ? fps : 0
         this.fpsListener?.(measuredFps)
         this.renderStatsListener?.({
-          fps,
+          fps: measuredFps,
           continuousRendering,
           drawCalls: this.renderer.info.render.calls,
           triangles: this.renderer.info.render.triangles,
