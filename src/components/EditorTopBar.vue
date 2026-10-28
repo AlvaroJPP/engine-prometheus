@@ -228,7 +228,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </button>
     </div>
 
-    <Teleport to=".viewport" defer>
+    <Teleport to=".viewport-hud" defer>
       <div class="viewport-tools-overlay viewport-layout-positioned" :style="viewportLayoutStyle" role="toolbar" aria-label="Controles da visualização do mundo">
         <div class="viewport-camera-switch" role="group" aria-label="Câmera">
           <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
