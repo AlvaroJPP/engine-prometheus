@@ -8,11 +8,19 @@ function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
   if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
+
+function createGlobalEvent(): void {
+  const ruleId = ctx.addGlobalLogicEvent?.()
+  if (typeof ruleId !== 'string' || !ruleId) return
+  ctx.graphObjectFilter = 'all'
+  ctx.graphSelection = { ruleId, part: 'trigger' }
+  ctx.resetGraphView()
+}
 </script>
 
 <template>
 <div v-if="ctx.graphOpen" class="graph-overlay">
-      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="ctx.graphObjectFilter" @change="ctx.resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="ctx.addLogicRule()">+ Criar fluxo</button><button class="primary" @click="ctx.saveProject(false)">Salvar projeto</button><button class="ghost" @click="ctx.graphOpen = false">Voltar ao mundo ✕</button></div></header>
+      <header class="graph-top"><div class="graph-title-group"><strong>VISUAL SCRIPT</strong><span class="graph-subtitle">Diagrama por objeto · Evento → Condição → Ação</span><label class="graph-object-filter">Mostrar <select v-model="ctx.graphObjectFilter" @change="ctx.resetGraphView"><option value="all">Todos os objetos</option><option value="selected">Objeto selecionado</option></select></label></div><div class="graph-actions"><button class="ghost" @click="ctx.addLogicRule()">+ Criar fluxo</button><button class="ghost" title="Criar fluxo global acionado por HUD e outros sistemas" @click="createGlobalEvent">＋ Evento global</button><button class="primary" @click="ctx.saveProject(false)">Salvar projeto</button><button class="ghost" @click="ctx.graphOpen = false">Voltar ao mundo ✕</button></div></header>
       <div class="graph-body">
         <aside class="graph-library property-source">
           <div class="graph-object-heading">
@@ -47,6 +55,32 @@ function setExternalRef(name: string, element: unknown): void {
             <div v-if="!ctx.graphVisibleRules.length" class="graph-empty"><div class="empty-icon">⌘</div><h2>Nenhum fluxo criado</h2><p v-if="ctx.graphObjectFilter === 'selected' && ctx.selected">Este objeto ainda não tem eventos associados. Crie uma regra ou escolha “Todos os objetos”.</p><p v-else>Adicione uma regra no painel direito, em “Motor de regras”.</p><button class="ghost" @click="ctx.graphOpen = false">Voltar ao editor</button></div>
             <svg class="graph-wires" width="1800" height="6000" aria-hidden="true"><path v-for="edge in ctx.graphEdges" :key="edge.id" :class="edge.kind" :d="edge.d" /></svg>
             <template v-if="ctx.graphObjectFilter === 'all'">
+              <section
+                v-if="ctx.graphGlobalRules.length"
+                class="graph-object-group graph-global-group"
+                :style="{ left: '12px', top: '35px', height: ctx.graphGlobalGroupHeight + 'px' }"
+              >
+                <header class="graph-object-group-head">
+                  <span class="object-group-icon">⌘</span>
+                  <strong>Eventos globais · HUD / interface</strong>
+                  <span class="object-group-count">{{ ctx.graphGlobalRules.length }} evento(s)</span>
+                </header>
+                <article class="graph-node trigger-list" :style="{ left: '18px', top: '43px' }">
+                  <div class="node-head"><span>EVENTOS GLOBAIS</span><span>{{ ctx.graphGlobalRules.length }}</span></div>
+                  <button
+                    v-for="rule in ctx.graphGlobalRules"
+                    :key="rule.id"
+                    class="event-list-row"
+                    :class="{ chosen: ctx.graphSelection?.ruleId === rule.id && ctx.graphSelection?.part === 'trigger', disabled: !rule.enabled }"
+                    @pointerdown.stop
+                    @click.stop="ctx.graphSelection = { ruleId: rule.id, part: 'trigger' }"
+                  >
+                    <span class="event-row-icon">↗</span>
+                    <span class="event-row-copy"><strong>{{ ctx.nodeTitle(rule, 'trigger') }}</strong><small>{{ rule.name }}</small></span>
+                    <span class="event-row-port" :data-port-key="`event:${rule.id}`"></span>
+                  </button>
+                </article>
+              </section>
               <section v-for="group in ctx.graphObjectGroups" :key="group.object.id" class="graph-object-group" :style="{ left: '12px', top: `${group.top}px`, height: `${group.height}px` }">
                 <header class="graph-object-group-head">
                   <span class="object-group-icon">◇</span>
