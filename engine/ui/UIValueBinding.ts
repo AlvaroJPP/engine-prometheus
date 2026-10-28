@@ -14,8 +14,9 @@ export function resolveUIValueBindings(
   variables: UIValueBindingVariables,
 ): string {
   return template.replace(UI_VALUE_BINDING_PATTERN, (marker, variableName: string) => {
+    const value = variables[variableName]
     if (!Object.prototype.hasOwnProperty.call(variables, variableName)) return marker
-    return String(variables[variableName])
+    return String(value)
   })
 }
 
@@ -30,6 +31,7 @@ export function isUIVisibilityConditionMet(
 ): boolean {
   const name = (variableName ?? '').trim()
   if (!name) return true
+  const value = variables[name]
   if (!Object.prototype.hasOwnProperty.call(variables, name)) return false
-  return String(variables[name]) === (expectedValue ?? 'true')
+  return String(value) === (expectedValue ?? 'true')
 }
