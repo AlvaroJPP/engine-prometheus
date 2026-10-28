@@ -118,7 +118,7 @@ function alignSelected(axis: 'horizontal' | 'vertical'): void {
 function moveSelectedBy(dx: number, dy: number): void {
   const element = selectedElement.value
   if (!element) return
-  Object.assign(element, getClampedUIElementPosition(element, element.x + dx, element.y + dy))
+  Object.assign(element, getClampedUIElementPosition(element, element.x + dx, element.y + dy, snapToGrid.value, 2.5))
 }
 
 function handleKeyboardShortcut(event: KeyboardEvent): void {
