@@ -14,11 +14,11 @@ Na barra superior do Engine Prometheus, use **Workspace UI**. Crie uma tela e ad
 - **Imagem:** importa PNG, JPG ou WebP de até 5 MB.
 - **Barra:** acompanha uma variável global numérica, como `vida` ou `mana`.
 
-Cada tela usa a proporção 16:9 e coordenadas relativas, para que posições e tamanhos se adaptem a diferentes tamanhos de janela.
+Cada tela usa a proporção 16:9 e coordenadas relativas, para que posições e tamanhos se adaptem a diferentes tamanhos de janela. O tipo pode ser **Tela navegável** (menu, pausa e diálogos) ou **Overlay persistente** (HUD).
 
 ## Executar a UI no jogo
 
-Marque **Ativa no jogo** nas telas que devem estar disponíveis durante a execução. A primeira tela ativada é exibida inicialmente. Configure a ação de um botão como **Abrir outra tela** e selecione uma tela de destino também ativada para fazer a navegação. A ação **Definir variável global** aceita valores booleanos (`true`/`false`), números ou texto; esses valores podem ser usados pelo Visual Script.
+Marque **Ativa no jogo** nas telas que devem estar disponíveis durante a execução. A primeira tela navegável ativada é exibida inicialmente. Telas **Overlay persistente** também ativadas permanecem sobre a tela ou o jogo, permitindo manter a HUD de vida visível ao navegar pelos menus. Configure a ação de um botão como **Abrir outra tela** e selecione um destino navegável também ativado para fazer a navegação. A ação **Definir variável global** aceita valores booleanos (`true`/`false`), números ou texto; esses valores podem ser usados pelo Visual Script.
 
 Barras de progresso leem a variável global indicada e usam o valor máximo configurado. Se a variável não for numérica ou ainda não existir, a barra começa vazia.
 
