@@ -10,6 +10,7 @@ import {
   alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
+  getUIElementIdsInRect,
   reorderUIElement,
   resizeUIElements,
 } from '../engine/ui/UIEditorOperations.ts'
@@ -185,6 +186,10 @@ alignUnselected.id = 'align-unselected'
 Object.assign(alignUnselected, { x: 80, y: 12, width: 8, height: 6 })
 const alignSource = [alignFirst, alignSecond, alignUnselected]
 const alignIds = [alignFirst.id, alignSecond.id]
+assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 15, y: 25, width: 5, height: 5 }), [alignFirst.id])
+assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 49, y: 39, width: 3, height: 4 }), [alignSecond.id])
+assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 70, y: 70, width: 5, height: 5 }), [])
+assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 30, y: 30, width: -20, height: -10 }), [alignFirst.id])
 const leftAligned = alignUIElements(alignSource, alignIds, 'left')
 assert.deepEqual(leftAligned.slice(0, 2).map(element => element.x), [10, 10])
 assert.equal(leftAligned[2], alignUnselected)
