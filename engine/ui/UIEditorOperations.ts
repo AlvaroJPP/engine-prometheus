@@ -104,6 +104,41 @@ export function alignUIElements(
   })
 }
 
+export interface UIElementRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** Scales a selected set of UI elements from one shared rectangle into another. */
+export function resizeUIElements(
+  elements: readonly UIElementDefinition[],
+  elementIds: readonly string[],
+  origin: UIElementRect,
+  target: UIElementRect,
+): readonly UIElementDefinition[] {
+  const selectedIds = new Set(elementIds)
+  const selectedCount = elements.filter(element => selectedIds.has(element.id)).length
+  if (selectedCount === 0 || origin.width <= 0 || origin.height <= 0) return elements
+
+  const scaleX = target.width / origin.width
+  const scaleY = target.height / origin.height
+  return elements.map(element => {
+    if (!selectedIds.has(element.id)) return element
+    const width = clamp(element.width * scaleX, 1, 100)
+    const height = clamp(element.height * scaleY, 1, 100)
+    const x = target.x + (element.x - origin.x) * scaleX
+    const y = target.y + (element.y - origin.y) * scaleY
+    return {
+      ...element,
+      width: Number(width.toFixed(2)),
+      height: Number(height.toFixed(2)),
+      ...getClampedUIElementPosition({ width, height }, x, y),
+    }
+  })
+}
+
 /** Reorders a layer by one position; the last array entry is rendered on top. */
 export function reorderUIElement(
   elements: readonly UIElementDefinition[],
