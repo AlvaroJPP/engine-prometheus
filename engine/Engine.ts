@@ -42,6 +42,8 @@ import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
 import { createRuntimeFrameUpdateHandler } from './runtime/RuntimeFrameCoordinator'
 import { BuildComponentPlacementController } from './runtime/BuildComponentPlacementController'
+import { EngineVisualSettingsController } from './runtime/EngineVisualSettingsController'
+import { configureRuntimeMode } from './runtime/RuntimeModeCoordinator'
 import { handleRuntimeKeyDown } from './runtime/RuntimeKeyboardHandler'
 import { resolveModelControlBindings } from './script/ModelControlBindings'
 import { placeSpawnPlatform } from './world/SpawnPlatformPlacement'
@@ -60,6 +62,7 @@ export class Engine {
   readonly collisions = new CollisionSystem(this.world)
   private readonly modelOcclusion = new ModelOcclusionSystem()
   private modelLod!: ModelLodSystem
+  private visualSettings!: EngineVisualSettingsController
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private readonly behaviorTreeRuntime = new EngineBehaviorTreeRuntime()
@@ -96,6 +99,7 @@ export class Engine {
     this.modelLod = new ModelLodSystem(() => {
       this.viewport.invalidate()
     })
+    this.visualSettings = new EngineVisualSettingsController(this.viewport, this.world, this.modelLod)
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
     this.autonomousBehaviorCoordinator = new AutonomousBehaviorCoordinator({
       world: this.world,
@@ -276,22 +280,13 @@ export class Engine {
   }
 
   /** Liga um observador à taxa de quadros real do viewport. */
-  setFpsListener(listener: ((fps: number) => void) | null): void {
-    this.viewport.setFpsListener(listener)
-  }
+  setFpsListener(listener: ((fps: number) => void) | null): void { this.visualSettings.setFpsListener(listener) }
 
   /** Expõe estatísticas de triângulos/draw calls e custo CPU do renderizador. */
-  setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void {
-    this.viewport.setRenderStatsListener(listener)
-  }
+  setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void { this.visualSettings.setRenderStatsListener(listener) }
 
   /** Configura limite de quadros, resolução, LOD de modelos e densidade da grama. */
-  setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
-    this.viewport.setPerformancePreset(preset)
-    this.modelLod.setPreset(preset)
-    this.world.terrain.grass.setPerformancePreset(preset)
-    this.viewport.invalidate()
-  }
+  setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void { this.visualSettings.setPerformancePreset(preset) }
 
   /** Ajusta de forma independente a escala de resolução e o limite de FPS. */
   setRenderOptions(options: {
@@ -300,36 +295,19 @@ export class Engine {
     dynamicResolution?: boolean
     dynamicResolutionTargetFps?: number
     dynamicResolutionMinScale?: number
-  }): void {
-    this.viewport.setRenderOptions(options)
-  }
+  }): void { this.visualSettings.setRenderOptions(options) }
 
   /** Ajusta LOD, densidade, alcance, oclusão e vento da vegetação. */
-  setGrassRenderOptions(options: GrassRenderOptions): void {
-    this.world.terrain.grass.setRenderOptions(options)
-    this.viewport.invalidate()
-  }
+  setGrassRenderOptions(options: GrassRenderOptions): void { this.visualSettings.setGrassRenderOptions(options) }
 
   /** Liga/desliga a neblina atmosférica. */
-  setFogEnabled(enabled: boolean): void {
-    this.world.setFogEnabled(enabled)
-    this.viewport.invalidate()
-  }
+  setFogEnabled(enabled: boolean): void { this.visualSettings.setFogEnabled(enabled) }
 
   /** Define o alcance visual da neblina entre 50% e 200%. */
-  setFogDistanceScale(scale: number): void {
-    this.world.setFogDistanceScale(scale)
-    this.viewport.invalidate()
-  }
+  setFogDistanceScale(scale: number): void { this.visualSettings.setFogDistanceScale(scale) }
 
   /** Compatibilidade com chamadas antigas do modo desempenho. */
-  setPerformanceMode(enabled: boolean): void {
-    const preset = enabled ? 'economy' : 'quality'
-    this.viewport.setPerformanceMode(enabled)
-    this.modelLod.setPreset(preset)
-    this.world.terrain.grass.setPerformancePreset(preset)
-    this.viewport.invalidate()
-  }
+  setPerformanceMode(enabled: boolean): void { this.visualSettings.setPerformanceMode(enabled) }
 
   /** Consulta uma entidade genérica da cena pelo ID, sem lógica específica de espécie. */
   getEntity(id: string): Entity | null { return this.world.getEntity(id) }
@@ -541,63 +519,25 @@ export class Engine {
 
   /** Alterna entre o editor livre e a execução controlada pelo jogador. */
   setRuntimeMode(enabled: boolean): void {
-    if (enabled) {
-      if (this.cameraStateBeforeRun) return
-      this.runtimeModeActive = true
-      this.cameraStateBeforeRun = this.orbit.getState()
-      this.orbit.setFirstPersonMode(false)
-      this.avatar.setFirstPersonMode(false)
-      // Se houver uma plataforma de spawn, posiciona os pés do jogador sobre ela.
-      // O nome é persistido no projeto, então o ponto continua funcionando após reabrir.
-      const spawn = this.world.list().find((object) =>
-        object.name === 'Plataforma de Spawn' || object.mesh.userData.playerSpawn === true,
-      )
-      if (spawn) {
-        spawn.mesh.updateMatrixWorld(true)
-        const bounds = new THREE.Box3().setFromObject(spawn.mesh)
-        this.avatar.mesh.position.set(spawn.mesh.position.x, bounds.max.y + 0.03, spawn.mesh.position.z)
-        this.avatar.resetVerticalState()
-      } else {
-        this.avatar.reset()
-      }
-      this.avatar.mesh.visible = true
-      this.avatar.setEnabled(true)
-      this.orbit.target.set(this.avatar.mesh.position.x, this.avatar.mesh.position.y + 0.9, this.avatar.mesh.position.z)
-      this.orbit.distance = 10
-      this.input.setRuntimeMode(true)
-      this.gameModules.start()
-      this.transformControls.detach()
-      this.transformControls.enabled = false
-      this.viewport.invalidate()
-      return
-    }
-
-    this.gameModules.stop()
-    this.logic.restoreRuntimeWorldChanges()
-    for (const objectId of removeTransientScriptObjects(this.world)) {
-      this.logic.removeObjectVariables(objectId)
-    }
-    this.runtimeModeActive = false
-    for (const code of this.pressedMouseBindings.values()) dispatchMouseBinding(code, 'keyup')
-    this.pressedMouseBindings.clear()
-    this.input.setRuntimeMode(false)
-    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
-    this.avatar.setEnabled(false)
-    this.avatar.mesh.visible = false
-    this.avatar.setFirstPersonMode(false)
-    if (this.cameraStateBeforeRun) {
-      this.orbit.restore(this.cameraStateBeforeRun)
-      this.cameraStateBeforeRun = null
-    }
-    this.transformControls.enabled = true
-    const selectedId = this.world.getSelectedId()
-    const selected = selectedId ? this.world.get(selectedId) : undefined
-    if (this.state.tool === 'select' && selected && selected.mesh.userData.locked !== true) {
-      this.transformControls.attach(selected.mesh)
-    } else {
-      this.transformControls.detach()
-    }
-    this.emitTool()
+    configureRuntimeMode(enabled, {
+      avatar: this.avatar,
+      orbit: this.orbit,
+      input: this.input,
+      world: this.world,
+      logic: this.logic,
+      gameModules: this.gameModules,
+      transformControls: this.transformControls,
+      state: this.state,
+      viewport: this.viewport,
+      pressedMouseBindings: this.pressedMouseBindings,
+      isRuntimeModeActive: () => this.runtimeModeActive,
+      setRuntimeModeActive: active => { this.runtimeModeActive = active },
+      getCameraStateBeforeRun: () => this.cameraStateBeforeRun,
+      setCameraStateBeforeRun: state => { this.cameraStateBeforeRun = state },
+      getActiveMountPackageId: () => this.activeMountPackageId,
+      dismountActiveMount: () => this.dismountActiveMount(),
+      emitTool: () => this.emitTool(),
+    })
   }
 
   setFirstPersonMode(enabled: boolean): void {
