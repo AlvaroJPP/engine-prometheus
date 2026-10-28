@@ -168,41 +168,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       <span>Abrir painel</span>
     </button>
 
-    <div v-if="ctx.sidebarCollapsed" class="collapsed-sidebar-actions" aria-label="Criação e importação">
-      <div class="quick-add-wrap collapsed-sidebar-add-wrap">
-        <button
-          class="collapsed-sidebar-action collapsed-sidebar-add-trigger"
-          type="button"
-          :aria-expanded="ctx.quickAddOpen"
-          aria-haspopup="menu"
-          title="Adicionar objetos à cena"
-          @click.stop="ctx.quickAddOpen = !ctx.quickAddOpen"
-        >
-          <span class="collapsed-sidebar-action-icon" aria-hidden="true">＋</span>
-          <span>Adicionar</span>
-          <span class="quick-add-chevron" aria-hidden="true">▾</span>
-        </button>
-        <div v-if="ctx.quickAddOpen" class="quick-add-popover collapsed-sidebar-add-popover" role="menu" @click.stop>
-          <div class="quick-add-heading">CRIAR NA CENA</div>
-          <button role="menuitem" title="Adiciona um cubo à cena. Atalho indicado: 1." @click="ctx.addPrimitive('cube'); ctx.quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
-          <button role="menuitem" title="Adiciona uma plataforma retangular. Atalho indicado: 2." @click="ctx.addPrimitive('platform'); ctx.quickAddOpen = false"><span class="quick-add-icon">▱</span><span><strong>Plataforma</strong><small>Superfície retangular</small></span><kbd>2</kbd></button>
-          <button role="menuitem" title="Cria um marcador para o ponto inicial do jogador." @click="ctx.addSpawnPlatform(); ctx.quickAddOpen = false"><span class="quick-add-icon">◎</span><span><strong>Spawn do jogador</strong><small>Ponto inicial do personagem</small></span></button>
-          <button role="menuitem" title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="ctx.addClickableCubeExample(); ctx.quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
-        </div>
-      </div>
-      <button
-        class="collapsed-sidebar-action"
-        type="button"
-        title="Importa arquivos 3D e configura modelo e animações"
-        aria-label="Importar modelo 3D"
-        @click="ctx.quickAddOpen = false; ctx.previewComponentAsset = null; ctx.modelImportOpen = true"
-      >
-        <span class="collapsed-sidebar-action-icon" aria-hidden="true">▧</span>
-        <span>Importar 3D</span>
-      </button>
-    </div>
+    <!-- Ações de criação/importação ficam no HUD da viewport, com a lateral aberta ou recolhida. -->
 
-    <div class="main">
+        <div class="main">
       <SceneHierarchy
         v-model:root-open="ctx.rootOpen"
         :components="ctx.savedComponents"
