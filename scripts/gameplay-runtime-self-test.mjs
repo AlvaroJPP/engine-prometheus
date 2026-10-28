@@ -11,7 +11,17 @@ const energy = gameplay.resources.create('player', 'energy', { current: 5, maxim
 gameplay.statuses.apply('player', 'regeneration', 2, { tickIntervalSeconds: 1 })
 gameplay.cooldowns.start('player::dash', 3)
 gameplay.objectives.register({ id: 'intro' })
+gameplay.entities.defineComponent('runtime-test')
 gameplay.entities.create('player')
+gameplay.entities.addComponent('player', 'runtime-test', { ready: true })
+const systemCalls = []
+gameplay.systems.register({
+  id: 'generic-runtime-test-system',
+  requiredComponents: ['runtime-test'],
+  onEntityEnter: (id, context) => systemCalls.push(['enter', id, context.runtime === gameplay]),
+  updateEntity: (dt, id, context) => systemCalls.push(['update', dt, id, context.runtime === gameplay]),
+  onEntityExit: (id, context) => systemCalls.push(['exit', id, context.runtime === gameplay]),
+})
 const entityBehaviorTicks = []
 gameplay.behaviors.add('player', {
   id: 'generic-test-behavior',
@@ -43,6 +53,10 @@ const update = gameplay.update(1)
 assert.deepEqual(update.statusEvents.map(event => event.type), ['tick'])
 assert.deepEqual(update.triggerEvents.map(event => [event.type, event.subjectId]), [['enter', 'player']])
 assert.equal(gameplay.cooldowns.isReady('player::dash'), false)
+assert.deepEqual(systemCalls, [
+  ['enter', 'player', true],
+  ['update', 1, 'player', true],
+])
 assert.deepEqual(entityBehaviorTicks, [[1, 'player', true]])
 
 const cleanup = gameplay.removeEntity('player')
@@ -59,6 +73,7 @@ assert.equal(gameplay.world.get('player'), undefined)
 assert.equal(gameplay.resources.get('player', 'energy'), undefined)
 assert.equal(gameplay.statuses.has('player', 'regeneration'), false)
 assert.equal(gameplay.cooldowns.isReady('player::dash'), true)
+assert.deepEqual(systemCalls.at(-1), ['exit', 'player', true])
 assert.equal(gameplay.removeEntity('player').entityRemoved, false)
 dispose()
 gameplay.clear()
