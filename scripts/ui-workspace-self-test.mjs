@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   createUIElement,
   createUIScreen,
@@ -98,6 +99,15 @@ assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.inventory.open', {
 assert.equal(runtimeScriptEngine.exportData().variables['hud.source'], 'hud')
 assert.equal(runtimeScriptEngine.exportData().variables['hud.screen'], 'HUD de aventura')
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
+
+const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
+const editorControllerSource = readFileSync(new URL('../src/composables/useEditor.ts', import.meta.url), 'utf8')
+assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
+assert.match(visualScriptGraphSource, /graphGlobalRules/)
+assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
+assert.match(editorControllerSource, /function addGlobalLogicEvent\(/)
+assert.match(editorControllerSource, /ui\.last_event_source/)
+assert.match(editorControllerSource, /trigger: \{ type: 'global_event', eventId: cleanEventId \}/)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
