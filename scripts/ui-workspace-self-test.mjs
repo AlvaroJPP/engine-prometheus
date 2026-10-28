@@ -25,12 +25,18 @@ import {
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
-import { resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
+import { isUIVisibilityConditionMet, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
 assert.equal(resolveUIValueBindings('Sem valor: {{nao_existe}}', {}), 'Sem valor: {{nao_existe}}')
 assert.equal(resolveUIValueBindings('Texto comum sem vinculos', { vida: 73 }), 'Texto comum sem vinculos')
+assert.equal(isUIVisibilityConditionMet('', 'true', {}), true)
+assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', { 'ui.inventory.open': true }), true)
+assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'false', { 'ui.inventory.open': false }), true)
+assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', { 'ui.inventory.open': false }), false)
+assert.equal(isUIVisibilityConditionMet('ui.inventory.open', '1', { 'ui.inventory.open': 1 }), true)
+assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', {}), false)
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -49,16 +55,24 @@ screen.elements[0].textAlign = 'left'
 screen.elements[0].fontWeight = 800
 screen.elements[3].imageFit = 'cover'
 
+screen.visibilityVariable = 'ui.menu.visible'
+screen.visibilityValue = 'true'
+screen.elements[0].visibilityVariable = 'ui.health_panel.visible'
+screen.elements[0].visibilityValue = '1'
 const parsed = parseUIScreenDefinitions([screen])
 assert.equal(parsed.length, 1)
 assert.equal(parsed[0].name, 'Menu de teste')
 assert.equal(parsed[0].enabledInGame, true)
 assert.equal(parsed[0].displayMode, 'overlay')
+assert.equal(parsed[0].visibilityVariable, 'ui.menu.visible')
+assert.equal(parsed[0].visibilityValue, 'true')
 assert.deepEqual(parsed[0].elements.map(element => element.kind), ['panel', 'text', 'button', 'image', 'progress'])
 assert.equal(parsed[0].elements[0].opacity, 0.35)
 assert.equal(parsed[0].elements[0].textAlign, 'left')
 assert.equal(parsed[0].elements[0].fontWeight, 800)
 assert.equal(parsed[0].elements[3].imageFit, 'cover')
+assert.equal(parsed[0].elements[0].visibilityVariable, 'ui.health_panel.visible')
+assert.equal(parsed[0].elements[0].visibilityValue, '1')
 assert.equal(parsed[0].elements[0].groupId, 'group-header')
 assert.equal(parsed[0].elements[1].groupId, 'group-header')
 
@@ -72,8 +86,15 @@ assert.equal(parsedHudEvent.elements[0].action, 'trigger-event')
 assert.equal(parsedHudEvent.elements[0].eventId, 'hud.inventory.open')
 const legacyHudElement = { ...hudEventButton }
 delete legacyHudElement.eventId
-const parsedLegacyHudScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [legacyHudElement] }])[0]
+delete legacyHudElement.visibilityVariable
+delete legacyHudElement.visibilityValue
+const legacyHudScreen = { ...hudEventScreen }
+delete legacyHudScreen.visibilityVariable
+delete legacyHudScreen.visibilityValue
+const parsedLegacyHudScreen = parseUIScreenDefinitions([{ ...legacyHudScreen, elements: [legacyHudElement] }])[0]
 assert.equal(parsedLegacyHudScreen.elements[0].eventId, '')
+assert.equal(parsedLegacyHudScreen.visibilityVariable, '')
+assert.equal(parsedLegacyHudScreen.elements[0].visibilityVariable, '')
 
 const runtimeScriptEngine = new RuleEngine({
   events: { emit() {} },
@@ -132,6 +153,10 @@ assert.match(gameUIRuntimeSource, /source: 'hud'/)
 assert.match(gameUIRuntimeSource, /screenId, screenName, elementId, elementName/)
 assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
+assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
+assert.match(gameUIRuntimeSource, /screen\.elements\.filter\(isElementVisible\)/)
+assert.match(uiWorkspaceSource, /selectedElement\.visibilityVariable/)
+assert.match(uiWorkspaceSource, /activeScreen\.visibilityVariable/)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
