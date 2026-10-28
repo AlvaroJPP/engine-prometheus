@@ -27,7 +27,7 @@ const normalized = parseUIScreenDefinitions([{
   background: 'url(javascript:alert(1))',
   elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red' }],
 }])
-assert.equal(normalized[0].background, '#101319')
+assert.equal(normalized[0].background, '#00000000')
 assert.equal(normalized[0].elements[0].x, 100)
 assert.equal(normalized[0].elements[0].width, 1)
 assert.equal(normalized[0].elements[0].color, '#F4F1E9')
