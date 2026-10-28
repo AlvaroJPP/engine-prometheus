@@ -111,6 +111,93 @@ export interface UIElementRect {
   height: number
 }
 
+export type UIResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+
+export interface UIElementResizeOptions {
+  snapToGrid?: boolean
+  gridSize?: number
+  preserveAspectRatio?: boolean
+}
+
+/** Computes the smallest rectangle that contains all supplied elements. */
+export function getUIElementsBounds(
+  elements: readonly Pick<UIElementDefinition, 'x' | 'y' | 'width' | 'height'>[],
+): UIElementRect | null {
+  if (!elements.length) return null
+  const left = Math.min(...elements.map(element => element.x))
+  const top = Math.min(...elements.map(element => element.y))
+  const right = Math.max(...elements.map(element => element.x + element.width))
+  const bottom = Math.max(...elements.map(element => element.y + element.height))
+  return {
+    x: Number(left.toFixed(2)),
+    y: Number(top.toFixed(2)),
+    width: Number((right - left).toFixed(2)),
+    height: Number((bottom - top).toFixed(2)),
+  }
+}
+
+/**
+ * Computes a bounded resize rectangle in percentage coordinates.
+ * Corner handles can preserve the original aspect ratio while Shift is held.
+ */
+export function getResizedUIElementRect(
+  origin: UIElementRect,
+  handle: UIResizeHandle,
+  deltaX: number,
+  deltaY: number,
+  options: UIElementResizeOptions = {},
+): UIElementRect {
+  if (origin.width <= 0 || origin.height <= 0) return origin
+  const leftOrigin = clamp(origin.x, 0, 100)
+  const topOrigin = clamp(origin.y, 0, 100)
+  const rightOrigin = clamp(origin.x + origin.width, leftOrigin + 1, 100)
+  const bottomOrigin = clamp(origin.y + origin.height, topOrigin + 1, 100)
+  const grid = Number.isFinite(options.gridSize) && (options.gridSize ?? 0) > 0 ? options.gridSize! : 2.5
+  const snap = (value: number) => options.snapToGrid ? Math.round(value / grid) * grid : value
+
+  let left = leftOrigin
+  let right = rightOrigin
+  let top = topOrigin
+  let bottom = bottomOrigin
+  if (handle.includes('w')) left = clamp(snap(leftOrigin + deltaX), 0, rightOrigin - 1)
+  if (handle.includes('e')) right = clamp(snap(rightOrigin + deltaX), leftOrigin + 1, 100)
+  if (handle.includes('n')) top = clamp(snap(topOrigin + deltaY), 0, bottomOrigin - 1)
+  if (handle.includes('s')) bottom = clamp(snap(bottomOrigin + deltaY), topOrigin + 1, 100)
+
+  const isCorner = handle.length === 2
+  if (options.preserveAspectRatio && isCorner) {
+    const west = handle.includes('w')
+    const north = handle.includes('n')
+    const anchorX = west ? rightOrigin : leftOrigin
+    const anchorY = north ? bottomOrigin : topOrigin
+    const movingX = west ? left : right
+    const movingY = north ? top : bottom
+    const widthScale = Math.max(1, Math.abs(movingX - anchorX)) / origin.width
+    const heightScale = Math.max(1, Math.abs(movingY - anchorY)) / origin.height
+    let scale = Math.abs(widthScale - 1) >= Math.abs(heightScale - 1) ? widthScale : heightScale
+
+    const maxWidth = west ? anchorX : 100 - anchorX
+    const maxHeight = north ? anchorY : 100 - anchorY
+    const minScale = Math.max(1 / origin.width, 1 / origin.height)
+    const maxScale = Math.max(minScale, Math.min(maxWidth / origin.width, maxHeight / origin.height))
+    scale = clamp(scale, minScale, maxScale)
+
+    const width = origin.width * scale
+    const height = origin.height * scale
+    if (west) left = anchorX - width
+    else right = anchorX + width
+    if (north) top = anchorY - height
+    else bottom = anchorY + height
+  }
+
+  return {
+    x: Number(clamp(left, 0, 99).toFixed(2)),
+    y: Number(clamp(top, 0, 99).toFixed(2)),
+    width: Number(clamp(right - left, 1, 100).toFixed(2)),
+    height: Number(clamp(bottom - top, 1, 100).toFixed(2)),
+  }
+}
+
 /** Returns IDs of UI elements intersecting a selection rectangle in percentage coordinates. */
 export function getUIElementIdsInRect(
   elements: readonly UIElementDefinition[],
