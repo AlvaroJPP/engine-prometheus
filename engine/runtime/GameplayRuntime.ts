@@ -3,6 +3,7 @@ import { ResourcePoolRegistry } from './ResourcePoolRegistry.ts'
 import { StatusEffectRuntime } from './StatusEffectRuntime.ts'
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import { EntityBehaviorRuntime } from './EntityBehaviorRuntime.ts'
+import { EntitySystemRuntime } from './EntitySystemRuntime.ts'
 import { GameplayWorldSystems } from '../world/GameplayWorldSystems.ts'
 import type { SpatialItem3 } from '../world/SpatialHash3D.ts'
 import type { TriggerEvent } from '../world/TriggerVolumeSystem.ts'
@@ -48,32 +49,44 @@ export class GameplayRuntime {
   readonly cooldowns = new CooldownScheduler()
   readonly entities = new EntityComponentRuntime()
   readonly behaviors: EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>
+  readonly systems: EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>
   private readonly behaviorNamespace: string
 
   constructor(options: GameplayRuntimeOptions = {}) {
     this.world = new GameplayWorldSystems(options.cellSize, options.maxQueryCells)
     this.statuses = new StatusEffectRuntime(options.maxCatchUpTicks)
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
+    const createEntityContext = (entityId: string): GameplayEntityContext => ({
+      entityId,
+      runtime: this as GameplayRuntime,
+    })
     this.behaviors = new EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>(
       this.entities,
-      (entityId): GameplayEntityContext => ({ entityId, runtime: this as GameplayRuntime }),
+      createEntityContext,
+    )
+    this.systems = new EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>(
+      this.entities,
+      createEntityContext,
     )
   }
 
-  /** Start entity behaviors; timed systems remain deterministic and explicitly updated. */
+  /** Starts component-filtered systems before entity behaviors consume their results. */
   start(): void {
+    this.systems.start()
     this.behaviors.start()
   }
 
-  /** Stop active entity behaviors while retaining their components for another run. */
+  /** Stops behaviors before systems, reversing the startup dependency order. */
   stop(): void {
     this.behaviors.stop()
+    this.systems.stop()
   }
 
-  /** Advances timed systems, entity behaviors, and trigger occupancy for one simulation tick. */
+  /** Advances timed systems, component-filtered systems, behaviors, and trigger occupancy. */
   update(deltaSeconds: number): GameplayRuntimeUpdate {
     this.cooldowns.update(deltaSeconds)
     const statusEvents = this.statuses.update(deltaSeconds)
+    this.systems.update(deltaSeconds)
     this.behaviors.update(deltaSeconds)
     const triggerEvents = this.world.updateTriggers()
     return { statusEvents, triggerEvents }
@@ -107,8 +120,16 @@ export class GameplayRuntime {
         cooldownsCanceled: 0,
       }
     }
-    const entityRemoved = this.world.remove(owner)
     const behaviorsRemoved = this.behaviors.removeEntity(owner)
+    const errors: unknown[] = []
+    let componentEntityRemoved = false
+    try {
+      componentEntityRemoved = this.entities.destroy(owner)
+    } catch (error) {
+      errors.push(error)
+      componentEntityRemoved = !this.entities.get(owner)
+    }
+    const entityRemoved = this.world.remove(owner)
     const resourcePoolsRemoved = this.resources.removeOwner(owner)
     const statusEffectsRemoved = this.statuses.removeOwner(owner).length
     const prefix = `${owner}::`
@@ -116,7 +137,7 @@ export class GameplayRuntime {
       .map(entry => entry.key)
       .filter(key => key.startsWith(prefix))
     for (const key of cooldownKeys) this.cooldowns.cancel(key)
-    const componentEntityRemoved = this.entities.destroy(owner)
+    if (errors.length > 0) throw errors[0]
     return {
       entityRemoved,
       componentEntityRemoved,
@@ -133,6 +154,7 @@ export class GameplayRuntime {
     const cleanups = [
       () => this.stop(),
       () => this.behaviors.clear(),
+      () => this.systems.clear(),
       () => this.entities.clear(),
       () => this.resources.clear(),
       () => this.world.clear(),
