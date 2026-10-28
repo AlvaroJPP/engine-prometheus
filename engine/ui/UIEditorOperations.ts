@@ -75,10 +75,10 @@ export function reorderUIElement(
   elements: readonly UIElementDefinition[],
   elementId: string,
   direction: UIElementLayerDirection,
-): UIElementDefinition[] {
+): readonly UIElementDefinition[] {
   const index = elements.findIndex(element => element.id === elementId)
   const nextIndex = index + direction
-  if (index < 0 || nextIndex < 0 || nextIndex >= elements.length) return elements as UIElementDefinition[]
+  if (index < 0 || nextIndex < 0 || nextIndex >= elements.length) return elements
 
   const result = [...elements]
   ;[result[index], result[nextIndex]] = [result[nextIndex], result[index]]
