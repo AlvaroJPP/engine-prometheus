@@ -17,6 +17,18 @@ Na barra superior do Engine Prometheus, use **Workspace UI**. Crie uma tela e ad
 
 Cada tela usa a proporção 16:9 e coordenadas relativas, para que posições e tamanhos se adaptem a diferentes tamanhos de janela. O tipo pode ser **Tela navegável** (menu, pausa e diálogos) ou **Overlay persistente** (HUD).
 
+## Modelos prontos
+
+Na lateral esquerda, em **Modelos prontos**, você pode criar uma nova tela a partir de três bases genéricas:
+
+- **Menu principal:** título, subtítulo e botões de iniciar, opções e sair.
+- **Menu de pausa:** painel com ações de continuar, abrir opções ou solicitar retorno ao menu.
+- **HUD de aventura:** overlay com barras de vida e mana conectadas às variáveis globais `vida` e `mana`.
+
+Os modelos são cópias independentes e criam IDs novos para a tela e cada elemento. Eles começam desativados no jogo para não cobrir a cena ou alterar uma interface existente sem intenção. Revise o modelo, ajuste os elementos e marque **Ativa no jogo** quando estiver pronto.
+
+Os botões de exemplo usam a ação genérica **Definir variável global** (por exemplo, `ui.action.start` ou `ui.action.resume`). Eles emitem valores que você pode conectar ao Visual Script ou a outro sistema do projeto; não iniciam ou pausam o jogo automaticamente.
+
 ## Aparência dos elementos
 
 O inspetor permite ajustar a **opacidade** de 0% a 100% em todos os elementos. Textos, painéis, botões e legendas de barras também podem ter alinhamento à esquerda, centralizado ou à direita, além de peso de fonte de 400 a 800. Essas configurações aparecem tanto na prévia do Workspace quanto na interface executada no jogo. Projetos antigos sem esses campos recebem valores padrão ao serem carregados.
@@ -43,4 +55,4 @@ Imagens são incorporadas aos dados da tela. Para evitar arquivos grandes, cada 
 
 ## Teste
 
-Execute `npm run ui-workspace:self-test` para validar estrutura, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, alinhamento, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
+Execute `npm run ui-workspace:self-test` para validar estrutura, modelos prontos, IDs únicos, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, alinhamento, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
