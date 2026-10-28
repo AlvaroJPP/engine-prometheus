@@ -154,6 +154,7 @@ assert.match(gameUIRuntimeSource, /screenId, screenName, elementId, elementName/
 assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
+assert.match(gameUIRuntimeSource, /screen\.visibilityVariable, screen\.visibilityValue, props\.gameVariables/)
 assert.match(gameUIRuntimeSource, /screen\.elements\.filter\(isElementVisible\)/)
 assert.match(uiWorkspaceSource, /selectedElement\.visibilityVariable/)
 assert.match(uiWorkspaceSource, /activeScreen\.visibilityVariable/)
