@@ -25,7 +25,7 @@ import {
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
-import { isUIVisibilityConditionMet, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
+import { isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
@@ -37,6 +37,11 @@ assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'false', { 'ui.inve
 assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', { 'ui.inventory.open': false }), false)
 assert.equal(isUIVisibilityConditionMet('ui.inventory.open', '1', { 'ui.inventory.open': 1 }), true)
 assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', {}), false)
+assert.equal(nextUIToggleValue(true), false)
+assert.equal(nextUIToggleValue(false), true)
+assert.equal(nextUIToggleValue(undefined), true)
+assert.equal(nextUIToggleValue(1), true)
+assert.equal(nextUIToggleValue('true'), true)
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -84,6 +89,13 @@ hudEventScreen.elements = [hudEventButton]
 const parsedHudEvent = parseUIScreenDefinitions([hudEventScreen])[0]
 assert.equal(parsedHudEvent.elements[0].action, 'trigger-event')
 assert.equal(parsedHudEvent.elements[0].eventId, 'hud.inventory.open')
+
+const toggleButton = createUIElement('button')
+toggleButton.action = 'toggle-variable'
+toggleButton.variableName = 'ui.inventory.open'
+const parsedToggleScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [toggleButton] }])[0]
+assert.equal(parsedToggleScreen.elements[0].action, 'toggle-variable')
+assert.equal(parsedToggleScreen.elements[0].variableName, 'ui.inventory.open')
 const legacyHudElement = { ...hudEventButton }
 delete legacyHudElement.eventId
 delete legacyHudElement.visibilityVariable
@@ -157,6 +169,9 @@ assert.match(gameUIRuntimeSource, /elementName: element\.name/)
 assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
+assert.match(gameUIRuntimeSource, /nextUIToggleValue\(props\.gameVariables\[variableName\]\)/)
+assert.match(uiWorkspaceSource, /value="toggle-variable">Alternar variável booleana/)
+assert.match(uiWorkspaceSource, /element\.action === 'toggle-variable'/)
 assert.match(gameUIRuntimeSource, /screen\.visibilityVariable, screen\.visibilityValue, props\.gameVariables/)
 assert.match(gameUIRuntimeSource, /screen\.elements\.filter\(isElementVisible\)/)
 assert.match(uiWorkspaceSource, /selectedElement\.visibilityVariable/)
