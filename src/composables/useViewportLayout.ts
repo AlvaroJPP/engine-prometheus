@@ -19,7 +19,8 @@ export function useViewportLayout({
   viewportRoot,
   runtimeHudSettingsOpen,
 }: UseViewportLayoutOptions) {
-const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v7'
+const VIEWPORT_LAYOUT_STORAGE_KEY = 'engine-prometheus.viewport-layout.v8'
+const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V7 = 'engine-prometheus.viewport-layout.v7'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6 = 'engine-prometheus.viewport-layout.v6'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5 = 'engine-prometheus.viewport-layout.v5'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
@@ -39,6 +40,7 @@ function loadViewportLayout(): ViewportLayoutSettings {
     const migratingLegacyLayout = current === null
     const saved = JSON.parse(
       current
+        ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V7)
         ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6)
         ?? localStorage.getItem(LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5)
         ?? '{}',
@@ -57,6 +59,11 @@ function loadViewportLayout(): ViewportLayoutSettings {
       }
     }
     if (migratingLegacyLayout) {
+      // O controle de câmera/renderização agora é ancorado à própria viewport.
+      // Posições antigas foram calculadas na coordenada anterior da janela e
+      // deixavam a barra deslocada para o centro; migre-a para o canto superior direito.
+      result.render.x = 1
+      result.render.y = 0.015
       localStorage.setItem(VIEWPORT_LAYOUT_STORAGE_KEY, JSON.stringify(result))
     }
     return result
