@@ -971,6 +971,10 @@ function activatePreviewElement(element: UIElementDefinition): void {
     statusMessage.value = element.variableName.trim()
       ? `Prévia: o botão alternaria a variável booleana “${element.variableName}” entre true e false durante o jogo.`
       : 'Informe o nome da variável global que o botão deve alternar.'
+  } else if (element.action === 'adjust-variable') {
+    statusMessage.value = element.variableName.trim()
+      ? `Prévia: o botão somaria ${element.variableStep} à variável “${element.variableName}” durante o jogo.`
+      : 'Informe o nome da variável numérica que o botão deve ajustar.'
   } else if (element.action === 'trigger-event') {
     statusMessage.value = element.eventId.trim()
       ? `Prévia: o botão dispararia o evento global “${element.eventId}” do Visual Script.`
@@ -1347,6 +1351,7 @@ onBeforeUnmount(() => {
                   <option value="navigate-screen">Abrir outra tela</option>
                   <option value="set-variable">Definir variável global</option>
                   <option value="toggle-variable">Alternar variável booleana</option>
+                  <option value="adjust-variable">Ajustar variável numérica</option>
                   <option value="trigger-event">Disparar evento do Visual Script</option>
                 </select>
               </label>
@@ -1364,12 +1369,16 @@ onBeforeUnmount(() => {
                 <button type="button" class="ui-event-create-button" @click="createGlobalEventForButton(selectedElement)">＋ Criar fluxo global e vincular automaticamente</button>
                 <small class="ui-field-help">Escolha um evento existente ou crie um fluxo aqui. O identificador será preenchido no botão e poderá ser editado.</small>
               </label>
-              <template v-if="selectedElement.action === 'set-variable' || selectedElement.action === 'toggle-variable'">
+              <template v-if="selectedElement.action === 'set-variable' || selectedElement.action === 'toggle-variable' || selectedElement.action === 'adjust-variable'">
                 <label class="ui-field">Nome da variável
-                  <input v-model="selectedElement.variableName" maxlength="80" placeholder="ui.inventory.open" />
+                  <input v-model="selectedElement.variableName" maxlength="80" :placeholder="selectedElement.action === 'adjust-variable' ? 'ouro' : 'ui.inventory.open'" />
                 </label>
                 <label v-if="selectedElement.action === 'set-variable'" class="ui-field">Valor
                   <input v-model="selectedElement.variableValue" maxlength="100" placeholder="true" />
+                </label>
+                <label v-else-if="selectedElement.action === 'adjust-variable'" class="ui-field">Incremento numérico
+                  <input v-model.number="selectedElement.variableStep" type="number" min="-1000000" max="1000000" step="0.25" />
+                  <small class="ui-field-help">Use um número negativo para subtrair, como -1 para consumir uma unidade.</small>
                 </label>
                 <small v-else class="ui-field-help">Cada clique alterna entre true e false. Se a variável ainda não estiver em true, o primeiro clique define true.</small>
               </template>
