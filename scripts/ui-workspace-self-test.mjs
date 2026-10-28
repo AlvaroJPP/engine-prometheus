@@ -42,6 +42,8 @@ assert.equal(parsed[0].elements[0].opacity, 0.35)
 assert.equal(parsed[0].elements[0].textAlign, 'left')
 assert.equal(parsed[0].elements[0].fontWeight, 800)
 assert.equal(parsed[0].elements[3].imageFit, 'cover')
+assert.equal(parsed[0].elements[0].groupId, 'group-header')
+assert.equal(parsed[0].elements[1].groupId, 'group-header')
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
