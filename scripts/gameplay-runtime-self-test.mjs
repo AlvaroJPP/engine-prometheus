@@ -20,7 +20,7 @@ gameplay.systems.register({
   requiredComponents: ['runtime-test'],
   onEntityEnter: (id, context) => systemCalls.push(['enter', id, context.runtime === gameplay]),
   updateEntity: (dt, id, context) => systemCalls.push(['update', dt, id, context.runtime === gameplay]),
-  onEntityExit: (id, context) => systemCalls.push(['exit', id, context.runtime === gameplay]),
+  onEntityExit: (id, context) => systemCalls.push(['exit', id, context.runtime.world.get(id) !== undefined]),
 })
 const entityBehaviorTicks = []
 gameplay.behaviors.add('player', {
@@ -73,7 +73,7 @@ assert.equal(gameplay.world.get('player'), undefined)
 assert.equal(gameplay.resources.get('player', 'energy'), undefined)
 assert.equal(gameplay.statuses.has('player', 'regeneration'), false)
 assert.equal(gameplay.cooldowns.isReady('player::dash'), true)
-assert.deepEqual(systemCalls.at(-1), ['exit', 'player', true])
+assert.deepEqual(systemCalls.at(-1), ['exit', 'player', true], 'system cleanup should run before the indexed world entity is removed')
 assert.equal(gameplay.removeEntity('player').entityRemoved, false)
 dispose()
 gameplay.clear()
