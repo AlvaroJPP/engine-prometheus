@@ -223,6 +223,18 @@
 .ui-delete-element { display: grid; place-items: center; width: 23px; height: 23px; padding: 0; border: 1px solid #714343 !important; color: #ffaca6 !important; background: #2d1d1e !important; font-size: 18px !important; }
 .ui-two-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ui-field-help { display: block; margin: 7px 12px 0; color: #818c9b; font-size: 10px; line-height: 1.45; }
+.ui-event-create-button {
+  width: 100%;
+  margin-top: 3px;
+  padding: 8px 9px;
+  border: 1px solid #66502c;
+  border-radius: 6px;
+  color: #f5c477;
+  background: #252015;
+  font-size: 10px;
+  text-align: center;
+}
+.ui-event-create-button:hover { border-color: var(--ui-accent); background: #302516; }
 .ui-image-picker { display: block; width: calc(100% - 24px); margin: 12px 12px 0; padding: 8px; border: 1px solid #6b542c; border-radius: 6px; background: #282217; color: #f5c276; }
 .ui-inspector-empty { margin: 14px 13px; color: #798494; font-size: 11px; line-height: 1.55; }
 .ui-hidden-input { display: none; }
