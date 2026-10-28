@@ -25,7 +25,7 @@ import {
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
-import { isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
+import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
@@ -42,6 +42,12 @@ assert.equal(nextUIToggleValue(false), true)
 assert.equal(nextUIToggleValue(undefined), true)
 assert.equal(nextUIToggleValue(1), true)
 assert.equal(nextUIToggleValue('true'), true)
+assert.equal(adjustUINumericValue(10, 2.5), 12.5)
+assert.equal(adjustUINumericValue(10, -3), 7)
+assert.equal(adjustUINumericValue(undefined, 1), 1)
+assert.equal(adjustUINumericValue('12', 2), 2)
+assert.equal(adjustUINumericValue(Number.MAX_VALUE, 1e6), Number.MAX_VALUE)
+assert.equal(adjustUINumericValue(4, Number.NaN), 5)
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -96,6 +102,14 @@ toggleButton.variableName = 'ui.inventory.open'
 const parsedToggleScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [toggleButton] }])[0]
 assert.equal(parsedToggleScreen.elements[0].action, 'toggle-variable')
 assert.equal(parsedToggleScreen.elements[0].variableName, 'ui.inventory.open')
+const numericButton = createUIElement('button')
+numericButton.action = 'adjust-variable'
+numericButton.variableName = 'ouro'
+numericButton.variableStep = -2
+const parsedNumericScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [numericButton] }])[0]
+assert.equal(parsedNumericScreen.elements[0].action, 'adjust-variable')
+assert.equal(parsedNumericScreen.elements[0].variableName, 'ouro')
+assert.equal(parsedNumericScreen.elements[0].variableStep, -2)
 const legacyHudElement = { ...hudEventButton }
 delete legacyHudElement.eventId
 delete legacyHudElement.visibilityVariable
@@ -170,6 +184,9 @@ assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
 assert.match(gameUIRuntimeSource, /nextUIToggleValue\(props\.gameVariables\[variableName\]\)/)
+assert.match(gameUIRuntimeSource, /adjustUINumericValue\(props\.gameVariables\[variableName\], element\.variableStep\)/)
+assert.match(uiWorkspaceSource, /value="adjust-variable">Ajustar variável numérica/)
+assert.match(uiWorkspaceSource, /selectedElement\.variableStep/)
 assert.match(uiWorkspaceSource, /value="toggle-variable">Alternar variável booleana/)
 assert.match(uiWorkspaceSource, /element\.action === 'toggle-variable'/)
 assert.match(gameUIRuntimeSource, /screen\.visibilityVariable, screen\.visibilityValue, props\.gameVariables/)
