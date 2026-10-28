@@ -7,6 +7,7 @@ import {
 } from '../engine/ui/UIScreenDocument.ts'
 import {
   alignUIElement,
+  alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   reorderUIElement,
