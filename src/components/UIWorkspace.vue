@@ -29,10 +29,22 @@ import {
   type UIElementGroupAlignment,
   type UIScreenPresetId,
   type UIWorkspaceSnapshot,
+  type LogicRule,
 } from '@engine'
 import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 
-defineProps<{ projectName?: string }>()
+interface GlobalEventCreationResult {
+  ruleId: string
+  eventId: string
+}
+type GlobalEventLogicRule = LogicRule & {
+  trigger: Extract<LogicRule['trigger'], { type: 'global_event' }>
+}
+const props = defineProps<{
+  projectName?: string
+  logicRules?: LogicRule[]
+  createGlobalLogicEvent?: () => GlobalEventCreationResult | null
+}>()
 const emit = defineEmits<{ (event: 'close'): void }>()
 
 const selectedElementId = ref('')
@@ -45,6 +57,9 @@ const distributionColumns = ref(3)
 const smartGuides = ref<UISmartAlignmentGuide[]>([])
 const keyAlignment = ref<UIElementGroupAlignment>('left')
 const statusMessage = ref('As alterações são incluídas ao salvar o projeto.')
+const globalEventRules = computed(() => (props.logicRules ?? []).filter(
+  (rule): rule is GlobalEventLogicRule => rule.trigger.type === 'global_event' && Boolean(rule.trigger.eventId.trim()),
+))
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const imageTargetId = ref('')
@@ -919,6 +934,16 @@ function importImage(event: Event): void {
   reader.readAsDataURL(file)
 }
 
+function createGlobalEventForButton(element: UIElementDefinition): void {
+  const created = props.createGlobalLogicEvent?.()
+  if (!created?.eventId) {
+    statusMessage.value = 'Não foi possível criar o fluxo global. Abra o Visual Script e tente novamente.'
+    return
+  }
+  element.eventId = created.eventId
+  statusMessage.value = `Fluxo global "${created.eventId}" criado e vinculado ao botão. Personalize suas ações no Visual Script.`
+}
+
 function activatePreviewElement(element: UIElementDefinition): void {
   if (!previewMode.value || element.kind !== 'button') return
   if (element.action === 'navigate-screen') {
@@ -960,7 +985,7 @@ onBeforeUnmount(() => {
     <header class="ui-workspace-header">
       <div class="ui-workspace-brand">
         <span class="ui-workspace-icon">UI</span>
-        <div><strong>Workspace de UI</strong><small>{{ projectName || 'Projeto atual' }} · Menus, HUDs e telas 2D</small></div>
+        <div><strong>Workspace de UI</strong><small>{{ props.projectName || 'Projeto atual' }} · Menus, HUDs e telas 2D</small></div>
       </div>
       <div class="ui-workspace-header-actions">
         <span class="ui-save-hint"><i /> {{ statusMessage }}</span>
@@ -1301,8 +1326,12 @@ onBeforeUnmount(() => {
                 </select>
               </label>
               <label v-if="selectedElement.action === 'trigger-event'" class="ui-field">Evento global do Visual Script
-                <input v-model.trim="selectedElement.eventId" maxlength="100" placeholder="hud.inventory.open" />
-                <small class="ui-field-help">O botão dispara esse evento durante o Run. Crie um fluxo com o mesmo identificador no Visual Script.</small>
+                <input v-model.trim="selectedElement.eventId" list="ui-global-script-events" maxlength="100" placeholder="hud.inventory.open" />
+                <datalist id="ui-global-script-events">
+                  <option v-for="rule in globalEventRules" :key="rule.id" :value="rule.trigger.eventId">{{ rule.name }}</option>
+                </datalist>
+                <button type="button" class="ui-event-create-button" @click="createGlobalEventForButton(selectedElement)">＋ Criar fluxo global e vincular automaticamente</button>
+                <small class="ui-field-help">Escolha um evento existente ou crie um fluxo aqui. O identificador será preenchido no botão e poderá ser editado.</small>
               </label>
               <template v-if="selectedElement.action === 'set-variable'">
                 <label class="ui-field">Nome da variável
