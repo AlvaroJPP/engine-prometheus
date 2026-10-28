@@ -13,7 +13,13 @@ entities.defineComponent('health', {
 })
 
 const events = []
-entities.subscribe(event => events.push(event.type))
+entities.subscribe(event => {
+  events.push(event.type)
+  if (event.type === 'entity-destroying' && event.entityId === 'hero') {
+    assert.equal(entities.isDestroying('hero'), true)
+    assert.throws(() => entities.create('hero'), /being destroyed/i)
+  }
+})
 entities.create('hero')
 assert.equal(entities.size, 1)
 assert.equal(entities.addComponent('hero', 'transform', { x: 2, y: 0, z: 4 }), true)
@@ -34,6 +40,7 @@ assert.equal(entities.destroy('hero'), true)
 assert.equal(entities.destroy('hero'), false)
 assert.equal(entities.get('hero'), undefined)
 assert.equal(entities.size, 0)
+assert.equal(entities.isDestroying('hero'), false)
 assert.deepEqual(calls, [
   ['attach-transform', 'hero', 2],
   ['attach-health', 'hero'],
