@@ -6,7 +6,7 @@ export { DEFAULT_CONTROL_MAPS, createDefaultControlMapSettings } from './input/C
 export type { ControlMapBindings, ControlMapProfile, ControlMapSettings } from './input/ControlMaps'
 export { parseProject, parseScene, parseSceneObject, ProjectFormatError } from './project/validate'
 export { ENGINE_VERSION, MAIN_SCENE_PATH } from './project/format'
-export { createUIScreen, createUIElement, createUIScreenId, parseUIScreenDefinitions } from './ui/UIScreenDocument'
+export { createUIScreen, createUIElement, createUIScreenId, parseUIScreenDefinitions, getRenderableUIScreenDefinitions } from './ui/UIScreenDocument'
 export type { UIScreenDefinition, UIElementDefinition, UIElementKind, UIElementAction } from './ui/UIScreenDocument'
 export { TERRAIN_ID } from './world/map/TerrainMesh'
 export type { ProjectBundle, ProjectFile, SceneFile, SceneObjectData, ObjectType, CameraPreset, TextureFace, FaceTextureData, FaceTextureMap } from './project/format'
