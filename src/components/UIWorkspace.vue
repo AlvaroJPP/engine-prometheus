@@ -364,7 +364,7 @@ onBeforeUnmount(() => {
                 @click.stop="previewMode ? activatePreviewElement(element) : selectElement(element.id)"
               >
                 <template v-if="element.kind === 'panel'">
-                  <span v-if="element.text">{{ element.text }}</span>
+                  <span v-if="element.text" class="ui-element-label">{{ element.text }}</span>
                 </template>
                 <template v-else-if="element.kind === 'image'">
                   <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" :style="{ objectFit: element.imageFit }" />
@@ -377,7 +377,7 @@ onBeforeUnmount(() => {
                 <template v-else-if="element.kind === 'button'">
                   <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit', fontWeight: element.fontWeight, textAlign: element.textAlign }">{{ element.text || 'Botão' }}</button>
                 </template>
-                <template v-else>{{ element.text }}</template>
+                <template v-else><span class="ui-element-label">{{ element.text }}</span></template>
                 <span v-if="!previewMode && selectedElementId === element.id" class="ui-selection-box"><i /><i /><i /><i /></span>
               </div>
               <div v-if="!activeScreen.elements.length" class="ui-empty-canvas">
@@ -464,7 +464,7 @@ onBeforeUnmount(() => {
                 <input v-model.number="selectedElement.height" type="number" min="1" max="100" step="1" />
               </label>
             </div>
-            <div v-if="selectedElement.kind === 'text' || selectedElement.kind === 'button' || selectedElement.kind === 'panel'" class="ui-two-fields">
+            <div v-if="selectedElement.kind !== 'image'" class="ui-two-fields">
               <label class="ui-field">Tamanho da fonte
                 <input v-model.number="selectedElement.fontSize" type="number" min="8" max="96" step="1" />
               </label>
