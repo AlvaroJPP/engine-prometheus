@@ -337,8 +337,8 @@ assert.deepEqual(smartAlignment.guides, [
   { axis: 'horizontal', position: 12 },
 ])
 assert.deepEqual(
-  getUIElementSmartAlignment(distributionSource, [alignFirst], 0, 0, 0),
-  { deltaX: 0, deltaY: 0, guides: [] },
+  getUIElementSmartAlignment(distributionSource, [alignFirst], 1, 0, 0),
+  { deltaX: 1, deltaY: 0, guides: [] },
 )
 
 const spacedHorizontally = spaceUIElements(distributionSource, distributionIds, 'horizontal', 5)
