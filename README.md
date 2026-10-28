@@ -65,3 +65,7 @@ npm run build
 ```
 
 **Limitação importante:** o SkinTokens é usado para gerar o rig e os pesos, enquanto o mapeamento origem→destino usa algoritmos locais de anatomia, nomes, hierarquia e geometria. O fluxo autônomo encadeia as etapas, mas não é um modelo neural treinado especificamente para retargeting. Nenhum algoritmo garante rig ou transferência perfeitos para qualquer malha. Confira especialmente anatomias diferentes, rigs genéricos, dedos, acessórios, animações com deslocamento de raiz e clipes que animam nós não esqueléticos.
+
+## Workspace de UI
+
+Crie menus, telas, botões, imagens, painéis, HUDs e barras pelo editor visual. As telas podem ser ativadas no modo de jogo e salvas no próprio projeto. Consulte o [guia do Workspace de UI](docs/UI-WORKSPACE.md).
