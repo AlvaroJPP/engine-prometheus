@@ -83,3 +83,5 @@ export type { EntityBehavior, EntityBehaviorSnapshot } from './runtime/EntityBeh
 export { createEntityBehaviorGameModule } from './runtime/EntityBehaviorGameModule'
 export { EntitySystemRuntime } from './runtime/EntitySystemRuntime'
 export type { EntitySystemDefinition, EntitySystemSnapshot } from './runtime/EntitySystemRuntime'
+export { EntityQueryRuntime } from './runtime/EntityQueryRuntime'
+export type { EntityQueryFilter, EntityQueryEvent, EntityQuerySnapshot, EntityQueryHandle } from './runtime/EntityQueryRuntime'
