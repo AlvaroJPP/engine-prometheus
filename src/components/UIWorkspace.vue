@@ -965,6 +965,8 @@ function activatePreviewElement(element: UIElementDefinition): void {
     } else {
       statusMessage.value = 'Escolha uma tela de destino nas propriedades do botão.'
     }
+  } else if (element.action === 'navigate-back') {
+    statusMessage.value = 'Prévia: o botão retornaria à tela navegável anterior durante o jogo.'
   } else if (element.action === 'set-variable') {
     statusMessage.value = `Prévia: o botão definiria “${element.variableName || 'variável'}” como “${element.variableValue}” durante o jogo.`
   } else if (element.action === 'toggle-variable') {
@@ -1349,6 +1351,7 @@ onBeforeUnmount(() => {
                 <select v-model="selectedElement.action">
                   <option value="none">Nenhuma ação</option>
                   <option value="navigate-screen">Abrir outra tela</option>
+                  <option value="navigate-back">Voltar à tela anterior</option>
                   <option value="set-variable">Definir variável global</option>
                   <option value="toggle-variable">Alternar variável booleana</option>
                   <option value="adjust-variable">Ajustar variável numérica</option>
