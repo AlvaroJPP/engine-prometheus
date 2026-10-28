@@ -28,6 +28,9 @@ export interface UIElementDefinition {
   eventId: string
   targetScreenId: string
   variableValue: string
+  /** Optional variable-driven visibility; blank variable means always visible. */
+  visibilityVariable?: string
+  visibilityValue?: string
   /** Editor-only group identity; ignored by game runtime rendering. */
   groupId?: string
   imageDataUrl?: string
@@ -42,6 +45,9 @@ export interface UIScreenDefinition {
   /** Main navigable screen or persistent overlay such as an in-game HUD. */
   displayMode: 'screen' | 'overlay'
   enabledInGame: boolean
+  /** Optional variable-driven visibility; blank variable means always visible. */
+  visibilityVariable?: string
+  visibilityValue?: string
   elements: UIElementDefinition[]
 }
 
@@ -61,6 +67,8 @@ export function createUIScreen(name = 'Nova tela'): UIScreenDefinition {
     background: '#00000000',
     displayMode: 'screen',
     enabledInGame: false,
+    visibilityVariable: '',
+    visibilityValue: 'true',
     elements: [],
   }
 }
@@ -70,27 +78,27 @@ export function createUIElement(kind: UIElementKind, count = 0): UIElementDefini
     panel: {
       kind: 'panel', width: 42, height: 44, text: '', color: '#F4F1E9',
       background: '#202631', fontSize: 24, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 14,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
+      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     text: {
       kind: 'text', width: 38, height: 12, text: 'Novo texto', color: '#F4F1E9',
       background: '#00000000', fontSize: 36, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 0,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
+      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     button: {
       kind: 'button', width: 24, height: 11, text: 'Novo botão', color: '#FFFFFF',
       background: '#B97828', fontSize: 20, fontWeight: 700, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
-      variableName: 'confirmado', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
+      variableName: 'confirmado', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     image: {
       kind: 'image', width: 22, height: 22, text: 'Imagem', color: '#F4F1E9',
       background: '#252B35', fontSize: 18, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
+      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     progress: {
       kind: 'progress', width: 32, height: 6, text: 'Vida', color: '#FFFFFF',
       background: '#4A2630', fontSize: 16, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 6,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
+      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
   }
   const base = defaults[kind]
@@ -181,6 +189,8 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
         eventId: boundedString(element.eventId, '', 100),
         targetScreenId: boundedString(element.targetScreenId, '', 100),
         variableValue: boundedString(element.variableValue, 'true', 100),
+        visibilityVariable: boundedString(element.visibilityVariable, '', 80).trim(),
+        visibilityValue: boundedString(element.visibilityValue, 'true', 100),
         ...(typeof element.groupId === 'string' && element.groupId.trim()
           ? { groupId: boundedString(element.groupId.trim(), '', 100) }
           : {}),
@@ -195,6 +205,8 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       background: safeColor(source.background, '#00000000'),
       displayMode: source.displayMode === 'overlay' ? 'overlay' : 'screen',
       enabledInGame: source.enabledInGame === true,
+      visibilityVariable: boundedString(source.visibilityVariable, '', 80).trim(),
+      visibilityValue: boundedString(source.visibilityValue, 'true', 100),
       elements,
     }
   })
