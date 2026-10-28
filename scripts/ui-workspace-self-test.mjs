@@ -11,6 +11,7 @@ import {
   getClampedUIElementPosition,
   reorderUIElement,
 } from '../engine/ui/UIEditorOperations.ts'
+import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -82,6 +83,27 @@ assert.throws(() => parseUIScreenDefinitions([{ ...screen, elements: Array.from(
 assert.throws(() => parseUIScreenDefinitions(Array.from({ length: 65 }, (_, index) => ({ ...screen, id: `screen-${index}` }))), /64 telas/)
 
 
+const presets = UI_SCREEN_PRESETS.map(preset => createUIScreenFromPreset(preset.id))
+assert.equal(presets.length, 3)
+assert.deepEqual(presets.map(preset => preset.name), ['Menu principal', 'Menu de pausa', 'HUD de aventura'])
+assert.ok(presets.every(preset => preset.enabledInGame === false))
+assert.ok(presets.every(preset => preset.elements.length >= 4))
+assert.ok(presets.every(preset => parseUIScreenDefinitions([preset]).length === 1))
+assert.equal(presets[0].displayMode, 'screen')
+assert.equal(presets[1].displayMode, 'screen')
+assert.equal(presets[2].displayMode, 'overlay')
+
+const presetScreenIds = presets.map(preset => preset.id)
+assert.equal(new Set(presetScreenIds).size, presetScreenIds.length)
+const presetElementIds = presets.flatMap(preset => preset.elements.map(element => element.id))
+assert.equal(new Set(presetElementIds).size, presetElementIds.length)
+assert.ok(presets[0].elements.some(element => element.kind === 'button' && element.action === 'set-variable' && element.variableName === 'ui.action.start'))
+assert.ok(presets[1].elements.some(element => element.kind === 'button' && element.variableName === 'ui.action.resume'))
+assert.deepEqual(
+  presets[2].elements.filter(element => element.kind === 'progress').map(element => element.variableName),
+  ['vida', 'mana'],
+)
+
 const position = getClampedUIElementPosition(
   { width: 25, height: 20 },
   8.8,
@@ -109,4 +131,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: validation, legacy compatibility, appearance settings, asset handling, snapping, alignment, duplication and layer ordering.')
+console.log('UI workspace self-test passed: screen presets, unique IDs, legacy compatibility, appearance settings, asset handling, snapping, alignment, duplication and layer ordering.')
