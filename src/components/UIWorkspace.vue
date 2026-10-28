@@ -124,7 +124,7 @@ function moveSelectedBy(dx: number, dy: number): void {
 function handleKeyboardShortcut(event: KeyboardEvent): void {
   const target = event.target
   if (target instanceof HTMLElement && (
-    target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)
+    target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
   )) return
 
   const key = event.key.toLowerCase()
