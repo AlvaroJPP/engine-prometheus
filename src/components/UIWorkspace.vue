@@ -967,6 +967,10 @@ function activatePreviewElement(element: UIElementDefinition): void {
     }
   } else if (element.action === 'set-variable') {
     statusMessage.value = `Prévia: o botão definiria “${element.variableName || 'variável'}” como “${element.variableValue}” durante o jogo.`
+  } else if (element.action === 'toggle-variable') {
+    statusMessage.value = element.variableName.trim()
+      ? `Prévia: o botão alternaria a variável booleana “${element.variableName}” entre true e false durante o jogo.`
+      : 'Informe o nome da variável global que o botão deve alternar.'
   } else if (element.action === 'trigger-event') {
     statusMessage.value = element.eventId.trim()
       ? `Prévia: o botão dispararia o evento global “${element.eventId}” do Visual Script.`
@@ -1342,6 +1346,7 @@ onBeforeUnmount(() => {
                   <option value="none">Nenhuma ação</option>
                   <option value="navigate-screen">Abrir outra tela</option>
                   <option value="set-variable">Definir variável global</option>
+                  <option value="toggle-variable">Alternar variável booleana</option>
                   <option value="trigger-event">Disparar evento do Visual Script</option>
                 </select>
               </label>
@@ -1359,13 +1364,14 @@ onBeforeUnmount(() => {
                 <button type="button" class="ui-event-create-button" @click="createGlobalEventForButton(selectedElement)">＋ Criar fluxo global e vincular automaticamente</button>
                 <small class="ui-field-help">Escolha um evento existente ou crie um fluxo aqui. O identificador será preenchido no botão e poderá ser editado.</small>
               </label>
-              <template v-if="selectedElement.action === 'set-variable'">
+              <template v-if="selectedElement.action === 'set-variable' || selectedElement.action === 'toggle-variable'">
                 <label class="ui-field">Nome da variável
-                  <input v-model="selectedElement.variableName" maxlength="80" placeholder="menu_confirmado" />
+                  <input v-model="selectedElement.variableName" maxlength="80" placeholder="ui.inventory.open" />
                 </label>
-                <label class="ui-field">Valor
+                <label v-if="selectedElement.action === 'set-variable'" class="ui-field">Valor
                   <input v-model="selectedElement.variableValue" maxlength="100" placeholder="true" />
                 </label>
+                <small v-else class="ui-field-help">Cada clique alterna entre true e false. Se a variável ainda não estiver em true, o primeiro clique define true.</small>
               </template>
             </template>
           </template>
