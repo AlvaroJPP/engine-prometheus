@@ -1407,7 +1407,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   /** Cria um fluxo global sem precisar selecionar um objeto da cena. */
-  function addGlobalLogicEvent(eventId?: string, eventName?: string): string | null {
+  function addGlobalLogicEvent(eventId?: string, eventName?: string): { ruleId: string; eventId: string } | null {
     if (!engine) return null
     const id = createUniqueRuleId('global-event')
     const cleanEventId = eventId?.trim() || 'hud.button.' + id.slice(-8)
@@ -1430,7 +1430,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh()
     dirty.value = true
     say(`Evento global "${cleanEventId}" criado. Use o mesmo identificador no botão da HUD.`)
-    return id
+    return { ruleId: id, eventId: cleanEventId }
   }
 
   function toggleLogicRule(rule: LogicRule) {
