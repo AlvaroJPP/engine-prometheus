@@ -197,7 +197,7 @@ function pasteElement(): void {
 
 watch(() => uiWorkspaceState.activeScreenId, () => {
   clearSelection()
-})
+}, { flush: 'sync' })
 
 watch(() => uiWorkspaceState.screens, scheduleHistoryCapture, { deep: true, flush: 'post' })
 
@@ -249,7 +249,7 @@ function addElement(kind: UIElementKind): void {
   if (!target) return
   const element = createUIElement(kind, target.elements.length)
   target.elements.push(element)
-  selectedElementId.value = element.id
+  setSelection([element.id], element.id)
   previewMode.value = false
   statusMessage.value = `${element.name} adicionado à tela.`
 }
@@ -682,7 +682,7 @@ onBeforeUnmount(() => {
                   <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit', fontWeight: element.fontWeight, textAlign: element.textAlign }">{{ element.text || 'Botão' }}</button>
                 </template>
                 <template v-else><span class="ui-element-label">{{ element.text }}</span></template>
-                <span v-if="!previewMode && selectedElementIds.includes(element.id) class="ui-selection-box"><i /><i /><i /><i /></span>
+                <span v-if="!previewMode && selectedElementIds.includes(element.id)" class="ui-selection-box"><i /><i /><i /><i /></span>
               </div>
               <div v-if="!activeScreen.elements.length" class="ui-empty-canvas">
                 <span>＋</span><strong>Sua tela começa aqui</strong><small>Adicione textos, botões, painéis, imagens ou barras no topo.</small>
