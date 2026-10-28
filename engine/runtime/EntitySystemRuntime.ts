@@ -28,7 +28,7 @@ interface SystemRecord<TComponents extends object, TContext> {
   readonly definition: EntitySystemDefinition<TComponents, TContext>
   readonly required: readonly EntityComponentKey<TComponents>[]
   readonly excluded: readonly EntityComponentKey<TComponents>[]
-  readonly query: EntityQueryHandle<TComponents>
+  readonly query: EntityQueryHandle
   unsubscribeQuery: () => void
   readonly activeEntities: Set<string>
   readonly faultedEntities: Set<string>
@@ -42,7 +42,6 @@ interface SystemRecord<TComponents extends object, TContext> {
 export class EntitySystemRuntime<TComponents extends object, TContext> {
   private readonly systems = new Map<string, SystemRecord<TComponents, TContext>>()
   private readonly unsubscribeEntities: () => void
-  private readonly entities: EntityComponentRuntime<TComponents>
   private readonly createContext: (entityId: string) => TContext
   private readonly queryRuntime: EntityQueryRuntime<TComponents>
   private readonly ownsQueryRuntime: boolean
@@ -54,7 +53,6 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     createContext: (entityId: string) => TContext,
     queryRuntime?: EntityQueryRuntime<TComponents>,
   ) {
-    this.entities = entities
     this.createContext = createContext
     this.queryRuntime = queryRuntime ?? new EntityQueryRuntime(entities)
     this.ownsQueryRuntime = queryRuntime === undefined
