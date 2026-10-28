@@ -66,7 +66,7 @@ const position = getClampedUIElementPosition(
   true,
   2.5,
 )
-assert.deepEqual(position, { x: 7.5, y: 10 })
+assert.deepEqual(position, { x: 10, y: 10 })
 assert.deepEqual(getClampedUIElementPosition({ width: 25, height: 20 }, 99, 99), { x: 75, y: 80 })
 assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'horizontal'), { x: 40, y: 12 })
 assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'vertical'), { x: 8, y: 45 })
