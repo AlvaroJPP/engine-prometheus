@@ -26,6 +26,8 @@ export interface UIElementDefinition {
   action: UIElementAction
   targetScreenId: string
   variableValue: string
+  /** Editor-only group identity; ignored by game runtime rendering. */
+  groupId?: string
   imageDataUrl?: string
 }
 
@@ -175,6 +177,9 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
         action,
         targetScreenId: boundedString(element.targetScreenId, '', 100),
         variableValue: boundedString(element.variableValue, 'true', 100),
+        ...(typeof element.groupId === 'string' && element.groupId.trim()
+          ? { groupId: boundedString(element.groupId.trim(), '', 100) }
+          : {}),
         ...(imageDataUrl ? { imageDataUrl } : {}),
       }
     })
