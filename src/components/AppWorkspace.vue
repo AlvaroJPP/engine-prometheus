@@ -127,6 +127,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       @update:settings="ctx.updateControlMapSettings"
     />
 
+    <Teleport to=".viewport" defer>
     <EditorToolbar
       class="viewport-layout-positioned"
       :style="ctx.viewportLayoutStyle('tools')"
@@ -150,7 +151,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       @toggle-polygon-lines="ctx.togglePolygonLines"
       @toggle-performance-mode="ctx.togglePerformanceMode"
     />
-
+    </Teleport>
     <button
       v-if="ctx.sidebarCollapsed"
       class="sidebar-hamburger"
