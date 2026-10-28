@@ -100,7 +100,7 @@
   color:#f3efe6 !important;
   filter:none;
 }
-.viewport-actions .model-import-launch > span { color:#e8572b !important; font-size:15px; }
+.viewport-actions .model-import-launch > span:first-child { color:#e8572b !important; font-size:15px; }
 .viewport-fps {
   top:auto !important;
   right:14px !important;
