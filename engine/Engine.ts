@@ -35,7 +35,6 @@ import { AutonomousBehaviorCoordinator } from './script/AutonomousBehaviorCoordi
 import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
-import { DEFAULT_MODEL_CONTROL_BINDINGS } from './script/packages'
 import type { AnimationRole, BehaviorPackageInstance } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
