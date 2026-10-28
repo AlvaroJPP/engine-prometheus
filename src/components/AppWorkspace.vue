@@ -11,6 +11,7 @@ import EditorViewport from '@/components/EditorViewport.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
 import FullscreenDiagnostics from '@/components/FullscreenDiagnostics.vue'
 import GameOverlayHost from '@/components/GameOverlayHost.vue'
+import UIWorkspace from '@/components/UIWorkspace.vue'
 const context = useAppController() as Record<string, any>
 const ctx = reactive(context)
 function setExternalRef(name: string, element: unknown): void {
@@ -18,6 +19,7 @@ function setExternalRef(name: string, element: unknown): void {
   if (externalRef && typeof externalRef === 'object' && 'value' in externalRef) externalRef.value = element
 }
 const diagnosticsOpen = ref(false)
+const uiWorkspaceOpen = ref(false)
 
 function handleDiagnosticsShortcut(event: KeyboardEvent): void {
   const diagnosticChord = (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF'
@@ -106,6 +108,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       @open-project="ctx.openProject"
       @save-project="ctx.saveProject"
       @cycle-camera="ctx.cycleCameraView"
+      @open-ui-workspace="uiWorkspaceOpen = true"
+    />
+
+    <UIWorkspace
+      v-if="uiWorkspaceOpen"
+      :project-name="ctx.projectName"
+      @close="uiWorkspaceOpen = false"
     />
 
     <ControlMapsDialog
