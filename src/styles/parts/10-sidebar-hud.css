@@ -179,6 +179,8 @@
 }
 /* The scene actions stay in the viewport HUD even when the tool rail is expanded. */
 .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
+  --viewport-actions-compact-left:188px;
+  --viewport-actions-compact-right:12px;
   display:flex !important;
   left:188px !important;
   right:12px !important;
@@ -214,6 +216,8 @@
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
   .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
+    --viewport-actions-compact-left:172px;
+    --viewport-actions-compact-right:8px;
     left:172px !important;
     right:8px !important;
   }
