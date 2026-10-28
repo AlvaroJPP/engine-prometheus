@@ -43,7 +43,7 @@ type GlobalEventLogicRule = LogicRule & {
 const props = defineProps<{
   projectName?: string
   logicRules?: LogicRule[]
-  createGlobalLogicEvent?: () => GlobalEventCreationResult | null
+  createGlobalLogicEvent?: (eventId?: string, eventName?: string) => GlobalEventCreationResult | null
 }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
 
@@ -935,7 +935,18 @@ function importImage(event: Event): void {
 }
 
 function createGlobalEventForButton(element: UIElementDefinition): void {
-  const created = props.createGlobalLogicEvent?.()
+  const requestedEventId = element.eventId.trim()
+  const existingRule = requestedEventId
+    ? globalEventRules.value.find(rule => rule.trigger.eventId === requestedEventId)
+    : undefined
+  if (existingRule) {
+    statusMessage.value = `Já existe um fluxo global "${requestedEventId}". O botão já está vinculado a ele; edite suas ações no Visual Script.`
+    return
+  }
+  const created = props.createGlobalLogicEvent?.(
+    requestedEventId || undefined,
+    `HUD: ${element.name}`,
+  )
   if (!created?.eventId) {
     statusMessage.value = 'Não foi possível criar o fluxo global. Abra o Visual Script e tente novamente.'
     return
