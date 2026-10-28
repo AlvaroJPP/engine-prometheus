@@ -4,12 +4,15 @@ import {
   createUIScreen,
   createUIElement,
   createUIScreenId,
+  createUIScreenFromPreset,
+  UI_SCREEN_PRESETS,
   alignUIElement,
   duplicateUIElement,
   getClampedUIElementPosition,
   reorderUIElement,
   type UIElementDefinition,
   type UIElementKind,
+  type UIScreenPresetId,
 } from '@engine'
 import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 
@@ -46,6 +49,15 @@ function createScreen(): void {
   uiWorkspaceState.activeScreenId = screen.id
   selectedElementId.value = ''
   statusMessage.value = 'Tela criada. Configure os elementos e marque “Ativa no jogo” quando quiser exibi-la.'
+}
+
+function addPreset(presetId: UIScreenPresetId): void {
+  const screen = createUIScreenFromPreset(presetId)
+  uiWorkspaceState.screens.push(screen)
+  uiWorkspaceState.activeScreenId = screen.id
+  selectedElementId.value = ''
+  previewMode.value = false
+  statusMessage.value = 'Modelo "' + screen.name + '" adicionado. Revise os elementos e ative a tela no jogo quando estiver pronta.'
 }
 
 function duplicateScreen(): void {
@@ -315,6 +327,19 @@ onBeforeUnmount(() => {
           <span v-if="screen.enabledInGame" class="ui-live-dot" title="Ativa durante o jogo" />
         </button>
         <button type="button" class="ui-add-screen" @click="createScreen">＋ Nova tela</button>
+        <section class="ui-template-section" aria-label="Modelos de interface">
+          <div class="ui-panel-heading"><span>MODELOS PRONTOS</span></div>
+          <button
+            v-for="preset in UI_SCREEN_PRESETS"
+            :key="preset.id"
+            type="button"
+            class="ui-template-button"
+            @click="addPreset(preset.id)"
+          >
+            <strong>{{ preset.name }}</strong>
+            <small>{{ preset.description }}</small>
+          </button>
+        </section>
         <div class="ui-left-footer">
           <strong>Como funciona</strong>
           <p>Crie várias telas e conecte botões para navegar entre elas. As telas são gravadas no projeto em <code>ui/screens.json</code>.</p>
