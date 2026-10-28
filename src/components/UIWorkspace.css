@@ -183,6 +183,10 @@
 .ui-empty-workspace button { margin-top: 12px; padding: 11px 16px; border: 1px solid #bd812c; border-radius: 7px; color: #20160a; background: #f5a524; font-weight: 700; }
 .ui-right-panel { display: flex; flex-direction: column; }
 .ui-inspector-section { padding-bottom: 12px; border-bottom: 1px solid var(--ui-border); }
+.ui-selection-transform { background: linear-gradient(90deg, #f5a52408, transparent 80%); }
+.ui-selection-transform .ui-two-fields { padding: 0 12px; }
+.ui-selection-transform .ui-two-fields .ui-field { margin: 10px 0 0; }
+.ui-selection-transform .ui-field-help { margin-top: 9px; padding: 0 12px; }
 .ui-field { display: flex; flex-direction: column; gap: 6px; margin: 12px 12px 0; color: #aeb7c4; font-size: 11px; }
 .ui-field input, .ui-field select {
   width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #343b46; border-radius: 5px;
