@@ -35,3 +35,11 @@ export function isUIVisibilityConditionMet(
   if (!Object.prototype.hasOwnProperty.call(variables, name)) return false
   return String(value) === (expectedValue ?? 'true')
 }
+
+/**
+ * Produces the next boolean value for a UI toggle.
+ * Only the boolean `true` state toggles to false; absent or other values initialize to true.
+ */
+export function nextUIToggleValue(currentValue: UIValueBindingValue | undefined): boolean {
+  return currentValue !== true
+}
