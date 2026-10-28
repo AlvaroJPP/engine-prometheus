@@ -114,6 +114,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
     <UIWorkspace
       v-if="uiWorkspaceOpen"
       :project-name="ctx.projectName"
+      :logic-rules="ctx.logicRules"
+      :create-global-logic-event="ctx.addGlobalLogicEvent"
       @close="uiWorkspaceOpen = false"
     />
 
