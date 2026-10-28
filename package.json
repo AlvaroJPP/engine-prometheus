@@ -70,7 +70,8 @@
     "entity:queries:self-test": "node --experimental-strip-types scripts/entity-query-runtime-self-test.mjs",
     "entity:batches:self-test": "node --experimental-strip-types scripts/entity-batch-processor-self-test.mjs",
     "entity:commands:self-test": "node --experimental-strip-types scripts/entity-command-buffer-self-test.mjs",
-    "runtime:phases:self-test": "node --experimental-strip-types scripts/runtime-phase-pipeline-self-test.mjs"
+    "runtime:phases:self-test": "node --experimental-strip-types scripts/runtime-phase-pipeline-self-test.mjs",
+    "ui-workspace:self-test": "node --experimental-strip-types scripts/ui-workspace-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",
