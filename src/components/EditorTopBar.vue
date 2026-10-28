@@ -230,161 +230,161 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 
     <Teleport to=".viewport" defer>
       <div class="viewport-tools-overlay viewport-layout-positioned" :style="viewportLayoutStyle" role="toolbar" aria-label="Controles da visualização do mundo">
-      <div class="viewport-camera-switch" role="group" aria-label="Câmera">
-        <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="8" cy="8" r="1.8" /></svg>
-          <span>1ª pessoa</span>
-        </button>
-        <button class="viewport-tool" :class="{ active: !firstPersonMode && cameraLabel === 'Câmera livre' }" type="button" :aria-pressed="!firstPersonMode && cameraLabel === 'Câmera livre'" :title="`Alterna o enquadramento da câmera. Atual: ${cameraLabel}.`" @click="emit('cycle-camera')">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5h12M3 5V3h10v2M4 5v8h8V5M6 8h4M6 10h4" /></svg>
-          <span>{{ cameraLabel }}</span>
-        </button>
-      </div>
-      <span class="viewport-tools-divider" aria-hidden="true"></span>
-          <details class="render-settings">
-      <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
-        <span class="render-settings-icon" aria-hidden="true"></span>
-        <span class="render-settings-label">{{ renderAll ? 'Render: Tudo' : 'Render' }}</span>
-        <span class="render-settings-chevron">▾</span>
-      </summary>
-      <div class="render-settings-popover">
-        <div class="render-settings-heading">Renderização geral</div>
-        <p class="render-settings-description">Defina a distância máxima de modelos, objetos e grama a partir da câmera ativa.</p>
-        <label class="render-settings-field">
-          <span>Distância máxima</span>
-          <span class="render-settings-number-wrap">
-            <input type="number" min="10" max="5000" step="1" :value="renderDistance" :disabled="renderAll" aria-label="Distância de renderização em unidades" @change="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
-            <small>un.</small>
-          </span>
-        </label>
-        <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(renderDistance, 500)" :disabled="renderAll" aria-label="Ajuste rápido da distância de renderização" title="Define até onde modelos, objetos e grama são desenhados. Distâncias maiores podem reduzir o FPS." @input="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
-        <div class="render-settings-range-labels"><span>10 unidades</span><span>500 unidades</span></div>
-        <label class="render-settings-everything">
-          <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
-          <span><strong>Renderizar tudo</strong><small>Ignora o limite global para objetos, modelos 3D e grama dentro da cena.</small></span>
-        </label>
-        <div class="render-settings-section">
-          <div class="render-settings-section-title">Grama e vegetação</div>
+        <div class="viewport-camera-switch" role="group" aria-label="Câmera">
+          <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="8" cy="8" r="1.8" /></svg>
+            <span>1ª pessoa</span>
+          </button>
+          <button class="viewport-tool" :class="{ active: !firstPersonMode && cameraLabel === 'Câmera livre' }" type="button" :aria-pressed="!firstPersonMode && cameraLabel === 'Câmera livre'" :title="`Alterna o enquadramento da câmera. Atual: ${cameraLabel}.`" @click="emit('cycle-camera')">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5h12M3 5V3h10v2M4 5v8h8V5M6 8h4M6 10h4" /></svg>
+            <span>{{ cameraLabel }}</span>
+          </button>
+        </div>
+        <span class="viewport-tools-divider" aria-hidden="true"></span>
+            <details class="render-settings">
+        <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
+          <span class="render-settings-icon" aria-hidden="true"></span>
+          <span class="render-settings-label">{{ renderAll ? 'Render: Tudo' : 'Render' }}</span>
+          <span class="render-settings-chevron">▾</span>
+        </summary>
+        <div class="render-settings-popover">
+          <div class="render-settings-heading">Renderização geral</div>
+          <p class="render-settings-description">Defina a distância máxima de modelos, objetos e grama a partir da câmera ativa.</p>
+          <label class="render-settings-field">
+            <span>Distância máxima</span>
+            <span class="render-settings-number-wrap">
+              <input type="number" min="10" max="5000" step="1" :value="renderDistance" :disabled="renderAll" aria-label="Distância de renderização em unidades" @change="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+              <small>un.</small>
+            </span>
+          </label>
+          <input class="render-settings-range" type="range" min="10" max="500" step="1" :value="Math.min(renderDistance, 500)" :disabled="renderAll" aria-label="Ajuste rápido da distância de renderização" title="Define até onde modelos, objetos e grama são desenhados. Distâncias maiores podem reduzir o FPS." @input="emit('render-distance-change', Number(($event.target as HTMLInputElement).value))" />
+          <div class="render-settings-range-labels"><span>10 unidades</span><span>500 unidades</span></div>
           <label class="render-settings-everything">
-            <input type="checkbox" :checked="grassVisible" @change="emit('grass-visible-change', ($event.target as HTMLInputElement).checked)" />
-            <span><strong>Renderizar grama</strong><small>Desliga a camada visual sem apagar a grama pintada no mundo.</small></span>
+            <input type="checkbox" :checked="renderAll" title="Ignora o limite de distância e mantém todos os objetos e toda a grama elegíveis para renderização." @change="emit('render-all-change', ($event.target as HTMLInputElement).checked)" />
+            <span><strong>Renderizar tudo</strong><small>Ignora o limite global para objetos, modelos 3D e grama dentro da cena.</small></span>
           </label>
-          <label class="render-settings-everything render-settings-grass-check">
-            <input type="checkbox" :checked="grassUseDetailedModel" :disabled="!grassVisible" @change="emit('grass-use-detailed-model-change', ($event.target as HTMLInputElement).checked)" />
-            <span><strong>Usar modelo 3D detalhado</strong><small>Desative para usar geometria procedural simples na grama próxima e intermediária, reduzindo materiais e draw calls.</small></span>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Densidade visual</span>
-            <select class="render-settings-select" :value="grassDensityPercent" :disabled="!grassVisible" @change="emit('grass-density-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="25">Muito leve · 25%</option><option value="40">Leve · 40%</option><option value="60">Equilibrada · 60%</option><option value="80">Densa · 80%</option><option value="100">Máxima · 100%</option>
-            </select>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Alcance exclusivo da grama</span>
-            <select class="render-settings-select" :value="grassRenderDistanceOption" :disabled="!grassVisible" @change="emit('grass-render-distance-change', ($event.target as HTMLSelectElement).value)">
-              <option value="global">Seguir alcance geral</option><option value="all">Renderizar até o limite do mapa</option><option value="25">25 unidades</option><option value="50">50 unidades</option><option value="72">72 unidades</option><option value="100">100 unidades</option><option value="150">150 unidades</option><option value="200">200 unidades</option><option value="300">300 unidades</option><option value="500">500 unidades</option><option value="1000">1000 unidades</option>
-            </select>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Raio de grama detalhada</span>
-            <select class="render-settings-select" :value="grassNearDetailDistance" :disabled="!grassVisible" @change="emit('grass-near-detail-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0">Seguir perfil</option><option value="5">5 unidades</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="35">35 unidades</option><option value="40">40 unidades</option>
-            </select>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Raio de detalhe intermediário</span>
-            <select class="render-settings-select" :value="grassMiddleDetailDistance" :disabled="!grassVisible" @change="emit('grass-middle-detail-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0">Seguir perfil</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="40">40 unidades</option><option value="50">50 unidades</option><option value="60">60 unidades</option><option value="70">70 unidades</option><option value="80">80 unidades</option>
-            </select>
-          </label>
-          <label class="render-settings-everything render-settings-grass-check">
-            <input type="checkbox" :checked="grassOcclusionEnabled" :disabled="!grassVisible" @change="emit('grass-occlusion-enabled-change', ($event.target as HTMLInputElement).checked)" />
-            <span><strong>Oclusão atrás de paredes e objetos</strong><small>Não desenha a grama que fica totalmente ou parcialmente escondida atrás de superfícies sólidas opacas. Este controle é específico para paredes/objetos, não altera o sistema de grama cobrindo grama.</small></span>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Modo de oclusão por paredes</span>
-            <select class="render-settings-select" :value="wallOcclusionQuality" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('wall-occlusion-quality-change', ($event.target as HTMLSelectElement).value as 'fast' | 'precise')">
-              <option value="precise">Preciso · oculta também áreas parciais</option><option value="fast">Econômico · prioriza desempenho</option>
-            </select>
-          </label>
-          <p class="render-settings-help">Preciso mantém a subdivisão fina junto às paredes. Econômico ignora somente os cálculos extras das áreas parcialmente cobertas; ainda oculta chunks totalmente atrás de uma parede.</p>
-          <label class="render-settings-field render-settings-fog-field"><span>Frequência da oclusão por paredes</span>
-            <select class="render-settings-select" :value="grassOcclusionIntervalMs" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('grass-occlusion-interval-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="250">Precisa · recalcula a cada 250 ms</option><option value="400">Equilibrada · 400 ms</option><option value="800">Leve · 800 ms</option><option value="1200">Economia · 1200 ms</option>
-            </select>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Intensidade do vento</span>
-            <select class="render-settings-select" :value="grassWindPercent" :disabled="!grassVisible" @change="emit('grass-wind-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0">Desativado</option><option value="25">Muito suave · 25%</option><option value="50">Médio · 50%</option><option value="75">Forte · 75%</option><option value="100">Máximo · 100%</option>
-            </select>
-          </label>
-          <p class="render-settings-help">A densidade usa amostragem por anéis, e os raios definem quando a grama detalhada dá lugar à geometria leve. Esses ajustes não apagam nem modificam os dados de grama pintada.</p>
+          <div class="render-settings-section">
+            <div class="render-settings-section-title">Grama e vegetação</div>
+            <label class="render-settings-everything">
+              <input type="checkbox" :checked="grassVisible" @change="emit('grass-visible-change', ($event.target as HTMLInputElement).checked)" />
+              <span><strong>Renderizar grama</strong><small>Desliga a camada visual sem apagar a grama pintada no mundo.</small></span>
+            </label>
+            <label class="render-settings-everything render-settings-grass-check">
+              <input type="checkbox" :checked="grassUseDetailedModel" :disabled="!grassVisible" @change="emit('grass-use-detailed-model-change', ($event.target as HTMLInputElement).checked)" />
+              <span><strong>Usar modelo 3D detalhado</strong><small>Desative para usar geometria procedural simples na grama próxima e intermediária, reduzindo materiais e draw calls.</small></span>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Densidade visual</span>
+              <select class="render-settings-select" :value="grassDensityPercent" :disabled="!grassVisible" @change="emit('grass-density-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="25">Muito leve · 25%</option><option value="40">Leve · 40%</option><option value="60">Equilibrada · 60%</option><option value="80">Densa · 80%</option><option value="100">Máxima · 100%</option>
+              </select>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Alcance exclusivo da grama</span>
+              <select class="render-settings-select" :value="grassRenderDistanceOption" :disabled="!grassVisible" @change="emit('grass-render-distance-change', ($event.target as HTMLSelectElement).value)">
+                <option value="global">Seguir alcance geral</option><option value="all">Renderizar até o limite do mapa</option><option value="25">25 unidades</option><option value="50">50 unidades</option><option value="72">72 unidades</option><option value="100">100 unidades</option><option value="150">150 unidades</option><option value="200">200 unidades</option><option value="300">300 unidades</option><option value="500">500 unidades</option><option value="1000">1000 unidades</option>
+              </select>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Raio de grama detalhada</span>
+              <select class="render-settings-select" :value="grassNearDetailDistance" :disabled="!grassVisible" @change="emit('grass-near-detail-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0">Seguir perfil</option><option value="5">5 unidades</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="35">35 unidades</option><option value="40">40 unidades</option>
+              </select>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Raio de detalhe intermediário</span>
+              <select class="render-settings-select" :value="grassMiddleDetailDistance" :disabled="!grassVisible" @change="emit('grass-middle-detail-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0">Seguir perfil</option><option value="10">10 unidades</option><option value="15">15 unidades</option><option value="20">20 unidades</option><option value="25">25 unidades</option><option value="30">30 unidades</option><option value="40">40 unidades</option><option value="50">50 unidades</option><option value="60">60 unidades</option><option value="70">70 unidades</option><option value="80">80 unidades</option>
+              </select>
+            </label>
+            <label class="render-settings-everything render-settings-grass-check">
+              <input type="checkbox" :checked="grassOcclusionEnabled" :disabled="!grassVisible" @change="emit('grass-occlusion-enabled-change', ($event.target as HTMLInputElement).checked)" />
+              <span><strong>Oclusão atrás de paredes e objetos</strong><small>Não desenha a grama que fica totalmente ou parcialmente escondida atrás de superfícies sólidas opacas. Este controle é específico para paredes/objetos, não altera o sistema de grama cobrindo grama.</small></span>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Modo de oclusão por paredes</span>
+              <select class="render-settings-select" :value="wallOcclusionQuality" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('wall-occlusion-quality-change', ($event.target as HTMLSelectElement).value as 'fast' | 'precise')">
+                <option value="precise">Preciso · oculta também áreas parciais</option><option value="fast">Econômico · prioriza desempenho</option>
+              </select>
+            </label>
+            <p class="render-settings-help">Preciso mantém a subdivisão fina junto às paredes. Econômico ignora somente os cálculos extras das áreas parcialmente cobertas; ainda oculta chunks totalmente atrás de uma parede.</p>
+            <label class="render-settings-field render-settings-fog-field"><span>Frequência da oclusão por paredes</span>
+              <select class="render-settings-select" :value="grassOcclusionIntervalMs" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('grass-occlusion-interval-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="250">Precisa · recalcula a cada 250 ms</option><option value="400">Equilibrada · 400 ms</option><option value="800">Leve · 800 ms</option><option value="1200">Economia · 1200 ms</option>
+              </select>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Intensidade do vento</span>
+              <select class="render-settings-select" :value="grassWindPercent" :disabled="!grassVisible" @change="emit('grass-wind-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0">Desativado</option><option value="25">Muito suave · 25%</option><option value="50">Médio · 50%</option><option value="75">Forte · 75%</option><option value="100">Máximo · 100%</option>
+              </select>
+            </label>
+            <p class="render-settings-help">A densidade usa amostragem por anéis, e os raios definem quando a grama detalhada dá lugar à geometria leve. Esses ajustes não apagam nem modificam os dados de grama pintada.</p>
+          </div>
+          <div class="render-settings-section">
+            <div class="render-settings-section-title">Qualidade geral</div>
+            <label class="render-settings-field"><span>Perfil</span>
+              <select class="render-settings-select" :value="performanceMode" @change="emit('performance-mode-change', ($event.target as HTMLSelectElement).value as 'quality' | 'balanced' | 'economy' | 'auto')">
+                <option value="quality">Qualidade</option><option value="balanced">Equilibrado</option><option value="economy">Econômico</option><option value="auto">Automático</option>
+              </select>
+            </label>
+          </div>
+          <div class="render-settings-section">
+            <div class="render-settings-section-title">GPU e fluidez</div>
+            <label class="render-settings-field"><span>Escala da resolução</span>
+              <select class="render-settings-select" :value="renderResolutionScale" @change="emit('render-resolution-scale-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0">Seguir perfil</option><option value="0.5">50%</option><option value="0.65">65%</option><option value="0.75">75%</option><option value="0.85">85%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.25">125%</option>
+              </select>
+            </label>
+            <label class="render-settings-field"><span>Limite de FPS</span>
+              <select class="render-settings-select" :value="renderFpsLimit" @change="emit('render-fps-limit-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0">Seguir perfil</option><option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option><option value="120">120 FPS</option>
+              </select>
+            </label>
+            <p class="render-settings-help">Reduzir a escala e limitar FPS pode aliviar a GPU em cenas pesadas.</p>
+          </div>
+          <div class="render-settings-section">
+            <div class="render-settings-section-title">Neblina atmosférica</div>
+            <label class="render-settings-everything"><input type="checkbox" :checked="renderFogEnabled" @change="emit('render-fog-enabled-change', ($event.target as HTMLInputElement).checked)" /><span><strong>Ativar neblina</strong><small>Ajuda a disfarçar o horizonte e o limite de visão.</small></span></label>
+            <label class="render-settings-field render-settings-fog-field"><span>Alcance da neblina</span><strong class="render-settings-output">{{ Math.round(renderFogDistanceScale * 100) }}%</strong></label>
+            <input class="render-settings-range" type="range" min="50" max="200" step="5" :value="Math.round(renderFogDistanceScale * 100)" :disabled="!renderFogEnabled" @input="emit('render-fog-distance-scale-change', Number(($event.target as HTMLInputElement).value) / 100)" />
+          </div>
+          <div class="render-settings-section">
+            <div class="render-settings-section-title">Resolução dinâmica adaptativa</div>
+            <label class="render-settings-everything">
+              <input type="checkbox" :checked="renderDynamicResolution" @change="emit('render-dynamic-resolution-change', ($event.target as HTMLInputElement).checked)" />
+              <span><strong>Ajustar resolução automaticamente</strong><small>Reduz a escala quando o FPS fica abaixo da meta e recupera qualidade quando há folga. Funciona com GPUs NVIDIA, AMD e Intel.</small></span>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Meta de desempenho</span>
+              <select class="render-settings-select" :value="renderDynamicResolutionTargetFps" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-target-fps-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option>
+              </select>
+            </label>
+            <label class="render-settings-field render-settings-fog-field"><span>Escala mínima permitida</span>
+              <select class="render-settings-select" :value="renderDynamicResolutionMinScale" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-min-scale-change', Number(($event.target as HTMLSelectElement).value))">
+                <option value="0.5">50%</option><option value="0.6">60%</option><option value="0.7">70%</option><option value="0.8">80%</option><option value="0.9">90%</option>
+              </select>
+            </label>
+            <p class="render-settings-help">A escala muda em passos pequenos e com intervalo para evitar oscilações bruscas. É uma otimização adaptativa multiplataforma, não DLSS ou FSR oficial.</p>
+          </div>
+          <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
         </div>
-        <div class="render-settings-section">
-          <div class="render-settings-section-title">Qualidade geral</div>
-          <label class="render-settings-field"><span>Perfil</span>
-            <select class="render-settings-select" :value="performanceMode" @change="emit('performance-mode-change', ($event.target as HTMLSelectElement).value as 'quality' | 'balanced' | 'economy' | 'auto')">
-              <option value="quality">Qualidade</option><option value="balanced">Equilibrado</option><option value="economy">Econômico</option><option value="auto">Automático</option>
-            </select>
-          </label>
-        </div>
-        <div class="render-settings-section">
-          <div class="render-settings-section-title">GPU e fluidez</div>
-          <label class="render-settings-field"><span>Escala da resolução</span>
-            <select class="render-settings-select" :value="renderResolutionScale" @change="emit('render-resolution-scale-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0">Seguir perfil</option><option value="0.5">50%</option><option value="0.65">65%</option><option value="0.75">75%</option><option value="0.85">85%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.25">125%</option>
-            </select>
-          </label>
-          <label class="render-settings-field"><span>Limite de FPS</span>
-            <select class="render-settings-select" :value="renderFpsLimit" @change="emit('render-fps-limit-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0">Seguir perfil</option><option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option><option value="120">120 FPS</option>
-            </select>
-          </label>
-          <p class="render-settings-help">Reduzir a escala e limitar FPS pode aliviar a GPU em cenas pesadas.</p>
-        </div>
-        <div class="render-settings-section">
-          <div class="render-settings-section-title">Neblina atmosférica</div>
-          <label class="render-settings-everything"><input type="checkbox" :checked="renderFogEnabled" @change="emit('render-fog-enabled-change', ($event.target as HTMLInputElement).checked)" /><span><strong>Ativar neblina</strong><small>Ajuda a disfarçar o horizonte e o limite de visão.</small></span></label>
-          <label class="render-settings-field render-settings-fog-field"><span>Alcance da neblina</span><strong class="render-settings-output">{{ Math.round(renderFogDistanceScale * 100) }}%</strong></label>
-          <input class="render-settings-range" type="range" min="50" max="200" step="5" :value="Math.round(renderFogDistanceScale * 100)" :disabled="!renderFogEnabled" @input="emit('render-fog-distance-scale-change', Number(($event.target as HTMLInputElement).value) / 100)" />
-        </div>
-        <div class="render-settings-section">
-          <div class="render-settings-section-title">Resolução dinâmica adaptativa</div>
-          <label class="render-settings-everything">
-            <input type="checkbox" :checked="renderDynamicResolution" @change="emit('render-dynamic-resolution-change', ($event.target as HTMLInputElement).checked)" />
-            <span><strong>Ajustar resolução automaticamente</strong><small>Reduz a escala quando o FPS fica abaixo da meta e recupera qualidade quando há folga. Funciona com GPUs NVIDIA, AMD e Intel.</small></span>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Meta de desempenho</span>
-            <select class="render-settings-select" :value="renderDynamicResolutionTargetFps" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-target-fps-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="30">30 FPS</option><option value="45">45 FPS</option><option value="60">60 FPS</option><option value="90">90 FPS</option>
-            </select>
-          </label>
-          <label class="render-settings-field render-settings-fog-field"><span>Escala mínima permitida</span>
-            <select class="render-settings-select" :value="renderDynamicResolutionMinScale" :disabled="!renderDynamicResolution" @change="emit('render-dynamic-resolution-min-scale-change', Number(($event.target as HTMLSelectElement).value))">
-              <option value="0.5">50%</option><option value="0.6">60%</option><option value="0.7">70%</option><option value="0.8">80%</option><option value="0.9">90%</option>
-            </select>
-          </label>
-          <p class="render-settings-help">A escala muda em passos pequenos e com intervalo para evitar oscilações bruscas. É uma otimização adaptativa multiplataforma, não DLSS ou FSR oficial.</p>
-        </div>
-        <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
-      </div>
-    </details>
-      <button
-        v-if="executionMode === 'edit'"
-        class="viewport-tool hud-settings-toolbar-button"
-        :class="{ active: hudSettingsOpen }"
-        type="button"
-        :aria-pressed="hudSettingsOpen"
-        title="Configurar e pré-visualizar a HUD no modo de edição"
-        aria-label="Configurar HUD"
-        @click="emit('toggle-hud-settings')"
-      >
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="8" cy="8" r="2.2" />
-          <path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8L3.4 3.4" />
-        </svg>
-        <span>HUD</span>
-      </button>
-      <span class="viewport-tools-divider" aria-hidden="true"></span>
-      <button class="topbar-fullscreen" type="button" :class="{ active: worldFullscreen }" :title="fullscreenToggleTitle" :aria-label="fullscreenToggleTitle" :aria-pressed="worldFullscreen" @click="emit('toggle-world-fullscreen')">
-        <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" /></svg>
-      </button>
+      </details>
+        <button
+          v-if="executionMode === 'edit'"
+          class="viewport-tool hud-settings-toolbar-button"
+          :class="{ active: hudSettingsOpen }"
+          type="button"
+          :aria-pressed="hudSettingsOpen"
+          title="Configurar e pré-visualizar a HUD no modo de edição"
+          aria-label="Configurar HUD"
+          @click="emit('toggle-hud-settings')"
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="2.2" />
+            <path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8L3.4 3.4" />
+          </svg>
+          <span>HUD</span>
+        </button>
+        <span class="viewport-tools-divider" aria-hidden="true"></span>
+        <button class="topbar-fullscreen" type="button" :class="{ active: worldFullscreen }" :title="fullscreenToggleTitle" :aria-label="fullscreenToggleTitle" :aria-pressed="worldFullscreen" @click="emit('toggle-world-fullscreen')">
+          <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" /></svg>
+        </button>
       </div>
     </Teleport>
   </header>
