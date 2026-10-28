@@ -107,6 +107,11 @@ function safeColor(value: unknown, fallback: string): string {
 }
 
 /** Validates and normalizes UI data before loading a project file. */
+/** Empty draft screens must never paint an opaque full-screen layer over the running world. */
+export function getRenderableUIScreenDefinitions(screens: readonly UIScreenDefinition[]): UIScreenDefinition[] {
+  return screens.filter(screen => screen.enabledInGame && screen.elements.length > 0)
+}
+
 export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
   if (!Array.isArray(value)) throw new Error('ui/screens.json precisa conter uma lista de telas.')
   if (value.length > 64) throw new Error('Um projeto pode conter no máximo 64 telas de interface.')
