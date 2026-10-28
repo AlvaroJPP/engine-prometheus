@@ -25,6 +25,8 @@
 }
 /* Clean viewport layout: creation actions left, view controls right, diagnostics at the bottom. */
 .viewport-actions {
+  --viewport-actions-compact-left:72px;
+  --viewport-actions-compact-right:8px;
   position:absolute;
   z-index:16;
   top:12px;
@@ -149,7 +151,7 @@
   right:auto !important;
 }
 @media(max-width:1180px) {
-  .viewport-actions { left:56px; max-width:calc(100% - 72px); }
+  .viewport-actions { --viewport-actions-compact-left:56px; left:56px; max-width:calc(100% - 72px); }
 }
 @media(max-width:900px) {
   .viewport-actions { gap:4px; }
@@ -159,7 +161,7 @@
   .chips { bottom:72px !important; }
 }
 @media(max-width:760px) {
-  .viewport-actions { left:54px; top:10px; }
+  .viewport-actions { --viewport-actions-compact-left:54px; left:54px; top:10px; }
   .viewport-actions .quick-add-trigger { padding-inline:8px; }
   .viewport-actions .model-import-launch { padding-inline:8px !important; }
   .viewport-actions .quick-add-trigger { gap:4px; }
@@ -172,8 +174,8 @@
 
 @container viewport-hud (max-width: 400px) {
   .viewport-actions {
-    left: 54px;
-    right: 8px;
+    left: var(--viewport-actions-compact-left, 54px) !important;
+    right: var(--viewport-actions-compact-right, 8px) !important;
     max-width: none;
     gap: 4px;
   }
