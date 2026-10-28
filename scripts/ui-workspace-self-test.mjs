@@ -26,6 +26,7 @@ import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScre
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
 import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
+import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
@@ -51,6 +52,12 @@ assert.equal(adjustUINumericValue(undefined, 1), 1)
 assert.equal(adjustUINumericValue('12', 2), 2)
 assert.equal(adjustUINumericValue(Number.MAX_VALUE, 1e6), Number.MAX_VALUE)
 assert.equal(adjustUINumericValue(4, Number.NaN), 5)
+assert.deepEqual(appendUIScreenHistory([], 'menu'), ['menu'])
+assert.deepEqual(appendUIScreenHistory(['menu'], 'options'), ['menu', 'options'])
+assert.equal(appendUIScreenHistory(Array.from({ length: 100 }, (_, index) => `screen-${index}`), 'new').length, 100)
+assert.deepEqual(takePreviousUIScreen(['menu', 'missing', 'options'], id => id !== 'missing'), { history: ['menu'], screenId: 'options' })
+assert.deepEqual(takePreviousUIScreen(['missing', 'also-missing'], () => false), { history: [], screenId: '' })
+assert.deepEqual(takePreviousUIScreen([], () => true), { history: [], screenId: '' })
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -201,7 +208,8 @@ assert.match(uiWorkspaceSource, /value="adjust-variable">Ajustar variável numé
 assert.match(uiWorkspaceSource, /selectedElement\.variableStep/)
 assert.match(uiWorkspaceSource, /value="toggle-variable">Alternar variável booleana/)
 assert.match(uiWorkspaceSource, /value="navigate-back">Voltar à tela anterior/)
-assert.match(gameUIRuntimeSource, /screenHistory\.value = \[\.\.\.screenHistory\.value, activeScreenId\.value\]\.slice\(-100\)/)
+assert.match(gameUIRuntimeSource, /appendUIScreenHistory\(screenHistory\.value, activeScreenId\.value\)/)
+assert.match(gameUIRuntimeSource, /takePreviousUIScreen\(screenHistory\.value/)
 assert.match(gameUIRuntimeSource, /element\.action === 'navigate-back'/)
 assert.match(uiWorkspaceSource, /element\.action === 'toggle-variable'/)
 assert.match(gameUIRuntimeSource, /screen\.visibilityVariable, screen\.visibilityValue, props\.gameVariables/)
