@@ -81,7 +81,7 @@ Barras de progresso leem a variável global indicada e usam o valor máximo conf
 
 Telas e elementos podem ter a visibilidade ligada a uma variável global no inspetor. Deixe **Visibilidade condicionada por variável** vazio para manter o item sempre visível; ao informar um nome, ele só será mostrado quando a variável existir e `String(valor)` corresponder exatamente ao **Valor exigido para mostrar**. O valor inicial esperado é `true`, mas também pode ser `false`, um número como `1` ou uma string como `aberto`. Se a variável ainda não existir, a UI condicionada fica oculta.
 
-Exemplo de inventário: configure a tela do inventário com variável `ui.inventory.open` e valor exigido `true`. No Visual Script, o botão de inventário define `ui.inventory.open = true` para abrir e outro botão define `ui.inventory.open = false` para fechar. O mesmo mecanismo serve para diálogos, dicas contextuais, barras de estado ou elementos individuais, sem código específico por jogo.
+Exemplo de inventário: configure a tela do inventário como **Overlay persistente** e defina a variável de visibilidade `ui.inventory.open` com valor exigido `true`. Assim ela aparece por cima da tela ou do mundo quando a variável fica verdadeira e desaparece quando fica falsa. No Visual Script, o botão de inventário define `ui.inventory.open = true` para abrir e outro botão define `ui.inventory.open = false` para fechar. Para telas navegáveis comuns, a condição também impede que uma tela oculta seja selecionada como destino. O mesmo mecanismo serve para diálogos, dicas contextuais, barras de estado ou elementos individuais, sem código específico por jogo.
 
 ### Textos dinâmicos ligados a variáveis
 
