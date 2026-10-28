@@ -387,10 +387,6 @@ export class Engine {
   /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
 
-  private updateAutonomousBehaviors(dt: number): void {
-    this.autonomousBehaviorCoordinator.update(dt)
-  }
-
   /** Executa árvores de comportamento genéricas dos pacotes durante o modo Run. */
   private updateBehaviorTrees(dt: number): void {
     this.behaviorTreeRuntime.update({
