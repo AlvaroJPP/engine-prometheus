@@ -18,3 +18,18 @@ export function resolveUIValueBindings(
     return String(variables[variableName])
   })
 }
+
+/**
+ * Tests an optional visibility rule against the current global variable snapshot.
+ * A blank variable leaves the UI visible; an unknown variable hides conditioned UI.
+ */
+export function isUIVisibilityConditionMet(
+  variableName: string | undefined,
+  expectedValue: string | undefined,
+  variables: UIValueBindingVariables,
+): boolean {
+  const name = (variableName ?? '').trim()
+  if (!name) return true
+  if (!Object.prototype.hasOwnProperty.call(variables, name)) return false
+  return String(variables[name]) === (expectedValue ?? 'true')
+}
