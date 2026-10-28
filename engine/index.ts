@@ -91,3 +91,6 @@ export type { EntityBatchOptions, EntityBatchFailure, EntityBatchReport, EntityB
 
 export { EntityCommandBuffer } from './runtime/EntityCommandBuffer'
 export type { EntityCommandKind, EntityCommandFailure, EntityCommandBufferReport, EntityCommandBufferOptions } from './runtime/EntityCommandBuffer'
+
+export { RuntimePhasePipeline } from './runtime/RuntimePhasePipeline'
+export type { RuntimePhaseDefinition, RuntimeTaskDefinition, RuntimePhaseSnapshot, RuntimeTaskSnapshot, RuntimeTaskFailure, RuntimePhaseResult, RuntimePipelineReport } from './runtime/RuntimePhasePipeline'

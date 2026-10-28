@@ -43,6 +43,13 @@ gameplay.behaviors.add('player', {
   },
 })
 gameplay.start()
+gameplay.pipeline.definePhase({ id: 'custom-between-systems-and-behaviors', order: 25 })
+const customPhaseCalls = []
+gameplay.pipeline.registerTask({
+  id: 'test:custom-phase',
+  phaseId: 'custom-between-systems-and-behaviors',
+  execute: (_dt, frame) => customPhaseCalls.push(frame.runtime === gameplay),
+})
 
 const context = { ownerId: 'player' }
 const registry = new BehaviorTreeHandlerRegistry()
@@ -69,6 +76,16 @@ const update = gameplay.update(1)
 assert.deepEqual(update.statusEvents.map(event => event.type), ['tick'])
 assert.deepEqual(update.triggerEvents.map(event => [event.type, event.subjectId]), [['enter', 'player']])
 assert.deepEqual(update.commandReport, { commandCount: 2, appliedCount: 2, skippedCount: 0, failures: [] })
+assert.deepEqual(update.pipelineReport.phases.map(phase => phase.phaseId), [
+  'timers',
+  'entity-systems',
+  'custom-between-systems-and-behaviors',
+  'behaviors',
+  'deferred-commands',
+  'world-events',
+])
+assert.deepEqual(customPhaseCalls, [true])
+assert.equal(update.pipelineReport.failures.length, 0)
 assert.deepEqual(gameplay.entities.getComponent('deferred-entity', 'deferred-test'), { ready: true })
 assert.deepEqual(deferredEvents, [['enter', 'deferred-entity']])
 assert.equal(gameplay.cooldowns.isReady('player::dash'), false)

@@ -4,6 +4,8 @@ import { StatusEffectRuntime } from './StatusEffectRuntime.ts'
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import { EntityCommandBuffer } from './EntityCommandBuffer.ts'
 import type { EntityCommandBufferReport } from './EntityCommandBuffer.ts'
+import { RuntimePhasePipeline } from './RuntimePhasePipeline.ts'
+import type { RuntimePipelineReport } from './RuntimePhasePipeline.ts'
 import { EntityBehaviorRuntime } from './EntityBehaviorRuntime.ts'
 import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
 import { EntityBatchProcessor } from './EntityBatchProcessor.ts'
@@ -27,6 +29,13 @@ export interface GameplayRuntimeUpdate {
   readonly statusEvents: readonly StatusEffectEvent[]
   readonly triggerEvents: readonly TriggerEvent[]
   readonly commandReport: EntityCommandBufferReport
+  readonly pipelineReport: RuntimePipelineReport
+}
+export interface GameplayFrameContext {
+  readonly runtime: GameplayRuntime
+  statusEvents: readonly StatusEffectEvent[]
+  triggerEvents: readonly TriggerEvent[]
+  commandReport: EntityCommandBufferReport
 }
 export interface GameplayEntityContext {
   readonly entityId: string
@@ -58,7 +67,9 @@ export class GameplayRuntime {
   readonly batches: EntityBatchProcessor<Record<string, unknown>>
   readonly behaviors: EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>
   readonly systems: EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>
+  readonly pipeline: RuntimePhasePipeline<GameplayFrameContext>
   private readonly behaviorNamespace: string
+  private currentFrame: GameplayFrameContext | null = null
 
   constructor(options: GameplayRuntimeOptions = {}) {
     this.world = new GameplayWorldSystems(options.cellSize, options.maxQueryCells)
@@ -81,6 +92,44 @@ export class GameplayRuntime {
       this.queries,
       this.batches,
     )
+    this.pipeline = new RuntimePhasePipeline<GameplayFrameContext>()
+    this.pipeline.definePhase({ id: 'timers', order: 10 })
+    this.pipeline.definePhase({ id: 'entity-systems', order: 20 })
+    this.pipeline.definePhase({ id: 'behaviors', order: 30 })
+    this.pipeline.definePhase({ id: 'deferred-commands', order: 40 })
+    this.pipeline.definePhase({ id: 'world-events', order: 50 })
+    this.pipeline.registerTask({
+      id: 'gameplay:cooldowns',
+      phaseId: 'timers',
+      priority: 0,
+      execute: dt => this.cooldowns.update(dt),
+    })
+    this.pipeline.registerTask({
+      id: 'gameplay:statuses',
+      phaseId: 'timers',
+      priority: 10,
+      execute: (dt, frame) => { frame.statusEvents = this.statuses.update(dt) },
+    })
+    this.pipeline.registerTask({
+      id: 'gameplay:entity-systems',
+      phaseId: 'entity-systems',
+      execute: dt => this.systems.update(dt),
+    })
+    this.pipeline.registerTask({
+      id: 'gameplay:behaviors',
+      phaseId: 'behaviors',
+      execute: dt => this.behaviors.update(dt),
+    })
+    this.pipeline.registerTask({
+      id: 'gameplay:commands',
+      phaseId: 'deferred-commands',
+      execute: (_dt, frame) => { frame.commandReport = this.commands.playback() },
+    })
+    this.pipeline.registerTask({
+      id: 'gameplay:world-events',
+      phaseId: 'world-events',
+      execute: (_dt, frame) => { frame.triggerEvents = this.world.updateTriggers() },
+    })
   }
 
   /** Starts component-filtered systems before entity behaviors consume their results. */
@@ -95,15 +144,33 @@ export class GameplayRuntime {
     this.systems.stop()
   }
 
-  /** Advances timed systems and flushes deferred entity changes before trigger occupancy. */
+  /** Runs ordered runtime phases; clients can insert additional generic phases by order. */
   update(deltaSeconds: number): GameplayRuntimeUpdate {
-    this.cooldowns.update(deltaSeconds)
-    const statusEvents = this.statuses.update(deltaSeconds)
-    this.systems.update(deltaSeconds)
-    this.behaviors.update(deltaSeconds)
-    const commandReport = this.commands.playback()
-    const triggerEvents = this.world.updateTriggers()
-    return { statusEvents, triggerEvents, commandReport }
+    if (this.currentFrame) throw new Error('GameplayRuntime cannot be updated recursively.')
+    const frame: GameplayFrameContext = {
+      runtime: this,
+      statusEvents: [],
+      triggerEvents: [],
+      commandReport: {
+        commandCount: 0,
+        appliedCount: 0,
+        skippedCount: 0,
+        failures: [],
+      },
+    }
+    const safeDeltaSeconds = Number.isFinite(deltaSeconds) ? Math.max(0, deltaSeconds) : 0
+    this.currentFrame = frame
+    try {
+      const pipelineReport = this.pipeline.run(safeDeltaSeconds, frame)
+      return {
+        statusEvents: frame.statusEvents,
+        triggerEvents: frame.triggerEvents,
+        commandReport: frame.commandReport,
+        pipelineReport,
+      }
+    } finally {
+      this.currentFrame = null
+    }
   }
 
   registerBehaviorNodes<TContext>(
@@ -182,6 +249,14 @@ export class GameplayRuntime {
       try { cleanup() } catch (error) { errors.push(error) }
     }
     try { this.commands.clear() } catch (error) { errors.push(error) }
+    for (const taskId of [
+      'gameplay:cooldowns',
+      'gameplay:statuses',
+      'gameplay:entity-systems',
+      'gameplay:behaviors',
+      'gameplay:commands',
+      'gameplay:world-events',
+    ]) this.pipeline.resetTaskFault(taskId)
     if (errors.length > 0) throw errors[0]
   }
 }

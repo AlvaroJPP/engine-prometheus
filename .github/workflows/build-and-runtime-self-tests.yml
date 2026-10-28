@@ -154,3 +154,6 @@ jobs:
 
       - name: Test deferred generic entity commands
         run: npm run entity:commands:self-test
+
+      - name: Test generic runtime phase pipeline
+        run: npm run runtime:phases:self-test
