@@ -30,6 +30,7 @@ type PerformancePreset = 'quality' | 'balanced' | 'economy' | 'auto'
 type AppliedPerformancePreset = Exclude<PerformancePreset, 'auto'>
 type RenderStats = {
   fps: number
+  continuousRendering: boolean
   drawCalls: number
   triangles: number
   geometries: number
@@ -59,6 +60,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const fps = ref(0)
   const renderStats = ref<RenderStats>({
     fps: 0,
+    continuousRendering: false,
     drawCalls: 0,
     triangles: 0,
     geometries: 0,
@@ -367,6 +369,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   function updateAutoPerformancePreset(stats: RenderStats) {
     if (performanceMode.value !== 'auto' || !engine) return
+    // Em edição, a cena estática só redesenha sob demanda; poucos redraws não
+    // significam 3 FPS. O modo Auto só se adapta com renderização contínua real.
+    if (!stats.continuousRendering) return
 
     const current = appliedPerformancePreset
     let next = current
@@ -758,10 +763,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine = e
     engineInstance.value = e
     e.setControlBindings(playerControlBindings)
-    appliedPerformancePreset = performanceMode.value === 'auto' ? 'economy' : performanceMode.value
+    // Auto começa em qualidade e só reduz depois de medir uma carga contínua real.
+    appliedPerformancePreset = performanceMode.value === 'auto' ? 'quality' : performanceMode.value
     e.setPerformancePreset(appliedPerformancePreset)
     e.setRenderStatsListener((value) => {
-      fps.value = value.fps
+      fps.value = value.continuousRendering ? value.fps : 0
       renderStats.value = value
       updateAutoPerformancePreset(value)
     })
@@ -1068,8 +1074,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     autoPerformanceHealthySamples = 0
 
     if (value === 'auto') {
-      appliedPerformancePreset = 'economy'
-      engine.setPerformancePreset('economy')
+      // Não borramos a viewport estática antes de haver uma medição de jogo real.
+      appliedPerformancePreset = 'quality'
+      engine.setPerformancePreset('quality')
     } else {
       appliedPerformancePreset = value
       engine.setPerformancePreset(value)
