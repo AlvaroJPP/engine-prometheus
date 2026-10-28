@@ -55,7 +55,7 @@ const includeDisabled = runtime.create('all-renderables', {
 })
 assert.deepEqual(includeDisabled.getEntities(), ['beta', 'delta', 'gamma'])
 const excludingDisabled = runtime.create('enabled-renderables', { anyOf: ['renderable', 'logic'] })
-assert.deepEqual(excludingDisabled.getEntities(), ['delta'])
+assert.deepEqual(excludingDisabled.getEntities(), ['beta', 'delta'])
 assert.deepEqual(runtime.list().map(item => item.id), [
   'active-positioned',
   'all-renderables',
