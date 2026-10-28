@@ -3,6 +3,7 @@ import { ResourcePoolRegistry } from './ResourcePoolRegistry.ts'
 import { StatusEffectRuntime } from './StatusEffectRuntime.ts'
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import { EntityBehaviorRuntime } from './EntityBehaviorRuntime.ts'
+import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
 import { EntitySystemRuntime } from './EntitySystemRuntime.ts'
 import { GameplayWorldSystems } from '../world/GameplayWorldSystems.ts'
 import type { SpatialItem3 } from '../world/SpatialHash3D.ts'
@@ -48,6 +49,7 @@ export class GameplayRuntime {
   readonly objectives = new ObjectiveTracker()
   readonly cooldowns = new CooldownScheduler()
   readonly entities = new EntityComponentRuntime()
+  readonly queries: EntityQueryRuntime<Record<string, unknown>>
   readonly behaviors: EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>
   readonly systems: EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>
   private readonly behaviorNamespace: string
@@ -56,6 +58,7 @@ export class GameplayRuntime {
     this.world = new GameplayWorldSystems(options.cellSize, options.maxQueryCells)
     this.statuses = new StatusEffectRuntime(options.maxCatchUpTicks)
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
+    this.queries = new EntityQueryRuntime<Record<string, unknown>>(this.entities)
     const createEntityContext = (entityId: string): GameplayEntityContext => ({
       entityId,
       runtime: this as GameplayRuntime,
@@ -67,6 +70,7 @@ export class GameplayRuntime {
     this.systems = new EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>(
       this.entities,
       createEntityContext,
+      this.queries,
     )
   }
 
@@ -157,6 +161,7 @@ export class GameplayRuntime {
       () => this.behaviors.clear(),
       () => this.systems.clear(),
       () => this.entities.clear(),
+      () => this.queries.clear(),
       () => this.resources.clear(),
       () => this.world.clear(),
       () => this.statuses.clear(),
