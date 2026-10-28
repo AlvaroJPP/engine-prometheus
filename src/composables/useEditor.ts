@@ -1525,7 +1525,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     } finally {
       applyingProjectSettings = false
     }
-      applyingUiScreens = true
+    applyingUiScreens = true
     try {
       replaceUIScreenDefinitions([])
     } finally {
