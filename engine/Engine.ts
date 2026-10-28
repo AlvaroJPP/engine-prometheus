@@ -1,7 +1,6 @@
 import type { PackageJsonValue } from './script/packages'
 import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
@@ -12,6 +11,7 @@ import type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 import { MAIN_SCENE_PATH } from './project/format'
 import type { CameraPreset, ObjectType, PlayerModelData, ProjectBundle, SceneObjectData } from './project/format'
 import { buildBundle, objectFromData } from './project/serialize'
+import { restoreImportedProjectModels } from './project/ImportedModelProjectRestorer'
 import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
 import { OrbitCamera } from './view/OrbitCamera'
@@ -1292,37 +1292,12 @@ export class Engine {
     this.world.setEnvironment(scene.environment ?? { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1, skyTextureDataUrl: '' })
     report('Terreno pronto. Restaurando modelos 3D…', 28)
 
-    const importedObjects = scene.objects.filter(object => !!object.importedModelData)
-    const loader = new GLTFLoader()
-    for (let i = 0; i < importedObjects.length; i += 1) {
-      const data = importedObjects[i]!
-      report(`Carregando modelo ${i + 1} de ${importedObjects.length}: ${data.name}…`, 30 + Math.round((i / Math.max(importedObjects.length, 1)) * 60))
-      try {
-        const binary = Uint8Array.from(atob(data.importedModelData!), char => char.charCodeAt(0)).buffer
-        const gltf = await new Promise<import('three/addons/loaders/GLTFLoader.js').GLTF>((resolve, reject) => {
-          loader.parse(binary, '', resolve, reject)
-        })
-        const model = gltf.scene
-        // O nome visível fica no proxy; preservar o nome do nó glTF mantém os bindings de animação.
-        model.userData.importPart = true
-        model.userData.importAnimations = gltf.animations
-        model.userData.importAnimationRoles = data.importAnimationRoles
-        model.userData.importControlBindings = data.importControlBindings
-        model.userData.componentId = data.componentId
-        model.userData.sceneKind = data.sceneKind === 'entity' ? 'entity' : 'object'
-        model.userData.importedModelData = data.importedModelData
-        model.userData.importColliderType = data.colliderType ?? 'box'
-        model.userData.importColliderSize = data.colliderSize ?? [1, 1, 1]
-        model.userData.importColliderOffset = data.colliderOffset ?? [0, 0, 0]
-        this.addImportedModel(data.name, model, data.importedModelHeight ?? 1, { ...data, importedModelData: data.importedModelData })
-      } catch (error) {
-        console.error('[Engine] Não foi possível restaurar o modelo importado:', data.name, error)
-        throw new ProjectFormatError(`Não foi possível carregar o modelo "${data.name}" salvo no projeto.`)
-      }
-      // Dá ao navegador/Tauri a chance de pintar a barra e processar eventos
-      // entre assets, em vez de bloquear a interface até terminar tudo.
-      await yieldToUi()
-    }
+    await restoreImportedProjectModels(scene.objects, {
+      report,
+      yieldToUi,
+      addImportedModel: (name, model, height, restoreData) =>
+        this.addImportedModel(name, model, height, restoreData),
+    })
 
     if (scene.playerModel?.glbData) {
       report('Restaurando modelo personalizado do jogador…', 91)
