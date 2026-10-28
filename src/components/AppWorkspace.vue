@@ -159,7 +159,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       aria-label="Expandir painel lateral"
       title="Expandir hierarquia e biblioteca"
       :aria-expanded="!ctx.sidebarCollapsed"
-      @click="ctx.sidebarCollapsed = false"
+      @click="ctx.quickAddOpen = false; ctx.sidebarCollapsed = false"
     >
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M3 5.5h14M3 10h14M3 14.5h14" />
@@ -202,7 +202,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       </button>
     </div>
 
-        <div class="main">
+            <div class="main">
       <SceneHierarchy
         v-model:root-open="ctx.rootOpen"
         :components="ctx.savedComponents"
@@ -226,7 +226,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
         @use-animation-source="ctx.useSavedAnimationSource"
         @open-model-import="ctx.previewAnimationSourceAsset = null; ctx.previewComponentAsset = null; ctx.modelImportOpen = true"
         @open-components="ctx.backfillMissingComponentThumbnails"
-        @collapse-sidebar="ctx.sidebarCollapsed = true"
+        @collapse-sidebar="ctx.quickAddOpen = false; ctx.sidebarCollapsed = true"
       />
 
       <!-- Viewport -->
