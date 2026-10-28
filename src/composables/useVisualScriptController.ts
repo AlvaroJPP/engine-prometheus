@@ -127,20 +127,25 @@ function ownerOfRule(rule: LogicRule): string | undefined {
       ? rule.trigger.objectId
       : (rule.actions.find(action => 'objectId' in action) as Extract<LogicRule['actions'][number], { objectId: string }> | undefined)?.objectId)
 }
+const graphGlobalRules = computed(() => logicRules.value.filter(rule => rule.trigger.type === 'global_event'))
+const graphGlobalGroupHeight = computed(() => graphGlobalRules.value.length
+  ? Math.max(190, 125 + graphGlobalRules.value.length * 170)
+  : 0)
 const graphVisibleRules = computed(() => {
   if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
-  return logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value)
+  return logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value || rule.trigger.type === 'global_event')
 })
-// No modo "Todos os objetos", cada objeto ganha seu próprio grupo visual no grafo.
+// Global HUD/interface flows occupy their own section; object-owned flows remain grouped by owner.
 const graphObjectGroups = computed(() => {
   if (graphObjectFilter.value !== 'all') return []
+  const globalSectionOffset = graphGlobalGroupHeight.value + (graphGlobalGroupHeight.value ? 24 : 0)
   return objects.value.map((object, index) => {
     const rules = logicRules.value.filter(rule => ownerOfRule(rule) === object.id)
     return {
       object,
       rules,
       index,
-      top: 35 + index * Math.max(220, 145 + rules.length * 170),
+      top: 35 + globalSectionOffset + index * Math.max(220, 145 + rules.length * 170),
       height: Math.max(190, 125 + rules.length * 170),
     }
   })
@@ -160,7 +165,19 @@ function layoutForGraph(rule: LogicRule, index: number) {
 }
 const graphNodes = computed(() => {
   if (graphObjectFilter.value === 'all') {
-    return graphObjectGroups.value.flatMap(group => group.rules.flatMap((rule, index) => {
+    const globalNodes = graphGlobalRules.value.flatMap((rule, index) => {
+      const top = 35 + 48 + index * 170
+      const defaults = {
+        trigger: { x: 70, y: top },
+        condition: { x: 430, y: top },
+        action: { x: 790, y: top },
+      }
+      const layout = rule.graphLayout ?? defaults
+      return (['condition', 'action'] as const).map(part => ({
+        rule, part, x: layout[part].x, y: layout[part].y,
+      }))
+    })
+    const objectNodes = graphObjectGroups.value.flatMap(group => group.rules.flatMap((rule, index) => {
       const defaults = {
         trigger: { x: 70, y: group.top + 48 + index * 170 },
         condition: { x: 430, y: group.top + 48 + index * 170 },
@@ -171,6 +188,7 @@ const graphNodes = computed(() => {
         rule, part, x: layout[part].x, y: layout[part].y,
       }))
     }))
+    return [...globalNodes, ...objectNodes]
   }
   return graphVisibleRules.value.flatMap((rule, index) => {
     const layout = layoutForGraph(rule, index)
@@ -488,6 +506,8 @@ const TRANSFORMS: Array<{ id: TransformMode; icon: string; label: string }> = [
     endNodeDrag,
     globalConditionVariables,
     graphEdges,
+    graphGlobalGroupHeight,
+    graphGlobalRules,
     graphNodes,
     graphObjectFilter,
     graphObjectGroups,
