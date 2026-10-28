@@ -38,14 +38,17 @@ O inspetor permite ajustar a **opacidade** de 0% a 100% em todos os elementos. T
 - **Grade:** mostra ou oculta a referência visual na tela de edição. **Encaixar** aproxima o elemento da grade de 2,5% enquanto você arrasta.
 - **Duplicar:** cria uma cópia do elemento selecionado, com ID próprio e deslocamento inicial para facilitar a composição.
 - **Camadas:** use **Frente** e **Atrás** para alterar a ordem de desenho; itens mais abaixo na lista interna de elementos são desenhados por cima.
-- **Centralizar:** os comandos **Centro X** e **Centro Y** alinham o elemento ao centro da tela no eixo escolhido.
-- **Atalhos:** `Ctrl+D` duplica; `Delete` remove; as setas movem o elemento selecionado; `Shift` + setas move em passos maiores; `Esc` fecha a prévia ou limpa a seleção. Os atalhos de movimentação respeitam a opção Encaixar.
+- **Seleção múltipla:** segure `Shift`, `Ctrl` ou `Cmd` e clique nos elementos do canvas ou da hierarquia para adicionar/remover itens da seleção. Arrastar qualquer elemento selecionado move a seleção inteira.
+- **Agrupar:** selecione dois ou mais elementos e use **Agrupar**. O grupo continua junto depois de salvar e reabrir o projeto; selecione o grupo e use **Desagrupar** para liberar os elementos.
+- **Alinhamento em lote:** com vários elementos selecionados, alinhe bordas esquerdas/direitas, topo/base, ou centralize a seleção pelos eixos X e Y. O alinhamento se baseia nos limites compartilhados da seleção; o restante da tela não é alterado.
+- **Centralizar:** com um único elemento, os comandos **Centro X** e **Centro Y** alinham o elemento ao centro da tela no eixo escolhido.
+- **Atalhos:** `Ctrl+D` duplica a seleção; `Ctrl+C` copia e `Ctrl+V` cola elementos, inclusive entre telas; `Delete` remove toda a seleção; as setas movem a seleção; `Shift` + setas move em passos maiores; `Esc` fecha a prévia ou limpa a seleção. Os atalhos de movimentação respeitam a opção Encaixar.
 
 ## Desfazer, refazer e copiar elementos
 
 Os botões **Desfazer** e **Refazer** ficam no cabeçalho do Workspace. Atalhos: `Ctrl+Z` desfaz, `Ctrl+Y` refaz e `Ctrl+Shift+Z` também refaz. O histórico agrupa edições rápidas e mantém um limite de entradas e de memória estimada para evitar crescimento sem limite ao trabalhar com imagens.
 
-Selecione um elemento e use **Copiar** ou `Ctrl+C`; troque para outra tela e use **Colar** ou `Ctrl+V`. A colagem cria um novo elemento com ID próprio e um pequeno deslocamento inicial, preservando propriedades visuais e a imagem incorporada. O clipboard permanece disponível enquanto o Workspace estiver aberto. Atalhos de edição não interceptam digitação nos campos do inspetor.
+Selecione um ou mais elementos e use **Copiar** ou `Ctrl+C`; troque para outra tela e use **Colar** ou `Ctrl+V`. A colagem cria IDs novos, desloca as cópias e preserva propriedades visuais e imagens incorporadas. Se os elementos copiados pertencem a grupos, a cópia recebe novos IDs de grupo para não alterar o grupo de origem. O clipboard permanece disponível enquanto o Workspace estiver aberto. Atalhos de edição não interceptam digitação nos campos do inspetor.
 
 ## Executar a UI no jogo
 
@@ -61,4 +64,4 @@ Imagens são incorporadas aos dados da tela. Para evitar arquivos grandes, cada 
 
 ## Teste
 
-Execute `npm run ui-workspace:self-test` para validar estrutura, histórico de desfazer/refazer, cópia de snapshots, modelos prontos, IDs únicos, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, alinhamento, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
+Execute `npm run ui-workspace:self-test` para validar estrutura, histórico de desfazer/refazer, agrupamento persistente, alinhamento múltiplo, cópia de snapshots, modelos prontos, IDs únicos, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
