@@ -11,6 +11,8 @@ import {
   alignUIElements,
   alignUIElementsToKey,
   distributeUIElements,
+  distributeUIElementsInGrid,
+  getUIElementSmartAlignment,
   spaceUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
@@ -22,6 +24,7 @@ import {
   type UIElementDefinition,
   type UIElementRect,
   type UIElementAxis,
+  type UISmartAlignmentGuide,
   type UIElementKind,
   type UIElementGroupAlignment,
   type UIScreenPresetId,
@@ -38,6 +41,8 @@ const previewMode = ref(false)
 const showGrid = ref(true)
 const snapToGrid = ref(true)
 const distributionGap = ref(5)
+const distributionColumns = ref(3)
+const smartGuides = ref<UISmartAlignmentGuide[]>([])
 const keyAlignment = ref<UIElementGroupAlignment>('left')
 const statusMessage = ref('As alterações são incluídas ao salvar o projeto.')
 const canvasStage = ref<HTMLElement | null>(null)
@@ -535,6 +540,37 @@ function distributeSelectedGroup(axis: UIElementAxis): void {
     (axis === 'horizontal' ? ' elementos distribuídos horizontalmente.' : ' elementos distribuídos verticalmente.')
 }
 
+function updateDistributionColumns(event: Event): void {
+  const input = event.target as HTMLInputElement | null
+  if (!input) return
+  const parsed = Number(input.value)
+  if (!input.value.trim() || !Number.isFinite(parsed)) {
+    input.value = String(distributionColumns.value)
+    return
+  }
+  distributionColumns.value = Math.max(1, Math.min(512, Math.floor(parsed)))
+  input.value = String(distributionColumns.value)
+}
+
+function arrangeSelectedInGrid(): void {
+  const screen = activeScreen.value
+  if (!screen || selectedElements.value.length < 2) return
+  const arranged = distributeUIElementsInGrid(
+    screen.elements,
+    selectedElementIds.value,
+    distributionColumns.value,
+    distributionGap.value,
+    distributionGap.value,
+  )
+  if (arranged === screen.elements) {
+    statusMessage.value = 'A grade com esse espaçamento não cabe na tela; a seleção permaneceu inalterada.'
+    return
+  }
+  screen.elements.splice(0, screen.elements.length, ...arranged)
+  statusMessage.value = selectedElements.value.length + ' elementos organizados em grade com ' +
+    distributionColumns.value + ' coluna(s) e ' + distributionGap.value + '% de espaçamento.'
+}
+
 function alignSelectedToKey(): void {
   const screen = activeScreen.value
   const keyId = selectedElementId.value
@@ -780,6 +816,7 @@ function beginElementDrag(event: PointerEvent, element: UIElementDefinition): vo
   if (!bounds.width || !bounds.height) return
   event.preventDefault()
   event.stopPropagation()
+  smartGuides.value = []
 
   const extendSelection = event.shiftKey || event.ctrlKey || event.metaKey
   if (extendSelection) {
@@ -824,6 +861,15 @@ function moveElement(event: PointerEvent): void {
   dx = Math.max(-minX, Math.min(100 - maxX, dx))
   dy = Math.max(-minY, Math.min(100 - maxY, dy))
 
+  const smart = getUIElementSmartAlignment(screen.elements, drag.origins, dx, dy, 0.8)
+  const smartDx = Math.max(-minX, Math.min(100 - maxX, smart.deltaX))
+  const smartDy = Math.max(-minY, Math.min(100 - maxY, smart.deltaY))
+  smartGuides.value = smart.guides.filter(guide =>
+    guide.axis === 'vertical' ? Math.abs(smartDx - smart.deltaX) < 0.01 : Math.abs(smartDy - smart.deltaY) < 0.01,
+  )
+  dx = smartDx
+  dy = smartDy
+
   for (const origin of drag.origins) {
     const element = screen.elements.find(item => item.id === origin.id)
     if (!element) continue
@@ -835,6 +881,7 @@ function moveElement(event: PointerEvent): void {
 
 function finishElementDrag(): void {
   dragState.value = null
+  smartGuides.value = []
   window.removeEventListener('pointermove', moveElement)
   window.removeEventListener('pointerup', finishElementDrag)
   window.removeEventListener('pointercancel', finishElementDrag)
@@ -988,6 +1035,10 @@ onBeforeUnmount(() => {
             <button type="button" title="Alinhar as bases da seleção" @click="alignSelectedGroup('bottom')">Base ↓</button>
             <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento horizontal uniforme" @click="distributeSelectedGroup('horizontal')">↔ Distribuir X</button>
             <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento vertical uniforme" @click="distributeSelectedGroup('vertical')">↕ Distribuir Y</button>
+            <label class="ui-toolbar-field" title="Número de colunas para organizar os elementos em grade">Colunas
+              <input type="number" min="1" max="512" step="1" :value="distributionColumns" @change="updateDistributionColumns($event)" />
+            </label>
+            <button type="button" title="Organizar seleção em grade regular, mantendo o tamanho dos elementos" @click="arrangeSelectedInGrid">▦ Grade</button>
             <label class="ui-toolbar-field" title="Distância exata entre elementos adjacentes">Espaço %
               <input type="number" min="0" max="100" step="0.25" :value="distributionGap" @change="updateDistributionGap($event)" />
             </label>
@@ -1021,6 +1072,14 @@ onBeforeUnmount(() => {
               @pointerdown="beginCanvasSelection"
             >
               <div class="ui-stage-grid" aria-hidden="true" />
+              <div
+                v-for="(guide, guideIndex) in smartGuides"
+                :key="'smart-guide-' + guide.axis + '-' + guideIndex"
+                class="ui-smart-guide"
+                :class="'axis-' + guide.axis"
+                :style="guide.axis === 'vertical' ? { left: guide.position + '%' } : { top: guide.position + '%' }"
+                aria-hidden="true"
+              />
               <div
                 v-for="element in activeScreen.elements"
                 :key="element.id"
