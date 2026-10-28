@@ -22,7 +22,6 @@ import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from './lib/BinaryEn
 import { World } from './world/World'
 import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
-import { GridPathfinder } from './navigation/GridPathfinder'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
@@ -34,7 +33,7 @@ import { setupImportedModelAnimations } from './model/ImportedModelAnimationSetu
 import { applyImportedModelMetadata } from './model/ImportedModelMetadata'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
-import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
+import { AutonomousBehaviorCoordinator } from './script/AutonomousBehaviorCoordinator'
 import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
@@ -61,9 +60,8 @@ export class Engine {
   private modelLod!: ModelLodSystem
   readonly state: EditorState = createEditorState()
   readonly logic: RuleEngine = new RuleEngine(this.world)
-  private readonly autonomousBehaviorSystem = new AutonomousBehaviorSystem()
-  private readonly autonomousPathfinder = new GridPathfinder()
   private readonly behaviorTreeRuntime = new EngineBehaviorTreeRuntime()
+  private autonomousBehaviorCoordinator!: AutonomousBehaviorCoordinator
   private orbit = new OrbitCamera()
   private viewport: Viewport
   private input: PointerController
@@ -97,6 +95,16 @@ export class Engine {
       this.viewport.invalidate()
     })
     this.avatar = new HumanoidAvatar(this.world, this.orbit.target, () => this.orbit.yaw)
+    this.autonomousBehaviorCoordinator = new AutonomousBehaviorCoordinator({
+      world: this.world,
+      logic: this.logic,
+      collisions: this.collisions,
+      avatar: this.avatar,
+      isRuntimeActive: () => this.runtimeModeActive,
+      notifyPackageChanged: ownerObjectId => this.notifyBehaviorPackageChanged(ownerObjectId),
+      triggerPackageEvent: (ownerObjectId, packageId, eventId) =>
+        this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
+    })
     this.avatar.mesh.visible = false
     this.avatar.setEnabled(false)
     this.viewportInvalidationOffs.push(
@@ -253,7 +261,7 @@ export class Engine {
         if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
       }
       this.avatar.update(dt)
-      this.updateAutonomousBehaviors(dt)
+      this.autonomousBehaviorCoordinator.update(dt)
       this.updateBehaviorTrees(dt)
       this.gameModules.update(dt)
       const mountedObjectId = this.avatar.getMountedObjectId()
@@ -379,101 +387,8 @@ export class Engine {
   /** Lista todas as entidades colocadas no mundo. */
   listEntities(): Entity[] { return this.world.listEntities() }
 
-  /** Executa os pacotes autônomos genéricos dos objetos ativos. */
   private updateAutonomousBehaviors(dt: number): void {
-    if (!this.runtimeModeActive && !this.autonomousBehaviorSystem.hasRuntimeState()) return
-
-    const transitions = this.autonomousBehaviorSystem.update({
-      dt,
-      runtimeEnabled: this.runtimeModeActive,
-      world: this.world,
-      packages: this.logic.listPackages(),
-      playerPosition: this.avatar.mesh.position,
-      canMoveTo: (objectId, target) => this.collisions.canMoveObjectTo(objectId, target),
-      findPath: (objectId, start, goal) => this.findAutonomousPath(objectId, start, goal),
-    })
-
-    for (const transition of transitions) {
-      this.logic.setPackageVariable(transition.instanceId, 'state', transition.state)
-      const object = this.world.get(transition.ownerObjectId)
-      const controller = object ? getAnimationControllerFromObject(object.mesh) : undefined
-      if (controller) {
-        if (isAutonomousMovingState(transition.state)) {
-          controller.setState(transition.state === 'fleeing' ? 'run' : 'walk')
-        } else if (controller.currentState === 'walk' || controller.currentState === 'run') {
-          controller.setState('idle')
-        }
-      }
-
-      if (transition.events.length) {
-        for (const eventId of transition.events) {
-          this.triggerBehaviorPackageEvent(transition.ownerObjectId, 'autonomous_agent', eventId)
-        }
-      } else {
-        this.notifyBehaviorPackageChanged(transition.ownerObjectId)
-      }
-    }
-  }
-
-  /**
-   * Planeja uma rota para os comportamentos autônomos usando os colisores da cena
-   * como obstáculos aproximados. A verificação é independente de qualquer jogo.
-   */
-  private findAutonomousPath(
-    objectId: string,
-    start: { x: number; y: number; z: number },
-    goal: { x: number; y: number; z: number },
-  ): Array<{ x: number; y: number; z: number }> {
-    const agent = this.world.get(objectId)
-    if (!agent) return []
-
-    const agentBounds = new THREE.Box3().setFromObject(agent.mesh)
-    const agentSize = agentBounds.getSize(new THREE.Vector3())
-    const halfWidth = Math.max(0.15, agentSize.x * 0.5)
-    const halfDepth = Math.max(0.15, agentSize.z * 0.5)
-    const bottomOffset = agentBounds.isEmpty() ? 0 : agent.mesh.position.y - agentBounds.min.y
-    const agentHeight = agentBounds.isEmpty() ? 1 : Math.max(0.5, agentSize.y)
-    const startGround = start.y - bottomOffset
-
-    const obstacles = this.world.list()
-      .filter(object => object.id !== objectId
-        && this.world.isObjectVisible(object)
-        && object.mesh.userData.colliderType !== 'none')
-      .map(object => ({ bounds: new THREE.Box3().setFromObject(object.mesh) }))
-      .filter(item => !item.bounds.isEmpty())
-
-    const result = this.autonomousPathfinder.findPath(
-      { x: start.x, z: start.z },
-      { x: goal.x, z: goal.z },
-      {
-        bounds: { minX: -49, maxX: 49, minZ: -49, maxZ: 49 },
-        cellSize: 1,
-        allowDiagonal: true,
-        maxVisitedNodes: 12000,
-        isWalkable: point => {
-          const ground = this.world.getGroundHeightAt(point.x, point.z, startGround + 0.6)
-          if (!Number.isFinite(ground) || ground > startGround + 0.6) return false
-          const feet = ground
-          const head = feet + agentHeight
-          return obstacles.every(({ bounds }) => {
-            const overlapsXZ = point.x + halfWidth > bounds.min.x
-              && point.x - halfWidth < bounds.max.x
-              && point.z + halfDepth > bounds.min.z
-              && point.z - halfDepth < bounds.max.z
-            const overlapsY = bounds.max.y > feet + 0.05 && bounds.min.y < head - 0.05
-            return !(overlapsXZ && overlapsY)
-          })
-        },
-      },
-    )
-
-    return result.reached
-      ? result.path.map(point => ({
-        x: point.x,
-        y: this.world.getGroundHeightAt(point.x, point.z, startGround + 0.6) + bottomOffset,
-        z: point.z,
-      }))
-      : []
+    this.autonomousBehaviorCoordinator.update(dt)
   }
 
   /** Executa árvores de comportamento genéricas dos pacotes durante o modo Run. */
