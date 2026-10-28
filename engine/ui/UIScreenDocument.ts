@@ -1,5 +1,5 @@
 export type UIElementKind = 'panel' | 'text' | 'button' | 'image' | 'progress'
-export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable' | 'trigger-event'
+export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable' | 'toggle-variable' | 'trigger-event'
 export type UIElementTextAlign = 'left' | 'center' | 'right'
 export type UIElementImageFit = 'contain' | 'cover' | 'fill'
 export type UIElementFontWeight = 400 | 500 | 600 | 700 | 800
@@ -162,7 +162,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       const kind: UIElementKind = element.kind === 'panel' || element.kind === 'text' || element.kind === 'button' || element.kind === 'image' || element.kind === 'progress'
         ? element.kind
         : 'text'
-      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' || element.action === 'trigger-event' ? element.action : 'none'
+      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' || element.action === 'toggle-variable' || element.action === 'trigger-event' ? element.action : 'none'
       const imageDataUrl = typeof element.imageDataUrl === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(element.imageDataUrl) && element.imageDataUrl.length <= 7_000_000
         ? element.imageDataUrl
         : undefined
