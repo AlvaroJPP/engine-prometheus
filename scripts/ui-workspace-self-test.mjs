@@ -7,7 +7,7 @@ import {
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
-screen.elements = (['panel', 'text', 'button', 'image', 'progress'] as const).map((kind, index) => {
+screen.elements = (['panel', 'text', 'button', 'image', 'progress']).map((kind, index) => {
   const element = createUIElement(kind, index)
   element.x = index * 4
   element.y = index * 5
