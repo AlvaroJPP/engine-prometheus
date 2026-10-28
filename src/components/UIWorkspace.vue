@@ -11,7 +11,9 @@ import {
   alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
+  getResizedUIElementRect,
   getUIElementIdsInRect,
+  getUIElementsBounds,
   reorderUIElement,
   resizeUIElements,
   type UIElementDefinition,
@@ -148,15 +150,7 @@ const selectionGroupId = computed(() => {
 const activeElementIndex = computed(() =>
   activeScreen.value?.elements.findIndex(element => element.id === selectedElementId.value) ?? -1,
 )
-const selectionBounds = computed<UIElementRect | null>(() => {
-  const elements = selectedElements.value
-  if (!elements.length) return null
-  const left = Math.min(...elements.map(element => element.x))
-  const top = Math.min(...elements.map(element => element.y))
-  const right = Math.max(...elements.map(element => element.x + element.width))
-  const bottom = Math.max(...elements.map(element => element.y + element.height))
-  return { x: left, y: top, width: right - left, height: bottom - top }
-})
+const selectionBounds = computed<UIElementRect | null>(() => getUIElementsBounds(selectedElements.value))
 const selectionFrameStyle = computed(() => {
   const bounds = selectionBounds.value
   return bounds ? {
@@ -309,25 +303,17 @@ function moveSelectionResize(event: PointerEvent): void {
 
   const dx = (event.clientX - resize.startX) / resize.stageWidth * 100
   const dy = (event.clientY - resize.startY) / resize.stageHeight * 100
-  const bounds = resize.originBounds
-  const originalRight = bounds.x + bounds.width
-  const originalBottom = bounds.y + bounds.height
-  let left = bounds.x
-  let right = originalRight
-  let top = bounds.y
-  let bottom = originalBottom
-
-  if (resize.handle.includes('w')) left = clampPercent(bounds.x + dx, 0, right - 1)
-  if (resize.handle.includes('e')) right = clampPercent(originalRight + dx, left + 1, 100)
-  if (resize.handle.includes('n')) top = clampPercent(bounds.y + dy, 0, bottom - 1)
-  if (resize.handle.includes('s')) bottom = clampPercent(originalBottom + dy, top + 1, 100)
-
-  const targetBounds: UIElementRect = {
-    x: left,
-    y: top,
-    width: right - left,
-    height: bottom - top,
-  }
+  const targetBounds = getResizedUIElementRect(
+    resize.originBounds,
+    resize.handle,
+    dx,
+    dy,
+    {
+      snapToGrid: snapToGrid.value,
+      gridSize: 2.5,
+      preserveAspectRatio: event.shiftKey,
+    },
+  )
   const resized = resizeUIElements(
     resize.originalElements,
     resize.elementIds,
