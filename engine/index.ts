@@ -10,6 +10,7 @@ export { createUIScreen, createUIElement, createUIScreenId, parseUIScreenDefinit
 export { createUIScreenFromPreset, UI_SCREEN_PRESETS } from './ui/UIScreenPresets'
 export { UIWorkspaceHistory } from './ui/UIWorkspaceHistory'
 export { resolveUIValueBindings, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue } from './ui/UIValueBinding'
+export { appendUIScreenHistory, takePreviousUIScreen } from './ui/UINavigationHistory'
 export type { UIValueBindingValue, UIValueBindingVariables } from './ui/UIValueBinding'
 export type { UIWorkspaceSnapshot } from './ui/UIWorkspaceHistory'
 export type { UIScreenPresetId, UIScreenPresetMetadata } from './ui/UIScreenPresets'
