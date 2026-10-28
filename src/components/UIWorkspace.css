@@ -143,6 +143,8 @@
   outline: none; color: #e8edf4; background: #101318; font-size: 11px;
 }
 .ui-field input:focus, .ui-field select:focus { border-color: #b67a27; box-shadow: 0 0 0 2px #f5a5241c; }
+.ui-field input[type="range"] { height: 24px; padding: 0; accent-color: #f5a524; background: transparent; border-color: transparent; box-shadow: none; cursor: pointer; }
+.ui-field input[type="range"]:focus { box-shadow: none; }
 .ui-color-field { display: flex; gap: 6px; }
 .ui-field .ui-color-field input[type="color"] { width: 38px; padding: 3px; flex: 0 0 38px; }
 .ui-field .ui-color-field input[type="text"] { flex: 1; }
