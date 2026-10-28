@@ -10,8 +10,9 @@ function setExternalRef(name: string, element: unknown): void {
 }
 
 function createGlobalEvent(): void {
-  const ruleId = ctx.addGlobalLogicEvent?.()
-  if (typeof ruleId !== 'string' || !ruleId) return
+  const created = ctx.addGlobalLogicEvent?.()
+  const ruleId = created && typeof created.ruleId === 'string' ? created.ruleId : ''
+  if (!ruleId) return
   ctx.graphObjectFilter = 'all'
   ctx.graphSelection = { ruleId, part: 'trigger' }
   ctx.resetGraphView()
