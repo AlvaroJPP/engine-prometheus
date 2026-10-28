@@ -1,7 +1,5 @@
-import type { PackageJsonValue } from './script/packages'
 import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
-import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js'
 import { PointerController } from './input/PointerController'
 import { createEditorState } from './EditorState'
 import type { BrushSettings, EditorState, ToolMode, TransformMode } from './EditorState'
@@ -37,21 +35,20 @@ import { AutonomousBehaviorCoordinator } from './script/AutonomousBehaviorCoordi
 import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
-import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
-import type { AnimationRole, BehaviorPackageInstance, PackageScalar } from './script/packages'
+import { DEFAULT_MODEL_CONTROL_BINDINGS, getMountPackageSettings } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
 import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
 import { createRuntimeFrameUpdateHandler } from './runtime/RuntimeFrameCoordinator'
-import { installComponentLogicTemplates } from './script/ComponentLogicInstaller'
+import { BuildComponentPlacementController } from './runtime/BuildComponentPlacementController'
 import { resolveModelControlBindings } from './script/ModelControlBindings'
 import { placeSpawnPlatform } from './world/SpawnPlatformPlacement'
 import { dispatchMouseBinding, isInteractiveRuntimeTarget, mouseButtonBindingCode } from './input/RuntimePointerBindings'
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
 import { PRESET_ORDER } from './view/cameraPresets'
-import { isPackageJsonValue } from './script/packageJsonValue'
 import { MAX_PLAYER_MODEL_BYTES } from './model/playerModelLimits'
 export interface EngineOptions {
   /** Módulos de jogos fornecidos pela aplicação que hospeda a engine. */
@@ -67,6 +64,7 @@ export class Engine {
   readonly logic: RuleEngine = new RuleEngine(this.world)
   private readonly behaviorTreeRuntime = new EngineBehaviorTreeRuntime()
   private autonomousBehaviorCoordinator!: AutonomousBehaviorCoordinator
+  private buildComponentPlacement!: BuildComponentPlacementController
   private orbit = new OrbitCamera()
   private viewport: Viewport
   private input: PointerController
@@ -76,7 +74,6 @@ export class Engine {
   private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
-  private pendingBuildComponent: { name: string; model: THREE.Object3D; height: number } | null = null
   private cameraStateBeforeRun: ReturnType<OrbitCamera['getState']> | null = null
   private runtimeModeActive = false
   /** Mapeia o botão físico pressionado para o controle que foi acionado no jogo. */
@@ -198,6 +195,15 @@ export class Engine {
         this.groupTransformSnapshot = mesh ? { position: [mesh.position.x, mesh.position.y, mesh.position.z], rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z], scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z] } : null
       } else this.groupTransformSnapshot = null
     })
+    this.buildComponentPlacement = new BuildComponentPlacementController({
+      world: this.world,
+      logic: this.logic,
+      transformControls: this.transformControls,
+      addImportedModel: (name, model, height) => this.addImportedModel(name, model, height),
+      installBehaviorPackage: (ownerObjectId, packageId) => this.installBehaviorPackage(ownerObjectId, packageId),
+      updateBehaviorPackage: (id, patch) => this.updateBehaviorPackage(id, patch),
+      emitTool: () => this.emitTool(),
+    })
     this.input = new PointerController(
       canvas,
       this.orbit,
@@ -208,7 +214,7 @@ export class Engine {
       // antes do gizmo iniciar o arrasto. Consideramos também o eixo sob o
       // cursor, não apenas dragging (que só fica true depois do pointerdown).
       () => this.transformControls.dragging || this.transformControls.axis !== null,
-      (x, y, z) => this.placePendingBuildComponent(x, y, z),
+      (x, y, z) => this.buildComponentPlacement.place(x, y, z),
       (id) => {
 
       this.events.emit('objectClicked', { id })
@@ -764,82 +770,9 @@ export class Engine {
     if (executed || moduleHandled) event.preventDefault()
   }
 
-  /** Seleciona um componente da biblioteca para ser colocado pela ferramenta Construir. */
+  /** Selects a reusable library component for placement with the Build tool. */
   setBuildComponentPlacement(name: string, model: THREE.Object3D, height: number): void {
-    model.userData.importPart = true
-    this.pendingBuildComponent = { name, model, height }
-  }
-
-  private placePendingBuildComponent(x: number, baseY: number, z: number): boolean {
-    const pending = this.pendingBuildComponent
-    if (!pending) return false
-    try {
-      const existingIds = new Set(this.world.list().map(object => object.id))
-      const model = cloneSkinnedModel(pending.model)
-      model.userData = { ...pending.model.userData, importPart: true }
-      // Mantém o GLB como uma única instância editável na Hierarquia.
-      this.addImportedModel(pending.name, model, pending.height)
-      const created = this.world.list().find(object => !existingIds.has(object.id))
-      if (!created) return false
-      created.mesh.position.set(x, baseY + pending.height / 2, z)
-      created.mesh.updateMatrixWorld(true)
-      this.world.notifyChanged(created.id) 
-      installComponentLogicTemplates(this.logic, created.id, pending.model.userData.componentLogic)
-      // Instala no objeto recém-criado os pacotes escolhidos durante a importação.
-      // Filtra IDs contra o catálogo do motor para não interromper a construção
-      // se um componente salvo tiver metadados antigos ou inválidos.
-      const rawPackageIds = pending.model.userData.importBehaviorPackageIds
-      if (Array.isArray(rawPackageIds)) {
-        const packageIds = new Set(rawPackageIds.filter((id): id is string =>
-          typeof id === 'string' && !!getBehaviorPackageDefinition(id),
-        ))
-        const rawPackageSettings = pending.model.userData.importBehaviorPackageSettings
-        const packageSettings = rawPackageSettings && typeof rawPackageSettings === 'object' && !Array.isArray(rawPackageSettings)
-          ? rawPackageSettings as Record<string, { variables?: Record<string, unknown>; config?: Record<string, unknown> }>
-          : {}
-        for (const packageId of packageIds) {
-          const installed = this.installBehaviorPackage(created.id, packageId)
-          const definition = getBehaviorPackageDefinition(packageId)
-          const savedSettings = packageSettings[packageId]
-          if (!definition || !savedSettings) continue
-
-          const variables: Record<string, PackageScalar> = {}
-          for (const variable of definition.variables) {
-            const value = savedSettings.variables?.[variable.name]
-            if (variable.type === 'boolean' && typeof value === 'boolean') {
-              variables[variable.name] = value
-            } else if (variable.type === 'string' && typeof value === 'string') {
-              variables[variable.name] = value.slice(0, 512)
-            } else if (variable.type === 'number' && typeof value === 'number' && Number.isFinite(value)) {
-              variables[variable.name] = Math.max(
-                variable.min ?? Number.NEGATIVE_INFINITY,
-                Math.min(variable.max ?? Number.POSITIVE_INFINITY, value),
-              )
-            }
-          }
-
-          const config: Record<string, PackageJsonValue> = {}
-          for (const key of Object.keys(definition.defaultConfig)) {
-            const value = savedSettings.config?.[key]
-            if (isPackageJsonValue(value)) config[key] = value
-          }
-          if (Object.keys(variables).length || Object.keys(config).length) {
-            this.updateBehaviorPackage(installed.id, { variables, config })
-          }
-        }
-      }
-      // Mantém a ferramenta Construir ativa para permitir colocar várias cópias
-      // em sequência. O objeto recém-criado continua selecionado; o usuário pode
-      // mudar para Selecionar quando quiser mover, girar ou redimensionar.
-      this.world.select(created.id)
-      this.transformControls.attach(created.mesh)
-      this.emitTool()
-      return true
-    } catch (error) {
-      console.error('[Engine] Não foi possível construir o componente:', error)
-      // O clique foi consumido pela ferramenta de componente; não crie um cubo de fallback.
-      return true
-    }
+    this.buildComponentPlacement.set(name, model, height)
   }
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
