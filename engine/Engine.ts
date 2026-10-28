@@ -29,7 +29,7 @@ import { getAnimationControllerFromObject } from './world/AnimationController'
 import { validateImportedModel } from './model/validateImportedModel'
 import { splitStaticModelIntoSpatialParts } from './model/ImportedModelSpatialGrouping'
 import { prepareImportedModelGeometry } from './model/ImportedModelGeometryPreparation'
-import { setupImportedModelAnimations } from './model/ImportedModelAnimationSetup'
+import { createImportedModelRoot } from './model/ImportedModelRootFactory'
 import { applyImportedModelMetadata } from './model/ImportedModelMetadata'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
@@ -1018,79 +1018,16 @@ export class Engine {
       originalSize,
     )
 
-    const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
-    // Preserva o nó raiz original do glTF: os clips podem referenciar seu nome
-    // e seus transforms. A centralização fica num pivô externo e estável.
-    const scaleFactor = height / originalSize.y
-    model.scale.multiplyScalar(scaleFactor)
-    model.updateMatrixWorld(true)
-    const scaledBounds = new THREE.Box3().setFromObject(model)
-    const visualCenter = scaledBounds.getCenter(new THREE.Vector3())
-    const finalSize = scaledBounds.getSize(new THREE.Vector3())
-    const visualPivot = new THREE.Group()
-    visualPivot.name = 'ImportedVisualPivot'
-    visualPivot.position.copy(visualCenter).negate()
-    visualPivot.add(model)
-
-    const {
-      explicitRoles,
-      animationMixer,
-      animationController,
-      animationFallbackAction,
-      animationActions,
-    } = setupImportedModelAnimations(model, name)
-
-    // A caixa de seleção usa as dimensões do modelo e compartilha sua raiz editável.
-    const proxyGeometry = new THREE.BoxGeometry(
-      Math.max(finalSize.x, 0.05),
-      Math.max(height, 0.05),
-      Math.max(finalSize.z, 0.05),
-    )
-    const proxyMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      colorWrite: false,
-      depthWrite: false,
-      depthTest: false,
+    const { root, height, explicitRoles } = createImportedModelRoot({
+      model,
+      name,
+      targetHeight,
+      originalSize,
+      restoreData,
+      cameraTarget: this.orbit.target,
+      groundHeightAt: (x, z) => this.world.terrain.heightAt(x, z),
     })
-    const root = new THREE.Mesh(proxyGeometry, proxyMaterial)
-    root.name = name.trim() || 'Modelo importado'
-    const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
-    const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
-    const importOffset = model.userData.importOffset as [number, number] | undefined
-    root.position.set(
-      restoreData?.position[0] ?? x + (importOffset?.[0] ?? 0) * scaleFactor,
-      restoreData?.position[1] ?? this.world.terrain.heightAt(x, z) + height / 2,
-      restoreData?.position[2] ?? z + (importOffset?.[1] ?? 0) * scaleFactor,
-    )
-    if (restoreData) {
-      root.rotation.set(...restoreData.rotation)
-      root.scale.set(...restoreData.scale)
-      root.visible = restoreData.visible
-    }
-    if (animationMixer && animationController) {
-      root.userData.importAnimationMixer = animationMixer
-      root.userData.importAnimationActions = animationActions
-      root.userData.importAnimationFallbackAction = animationFallbackAction
-      root.userData.importAnimationController = animationController
-      root.userData.importAnimationState = animationController.currentState
-    }
-    root.add(visualPivot)
-    // Atualiza toda a hierarquia antes de entrar no loop de renderização.
-    // Isso também garante bounds corretos para GLB com nós e transforms aninhados.
-    root.updateMatrixWorld(true)
-    model.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.visible = true
-        // Ativa o culling nativo para toda malha estática, não apenas para
-        // regiões geradas pelo particionador. Malhas esqueléticas ficam fora
-        // desse descarte para evitar popping causado pela deformação dos ossos.
-        child.frustumCulled = !(child instanceof THREE.SkinnedMesh)
-      }
-    })
-    root.frustumCulled = false
-    root.updateMatrixWorld(true)
+
     const renderedBounds = new THREE.Box3().setFromObject(model)
     const renderedSize = renderedBounds.getSize(new THREE.Vector3())
     const hasAnimatedColliderGeometry = importedMeshes.some(mesh =>
