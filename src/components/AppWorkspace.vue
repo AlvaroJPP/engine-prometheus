@@ -127,7 +127,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       @update:settings="ctx.updateControlMapSettings"
     />
 
-    <Teleport to=".viewport" defer>
+    <Teleport to=".viewport-hud" defer>
     <EditorToolbar
       class="viewport-layout-positioned"
       :style="ctx.viewportLayoutStyle('tools')"
