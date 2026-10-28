@@ -77,6 +77,10 @@ Esse caminho usa o sistema genérico de eventos da engine; não é necessário a
 
 Barras de progresso leem a variável global indicada e usam o valor máximo configurado. Se a variável não for numérica ou ainda não existir, a barra começa vazia.
 
+### Textos dinâmicos ligados a variáveis
+
+O texto de painéis, rótulos, botões e legendas de barras aceita marcadores `{{nome_da_variavel}}`. Durante o modo **Run**, o runtime substitui cada marcador pelo valor global atual a cada atualização reativa da interface. Por exemplo, `Vida: {{vida}} / {{vida_maxima}}` mostra o valor atual da vida e o limite definido pelo jogo. Números, textos e booleanos são convertidos para texto; um marcador cuja variável ainda não existe é mantido visível para ajudar a encontrar erros de digitação. Os nomes podem usar letras, números, `_`, `.`, `-` e `:`.
+
 ## Salvamento
 
 As telas ficam no próprio projeto, no arquivo `ui/screens.json`. Salve o projeto pelo comando normal **Arquivo → Salvar**. Ao abrir projetos antigos sem esse arquivo, o editor inicia com a lista de telas vazia e continua compatível com o formato anterior.
