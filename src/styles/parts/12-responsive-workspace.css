@@ -1,0 +1,44 @@
+/* Responsive workspace corrections for compact Tauri windows.
+   Keep the side panels usable and let the viewport retain the remaining width. */
+@media(max-width:760px) {
+  .app .main { min-width:0; }
+  .app .panel.left {
+    width:clamp(150px, 27vw, 180px) !important;
+    min-width:150px !important;
+    flex:0 0 clamp(150px, 27vw, 180px) !important;
+  }
+  .app .panel.right {
+    width:clamp(150px, 26.3vw, 175px) !important;
+    min-width:150px !important;
+    flex:0 0 clamp(150px, 26.3vw, 175px) !important;
+  }
+}
+@media(max-width:640px) {
+  .app .panel.left {
+    width:clamp(132px, 26vw, 160px) !important;
+    min-width:132px !important;
+    flex:0 0 clamp(132px, 26vw, 160px) !important;
+  }
+  .app .panel.right {
+    width:clamp(140px, 25vw, 160px) !important;
+    min-width:140px !important;
+    flex:0 0 clamp(140px, 25vw, 160px) !important;
+  }
+}
+/* At viewport widths where labels would overlap the tool rail or render bar,
+   collapse both action labels, not just the Add label. */
+@container viewport-hud (max-width:628px) {
+  .viewport-actions .quick-add-trigger > .viewport-action-label,
+  .viewport-actions .model-import-launch > .viewport-action-label {
+    display:none !important;
+  }
+  .viewport-actions .quick-add-trigger,
+  .viewport-actions .model-import-launch {
+    width:34px;
+    min-width:34px;
+    max-width:34px;
+    height:34px;
+    min-height:34px;
+    padding:0 !important;
+  }
+}
