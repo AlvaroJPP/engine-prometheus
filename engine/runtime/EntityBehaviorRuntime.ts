@@ -59,7 +59,9 @@ export class EntityBehaviorRuntime<TComponents extends object, TContext> {
     const owner = entityId.trim()
     const id = behavior.id.trim()
     if (!owner || !id) throw new Error('Entity behaviors require entity and behavior identifiers.')
-    if (!this.entities.get(owner)) throw new Error(`Cannot attach behavior to missing entity "${owner}".`)
+    if (!this.entities.get(owner) || this.entities.isDestroying(owner)) {
+      throw new Error(`Cannot attach behavior to missing or destroying entity "${owner}".`)
+    }
     const list = this.byEntity.get(owner) ?? new Map<string, BehaviorRecord<TContext>>()
     if (list.has(id)) throw new Error(`Behavior "${id}" already exists on entity "${owner}".`)
     const record: BehaviorRecord<TContext> = {
