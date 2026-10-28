@@ -51,9 +51,16 @@ export function nextUIToggleValue(currentValue: UIValueBindingValue | undefined)
 export function adjustUINumericValue(
   currentValue: UIValueBindingValue | undefined,
   amount: number,
+  minimum = -1_000_000,
+  maximum = 1_000_000,
 ): number {
   const current = typeof currentValue === 'number' && Number.isFinite(currentValue) ? currentValue : 0
   const delta = Number.isFinite(amount) ? amount : 1
   const result = current + delta
-  return Number.isFinite(result) ? result : current
+  if (!Number.isFinite(result)) return current
+  const lower = Number.isFinite(minimum) ? minimum : -1_000_000
+  const upper = Number.isFinite(maximum) ? maximum : 1_000_000
+  const low = Math.min(lower, upper)
+  const high = Math.max(lower, upper)
+  return Math.min(high, Math.max(low, result))
 }
