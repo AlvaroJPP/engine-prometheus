@@ -54,7 +54,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
     this.unsubscribeEntities = entities.subscribe(event => this.handleEntityEvent(event))
   }
 
-  create(id: string, filter: EntityQueryFilter<TComponents> = {}): EntityQueryHandle<TComponents> {
+  create(id: string, filter: EntityQueryFilter<TComponents> = {}): EntityQueryHandle {
     this.assertAvailable()
     const key = id.trim()
     if (!key) throw new Error('Entity queries require a non-empty identifier.')
