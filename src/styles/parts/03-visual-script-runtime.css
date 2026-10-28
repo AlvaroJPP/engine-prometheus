@@ -142,4 +142,15 @@
 .viewport-render-stats{display:flex;align-items:center;gap:7px;border-top:1px solid #343b46;padding-top:5px;color:#9da8b7;font-size:9px;letter-spacing:0;white-space:nowrap}
 .viewport-render-stats strong{min-width:0;color:#e3e9f1;font-size:10px;font-weight:800;text-align:left}
 
+/* The camera/render toolbar is teleported out of .topbar into the viewport HUD.
+   Run disables pointer input globally, so explicitly restore interaction only for
+   this compact toolbar; the rest of the game overlay stays click-through. */
+.app.is-running .viewport-hud .viewport-tools-overlay,
+.app.is-running .viewport-hud .viewport-tools-overlay * {
+  pointer-events:auto !important;
+}
+.app.is-running .viewport-hud .viewport-tools-overlay {
+  z-index:10005 !important;
+}
+
 /* Final cascade layer: keep the redesign ahead of legacy App.vue rules. */
