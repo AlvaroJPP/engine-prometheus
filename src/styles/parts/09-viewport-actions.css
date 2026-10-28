@@ -114,7 +114,7 @@
   line-height:1 !important;
 }
 .viewport-actions .model-import-launch > .viewport-action-label {
-  display:inline !important;
+  /* Não force display: a regra compacta precisa poder ocultar este rótulo. */
   font-size:inherit !important;
   line-height:1 !important;
   font-weight:inherit !important;
