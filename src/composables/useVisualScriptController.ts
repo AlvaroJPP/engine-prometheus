@@ -316,6 +316,7 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') {
     if (rule.trigger.type === 'object_clicked') return 'Quando clicar no objeto'
     if (rule.trigger.type === 'key_pressed') return `Ao pressionar ${rule.trigger.key}`
+    if (rule.trigger.type === 'global_event') return `Evento global: ${rule.trigger.eventId}`
     if (rule.trigger.type === 'package_event') return `Pacote: ${rule.trigger.eventId}`
     return 'Ao entrar na área'
   }
@@ -377,7 +378,7 @@ function patchSelectedCondition(patch: Record<string, unknown>) {
   const current = rule.conditions[0] ?? { type: 'variable' as const, name: 'has_key', operator: 'equals' as const, value: true }
   updateLogicRule({ ...rule, conditions: [{ ...current, ...patch } as LogicRule['conditions'][number], ...rule.conditions.slice(1)] })
 }
-function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event') {
+function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event' | 'global_event') {
   const rule = selectedGraphRule.value
   if (!rule) return
   const ownerId = rule.ownerObjectId ??
@@ -408,6 +409,11 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pre
         ? rule.trigger.eventId
         : definition?.triggers[0]?.id ?? 'interact',
     }
+  } else if (type === 'global_event') {
+    trigger = {
+      type,
+      eventId: rule.trigger.type === 'global_event' ? rule.trigger.eventId : 'hud.button.clicked',
+    }
   } else {
     trigger = {
       type,
@@ -415,7 +421,7 @@ function setSelectedTriggerType(type: 'object_clicked' | 'enter_area' | 'key_pre
       radius: rule.trigger.type === 'enter_area' ? rule.trigger.radius : 2,
     }
   }
-  updateLogicRule({ ...rule, trigger })
+  updateLogicRule({ ...rule, ...(type === 'global_event' ? { ownerObjectId: undefined } : {}), trigger })
 }
 
 function setSelectedActionType(type: 'move' | 'rotate' | 'set_visible' | 'set_variable' | 'set_package_variable' | 'script' | 'javascript') {
