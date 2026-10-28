@@ -775,7 +775,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 
 /* Quando a própria viewport fica estreita, transforma a barra em ícones.
    As opções continuam no HUD da cena e deixam de cobrir o inspetor lateral. */
-@container viewport-hud (max-width: 400px) {
+@container viewport-hud (max-width: 628px) {
   .viewport-tools-overlay.viewport-layout-positioned {
     gap: 2px;
     padding: 3px;
