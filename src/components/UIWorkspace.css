@@ -149,6 +149,11 @@
 .ui-selection-toolbar button { padding: 5px 8px; border: 1px solid #343c48; border-radius: 5px; color: #d8dee8; background: #1a2028; font-size: 10px; }
 .ui-selection-toolbar button:hover:not(:disabled) { border-color: #a87525; color: #ffc56e; }
 .ui-selection-toolbar button:disabled { opacity: .35; cursor: not-allowed; }
+.ui-toolbar-field, .ui-toolbar-select { display: inline-flex; align-items: center; gap: 5px; color: #b4bdca; font-size: 10px; white-space: nowrap; }
+.ui-toolbar-field input, .ui-toolbar-select select { height: 27px; min-width: 62px; padding: 0 6px; border: 1px solid #343c48; border-radius: 5px; color: #e3e8f0; background: #101318; font-size: 10px; }
+.ui-toolbar-field input { width: 66px; }
+.ui-toolbar-select select { max-width: 112px; }
+.ui-toolbar-field input:focus, .ui-toolbar-select select:focus { outline: 1px solid #a87525; border-color: #a87525; }
 .ui-design-element { position: absolute; display: flex; align-items: center; justify-content: center; min-width: 4px; min-height: 4px; overflow: visible; text-align: center; user-select: none; }
 .ui-design-element.kind-panel { border: 1px solid #69778b; background-color: #202631e8; box-shadow: 0 8px 25px #0002; }
 .ui-design-element.kind-text { overflow-wrap: anywhere; font-weight: 600; line-height: 1.12; text-shadow: 0 1px 4px #0008; }
