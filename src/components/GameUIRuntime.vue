@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue, resolveUIValueBindings } from '@engine'
+import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue, resolveUIValueBindings, appendUIScreenHistory, takePreviousUIScreen } from '@engine'
+
 import type { UIScreenDefinition, UIElementDefinition } from '@engine'
 
 const props = defineProps<{
@@ -81,20 +82,18 @@ function activate(element: UIElementDefinition): void {
   if (element.action === 'navigate-screen') {
     if (navigableScreens.value.some(screen => screen.id === element.targetScreenId) && element.targetScreenId !== activeScreenId.value) {
       if (activeScreenId.value && navigableScreens.value.some(screen => screen.id === activeScreenId.value)) {
-        screenHistory.value = [...screenHistory.value, activeScreenId.value].slice(-100)
+        screenHistory.value = appendUIScreenHistory(screenHistory.value, activeScreenId.value)
       }
       activeScreenId.value = element.targetScreenId
     }
     return
   }
   if (element.action === 'navigate-back') {
-    while (screenHistory.value.length) {
-      const previousScreenId = screenHistory.value.pop()!
-      if (navigableScreens.value.some(screen => screen.id === previousScreenId)) {
-        activeScreenId.value = previousScreenId
-        break
-      }
-    }
+    const previous = takePreviousUIScreen(screenHistory.value, screenId =>
+      navigableScreens.value.some(screen => screen.id === screenId),
+    )
+    screenHistory.value = previous.history
+    if (previous.screenId) activeScreenId.value = previous.screenId
     return
   }
   if (element.action === 'set-variable' && element.variableName.trim()) {
