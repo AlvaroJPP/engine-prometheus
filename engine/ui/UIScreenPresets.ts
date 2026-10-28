@@ -117,6 +117,11 @@ export function createUIScreenFromPreset(presetId: UIScreenPresetId): UIScreenDe
       color: '#5794F2', background: '#1C3155', variableName: 'mana',
       variableMax: 100, opacity: 1, borderRadius: 5,
     })
+    addElement(screen, 'button', {
+      name: 'Abrir inventário', text: 'Inventário', x: 76, y: 4, width: 20, height: 8,
+      color: '#FFFFFF', background: '#34445D', fontSize: 16, fontWeight: 700,
+      textAlign: 'center', borderRadius: 7, action: 'trigger-event', eventId: 'hud.inventory.open',
+    })
     return screen
   }
 
