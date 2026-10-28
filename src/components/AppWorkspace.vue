@@ -202,7 +202,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       </button>
     </div>
 
-            <div class="main">
+    <div class="main">
       <SceneHierarchy
         v-model:root-open="ctx.rootOpen"
         :components="ctx.savedComponents"
