@@ -150,13 +150,13 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
 
   const width = Math.max(1, target.offsetWidth)
   const height = Math.max(1, target.offsetHeight)
-  // Em viewports estreitas, a barra de câmera fica em uma segunda linha
-  // depois das ações rápidas; reserve a coluna esquerda usada pela ferramenta.
-  const compactRenderHud = id === 'render' && !worldFullscreen.value && rect.width <= 440
-  const collapsedRailClearance = sidebarCollapsed.value
-    ? (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 172 : 188)
-    : 48
-  const availableWidth = Math.max(1, rect.width - (compactRenderHud ? collapsedRailClearance : 8))
+  // A barra compacta entra em segunda linha das ações rápidas quando a
+  // área disponível deixa de acomodar a apresentação completa.
+  const compactRenderHud = id === 'render' && !worldFullscreen.value && rect.width <= 628
+  const leftClearance = sidebarCollapsed.value
+    ? getViewportLayoutRailClearance()
+    : 56
+  const availableWidth = Math.max(1, rect.width - (compactRenderHud ? leftClearance : 8))
   const availableHeight = Math.max(1, usableHeight - 8)
 
   // A barra lateral recolhida tem largura fixa e rolagem interna.
@@ -176,13 +176,18 @@ function getViewportLayoutEffectiveScale(id: ViewportLayoutId, element?: HTMLEle
   const requestedScale = viewportLayout.value[id].scale
   return target ? Math.min(requestedScale, getViewportLayoutMaximumScale(id, target)) : requestedScale
 }
-function getViewportLayoutMinimumX(id: ViewportLayoutId, scaledWidth = 0): number {
-  if (!sidebarCollapsed.value || worldFullscreen.value || (id !== 'fps' && id !== 'axes')) return 0
-  // Mantém os indicadores fora da faixa fixa usada pela lateral recolhida.
-  const width = Math.max(1, viewportLayoutBounds.value.width)
+function getViewportLayoutRailClearance(): number {
   const isNarrowWindow = typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
-  const railClearance = isNarrowWindow ? 172 : 188
-  return Math.min(railClearance, Math.max(0, width - scaledWidth - 4))
+  return isNarrowWindow ? 172 : 188
+}
+function getViewportLayoutMinimumX(id: ViewportLayoutId, scaledWidth = 0): number {
+  const needsRailClearance = id === 'fps' || id === 'axes' || id === 'render'
+  if (!sidebarCollapsed.value || worldFullscreen.value || !needsRailClearance) return 0
+  // Não permita que controles arrastáveis passem por baixo da faixa lateral.
+  // Se a viewport ficar extremamente estreita, priorize mantê-los dentro dela.
+  const width = Math.max(1, viewportLayoutBounds.value.width)
+  const rightGutter = id === 'render' ? 12 : 4
+  return Math.min(getViewportLayoutRailClearance(), Math.max(0, width - scaledWidth - rightGutter))
 }
 
 function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
@@ -196,11 +201,11 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const scale = lockedCollapsedToolbar ? 1 : getViewportLayoutEffectiveScale(id, target)
   const scaledWidth = (target?.offsetWidth || 180) * scale
   const scaledHeight = (target?.offsetHeight || 80) * scale
-  const compactRenderHud = id === 'render' && !worldFullscreen.value && width <= 440
+  const compactRenderHud = id === 'render' && !worldFullscreen.value && width <= 628
   const compactRenderMinX = sidebarCollapsed.value
-    ? (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 172 : 188)
+    ? getViewportLayoutMinimumX(id, scaledWidth)
     : 48
-  const minX = compactRenderHud ? compactRenderMinX : getViewportLayoutMinimumX(id, scaledWidth)
+  const minX = compactRenderHud ? Math.min(compactRenderMinX, Math.max(0, width - scaledWidth - 12)) : getViewportLayoutMinimumX(id, scaledWidth)
   const rightGutter = id === 'render' ? 12 : 4
   const maxX = Math.max(minX, width - scaledWidth - rightGutter)
   const localX = Math.max(minX, Math.min(item.x * width, maxX))
