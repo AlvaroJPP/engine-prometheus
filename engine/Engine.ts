@@ -1,3 +1,4 @@
+import type { PackageJsonValue } from './script/packages'
 import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
