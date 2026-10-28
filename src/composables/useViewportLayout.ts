@@ -345,8 +345,9 @@ function beginViewportLayoutDrag(event: PointerEvent, id: ViewportLayoutId, mode
   const item = viewportLayout.value[id]
   const rootRect = root.getBoundingClientRect()
   const targetRect = target.getBoundingClientRect()
+  const usableHeight = Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0))
   viewportLayout.value[id].x = Math.max(0, targetRect.left - rootRect.left) / Math.max(1, rootRect.width)
-  viewportLayout.value[id].y = Math.max(0, targetRect.top - rootRect.top) / Math.max(1, rootRect.height)
+  viewportLayout.value[id].y = Math.max(0, targetRect.top - rootRect.top) / usableHeight
   activeViewportLayoutItem.value = id
   viewportLayoutDrag = {
     id,
@@ -354,7 +355,7 @@ function beginViewportLayoutDrag(event: PointerEvent, id: ViewportLayoutId, mode
     pointerX: event.clientX,
     pointerY: event.clientY,
     originX: item.x * rootRect.width,
-    originY: item.y * Math.max(1, rootRect.height - (executionMode.value === 'edit' && !worldFullscreen.value ? 28 : 0)),
+    originY: item.y * usableHeight,
     scale: item.scale,
     width: Math.max(1, target.offsetWidth) * getViewportLayoutEffectiveScale(id, target),
     height: Math.max(1, target.offsetHeight) * getViewportLayoutEffectiveScale(id, target),
@@ -395,7 +396,8 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
     effectiveScale = getViewportLayoutEffectiveScale(drag.id, target)
     const targetWidth = target.offsetWidth * effectiveScale
     const minX = getViewportLayoutMinimumX(drag.id, targetWidth)
-    const maxX = Math.max(minX, width - targetWidth - 4)
+    const rightGutter = drag.id === 'render' ? 12 : 4
+    const maxX = Math.max(minX, width - targetWidth - rightGutter)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
     item.x = Math.max(minX, Math.min(maxX, item.x * width)) / width
     item.y = Math.max(0, Math.min(maxY, item.y * usableHeight)) / usableHeight
