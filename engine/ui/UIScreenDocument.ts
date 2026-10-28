@@ -1,5 +1,8 @@
 export type UIElementKind = 'panel' | 'text' | 'button' | 'image' | 'progress'
 export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable'
+export type UIElementTextAlign = 'left' | 'center' | 'right'
+export type UIElementImageFit = 'contain' | 'cover' | 'fill'
+export type UIElementFontWeight = 400 | 500 | 600 | 700 | 800
 
 export interface UIElementDefinition {
   id: string
@@ -13,6 +16,10 @@ export interface UIElementDefinition {
   color: string
   background: string
   fontSize: number
+  fontWeight: UIElementFontWeight
+  textAlign: UIElementTextAlign
+  opacity: number
+  imageFit: UIElementImageFit
   borderRadius: number
   variableName: string
   variableMax: number
@@ -58,27 +65,27 @@ export function createUIElement(kind: UIElementKind, count = 0): UIElementDefini
   const defaults: Record<UIElementKind, Omit<UIElementDefinition, 'id' | 'name' | 'x' | 'y'>> = {
     panel: {
       kind: 'panel', width: 42, height: 44, text: '', color: '#F4F1E9',
-      background: '#202631', fontSize: 24, borderRadius: 14,
+      background: '#202631', fontSize: 24, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 14,
       variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
     },
     text: {
       kind: 'text', width: 38, height: 12, text: 'Novo texto', color: '#F4F1E9',
-      background: '#00000000', fontSize: 36, borderRadius: 0,
+      background: '#00000000', fontSize: 36, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 0,
       variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
     },
     button: {
       kind: 'button', width: 24, height: 11, text: 'Novo botão', color: '#FFFFFF',
-      background: '#B97828', fontSize: 20, borderRadius: 8,
+      background: '#B97828', fontSize: 20, fontWeight: 700, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
       variableName: 'confirmado', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
     },
     image: {
       kind: 'image', width: 22, height: 22, text: 'Imagem', color: '#F4F1E9',
-      background: '#252B35', fontSize: 18, borderRadius: 8,
+      background: '#252B35', fontSize: 18, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
       variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
     },
     progress: {
       kind: 'progress', width: 32, height: 6, text: 'Vida', color: '#FFFFFF',
-      background: '#4A2630', fontSize: 16, borderRadius: 6,
+      background: '#4A2630', fontSize: 16, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 6,
       variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true',
     },
   }
@@ -158,6 +165,10 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
         color: safeColor(element.color, '#F4F1E9'),
         background: safeColor(element.background, '#252B35'),
         fontSize: boundedNumber(element.fontSize, 20, 8, 96),
+        fontWeight: [400, 500, 600, 700, 800].includes(Number(element.fontWeight)) ? Number(element.fontWeight) as UIElementFontWeight : (kind === 'button' ? 700 : 600),
+        textAlign: element.textAlign === 'left' || element.textAlign === 'right' ? element.textAlign : 'center',
+        opacity: boundedNumber(element.opacity, 1, 0, 1),
+        imageFit: element.imageFit === 'cover' || element.imageFit === 'fill' ? element.imageFit : 'contain',
         borderRadius: boundedNumber(element.borderRadius, 8, 0, 48),
         variableName: boundedString(element.variableName, '', 80),
         variableMax: boundedNumber(element.variableMax, 100, 1, 1_000_000),
