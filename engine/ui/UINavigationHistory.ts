@@ -8,11 +8,12 @@ export function appendUIScreenHistory(
   screenId: string,
   limit = UI_SCREEN_HISTORY_LIMIT,
 ): string[] {
-  const id = screenId.trim()
-  if (!id) return history.slice(-Math.max(0, limit))
-  const next = history[history.length - 1] === id ? [...history] : [...history, id]
   const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : UI_SCREEN_HISTORY_LIMIT
-  return safeLimit === 0 ? [] : next.slice(-safeLimit)
+  if (safeLimit === 0) return []
+  const id = screenId.trim()
+  if (!id) return history.slice(-safeLimit)
+  const next = history[history.length - 1] === id ? [...history] : [...history, id]
+  return next.slice(-safeLimit)
 }
 
 /** Pops entries until an available previous screen is found, returning the remaining history. */
