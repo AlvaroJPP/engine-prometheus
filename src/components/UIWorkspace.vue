@@ -9,6 +9,7 @@ import {
   UIWorkspaceHistory,
   alignUIElement,
   alignUIElements,
+  distributeUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   getResizedUIElementRect,
@@ -18,6 +19,7 @@ import {
   resizeUIElements,
   type UIElementDefinition,
   type UIElementRect,
+  type UIElementAxis,
   type UIElementKind,
   type UIElementGroupAlignment,
   type UIScreenPresetId,
@@ -516,6 +518,55 @@ function alignSelectedGroup(alignment: UIElementGroupAlignment): void {
   statusMessage.value = selectedElements.value.length + ' elementos alinhados ' + labels[alignment] + '.'
 }
 
+function distributeSelectedGroup(axis: UIElementAxis): void {
+  const screen = activeScreen.value
+  if (!screen || selectedElements.value.length < 3) return
+  const distributed = distributeUIElements(screen.elements, selectedElementIds.value, axis)
+  if (distributed === screen.elements) {
+    statusMessage.value = 'Não há espaço suficiente para distribuir os elementos sem sobreposição.'
+    return
+  }
+  screen.elements.splice(0, screen.elements.length, ...distributed)
+  statusMessage.value = selectedElements.value.length +
+    (axis === 'horizontal' ? ' elementos distribuídos horizontalmente.' : ' elementos distribuídos verticalmente.')
+}
+
+function applySelectionBoundsField(field: keyof UIElementRect, event: Event): void {
+  const screen = activeScreen.value
+  const bounds = selectionBounds.value
+  const input = event.target as HTMLInputElement | null
+  if (!screen || !bounds || selectedElements.value.length < 2 || !input) return
+  const parsed = Number(input.value)
+  if (!Number.isFinite(parsed)) {
+    input.value = String(bounds[field])
+    return
+  }
+
+  const target: UIElementRect = { ...bounds }
+  switch (field) {
+    case 'x':
+      target.x = clampPercent(parsed, 0, 100 - bounds.width)
+      break
+    case 'y':
+      target.y = clampPercent(parsed, 0, 100 - bounds.height)
+      break
+    case 'width':
+      target.width = clampPercent(parsed, 1, 100 - bounds.x)
+      break
+    case 'height':
+      target.height = clampPercent(parsed, 1, 100 - bounds.y)
+      break
+  }
+  target.x = Number(target.x.toFixed(2))
+  target.y = Number(target.y.toFixed(2))
+  target.width = Number(target.width.toFixed(2))
+  target.height = Number(target.height.toFixed(2))
+
+  const transformed = resizeUIElements(screen.elements, selectedElementIds.value, bounds, target)
+  screen.elements.splice(0, screen.elements.length, ...transformed)
+  statusMessage.value = 'Transformação numérica aplicada à seleção de ' + selectedElements.value.length + ' elementos.'
+}
+
 function moveSelectedBy(dx: number, dy: number): void {
   const elements = selectedElements.value
   if (!elements.length) return
@@ -845,6 +896,8 @@ onBeforeUnmount(() => {
             <button type="button" title="Alinhar os topos da seleção" @click="alignSelectedGroup('top')">↑ Topo</button>
             <button type="button" title="Centralizar a seleção no eixo Y" @click="alignSelectedGroup('vertical-center')">↕ Centro Y</button>
             <button type="button" title="Alinhar as bases da seleção" @click="alignSelectedGroup('bottom')">Base ↓</button>
+            <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento horizontal uniforme" @click="distributeSelectedGroup('horizontal')">↔ Distribuir X</button>
+            <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento vertical uniforme" @click="distributeSelectedGroup('vertical')">↕ Distribuir Y</button>
           </template>
           <template v-else>
             <button type="button" title="Centralizar horizontalmente na tela" @click="alignSelected('horizontal')">↔ Centro X</button>
@@ -962,9 +1015,30 @@ onBeforeUnmount(() => {
           <p v-if="activeScreen && !activeScreen.elements.length" class="ui-inspector-empty">Nenhum elemento nesta tela.</p>
         </section>
 
+        <section v-if="selectedElements.length > 1 && selectionBounds && !previewMode" class="ui-inspector-section ui-selection-transform">
+          <div class="ui-panel-heading"><span>TRANSFORMAR SELEÇÃO</span><span class="ui-count">{{ selectedElements.length }}</span></div>
+          <div class="ui-two-fields">
+            <label class="ui-field">X · %
+              <input type="number" min="0" :max="100 - selectionBounds.width" step="0.25" :value="selectionBounds.x" @change="applySelectionBoundsField('x', $event)" />
+            </label>
+            <label class="ui-field">Y · %
+              <input type="number" min="0" :max="100 - selectionBounds.height" step="0.25" :value="selectionBounds.y" @change="applySelectionBoundsField('y', $event)" />
+            </label>
+          </div>
+          <div class="ui-two-fields">
+            <label class="ui-field">Largura · %
+              <input type="number" min="1" :max="100 - selectionBounds.x" step="0.25" :value="selectionBounds.width" @change="applySelectionBoundsField('width', $event)" />
+            </label>
+            <label class="ui-field">Altura · %
+              <input type="number" min="1" :max="100 - selectionBounds.y" step="0.25" :value="selectionBounds.height" @change="applySelectionBoundsField('height', $event)" />
+            </label>
+          </div>
+          <small class="ui-field-help">Mova ou redimensione o conjunto inteiro com valores precisos, preservando as proporções internas da seleção.</small>
+        </section>
+
         <section class="ui-inspector-section ui-element-properties">
-          <div class="ui-panel-heading"><span>ELEMENTO SELECIONADO</span><button v-if="selectedElement && !previewMode" type="button" class="ui-delete-element" title="Remover elemento" @click="removeElement()">×</button></div>
-          <template v-if="selectedElement && !previewMode">
+          <div class="ui-panel-heading"><span>ELEMENTO SELECIONADO</span><button v-if="selectedElement && selectedElements.length === 1 && !previewMode" type="button" class="ui-delete-element" title="Remover elemento" @click="removeElement()">×</button></div>
+          <template v-if="selectedElement && selectedElements.length === 1 && !previewMode">
             <label class="ui-field">Nome interno
               <input v-model="selectedElement.name" maxlength="80" />
             </label>
@@ -1066,7 +1140,7 @@ onBeforeUnmount(() => {
               </template>
             </template>
           </template>
-          <p v-else class="ui-inspector-empty">{{ previewMode ? 'Saia da prévia para editar os elementos.' : 'Selecione um elemento na tela ou na hierarquia.' }}</p>
+          <p v-else class="ui-inspector-empty">{{ previewMode ? 'Saia da prévia para editar os elementos.' : selectedElements.length > 1 ? 'Vários elementos selecionados. Use Transformar seleção para ajustar posição e tamanho do conjunto.' : 'Selecione um elemento na tela ou na hierarquia.' }}</p>
         </section>
       </aside>
     </div>
