@@ -102,6 +102,9 @@
   background-image: linear-gradient(#95a1b5 1px, transparent 1px), linear-gradient(90deg, #95a1b5 1px, transparent 1px);
   background-size: 5% 5%;
 }
+.ui-smart-guide { position: absolute; z-index: 32; pointer-events: none; filter: drop-shadow(0 0 2px #ffb84d88); }
+.ui-smart-guide.axis-vertical { top: 0; bottom: 0; width: 1px; background: #ffbd59; border-left: 1px dashed #ffbd59; }
+.ui-smart-guide.axis-horizontal { left: 0; right: 0; height: 1px; background: #ffbd59; border-top: 1px dashed #ffbd59; }
 
 .ui-selection-marquee {
   position: absolute;
