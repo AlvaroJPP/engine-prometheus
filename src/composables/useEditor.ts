@@ -1406,6 +1406,30 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
+  /** Cria um fluxo global sem precisar selecionar um objeto da cena. */
+  function addGlobalLogicEvent(eventId?: string, eventName?: string): string | null {
+    if (!engine) return null
+    const id = createUniqueRuleId('global-event')
+    const cleanEventId = eventId?.trim() || 'hud.button.' + id.slice(-8)
+    const globalCount = logicRules.value.filter(rule => rule.trigger.type === 'global_event').length + 1
+    const rule: LogicRule = {
+      id,
+      name: eventName?.trim() || `Evento global ${globalCount}`,
+      enabled: true,
+      trigger: { type: 'global_event', eventId: cleanEventId },
+      conditions: [],
+      actions: [{
+        type: 'javascript',
+        code: "api.global.set('ui.last_event_source', String(api.event.get('source') ?? 'global'));\\napi.global.set('ui.last_event_element', String(api.event.get('elementName') ?? ''));",
+      }],
+    }
+    engine.upsertRule(rule)
+    refresh()
+    dirty.value = true
+    say(`Evento global "${cleanEventId}" criado. Use o mesmo identificador no botão da HUD.`)
+    return id
+  }
+
   function toggleLogicRule(rule: LogicRule) {
     engine?.upsertRule({ ...rule, enabled: !rule.enabled })
     refresh(); dirty.value = true
@@ -1747,7 +1771,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, deleteLogicVariable, addLogicRule, addGlobalLogicEvent, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
