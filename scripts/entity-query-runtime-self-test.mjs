@@ -97,6 +97,7 @@ try {
 const staleHandle = runtime.create('stale', {})
 runtime.clear()
 assert.equal(runtime.size, 0)
+assert.deepEqual(staleHandle.getEntities(), [], 'cleared handles must not expose stale cached entity IDs')
 assert.throws(() => staleHandle.subscribe(() => {}), /disposed/i)
 const reusedId = runtime.create('stale', {})
 assert.equal(reusedId.size, 4)
