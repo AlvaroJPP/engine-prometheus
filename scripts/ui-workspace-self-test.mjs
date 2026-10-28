@@ -268,6 +268,8 @@ assert.doesNotMatch(sidebarHudCssSource, /\.app\.sidebar-collapsed \.toolbar \{[
 assert.match(viewportPositioningCssSource, /\.app\.sidebar-collapsed \.toolbar\.viewport-layout-positioned \{[\s\S]*?top: 128px !important;[\s\S]*?max-height: calc\(\(100dvh - 211px\) \/ var\(--viewport-layout-scale, 1\)\) !important;[\s\S]*?padding: 6px 7px 10px !important;[\s\S]*?scrollbar-width: thin !important;/)
 assert.match(viewportPositioningCssSource, /\.app\.sidebar-collapsed \.toolbar\.viewport-layout-positioned::\-webkit-scrollbar \{\s*display: block !important;\s*width: 4px !important;/)
 assert.ok(viewportActionsCssSource.includes('-webkit-text-fill-color:#f3efe6'))
+assert.match(viewportActionsCssSource, /\.viewport-actions \.model-import-launch > \.viewport-action-label \{[\s\S]*?font-size:inherit !important;[\s\S]*?line-height:1 !important;[\s\S]*?font-weight:inherit !important;/)
+assert.match(viewportActionsCssSource, /\.viewport-actions \.model-import-launch > span:first-child \{[\s\S]*?font-size:16px !important;[\s\S]*?line-height:1 !important;/)
 assert.match(viewportRootCssSource, /container-type:inline-size; container-name:viewport-hud/)
 assert.match(editorTopBarCssSource, /@container viewport-hud \(max-width: 628px\)/)
 assert.match(viewportActionsCssSource, /@container viewport-hud \(max-width: 628px\)/)
