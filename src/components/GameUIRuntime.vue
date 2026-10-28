@@ -9,6 +9,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (event: 'set-global-variable', name: string, value: string | number | boolean): void
+  (event: 'trigger-global-event', eventId: string, payload: Record<string, string | number | boolean>): void
 }>()
 
 const activeScreenId = ref('')
@@ -72,6 +73,17 @@ function activate(element: UIElementDefinition): void {
   }
   if (element.action === 'set-variable' && element.variableName.trim()) {
     emit('set-global-variable', element.variableName.trim(), parseVariableValue(element.variableValue))
+    return
+  }
+  if (element.action === 'trigger-event' && element.eventId.trim()) {
+    const screen = visibleScreens.value.find(candidate => candidate.elements.some(item => item.id === element.id))
+    emit('trigger-global-event', element.eventId.trim(), {
+      source: 'hud',
+      screenId: screen?.id ?? '',
+      screenName: screen?.name ?? '',
+      elementId: element.id,
+      elementName: element.name,
+    })
   }
 }
 </script>
