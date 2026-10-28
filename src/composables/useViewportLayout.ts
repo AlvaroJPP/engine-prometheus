@@ -108,6 +108,7 @@ type ViewportLayoutDrag = {
 let viewportLayoutDrag: ViewportLayoutDrag | null = null
 let viewportLayoutResizeObserver: ResizeObserver | null = null
 let viewportLayoutMutationObserver: MutationObserver | null = null
+let viewportLayoutRefreshFrame = 0
 const observedViewportLayoutTargets = new Set<HTMLElement>()
 
 const viewportLayoutUsableHeight = computed(() => Math.max(
@@ -271,22 +272,39 @@ function clampAllViewportLayoutItems(): void {
   }
   viewportLayoutRefresh.value += 1
 }
+function updateViewportLayoutBounds(rect: DOMRect): boolean {
+  const current = viewportLayoutBounds.value
+  // Ignora alterações subpixel insignificantes; reatribuir o mesmo retângulo
+  // a cada notificação do observer pode alimentar ciclos de layout.
+  if (
+    Math.abs(current.left - rect.left) < 0.5
+    && Math.abs(current.top - rect.top) < 0.5
+    && Math.abs(current.width - rect.width) < 0.5
+    && Math.abs(current.height - rect.height) < 0.5
+  ) return false
+
+  viewportLayoutBounds.value = {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  }
+  return true
+}
 function refreshViewportLayoutBounds(): void {
   const root = viewportRoot.value
   if (!root) return
-  const rect = root.getBoundingClientRect()
   // Não reescreva x/y ao redimensionar a viewport. Os valores são frações
   // da área útil e precisam continuar iguais ao recolher/expandir a hierarquia.
-  viewportLayoutBounds.value = { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-  void nextTick(() => {
-    const updatedRect = root.getBoundingClientRect()
-    viewportLayoutBounds.value = {
-      left: updatedRect.left,
-      top: updatedRect.top,
-      width: updatedRect.width,
-      height: updatedRect.height,
-    }
+  if (updateViewportLayoutBounds(root.getBoundingClientRect())) {
     viewportLayoutRefresh.value += 1
+  }
+  void nextTick(() => {
+    const updatedRoot = viewportRoot.value
+    if (!updatedRoot) return
+    if (updateViewportLayoutBounds(updatedRoot.getBoundingClientRect())) {
+      viewportLayoutRefresh.value += 1
+    }
   })
 }
 function toggleViewportLayoutConfig(): void {
@@ -423,35 +441,45 @@ function finishViewportLayoutDrag(): void {
   viewportLayoutRefresh.value += 1
   persistViewportLayout()
 }
+function scheduleViewportLayoutRefresh(): void {
+  // Nunca altere as dimensões observadas dentro do callback de ResizeObserver.
+  // Agrupe eventos de ResizeObserver/MutationObserver em um único próximo frame.
+  if (viewportLayoutRefreshFrame !== 0) return
+  viewportLayoutRefreshFrame = requestAnimationFrame(() => {
+    viewportLayoutRefreshFrame = 0
+    syncViewportLayoutTargets()
+    refreshViewportLayoutBounds()
+  })
+}
 function handleViewportLayoutWindowResize(): void {
-  refreshViewportLayoutBounds()
+  scheduleViewportLayoutRefresh()
 }
 
 onMounted(() => {
   void nextTick(() => {
     refreshViewportLayoutBounds()
     if (viewportRoot.value && typeof ResizeObserver !== 'undefined') {
-      viewportLayoutResizeObserver = new ResizeObserver(handleViewportLayoutWindowResize)
+      viewportLayoutResizeObserver = new ResizeObserver(scheduleViewportLayoutRefresh)
       viewportLayoutResizeObserver.observe(viewportRoot.value)
       syncViewportLayoutTargets()
     }
     if (viewportRoot.value && typeof MutationObserver !== 'undefined') {
       viewportLayoutMutationObserver = new MutationObserver(() => {
         // Teleport e elementos condicionais podem criar/substituir a barra
-        // depois do primeiro layout (ex.: fechar o importador ou alternar telas).
-        syncViewportLayoutTargets()
-        refreshViewportLayoutBounds()
+        // depois do primeiro layout. Adie as medições para fora do ciclo do observer.
+        scheduleViewportLayoutRefresh()
       })
       viewportLayoutMutationObserver.observe(viewportRoot.value, { childList: true, subtree: true })
     }
     window.addEventListener('resize', handleViewportLayoutWindowResize)
-    requestAnimationFrame(() => {
-      syncViewportLayoutTargets()
-      refreshViewportLayoutBounds()
-    })
+    scheduleViewportLayoutRefresh()
   })
 })
 onBeforeUnmount(() => {
+  if (viewportLayoutRefreshFrame !== 0) {
+    cancelAnimationFrame(viewportLayoutRefreshFrame)
+    viewportLayoutRefreshFrame = 0
+  }
   viewportLayoutResizeObserver?.disconnect()
   viewportLayoutResizeObserver = null
   observedViewportLayoutTargets.clear()
