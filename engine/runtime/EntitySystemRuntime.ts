@@ -173,11 +173,11 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
 
   private handleEntityEvent(event: EntityComponentEvent<TComponents>): void {
     if (event.type === 'entity-destroying') {
-      for (const record of this.systems.values()) this.leave(record, event.entityId)
+      for (const record of [...this.systems.values()]) this.leave(record, event.entityId)
       return
     }
     if (event.type === 'entity-destroyed') {
-      for (const record of this.systems.values()) {
+      for (const record of [...this.systems.values()]) {
         record.faultedEntities.delete(event.entityId)
         record.pendingSync.delete(event.entityId)
       }
@@ -190,7 +190,7 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
       || event.type === 'component-removed'
     ) {
       const entityId = event.type === 'entity-created' ? event.entity.id : event.entityId
-      for (const record of this.systems.values()) this.syncEntity(record, entityId)
+      for (const record of [...this.systems.values()]) this.syncEntity(record, entityId)
     }
   }
 
@@ -246,6 +246,7 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
   }
 
   private matches(record: SystemRecord<TComponents, TContext>, entityId: string): boolean {
+    if (this.entities.isDestroying(entityId)) return false
     const entity = this.entities.get(entityId)
     if (!entity?.enabled) return false
     if (!record.required.every(type => this.entities.hasComponent(entityId, type))) return false
