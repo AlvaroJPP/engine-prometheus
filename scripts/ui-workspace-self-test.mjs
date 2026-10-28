@@ -173,6 +173,32 @@ assert.deepEqual(getClampedUIElementPosition({ width: 25, height: 20 }, 99, 99),
 assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'horizontal'), { x: 40, y: 12 })
 assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'vertical'), { x: 8, y: 45 })
 
+const alignFirst = createUIElement('panel')
+alignFirst.id = 'align-first'
+Object.assign(alignFirst, { x: 10, y: 20, width: 20, height: 10 })
+const alignSecond = createUIElement('text')
+alignSecond.id = 'align-second'
+Object.assign(alignSecond, { x: 50, y: 40, width: 10, height: 20 })
+const alignUnselected = createUIElement('button')
+alignUnselected.id = 'align-unselected'
+Object.assign(alignUnselected, { x: 80, y: 12, width: 8, height: 6 })
+const alignSource = [alignFirst, alignSecond, alignUnselected]
+const alignIds = [alignFirst.id, alignSecond.id]
+const leftAligned = alignUIElements(alignSource, alignIds, 'left')
+assert.deepEqual(leftAligned.slice(0, 2).map(element => element.x), [10, 10])
+assert.equal(leftAligned[2], alignUnselected)
+const rightAligned = alignUIElements(alignSource, alignIds, 'right')
+assert.deepEqual(rightAligned.slice(0, 2).map(element => element.x), [40, 50])
+const horizontalCentered = alignUIElements(alignSource, alignIds, 'horizontal-center')
+assert.deepEqual(horizontalCentered.slice(0, 2).map(element => element.x), [25, 30])
+const topAligned = alignUIElements(alignSource, alignIds, 'top')
+assert.deepEqual(topAligned.slice(0, 2).map(element => element.y), [20, 20])
+const bottomAligned = alignUIElements(alignSource, alignIds, 'bottom')
+assert.deepEqual(bottomAligned.slice(0, 2).map(element => element.y), [50, 40])
+const verticalCentered = alignUIElements(alignSource, alignIds, 'vertical-center')
+assert.deepEqual(verticalCentered.slice(0, 2).map(element => element.y), [35, 30])
+assert.equal(alignUIElements(alignSource, [alignFirst.id], 'left'), alignSource)
+
 const duplicate = duplicateUIElement(screen.elements[3], screen.elements.length)
 assert.notEqual(duplicate.id, screen.elements[3].id)
 assert.equal(duplicate.name, screen.elements[3].name + ' - cópia')
