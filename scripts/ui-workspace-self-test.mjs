@@ -22,6 +22,10 @@ screen.elements = (['panel', 'text', 'button', 'image', 'progress']).map((kind, 
   return element
 })
 screen.elements[3].imageDataUrl = 'data:image/png;base64,AA=='
+screen.elements[0].opacity = 0.35
+screen.elements[0].textAlign = 'left'
+screen.elements[0].fontWeight = 800
+screen.elements[3].imageFit = 'cover'
 
 const parsed = parseUIScreenDefinitions([screen])
 assert.equal(parsed.length, 1)
@@ -29,6 +33,10 @@ assert.equal(parsed[0].name, 'Menu de teste')
 assert.equal(parsed[0].enabledInGame, true)
 assert.equal(parsed[0].displayMode, 'overlay')
 assert.deepEqual(parsed[0].elements.map(element => element.kind), ['panel', 'text', 'button', 'image', 'progress'])
+assert.equal(parsed[0].elements[0].opacity, 0.35)
+assert.equal(parsed[0].elements[0].textAlign, 'left')
+assert.equal(parsed[0].elements[0].fontWeight, 800)
+assert.equal(parsed[0].elements[3].imageFit, 'cover')
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
@@ -51,6 +59,21 @@ assert.equal(normalized[0].displayMode, 'screen')
 assert.equal(normalized[0].elements[0].x, 100)
 assert.equal(normalized[0].elements[0].width, 1)
 assert.equal(normalized[0].elements[0].color, '#F4F1E9')
+assert.equal(normalized[0].elements[0].opacity, 1)
+assert.equal(normalized[0].elements[0].fontWeight, 600)
+assert.equal(normalized[0].elements[0].textAlign, 'center')
+assert.equal(normalized[0].elements[0].imageFit, 'contain')
+
+const legacyElement = { ...screen.elements[0] }
+delete legacyElement.opacity
+delete legacyElement.fontWeight
+delete legacyElement.textAlign
+delete legacyElement.imageFit
+const legacyDocument = parseUIScreenDefinitions([{ ...screen, elements: [legacyElement] }])
+assert.equal(legacyDocument[0].elements[0].opacity, 1)
+assert.equal(legacyDocument[0].elements[0].fontWeight, 600)
+assert.equal(legacyDocument[0].elements[0].textAlign, 'center')
+assert.equal(legacyDocument[0].elements[0].imageFit, 'contain')
 
 assert.throws(() => parseUIScreenDefinitions({ screens: [] }), /lista de telas/)
 assert.throws(() => parseUIScreenDefinitions([{ ...screen, id: '' }]), /ID válido/)
@@ -86,4 +109,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: validation, asset handling, snapping, alignment, duplication and layer ordering.')
+console.log('UI workspace self-test passed: validation, legacy compatibility, appearance settings, asset handling, snapping, alignment, duplication and layer ordering.')
