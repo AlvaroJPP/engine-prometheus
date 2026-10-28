@@ -26,7 +26,6 @@ import { CollisionSystem } from './world/CollisionSystem'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
-import { getAnimationControllerFromObject } from './world/AnimationController'
 import { validateImportedModel } from './model/validateImportedModel'
 import { splitStaticModelIntoSpatialParts } from './model/ImportedModelSpatialGrouping'
 import { prepareImportedModelGeometry } from './model/ImportedModelGeometryPreparation'
@@ -44,6 +43,7 @@ import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
 import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
+import { createRuntimeFrameUpdateHandler } from './runtime/RuntimeFrameCoordinator'
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
 import { PRESET_ORDER } from './view/cameraPresets'
@@ -232,90 +232,28 @@ export class Engine {
       invalidate: () => this.viewport.invalidate(),
     }
     this.gameModules.attach(moduleContext)
-    // Uma falha de simulação não deve impedir o viewport de desenhar a cena.
-    let lastFrameUpdateError = ''
-    let lastFrameUpdateErrorAt = 0
-    this.viewport.start((dt) => {
-      const frameStartedAt = performance.now()
-      let hasRunningModelAnimation = false
-      let updateFailed = false
-      try {
-        this.input.update(dt)
-        // Um controlador por objeto animado. O mixer pertence ao controlador e só é
-        // avançado aqui uma vez, antes da física, para manter colisões e render em sincronia.
-      for (const object of this.world.list()) {
-        const root = object.mesh
-        if (!root.userData.importAnimationController && !root.userData.importAnimationMixer) continue
-        const controller = getAnimationControllerFromObject(root)
-        if (!controller) continue
-        controller.update(dt)
-        root.userData.importAnimationState = controller.currentState
-        hasRunningModelAnimation ||= controller.isPlaying
-
-        const previousPoseVersion = root.userData.colliderPoseVersion
-        root.userData.colliderPoseVersion =
-          (typeof previousPoseVersion === 'number' ? previousPoseVersion : 0) + 1
-      }
-      this.collisions.update(this.runtimeModeActive)
-      if (this.activeMountPackageId) {
-        const currentMount = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
-        if (currentMount?.enabled) this.avatar.updateMountSettings(getMountPackageSettings(currentMount))
-      }
-      this.avatar.update(dt)
-      this.autonomousBehaviorCoordinator.update(dt)
-      this.updateBehaviorTrees(dt)
-      this.gameModules.update(dt)
-      const mountedObjectId = this.avatar.getMountedObjectId()
-      const mountedMovementState = this.avatar.getMountedMovementState()
-      if (mountedObjectId && mountedMovementState && this.activeMountPackageId) {
-        const mountInstance = this.logic.listPackages().find(instance => instance.id === this.activeMountPackageId)
-        if (mountInstance && mountInstance.variables.movementState !== mountedMovementState) {
-          this.logic.setPackageVariable(mountInstance.id, 'movementState', mountedMovementState)
-          this.notifyBehaviorPackageChanged(mountInstance.ownerObjectId)
-          if (this.lastMountMovementState !== null && this.lastMountMovementState !== mountedMovementState) {
-            this.triggerBehaviorPackageEvent(mountedObjectId, mountInstance.packageId, 'movement_changed')
-          }
-        }
-        this.lastMountMovementState = mountedMovementState
-      } else {
-        this.lastMountMovementState = null
-      }
-      this.world.updateEnvironment(dt)
-      this.logic.update(this.runtimeModeActive ? dt : 0)
-      for (const instance of this.logic.listPackages()) {
-        if (instance.packageId === 'mount') this.applyMountModelStates(instance)
-      }
-      this.orbit.update()
-      if (this.world.updateRenderDistance(this.orbit.camera.position)) {
-        // A distância pode reexibir submalhas escondidas pela oclusão ou ocultar
-        // bloqueadores; invalide seus caches para recalcular a visibilidade coerente.
-        this.modelOcclusion.invalidate()
-      }
-      this.world.updateFogForCamera(this.orbit.camera.position)
-      this.modelLod.update(this.orbit.camera.position)
-      if (this.modelOcclusion.update(this.orbit.camera, this.world.list(), performance.now())) {
-        this.viewport.invalidate()
-      }
-        this.world.terrain.grass.updateVisibility(
-          this.orbit.camera.position,
-          this.avatar.mesh.visible ? this.avatar.mesh.position : null,
-          this.world.grassOcclusionRoots(),
-        )
-      } catch (error) {
-        updateFailed = true
-        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-        const now = performance.now()
-        if (message !== lastFrameUpdateError || now - lastFrameUpdateErrorAt >= 5000) {
-          console.error('[Engine] Falha ao atualizar a simulação; mantendo a renderização ativa.', error)
-          lastFrameUpdateError = message
-          lastFrameUpdateErrorAt = now
-        }
-      }
-      const environment = this.world.getEnvironment()
-      const continuousRendering = this.avatar.mesh.visible || environment.cycleEnabled || hasRunningModelAnimation || updateFailed
-      this.viewport.recordUpdateDuration(performance.now() - frameStartedAt)
-      this.viewport.render(this.world.scene, this.orbit.camera, performance.now(), continuousRendering)
-    })
+    this.viewport.start(createRuntimeFrameUpdateHandler({
+      input: this.input,
+      world: this.world,
+      collisions: this.collisions,
+      avatar: this.avatar,
+      logic: this.logic,
+      orbit: this.orbit,
+      modelOcclusion: this.modelOcclusion,
+      modelLod: this.modelLod,
+      viewport: this.viewport,
+      gameModules: this.gameModules,
+      isRuntimeModeActive: () => this.runtimeModeActive,
+      getActiveMountPackageId: () => this.activeMountPackageId,
+      getLastMountMovementState: () => this.lastMountMovementState,
+      setLastMountMovementState: state => { this.lastMountMovementState = state },
+      updateAutonomousBehaviors: dt => this.autonomousBehaviorCoordinator.update(dt),
+      updateBehaviorTrees: dt => this.updateBehaviorTrees(dt),
+      notifyBehaviorPackageChanged: ownerObjectId => this.notifyBehaviorPackageChanged(ownerObjectId),
+      triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
+        this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
+      applyMountModelStates: instance => this.applyMountModelStates(instance),
+    }))
   }
 
   /** Registra um módulo de jogo sem acoplar o núcleo às regras desse jogo. */
