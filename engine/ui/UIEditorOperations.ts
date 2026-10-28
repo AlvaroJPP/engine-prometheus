@@ -281,6 +281,85 @@ export function distributeUIElements(
   })
 }
 
+/** Aligns selected elements to the selected key element without moving the key itself. */
+export function alignUIElementsToKey(
+  elements: readonly UIElementDefinition[],
+  elementIds: readonly string[],
+  keyElementId: string,
+  alignment: UIElementGroupAlignment,
+): readonly UIElementDefinition[] {
+  const selectedIds = new Set(elementIds)
+  const key = elements.find(element => element.id === keyElementId)
+  if (!key || !selectedIds.has(keyElementId) || elements.filter(element => selectedIds.has(element.id)).length < 2) {
+    return elements
+  }
+
+  return elements.map(element => {
+    if (!selectedIds.has(element.id) || element.id === keyElementId) return element
+
+    let x = element.x
+    let y = element.y
+    switch (alignment) {
+      case 'left': x = key.x; break
+      case 'right': x = key.x + key.width - element.width; break
+      case 'top': y = key.y; break
+      case 'bottom': y = key.y + key.height - element.height; break
+      case 'horizontal-center': x = key.x + (key.width - element.width) / 2; break
+      case 'vertical-center': y = key.y + (key.height - element.height) / 2; break
+    }
+
+    const maxX = Math.max(0, 100 - clamp(element.width, 1, 100))
+    const maxY = Math.max(0, 100 - clamp(element.height, 1, 100))
+    return {
+      ...element,
+      x: Number(clamp(x, 0, maxX).toFixed(2)),
+      y: Number(clamp(y, 0, maxY).toFixed(2)),
+    }
+  })
+}
+
+/**
+ * Places selected elements at a user-defined gap along one axis.
+ * The first selected item in reading order remains anchored; no changes are made
+ * when the requested spacing would move any element outside the canvas.
+ */
+export function spaceUIElements(
+  elements: readonly UIElementDefinition[],
+  elementIds: readonly string[],
+  axis: UIElementAxis,
+  gap: number,
+): readonly UIElementDefinition[] {
+  const selectedIds = new Set(elementIds)
+  const selected = elements.filter(element => selectedIds.has(element.id))
+  if (selected.length < 2 || !Number.isFinite(gap) || gap < 0) return elements
+
+  const coordinate = axis === 'horizontal' ? 'x' : 'y'
+  const size = axis === 'horizontal' ? 'width' : 'height'
+  const ordered = [...selected].sort((a, b) => a[coordinate] - b[coordinate])
+  const safeGap = Number(gap.toFixed(2))
+  const positions = new Map<string, number>()
+  let cursor = ordered[0][coordinate]
+
+  for (const element of ordered) {
+    const dimension = clamp(element[size], 1, 100)
+    if (cursor < 0 || cursor + dimension > 100 + 0.001) return elements
+    positions.set(element.id, Number(cursor.toFixed(2)))
+    cursor = Number((cursor + dimension + safeGap).toFixed(2))
+  }
+
+  // Validate the complete layout before changing any element.
+  if (cursor - safeGap > 100 + 0.001) return elements
+  return elements.map(element => {
+    if (!selectedIds.has(element.id)) return element
+    const position = positions.get(element.id)
+    if (position === undefined) return element
+    return {
+      ...element,
+      [coordinate]: position,
+    }
+  })
+}
+
 /** Reorders a layer by one position; the last array entry is rendered on top. */
 export function reorderUIElement(
   elements: readonly UIElementDefinition[],
