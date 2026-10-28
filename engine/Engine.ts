@@ -28,6 +28,7 @@ import { validateImportedModel } from './model/validateImportedModel'
 import { splitStaticModelIntoSpatialParts } from './model/ImportedModelSpatialGrouping'
 import { prepareImportedModelGeometry } from './model/ImportedModelGeometryPreparation'
 import { createImportedModelRoot } from './model/ImportedModelRootFactory'
+import { prepareCustomPlayerModel } from './model/prepareCustomPlayerModel'
 import { applyImportedModelMetadata } from './model/ImportedModelMetadata'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
@@ -51,7 +52,6 @@ import { dispatchMouseBinding, isInteractiveRuntimeTarget, mouseButtonBindingCod
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
 import { PRESET_ORDER } from './view/cameraPresets'
-import { MAX_PLAYER_MODEL_BYTES } from './model/playerModelLimits'
 export interface EngineOptions {
   /** Módulos de jogos fornecidos pela aplicação que hospeda a engine. */
   gameModules?: readonly EngineGameModule[]
@@ -479,28 +479,7 @@ export class Engine {
     animationRoles?: Record<string, AnimationRole>,
     height = 1.8,
   ): Promise<void> {
-    const cleanName = name.trim() || 'Jogador.glb'
-    if (!cleanName.toLowerCase().endsWith('.glb')) {
-      throw new Error('O modelo do jogador precisa estar no formato binário .glb.')
-    }
-    if (data.byteLength < 12) throw new Error('O arquivo GLB está vazio ou incompleto.')
-    if (data.byteLength > MAX_PLAYER_MODEL_BYTES) {
-      throw new Error('O modelo do jogador deve ter no máximo 30 MB.')
-    }
-    if (new DataView(data).getUint32(0, true) !== 0x46546c67) {
-      throw new Error('O arquivo selecionado não tem o cabeçalho GLB esperado. Exporte o modelo como .glb.')
-    }
-
-    // A altura é validada em unidades do mundo. 1,8 u continua sendo o padrão para chamadas antigas.
-    const targetHeight = clamp(Number.isFinite(height) ? height : 1.8, 0.1, 10000)
-    // A troca visual só é confirmada após o GLB ser validado e carregado.
-    await this.avatar.setCustomModel(data, animationRoles, targetHeight)
-    this.playerModelData = {
-      name: cleanName,
-      glbData: encodeArrayBufferBase64(data),
-      height: targetHeight,
-      ...(animationRoles ? { animationRoles: { ...animationRoles } } : {}),
-    }
+    this.playerModelData = await prepareCustomPlayerModel(this.avatar, data, name, animationRoles, height)
     this.viewport.invalidate()
   }
 
