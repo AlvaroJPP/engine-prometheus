@@ -112,6 +112,8 @@ assert.match(editorControllerSource, /ui\.last_event_source/)
 assert.match(editorControllerSource, /trigger: \{ type: 'global_event', eventId: cleanEventId \}/)
 assert.match(uiWorkspaceSource, /ui-global-script-events/)
 assert.match(uiWorkspaceSource, /createGlobalEventForButton/)
+assert.match(uiWorkspaceSource, /requestedEventId \|\| undefined/)
+assert.match(uiWorkspaceSource, /Já existe um fluxo global/)
 assert.match(uiWorkspaceSource, /Criar fluxo global e vincular automaticamente/)
 assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogicEvent"/)
 
