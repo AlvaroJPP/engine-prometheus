@@ -1,5 +1,7 @@
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import type { EntityComponentKey, EntityComponentEvent } from './EntityComponentRuntime.ts'
+import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
+import type { EntityQueryHandle } from './EntityQueryRuntime.ts'
 
 export interface EntitySystemDefinition<TComponents extends object, TContext> {
   readonly id: string
@@ -26,6 +28,8 @@ interface SystemRecord<TComponents extends object, TContext> {
   readonly definition: EntitySystemDefinition<TComponents, TContext>
   readonly required: readonly EntityComponentKey<TComponents>[]
   readonly excluded: readonly EntityComponentKey<TComponents>[]
+  readonly query: EntityQueryHandle<TComponents>
+  unsubscribeQuery: () => void
   readonly activeEntities: Set<string>
   readonly faultedEntities: Set<string>
   readonly reconciling: Set<string>
@@ -40,15 +44,20 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
   private readonly unsubscribeEntities: () => void
   private readonly entities: EntityComponentRuntime<TComponents>
   private readonly createContext: (entityId: string) => TContext
+  private readonly queryRuntime: EntityQueryRuntime<TComponents>
+  private readonly ownsQueryRuntime: boolean
   private runtimeActive = false
   private disposed = false
 
   constructor(
     entities: EntityComponentRuntime<TComponents>,
     createContext: (entityId: string) => TContext,
+    queryRuntime?: EntityQueryRuntime<TComponents>,
   ) {
     this.entities = entities
     this.createContext = createContext
+    this.queryRuntime = queryRuntime ?? new EntityQueryRuntime(entities)
+    this.ownsQueryRuntime = queryRuntime === undefined
     this.unsubscribeEntities = entities.subscribe(event => this.handleEntityEvent(event))
   }
 
@@ -64,11 +73,17 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
       throw new Error(`Entity system "${id}" cannot require and exclude the same component.`)
     }
 
+    const query = this.queryRuntime.create(`__entity_system__:${id}`, {
+      allOf: required,
+      noneOf: excluded,
+    })
     const record: SystemRecord<TComponents, TContext> = {
       id,
       definition,
       required,
       excluded,
+      query,
+      unsubscribeQuery: () => {},
       activeEntities: new Set(),
       faultedEntities: new Set(),
       reconciling: new Set(),
@@ -77,6 +92,10 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
       active: false,
     }
     this.systems.set(id, record)
+    record.unsubscribeQuery = query.subscribe(event => {
+      if (!record.active || !this.runtimeActive || this.systems.get(id) !== record) return
+      this.syncEntity(record, event.entityId)
+    })
     if (this.runtimeActive && record.enabled) this.activate(record)
     return () => this.unregister(id, definition)
   }
@@ -87,6 +106,8 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     if (!record || (expected && record.definition !== expected)) return false
     this.systems.delete(id)
     this.deactivate(record)
+    record.unsubscribeQuery()
+    record.query.dispose()
     return true
   }
 
@@ -166,38 +187,25 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     try { this.clear() } catch (error) { errors.push(error) }
     this.disposed = true
     this.unsubscribeEntities()
+    if (this.ownsQueryRuntime) this.queryRuntime.dispose()
     if (errors.length > 0) throw errors[0]
   }
 
   get size(): number { return this.systems.size }
 
   private handleEntityEvent(event: EntityComponentEvent<TComponents>): void {
-    if (event.type === 'entity-destroying') {
-      for (const record of [...this.systems.values()]) this.leave(record, event.entityId)
-      return
-    }
-    if (event.type === 'entity-destroyed') {
-      for (const record of [...this.systems.values()]) {
-        record.faultedEntities.delete(event.entityId)
-        record.pendingSync.delete(event.entityId)
-      }
-      return
-    }
-    if (
-      event.type === 'entity-created'
-      || event.type === 'entity-enabled-changed'
-      || event.type === 'component-added'
-      || event.type === 'component-removed'
-    ) {
-      const entityId = event.type === 'entity-created' ? event.entity.id : event.entityId
-      for (const record of [...this.systems.values()]) this.syncEntity(record, entityId)
+    if (event.type !== 'entity-destroyed') return
+    for (const record of [...this.systems.values()]) {
+      record.faultedEntities.delete(event.entityId)
+      record.pendingSync.delete(event.entityId)
+      record.reconciling.delete(event.entityId)
     }
   }
 
   private activate(record: SystemRecord<TComponents, TContext>): void {
     if (record.active || !record.enabled || !this.runtimeActive || this.systems.get(record.id) !== record) return
     record.active = true
-    for (const entityId of this.entities.query([], { includeDisabled: false }).sort()) {
+    for (const entityId of record.query.getEntities()) {
       if (!record.active || !this.runtimeActive || this.systems.get(record.id) !== record) break
       this.syncEntity(record, entityId)
     }
@@ -227,7 +235,7 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
       while (repeat && attempts < 8) {
         attempts += 1
         record.pendingSync.delete(id)
-        const matches = this.matches(record, id)
+        const matches = record.query.has(id)
         if (matches && !record.activeEntities.has(id) && !record.faultedEntities.has(id)) {
           this.enter(record, id)
         } else if (!matches && record.activeEntities.has(id)) {
@@ -243,14 +251,6 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     } finally {
       record.reconciling.delete(id)
     }
-  }
-
-  private matches(record: SystemRecord<TComponents, TContext>, entityId: string): boolean {
-    if (this.entities.isDestroying(entityId)) return false
-    const entity = this.entities.get(entityId)
-    if (!entity?.enabled) return false
-    if (!record.required.every(type => this.entities.hasComponent(entityId, type))) return false
-    return !record.excluded.some(type => this.entities.hasComponent(entityId, type))
   }
 
   private enter(record: SystemRecord<TComponents, TContext>, entityId: string): void {
