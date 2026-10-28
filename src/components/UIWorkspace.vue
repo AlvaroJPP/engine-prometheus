@@ -300,6 +300,12 @@ onBeforeUnmount(finishElementDrag)
             <label class="ui-field">Nome
               <input v-model="activeScreen.name" maxlength="80" />
             </label>
+            <label class="ui-field">Tipo de tela
+              <select v-model="activeScreen.displayMode">
+                <option value="screen">Tela navegável · menu, pausa ou diálogo</option>
+                <option value="overlay">Overlay persistente · HUD</option>
+              </select>
+            </label>
             <label class="ui-field">Cor de fundo
               <span class="ui-color-field"><input v-model="activeScreen.background" type="color" /><input v-model="activeScreen.background" maxlength="7" /></span>
             </label>
