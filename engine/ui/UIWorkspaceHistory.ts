@@ -5,14 +5,21 @@ export interface UIWorkspaceSnapshot {
   activeScreenId: string
 }
 
+function serializeSnapshot(snapshot: UIWorkspaceSnapshot): string {
+  return JSON.stringify(snapshot)
+}
+
 function cloneSnapshot(snapshot: UIWorkspaceSnapshot): UIWorkspaceSnapshot {
-  return JSON.parse(JSON.stringify(snapshot)) as UIWorkspaceSnapshot
+  return JSON.parse(serializeSnapshot(snapshot)) as UIWorkspaceSnapshot
 }
 
 /** Bounded undo/redo history for serializable visual UI workspace documents. */
 export class UIWorkspaceHistory {
   private entries: UIWorkspaceSnapshot[] = []
+  private entrySizes: number[] = []
   private cursor = -1
+  private retainedCharacters = 0
+  private readonly characterBudget = 24 * 1024 * 1024
 
   constructor(private readonly limit = 40) {
     if (!Number.isInteger(limit) || limit < 2) {
@@ -33,21 +40,34 @@ export class UIWorkspaceHistory {
   }
 
   reset(snapshot: UIWorkspaceSnapshot): void {
-    this.entries = [cloneSnapshot(snapshot)]
+    const serialized = serializeSnapshot(snapshot)
+    this.entries = [JSON.parse(serialized) as UIWorkspaceSnapshot]
+    this.entrySizes = [serialized.length]
+    this.retainedCharacters = serialized.length
     this.cursor = 0
   }
 
   record(snapshot: UIWorkspaceSnapshot): boolean {
-    const next = cloneSnapshot(snapshot)
+    const serialized = serializeSnapshot(snapshot)
     const current = this.entries[this.cursor]
-    if (current && JSON.stringify(current) === JSON.stringify(next)) return false
+    if (current && serializeSnapshot(current) === serialized) return false
 
     if (this.cursor < this.entries.length - 1) {
       this.entries.splice(this.cursor + 1)
+      this.entrySizes.splice(this.cursor + 1)
+      this.retainedCharacters = this.entrySizes.reduce((total, size) => total + size, 0)
     }
 
+    const next = JSON.parse(serialized) as UIWorkspaceSnapshot
     this.entries.push(next)
-    if (this.entries.length > this.limit) this.entries.shift()
+    this.entrySizes.push(serialized.length)
+    this.retainedCharacters += serialized.length
+    while (this.entries.length > 1 && (
+      this.entries.length > this.limit || this.retainedCharacters > this.characterBudget
+    )) {
+      this.entries.shift()
+      this.retainedCharacters -= this.entrySizes.shift() ?? 0
+    }
     this.cursor = this.entries.length - 1
     return true
   }
