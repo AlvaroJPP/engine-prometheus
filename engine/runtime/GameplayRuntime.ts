@@ -120,7 +120,7 @@ export class GameplayRuntime {
         cooldownsCanceled: 0,
       }
     }
-    const behaviorsRemoved = this.behaviors.removeEntity(owner)
+    const behaviorsRemoved = this.behaviors.list(owner).length
     const errors: unknown[] = []
     let componentEntityRemoved = false
     try {
@@ -129,6 +129,7 @@ export class GameplayRuntime {
       errors.push(error)
       componentEntityRemoved = !this.entities.get(owner)
     }
+    if (!componentEntityRemoved) this.behaviors.removeEntity(owner)
     const entityRemoved = this.world.remove(owner)
     const resourcePoolsRemoved = this.resources.removeOwner(owner)
     const statusEffectsRemoved = this.statuses.removeOwner(owner).length
