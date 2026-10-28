@@ -4,6 +4,8 @@ import type { Engine } from '../../../engine/Engine'
 import { VeilborneGameModule } from '../runtime/VeilborneGameModule'
 import type { VeilborneGameModuleControls } from '../runtime/VeilborneGameModule'
 
+defineOptions({ inheritAttrs: false })
+
 const props = withDefaults(defineProps<{
   /** Instância do Engine criada pelo host; null enquanto a viewport não existe. */
   engine: Engine | null
