@@ -103,9 +103,9 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     const record = this.systems.get(id)
     if (!record || (expected && record.definition !== expected)) return false
     this.systems.delete(id)
-    this.deactivate(record)
     record.unsubscribeQuery()
     record.query.dispose()
+    this.deactivate(record)
     return true
   }
 
