@@ -68,7 +68,8 @@
     "entity:game-module:self-test": "node --experimental-strip-types scripts/entity-behavior-game-module-self-test.mjs",
     "entity:systems:self-test": "node --experimental-strip-types scripts/entity-system-runtime-self-test.mjs",
     "entity:queries:self-test": "node --experimental-strip-types scripts/entity-query-runtime-self-test.mjs",
-    "entity:batches:self-test": "node --experimental-strip-types scripts/entity-batch-processor-self-test.mjs"
+    "entity:batches:self-test": "node --experimental-strip-types scripts/entity-batch-processor-self-test.mjs",
+    "entity:commands:self-test": "node --experimental-strip-types scripts/entity-command-buffer-self-test.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

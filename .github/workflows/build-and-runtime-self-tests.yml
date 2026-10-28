@@ -151,3 +151,6 @@ jobs:
 
       - name: Test generic entity batch processing
         run: npm run entity:batches:self-test
+
+      - name: Test deferred generic entity commands
+        run: npm run entity:commands:self-test

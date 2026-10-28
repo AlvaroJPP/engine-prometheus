@@ -88,3 +88,6 @@ export type { EntityQueryFilter, EntityQueryEvent, EntityQuerySnapshot, EntityQu
 
 export { EntityBatchProcessor } from './runtime/EntityBatchProcessor'
 export type { EntityBatchOptions, EntityBatchFailure, EntityBatchReport, EntityBatchItem, EntityBatchView } from './runtime/EntityBatchProcessor'
+
+export { EntityCommandBuffer } from './runtime/EntityCommandBuffer'
+export type { EntityCommandKind, EntityCommandFailure, EntityCommandBufferReport, EntityCommandBufferOptions } from './runtime/EntityCommandBuffer'

@@ -2,6 +2,8 @@ import { CooldownScheduler } from './CooldownScheduler.ts'
 import { ResourcePoolRegistry } from './ResourcePoolRegistry.ts'
 import { StatusEffectRuntime } from './StatusEffectRuntime.ts'
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
+import { EntityCommandBuffer } from './EntityCommandBuffer.ts'
+import type { EntityCommandBufferReport } from './EntityCommandBuffer.ts'
 import { EntityBehaviorRuntime } from './EntityBehaviorRuntime.ts'
 import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
 import { EntityBatchProcessor } from './EntityBatchProcessor.ts'
@@ -24,6 +26,7 @@ export interface GameplayRuntimeOptions {
 export interface GameplayRuntimeUpdate {
   readonly statusEvents: readonly StatusEffectEvent[]
   readonly triggerEvents: readonly TriggerEvent[]
+  readonly commandReport: EntityCommandBufferReport
 }
 export interface GameplayEntityContext {
   readonly entityId: string
@@ -50,6 +53,7 @@ export class GameplayRuntime {
   readonly objectives = new ObjectiveTracker()
   readonly cooldowns = new CooldownScheduler()
   readonly entities = new EntityComponentRuntime()
+  readonly commands: EntityCommandBuffer<Record<string, unknown>>
   readonly queries: EntityQueryRuntime<Record<string, unknown>>
   readonly batches: EntityBatchProcessor<Record<string, unknown>>
   readonly behaviors: EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>
@@ -60,6 +64,7 @@ export class GameplayRuntime {
     this.world = new GameplayWorldSystems(options.cellSize, options.maxQueryCells)
     this.statuses = new StatusEffectRuntime(options.maxCatchUpTicks)
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
+    this.commands = new EntityCommandBuffer<Record<string, unknown>>(this.entities)
     this.queries = new EntityQueryRuntime<Record<string, unknown>>(this.entities)
     this.batches = new EntityBatchProcessor<Record<string, unknown>>(this.entities)
     const createEntityContext = (entityId: string): GameplayEntityContext => ({
@@ -90,14 +95,15 @@ export class GameplayRuntime {
     this.systems.stop()
   }
 
-  /** Advances timed systems, component-filtered systems, behaviors, and trigger occupancy. */
+  /** Advances timed systems and flushes deferred entity changes before trigger occupancy. */
   update(deltaSeconds: number): GameplayRuntimeUpdate {
     this.cooldowns.update(deltaSeconds)
     const statusEvents = this.statuses.update(deltaSeconds)
     this.systems.update(deltaSeconds)
     this.behaviors.update(deltaSeconds)
+    const commandReport = this.commands.playback()
     const triggerEvents = this.world.updateTriggers()
-    return { statusEvents, triggerEvents }
+    return { statusEvents, triggerEvents, commandReport }
   }
 
   registerBehaviorNodes<TContext>(
@@ -175,6 +181,7 @@ export class GameplayRuntime {
     for (const cleanup of cleanups) {
       try { cleanup() } catch (error) { errors.push(error) }
     }
+    try { this.commands.clear() } catch (error) { errors.push(error) }
     if (errors.length > 0) throw errors[0]
   }
 }
