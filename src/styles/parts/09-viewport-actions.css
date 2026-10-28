@@ -172,7 +172,7 @@
   .axes { left:54px !important; bottom:36px !important; }
 }
 
-@container viewport-hud (max-width: 400px) {
+@container viewport-hud (max-width: 628px) {
   .viewport-actions {
     left: var(--viewport-actions-compact-left, 54px) !important;
     right: var(--viewport-actions-compact-right, 8px) !important;
