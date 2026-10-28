@@ -20,11 +20,13 @@ export class UIWorkspaceHistory {
   private cursor = -1
   private retainedCharacters = 0
   private readonly characterBudget = 24 * 1024 * 1024
+  private readonly limit: number
 
-  constructor(private readonly limit = 40) {
+  constructor(limit = 40) {
     if (!Number.isInteger(limit) || limit < 2) {
       throw new Error('O histórico de UI precisa manter pelo menos duas entradas.')
     }
+    this.limit = limit
   }
 
   get canUndo(): boolean {
