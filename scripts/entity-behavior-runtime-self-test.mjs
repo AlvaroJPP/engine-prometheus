@@ -25,7 +25,7 @@ behaviorRuntime.add('hero', {
   onStop: context => calls.push(`stop:fast:${context.entityId}`),
   onDetach: context => calls.push(`detach:fast:${context.entityId}`),
 })
-assert.throws(() => behaviorRuntime.add('missing', { id: 'missing-behavior' }), /missing entity/i)
+assert.throws(() => behaviorRuntime.add('missing', { id: 'missing-behavior' }), /missing or destroying entity/i)
 assert.throws(() => behaviorRuntime.add('hero', { id: 'fast' }), /already exists/i)
 assert.deepEqual(behaviorRuntime.list('hero').map(item => item.id), ['fast', 'slow'])
 
