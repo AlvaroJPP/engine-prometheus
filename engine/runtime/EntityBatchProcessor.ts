@@ -38,7 +38,7 @@ export interface EntityBatchView<TComponents extends object, TContext> {
     entityId: string,
     componentType: K,
   ): TComponents[K] | undefined
-  hasComponent<K extends EntityComponentKey<TComponents>>(entityId: string, componentType: EntityComponentKey<TComponents>): boolean
+  hasComponent(entityId: string, componentType: EntityComponentKey<TComponents>): boolean
   getContext(entityId: string): TContext | undefined
   /** Iterates the initial snapshot; entities that leave mid-batch are skipped and new matches wait until the next batch. */
   forEach(callback: (item: EntityBatchItem<TComponents, TContext>) => void): EntityBatchReport
