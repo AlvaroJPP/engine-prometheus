@@ -82,16 +82,24 @@ function setExternalRef(name: string, element: unknown): void {
             <label class="checkline"><input type="checkbox" :checked="ctx.selectedGraphRule.enabled" @change="ctx.toggleLogicRule(ctx.selectedGraphRule)" /> Fluxo habilitado</label>
             <template v-if="ctx.graphSelection.part === 'trigger'">
               <label class="field">Tipo de evento
-                <select :value="ctx.selectedGraphRule.trigger.type" @change="ctx.setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event')">
+                <select :value="ctx.selectedGraphRule.trigger.type" @change="ctx.setSelectedTriggerType(($event.target as HTMLSelectElement).value as 'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event' | 'global_event')">
                   <option value="object_clicked">Ao clicar no objeto</option>
                   <option value="enter_area">Ao entrar em uma área</option>
-                  <option value="key_pressed">Ao pressionar uma tecla</option><option value="package_event">Evento de pacote</option>
+                  <option value="key_pressed">Ao pressionar uma tecla</option>
+                  <option value="package_event">Evento de pacote</option>
+                  <option value="global_event">Evento global · HUD / interface</option>
                 </select>
               </label>
               <template v-if="ctx.selectedGraphRule.trigger.type === 'key_pressed'">
                 <label class="field">Tecla (código)
                   <input :value="ctx.selectedGraphRule.trigger.key" @change="ctx.patchSelectedTrigger({ key: ($event.target as HTMLInputElement).value })" placeholder="KeyE" />
                 </label>
+              </template>
+              <template v-if="ctx.selectedGraphRule.trigger.type === 'global_event'">
+                <label class="field">Identificador do evento global
+                  <input :value="ctx.selectedGraphRule.trigger.eventId" maxlength="100" @change="ctx.patchSelectedTrigger({ eventId: ($event.target as HTMLInputElement).value.trim() })" placeholder="hud.inventory.open" />
+                </label>
+                <p class="component-note">Use o mesmo identificador configurado em um botão do Workspace de UI. Clicar no botão executa este fluxo.</p>
               </template>
               <template v-if="ctx.selectedGraphRule.trigger.type === 'object_clicked'">
                 <label class="field">Objeto-alvo
