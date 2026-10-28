@@ -830,3 +830,71 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
     max-height: calc(100dvh - 176px);
   }
 }
+
+
+/* Small Tauri windows: compress the app header itself instead of letting its
+   three grid columns force controls into each other. */
+@media(max-width:760px) {
+  .topbar {
+    grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    gap:2px;
+    padding-inline:4px;
+  }
+  .topbar-left,.topbar-right { gap:3px; min-width:0; }
+  .topbar .project-shell {
+    min-width:0;
+    max-width:152px;
+    flex:0 1 152px;
+  }
+  .topbar .pname {
+    width:64px;
+    min-width:44px;
+    padding-inline:5px;
+  }
+  .topbar .global-search-wrap {
+    flex:0 1 78px;
+    width:78px;
+    max-width:78px;
+    min-width:62px;
+  }
+  .topbar .global-search { gap:4px; padding-inline:6px; }
+  .topbar .search-shortcut { display:none; }
+  .topbar .topbar-controls {
+    width:30px;
+    min-width:30px;
+    height:32px;
+    min-height:32px;
+    padding:0;
+    gap:0;
+  }
+  .topbar .topbar-controls svg { width:14px; height:14px; }
+  .topbar .mode-segment { min-width:0; gap:0; }
+  .topbar .mode-segment button {
+    gap:4px;
+    min-width:0;
+    padding-inline:5px;
+    font-size:10px;
+  }
+  .topbar .mode-segment button.viewport-layout-config-action {
+    width:30px;
+    min-width:30px;
+    height:32px;
+    min-height:32px;
+    margin-right:1px;
+  }
+  .topbar .mode-segment button:not(.viewport-layout-config-action) svg {
+    width:12px;
+    height:12px;
+  }
+}
+@media(max-width:640px) {
+  .topbar .project-shell { max-width:132px; }
+  .topbar .pname { width:52px; min-width:38px; }
+  .topbar .global-search-wrap {
+    flex-basis:64px;
+    width:64px;
+    max-width:64px;
+    min-width:56px;
+  }
+  .topbar .mode-segment button { padding-inline:3px; font-size:9px; }
+}
