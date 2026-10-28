@@ -52,7 +52,7 @@ const normalized = parseUIScreenDefinitions([{
   ...screen,
   background: 'url(javascript:alert(1))',
   displayMode: 'unsupported',
-  elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red' }],
+  elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red', opacity: -3, fontWeight: 999, textAlign: 'diagonal', imageFit: 'stretch' }],
 }])
 assert.equal(normalized[0].background, '#00000000')
 assert.equal(normalized[0].displayMode, 'screen')
