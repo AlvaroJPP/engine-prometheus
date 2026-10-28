@@ -1,5 +1,5 @@
 export type UIElementKind = 'panel' | 'text' | 'button' | 'image' | 'progress'
-export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable' | 'toggle-variable' | 'trigger-event'
+export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable' | 'toggle-variable' | 'adjust-variable' | 'trigger-event'
 export type UIElementTextAlign = 'left' | 'center' | 'right'
 export type UIElementImageFit = 'contain' | 'cover' | 'fill'
 export type UIElementFontWeight = 400 | 500 | 600 | 700 | 800
@@ -23,6 +23,8 @@ export interface UIElementDefinition {
   borderRadius: number
   variableName: string
   variableMax: number
+  /** Numeric delta applied by the adjust-variable button action. */
+  variableStep: number
   action: UIElementAction
   /** Global Visual Script event invoked by a HUD/button action. */
   eventId: string
@@ -78,27 +80,27 @@ export function createUIElement(kind: UIElementKind, count = 0): UIElementDefini
     panel: {
       kind: 'panel', width: 42, height: 44, text: '', color: '#F4F1E9',
       background: '#202631', fontSize: 24, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 14,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
+      variableName: 'vida', variableMax: 100, variableStep: 1, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     text: {
       kind: 'text', width: 38, height: 12, text: 'Novo texto', color: '#F4F1E9',
       background: '#00000000', fontSize: 36, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 0,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
+      variableName: 'vida', variableMax: 100, variableStep: 1, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     button: {
       kind: 'button', width: 24, height: 11, text: 'Novo botão', color: '#FFFFFF',
       background: '#B97828', fontSize: 20, fontWeight: 700, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
-      variableName: 'confirmado', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
+      variableName: 'confirmado', variableMax: 100, variableStep: 1, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     image: {
       kind: 'image', width: 22, height: 22, text: 'Imagem', color: '#F4F1E9',
       background: '#252B35', fontSize: 18, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 8,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
+      variableName: 'vida', variableMax: 100, variableStep: 1, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
     progress: {
       kind: 'progress', width: 32, height: 6, text: 'Vida', color: '#FFFFFF',
       background: '#4A2630', fontSize: 16, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 6,
-      variableName: 'vida', variableMax: 100, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
+      variableName: 'vida', variableMax: 100, variableStep: 1, action: 'none', targetScreenId: '', variableValue: 'true', visibilityVariable: '', visibilityValue: 'true',
     },
   }
   const base = defaults[kind]
@@ -162,7 +164,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       const kind: UIElementKind = element.kind === 'panel' || element.kind === 'text' || element.kind === 'button' || element.kind === 'image' || element.kind === 'progress'
         ? element.kind
         : 'text'
-      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' || element.action === 'toggle-variable' || element.action === 'trigger-event' ? element.action : 'none'
+      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' || element.action === 'toggle-variable' || element.action === 'adjust-variable' || element.action === 'trigger-event' ? element.action : 'none'
       const imageDataUrl = typeof element.imageDataUrl === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(element.imageDataUrl) && element.imageDataUrl.length <= 7_000_000
         ? element.imageDataUrl
         : undefined
@@ -185,6 +187,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
         borderRadius: boundedNumber(element.borderRadius, 8, 0, 48),
         variableName: boundedString(element.variableName, '', 80),
         variableMax: boundedNumber(element.variableMax, 100, 1, 1_000_000),
+        variableStep: boundedNumber(element.variableStep, 1, -1_000_000, 1_000_000),
         action,
         eventId: boundedString(element.eventId, '', 100),
         targetScreenId: boundedString(element.targetScreenId, '', 100),
