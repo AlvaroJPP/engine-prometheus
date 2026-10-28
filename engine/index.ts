@@ -11,7 +11,7 @@ export { createUIScreenFromPreset, UI_SCREEN_PRESETS } from './ui/UIScreenPreset
 export { UIWorkspaceHistory } from './ui/UIWorkspaceHistory'
 export type { UIWorkspaceSnapshot } from './ui/UIWorkspaceHistory'
 export type { UIScreenPresetId, UIScreenPresetMetadata } from './ui/UIScreenPresets'
-export { alignUIElement, alignUIElements, duplicateUIElement, getClampedUIElementPosition, getResizedUIElementRect, getUIElementIdsInRect, getUIElementsBounds, reorderUIElement, resizeUIElements } from './ui/UIEditorOperations'
+export { alignUIElement, alignUIElements, distributeUIElements, duplicateUIElement, getClampedUIElementPosition, getResizedUIElementRect, getUIElementIdsInRect, getUIElementsBounds, reorderUIElement, resizeUIElements } from './ui/UIEditorOperations'
 export type { UIElementAxis, UIElementGroupAlignment, UIElementLayerDirection, UIElementPosition, UIElementRect, UIElementResizeOptions, UIResizeHandle } from './ui/UIEditorOperations'
 export type { UIScreenDefinition, UIElementDefinition, UIElementKind, UIElementAction, UIElementTextAlign, UIElementImageFit, UIElementFontWeight } from './ui/UIScreenDocument'
 export { TERRAIN_ID } from './world/map/TerrainMesh'
