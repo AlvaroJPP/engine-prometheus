@@ -102,12 +102,18 @@ assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
 const editorControllerSource = readFileSync(new URL('../src/composables/useEditor.ts', import.meta.url), 'utf8')
+const uiWorkspaceSource = readFileSync(new URL('../src/components/UIWorkspace.vue', import.meta.url), 'utf8')
+const appWorkspaceSource = readFileSync(new URL('../src/components/AppWorkspace.vue', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
 assert.match(editorControllerSource, /function addGlobalLogicEvent\(/)
 assert.match(editorControllerSource, /ui\.last_event_source/)
 assert.match(editorControllerSource, /trigger: \{ type: 'global_event', eventId: cleanEventId \}/)
+assert.match(uiWorkspaceSource, /ui-global-script-events/)
+assert.match(uiWorkspaceSource, /createGlobalEventForButton/)
+assert.match(uiWorkspaceSource, /Criar fluxo global e vincular automaticamente/)
+assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogicEvent"/)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
