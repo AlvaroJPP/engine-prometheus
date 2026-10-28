@@ -19,6 +19,7 @@ function setExternalRef(name: string, element: unknown): void {
 <template>
 <main :ref="element => setExternalRef('viewportRoot', element)" class="viewport">
         <canvas :ref="element => setExternalRef('canvas', element)" class="canvas" :class="['tool-' + ctx.tool, ctx.viewportCursorClass]" />
+        <div class="viewport-hud" aria-label="HUD da viewport">
         <slot name="game-overlay" />
         <GameUIRuntime
           v-if="ctx.executionMode === 'running'"
@@ -155,6 +156,7 @@ function setExternalRef(name: string, element: unknown): void {
             <span class="viewport-layout-outline-name" aria-hidden="true">{{ item.label }}</span>
             <button type="button" class="viewport-layout-resize-handle" :title="'Arrastar para redimensionar: ' + item.label" :aria-label="'Redimensionar ' + item.label" @pointerdown="ctx.beginViewportLayoutDrag($event, item.id, 'resize')"><span aria-hidden="true">↘</span></button>
           </div>
+        </div>
         </div>
       </main>
 </template>
