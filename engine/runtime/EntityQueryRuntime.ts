@@ -33,7 +33,7 @@ interface QueryRecord<TComponents extends object> {
   disposed: boolean
 }
 
-export interface EntityQueryHandle<TComponents extends object> {
+export interface EntityQueryHandle {
   readonly id: string
   readonly size: number
   getEntities(): string[]
@@ -88,7 +88,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
     for (const entityId of this.entities.query([], { includeDisabled: true })) this.sync(record, entityId)
 
     let active = true
-    const handle: EntityQueryHandle<TComponents> = {
+    const handle: EntityQueryHandle = {
       id: key,
       get size() { return record.matches.size },
       getEntities: () => [...record.matches].sort(),
