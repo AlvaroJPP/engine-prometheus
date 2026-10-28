@@ -27,6 +27,7 @@ assert.equal(parsed[0].elements[3].imageDataUrl, 'data:image/png;base64,AA==')
 const normalized = parseUIScreenDefinitions([{
   ...screen,
   background: 'url(javascript:alert(1))',
+  displayMode: 'unsupported',
   elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red' }],
 }])
 assert.equal(normalized[0].background, '#00000000')
