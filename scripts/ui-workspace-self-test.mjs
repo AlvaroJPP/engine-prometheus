@@ -229,6 +229,7 @@ assert.match(viewportLayoutSource, /compactRenderHud = id === 'render'[\s\S]*?wi
 assert.match(viewportRootCssSource, /container-type:inline-size; container-name:viewport-hud/)
 assert.match(editorTopBarCssSource, /@container viewport-hud \(max-width: 400px\)/)
 assert.match(viewportActionsCssSource, /@container viewport-hud \(max-width: 400px\)/)
+assert.doesNotMatch(viewportActionsCssSource, /\\n@container/)
 assert.match(gameUIRuntimeSource, /source: 'hud'/)
 assert.match(gameUIRuntimeSource, /screenId: screen\?\.id/)
 assert.match(gameUIRuntimeSource, /screenName: screen\?\.name/)
