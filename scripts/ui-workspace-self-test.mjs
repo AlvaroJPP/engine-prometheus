@@ -27,6 +27,7 @@ import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
 import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
+import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
@@ -58,6 +59,26 @@ assert.equal(appendUIScreenHistory(Array.from({ length: 100 }, (_, index) => `sc
 assert.deepEqual(takePreviousUIScreen(['menu', 'missing', 'options'], id => id !== 'missing'), { history: ['menu'], screenId: 'options' })
 assert.deepEqual(takePreviousUIScreen(['missing', 'also-missing'], () => false), { history: [], screenId: '' })
 assert.deepEqual(takePreviousUIScreen([], () => true), { history: [], screenId: '' })
+
+const legacyAlquimiaLayers = [
+  { id: 'hud-alquimia-nameplate', name: 'Alquimia Escarlate · Placa do jogador' },
+  { id: 'hud-alquimia-sigil', name: 'Alquimia Escarlate · Sigilo mágico' },
+  { id: 'hud-alquimia-statusbar', name: 'Alquimia Escarlate · Barras decorativas' },
+  { id: 'old-alquimia-copy', name: 'Alquimia Escarlate · Cópia antiga' },
+  { id: 'custom-hud-image', name: 'Imagem personalizada' },
+]
+const migratedAlquimiaLayers = removeLegacyDefaultAlquimiaHudLayers(legacyAlquimiaLayers)
+assert.deepEqual(migratedAlquimiaLayers.layers.map(layer => layer.id), ['custom-hud-image'])
+assert.deepEqual(new Set(migratedAlquimiaLayers.removedIds), new Set([
+  'hud-alquimia-nameplate',
+  'hud-alquimia-sigil',
+  'hud-alquimia-statusbar',
+  'old-alquimia-copy',
+]))
+assert.deepEqual(removeLegacyDefaultAlquimiaHudLayers(migratedAlquimiaLayers.layers), {
+  layers: [{ id: 'custom-hud-image', name: 'Imagem personalizada' }],
+  removedIds: [],
+})
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -180,6 +201,7 @@ const editorControllerSource = readFileSync(new URL('../src/composables/useEdito
 const uiWorkspaceSource = readFileSync(new URL('../src/components/UIWorkspace.vue', import.meta.url), 'utf8')
 const appWorkspaceSource = readFileSync(new URL('../src/components/AppWorkspace.vue', import.meta.url), 'utf8')
 const gameUIRuntimeSource = readFileSync(new URL('../src/components/GameUIRuntime.vue', import.meta.url), 'utf8')
+const runtimeHudSource = readFileSync(new URL('../src/components/RuntimeHUD.vue', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
@@ -197,6 +219,8 @@ assert.match(gameUIRuntimeSource, /screenId: screen\?\.id/)
 assert.match(gameUIRuntimeSource, /screenName: screen\?\.name/)
 assert.match(gameUIRuntimeSource, /elementId: element\.id/)
 assert.match(gameUIRuntimeSource, /elementName: element\.name/)
+assert.match(runtimeHudSource, /removeLegacyDefaultAlquimiaHudLayers\(storedImages\)/)
+assert.match(runtimeHudSource, /ALQUIMIA_HUD_MIGRATION_KEY/)
 assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
