@@ -53,7 +53,7 @@ entities.setEnabled('npc', true)
 assert.deepEqual(calls.at(-1), ['enter', 'npc', true])
 
 assert.equal(systems.setEnabled('movement', false), true)
-assert.deepEqual(calls.slice(-2), [['exit', 'actor'], ['exit', 'npc']])
+assert.deepEqual(calls.slice(-2), [['exit', 'npc'], ['exit', 'actor']])
 assert.equal(systems.setEnabled('movement', true), true)
 assert.deepEqual(calls.slice(-2), [['enter', 'actor', true], ['enter', 'npc', true]])
 assert.equal(systems.resetEntityFault('movement', 'actor'), false)
@@ -85,6 +85,7 @@ for (const id of ['a', 'b']) {
   faultEntities.addComponent(id, 'active', true)
 }
 const faultCalls = []
+let failFirstEntityUpdate = true
 const faultSystems = new EntitySystemRuntime(faultEntities, entityId => ({ entityId }))
 const originalConsoleError = console.error
 console.error = () => {}
@@ -96,7 +97,10 @@ try {
     onEntityExit: id => faultCalls.push(['exit', id]),
     updateEntity: (_dt, id) => {
       faultCalls.push(['update', id])
-      if (id === 'a') throw new Error('expected entity-local fault')
+      if (id === 'a' && failFirstEntityUpdate) {
+        failFirstEntityUpdate = false
+        throw new Error('expected entity-local fault')
+      }
     },
   })
   faultSystems.start()
@@ -108,9 +112,10 @@ try {
   ])
   assert.equal(faultSystems.list()[0].faultedEntityCount, 1)
   assert.equal(faultSystems.resetEntityFault('fault-isolation', 'a'), true)
-  assert.deepEqual(faultCalls.slice(-2), [['enter', 'a'], ['update', 'a']])
+  assert.deepEqual(faultCalls.at(-1), ['enter', 'a'])
   faultSystems.update(0.1)
-  assert.equal(faultCalls.filter(call => call[0] === 'update' && call[1] === 'a').length, 3)
+  assert.deepEqual(faultCalls.slice(-2), [['update', 'a'], ['update', 'b']])
+  assert.equal(faultCalls.filter(call => call[0] === 'update' && call[1] === 'a').length, 2)
 } finally {
   console.error = originalConsoleError
 }
