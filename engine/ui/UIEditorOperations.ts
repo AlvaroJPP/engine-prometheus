@@ -281,6 +281,135 @@ export function distributeUIElements(
   })
 }
 
+export interface UISmartAlignmentGuide {
+  axis: 'vertical' | 'horizontal'
+  position: number
+}
+
+export interface UISmartAlignmentResult {
+  deltaX: number
+  deltaY: number
+  guides: UISmartAlignmentGuide[]
+}
+
+/** Places selected elements into a regular grid, preserving size and refusing out-of-canvas layouts. */
+export function distributeUIElementsInGrid(
+  elements: readonly UIElementDefinition[],
+  elementIds: readonly string[],
+  columns: number,
+  gapX = 0,
+  gapY = gapX,
+): readonly UIElementDefinition[] {
+  const selectedIds = new Set(elementIds)
+  const selected = elements.filter(element => selectedIds.has(element.id))
+  if (selected.length < 2 || !Number.isFinite(columns) || !Number.isFinite(gapX) ||
+    !Number.isFinite(gapY) || gapX < 0 || gapY < 0) return elements
+
+  const columnCount = Math.max(1, Math.min(selected.length, Math.floor(columns)))
+  const rowCount = Math.ceil(selected.length / columnCount)
+  const ordered = [...selected].sort((a, b) => a.y - b.y || a.x - b.x)
+  const columnWidths = Array.from({ length: columnCount }, (_, column) =>
+    Math.max(...ordered.filter((_, index) => index % columnCount === column).map(element => element.width)))
+  const rowHeights = Array.from({ length: rowCount }, (_, row) =>
+    Math.max(...ordered.slice(row * columnCount, (row + 1) * columnCount).map(element => element.height)))
+  const totalWidth = columnWidths.reduce((total, width) => total + width, 0) + gapX * (columnCount - 1)
+  const totalHeight = rowHeights.reduce((total, height) => total + height, 0) + gapY * (rowCount - 1)
+  const left = Math.min(...ordered.map(element => element.x))
+  const top = Math.min(...ordered.map(element => element.y))
+  if (left + totalWidth > 100.001 || top + totalHeight > 100.001) return elements
+
+  const columnOffsets: number[] = []
+  const rowOffsets: number[] = []
+  let offset = left
+  for (let column = 0; column < columnCount; column += 1) {
+    columnOffsets.push(offset)
+    offset += columnWidths[column]! + gapX
+  }
+  offset = top
+  for (let row = 0; row < rowCount; row += 1) {
+    rowOffsets.push(offset)
+    offset += rowHeights[row]! + gapY
+  }
+
+  const positions = new Map<string, UIElementPosition>()
+  ordered.forEach((element, index) => {
+    const column = index % columnCount
+    const row = Math.floor(index / columnCount)
+    positions.set(element.id, {
+      x: Number((columnOffsets[column]! + (columnWidths[column]! - element.width) / 2).toFixed(2)),
+      y: Number((rowOffsets[row]! + (rowHeights[row]! - element.height) / 2).toFixed(2)),
+    })
+  })
+
+  return elements.map(element => {
+    if (!selectedIds.has(element.id)) return element
+    const position = positions.get(element.id)
+    return position ? { ...element, ...position } : element
+  })
+}
+
+/**
+ * Finds nearby matching edges/centers between a dragged selection and stationary elements.
+ * Coordinates and the snap threshold are expressed as percentages of the canvas.
+ */
+export function getUIElementSmartAlignment(
+  elements: readonly UIElementDefinition[],
+  moving: readonly Pick<UIElementDefinition, 'id' | 'x' | 'y' | 'width' | 'height'>[],
+  deltaX: number,
+  deltaY: number,
+  threshold = 0.8,
+): UISmartAlignmentResult {
+  if (!moving.length || !Number.isFinite(threshold) || threshold < 0) {
+    return { deltaX, deltaY, guides: [] }
+  }
+  const movingIds = new Set(moving.map(element => element.id))
+  const stationary = elements.filter(element => !movingIds.has(element.id))
+  let bestX: { correction: number; position: number } | null = null
+  let bestY: { correction: number; position: number } | null = null
+  const movingXFeatures = (element: typeof moving[number]) => [
+    element.x + deltaX,
+    element.x + deltaX + element.width / 2,
+    element.x + deltaX + element.width,
+  ]
+  const movingYFeatures = (element: typeof moving[number]) => [
+    element.y + deltaY,
+    element.y + deltaY + element.height / 2,
+    element.y + deltaY + element.height,
+  ]
+  const stationaryXFeatures = (element: UIElementDefinition) => [element.x, element.x + element.width / 2, element.x + element.width]
+  const stationaryYFeatures = (element: UIElementDefinition) => [element.y, element.y + element.height / 2, element.y + element.height]
+
+  for (const source of moving) {
+    for (const target of stationary) {
+      for (const sourcePosition of movingXFeatures(source)) {
+        for (const targetPosition of stationaryXFeatures(target)) {
+          const correction = targetPosition - sourcePosition
+          if (Math.abs(correction) > threshold || (bestX && Math.abs(bestX.correction) <= Math.abs(correction))) continue
+          bestX = { correction, position: targetPosition }
+        }
+      }
+      for (const sourcePosition of movingYFeatures(source)) {
+        for (const targetPosition of stationaryYFeatures(target)) {
+          const correction = targetPosition - sourcePosition
+          if (Math.abs(correction) > threshold || (bestY && Math.abs(bestY.correction) <= Math.abs(correction))) continue
+          bestY = { correction, position: targetPosition }
+        }
+      }
+    }
+  }
+
+  const resultX = deltaX + (bestX?.correction ?? 0)
+  const resultY = deltaY + (bestY?.correction ?? 0)
+  const guides: UISmartAlignmentGuide[] = []
+  if (bestX) guides.push({ axis: 'vertical', position: Number(bestX.position.toFixed(2)) })
+  if (bestY) guides.push({ axis: 'horizontal', position: Number(bestY.position.toFixed(2)) })
+  return {
+    deltaX: Number(resultX.toFixed(2)),
+    deltaY: Number(resultY.toFixed(2)),
+    guides,
+  }
+}
+
 /** Aligns selected elements to the selected key element without moving the key itself. */
 export function alignUIElementsToKey(
   elements: readonly UIElementDefinition[],
