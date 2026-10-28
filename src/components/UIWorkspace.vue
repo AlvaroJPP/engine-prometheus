@@ -51,9 +51,10 @@ function refreshHistoryAvailability(): void {
 }
 
 function captureHistoryNow(): void {
+  const hadPendingCapture = historyTimer !== null
   if (historyTimer) clearTimeout(historyTimer)
   historyTimer = null
-  if (!historyReady || restoringHistory) return
+  if (!historyReady || restoringHistory || !hadPendingCapture) return
   editHistory.record(workspaceSnapshot())
   refreshHistoryAvailability()
 }
