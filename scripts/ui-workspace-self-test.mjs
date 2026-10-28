@@ -125,6 +125,7 @@ assert.equal(history.size, 3)
 assert.equal(history.undo().screens[0].name, 'Estado B')
 assert.equal(history.canRedo, true)
 assert.equal(history.redo().screens[0].name, 'Estado C')
+assert.equal(history.record({ screens: [thirdHistoryState], activeScreenId: thirdHistoryState.id }), false)
 
 history.undo()
 const fourthHistoryState = JSON.parse(JSON.stringify(secondHistoryState))
@@ -169,6 +170,19 @@ assert.equal(duplicate.name, screen.elements[3].name + ' - cópia')
 assert.equal(duplicate.imageDataUrl, screen.elements[3].imageDataUrl)
 assert.equal(duplicate.x, screen.elements[3].x + 2.5)
 assert.equal(duplicate.y, screen.elements[3].y + 2.5)
+
+const copySource = createUIElement('image')
+copySource.name = 'Ícone de origem'
+copySource.imageDataUrl = 'data:image/webp;base64,AA=='
+copySource.imageFit = 'cover'
+const copyTargetScreen = createUIScreen('Tela de destino')
+const crossScreenPaste = duplicateUIElement(copySource, copyTargetScreen.elements.length)
+copyTargetScreen.elements.push(crossScreenPaste)
+assert.notEqual(crossScreenPaste.id, copySource.id)
+assert.equal(crossScreenPaste.imageDataUrl, copySource.imageDataUrl)
+assert.equal(crossScreenPaste.imageFit, copySource.imageFit)
+crossScreenPaste.x = 50
+assert.notEqual(crossScreenPaste.x, copySource.x)
 
 const originalOrder = screen.elements.map(element => element.id)
 const raised = reorderUIElement(screen.elements, originalOrder[0], 1)
