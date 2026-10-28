@@ -19,7 +19,7 @@ function setExternalRef(name: string, element: unknown): void {
 <template>
 <main :ref="element => setExternalRef('viewportRoot', element)" class="viewport">
         <canvas :ref="element => setExternalRef('canvas', element)" class="canvas" :class="['tool-' + ctx.tool, ctx.viewportCursorClass]" />
-        <div class="viewport-hud" aria-label="HUD da viewport">
+        <div class="viewport-hud" role="group" aria-label="HUD da viewport">
         <slot name="game-overlay" />
         <GameUIRuntime
           v-if="ctx.executionMode === 'running'"
