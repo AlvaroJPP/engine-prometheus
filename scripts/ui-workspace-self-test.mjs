@@ -7,6 +7,7 @@ import {
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
+screen.displayMode = 'overlay'
 screen.elements = (['panel', 'text', 'button', 'image', 'progress']).map((kind, index) => {
   const element = createUIElement(kind, index)
   element.x = index * 4
@@ -19,6 +20,7 @@ const parsed = parseUIScreenDefinitions([screen])
 assert.equal(parsed.length, 1)
 assert.equal(parsed[0].name, 'Menu de teste')
 assert.equal(parsed[0].enabledInGame, true)
+assert.equal(parsed[0].displayMode, 'overlay')
 assert.deepEqual(parsed[0].elements.map(element => element.kind), ['panel', 'text', 'button', 'image', 'progress'])
 assert.equal(parsed[0].elements[3].imageDataUrl, 'data:image/png;base64,AA==')
 
@@ -28,6 +30,7 @@ const normalized = parseUIScreenDefinitions([{
   elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red' }],
 }])
 assert.equal(normalized[0].background, '#00000000')
+assert.equal(normalized[0].displayMode, 'screen')
 assert.equal(normalized[0].elements[0].x, 100)
 assert.equal(normalized[0].elements[0].width, 1)
 assert.equal(normalized[0].elements[0].color, '#F4F1E9')
