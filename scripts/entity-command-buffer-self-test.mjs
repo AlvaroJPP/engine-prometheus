@@ -11,7 +11,7 @@ entities.defineComponent('fragile', {
   },
 })
 entities.defineComponent('reentrant')
-let nestedPlaybackError: unknown
+let nestedPlaybackError
 let commands
 entities.defineComponent('reentrantHook', {
   onAttach: () => {
