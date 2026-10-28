@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getRenderableUIScreenDefinitions, resolveUIValueBindings } from '@engine'
+import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, resolveUIValueBindings } from '@engine'
 import type { UIScreenDefinition, UIElementDefinition } from '@engine'
 
 const props = defineProps<{
@@ -13,7 +13,9 @@ const emit = defineEmits<{
 }>()
 
 const activeScreenId = ref('')
-const availableScreens = computed(() => getRenderableUIScreenDefinitions(props.screens))
+const availableScreens = computed(() => getRenderableUIScreenDefinitions(props.screens).filter(screen =>
+  isUIVisibilityConditionMet(screen.visibilityVariable, screen.visibilityValue, props.gameVariables),
+))
 const navigableScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode !== 'overlay'))
 const overlayScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode === 'overlay'))
 const activeScreen = computed(() => navigableScreens.value.find(screen => screen.id === activeScreenId.value) ?? null)
@@ -43,6 +45,10 @@ function elementStyle(screen: UIScreenDefinition, element: UIElementDefinition):
     opacity: String(element.opacity),
     borderRadius: `${element.borderRadius}px`,
   }
+}
+
+function isElementVisible(element: UIElementDefinition): boolean {
+  return isUIVisibilityConditionMet(element.visibilityVariable, element.visibilityValue, props.gameVariables)
 }
 
 function uiText(text: string, fallback = ''): string {
@@ -103,7 +109,7 @@ function activate(element: UIElementDefinition): void {
       :aria-label="screen.name"
     >
       <div
-        v-for="element in screen.elements"
+        v-for="element in screen.elements.filter(isElementVisible)"
         :key="element.id"
         class="game-ui-element"
         :class="'game-ui-' + element.kind"
