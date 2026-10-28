@@ -78,11 +78,13 @@ delete legacyElement.opacity
 delete legacyElement.fontWeight
 delete legacyElement.textAlign
 delete legacyElement.imageFit
+delete legacyElement.groupId
 const legacyDocument = parseUIScreenDefinitions([{ ...screen, elements: [legacyElement] }])
 assert.equal(legacyDocument[0].elements[0].opacity, 1)
 assert.equal(legacyDocument[0].elements[0].fontWeight, 600)
 assert.equal(legacyDocument[0].elements[0].textAlign, 'center')
 assert.equal(legacyDocument[0].elements[0].imageFit, 'contain')
+assert.equal(legacyDocument[0].elements[0].groupId, undefined)
 
 assert.throws(() => parseUIScreenDefinitions({ screens: [] }), /lista de telas/)
 assert.throws(() => parseUIScreenDefinitions([{ ...screen, id: '' }]), /ID válido/)
