@@ -152,3 +152,47 @@ unregisterLateSystem?.()
 cleanupSystems.dispose()
 
 console.log('Entity system runtime self-test passed.')
+
+
+// Batch systems receive a stable, shared view and fault only the entity whose callback fails.
+const batchEntities = new EntityComponentRuntime()
+batchEntities.defineComponent('transform')
+for (const id of ['batch-a', 'batch-b']) {
+  batchEntities.create(id)
+  batchEntities.addComponent(id, 'transform', { x: 0 })
+}
+const batchCalls = []
+const batchSystems = new EntitySystemRuntime(batchEntities, id => ({ id, entities: batchEntities }))
+batchSystems.register({
+  id: 'batch-movement',
+  requiredComponents: ['transform'],
+  updateBatch: (_dt, batch) => {
+    assert.deepEqual(batch.entityIds, ['batch-a', 'batch-b'])
+    const result = batch.forEach(item => {
+      batchCalls.push([item.entityId, item.getComponent('transform')?.x])
+      if (item.entityId === 'batch-a') throw new Error('expected batch item fault')
+    })
+    assert.equal(result.processedCount, 1)
+    assert.equal(result.failures.length, 1)
+  },
+})
+const batchOriginalConsoleError = console.error
+console.error = () => {}
+try {
+  batchSystems.start()
+  batchSystems.update(0.1)
+  assert.equal(batchSystems.list()[0].faultedEntityCount, 1)
+  assert.deepEqual(batchCalls, [['batch-a', 0], ['batch-b', 0]])
+  batchSystems.resetEntityFault('batch-movement', 'batch-a')
+  assert.equal(batchSystems.list()[0].matchedEntityCount, 2)
+  assert.throws(() => batchSystems.register({
+    id: 'ambiguous-update',
+    updateEntity: () => {},
+    updateBatch: () => {},
+  }), /both updateBatch and updateEntity/i)
+} finally {
+  console.error = batchOriginalConsoleError
+}
+batchSystems.dispose()
+
+console.log('Entity system batch-update integration self-test passed.')

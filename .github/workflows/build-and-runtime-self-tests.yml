@@ -148,3 +148,6 @@ jobs:
 
       - name: Test cached generic entity queries
         run: npm run entity:queries:self-test
+
+      - name: Test generic entity batch processing
+        run: npm run entity:batches:self-test

@@ -2,6 +2,8 @@ import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import type { EntityComponentKey, EntityComponentEvent } from './EntityComponentRuntime.ts'
 import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
 import type { EntityQueryHandle } from './EntityQueryRuntime.ts'
+import { EntityBatchProcessor } from './EntityBatchProcessor.ts'
+import type { EntityBatchView } from './EntityBatchProcessor.ts'
 
 export interface EntitySystemDefinition<TComponents extends object, TContext> {
   readonly id: string
@@ -11,6 +13,7 @@ export interface EntitySystemDefinition<TComponents extends object, TContext> {
   readonly enabled?: boolean
   readonly onEntityEnter?: (entityId: string, context: TContext) => void
   readonly updateEntity?: (deltaSeconds: number, entityId: string, context: TContext) => void
+  readonly updateBatch?: (deltaSeconds: number, batch: EntityBatchView<TComponents, TContext>) => void
   readonly onEntityExit?: (entityId: string, context: TContext) => void
 }
 
@@ -44,6 +47,7 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
   private readonly unsubscribeEntities: () => void
   private readonly createContext: (entityId: string) => TContext
   private readonly queryRuntime: EntityQueryRuntime<TComponents>
+  private readonly batchProcessor: EntityBatchProcessor<TComponents>
   private readonly ownsQueryRuntime: boolean
   private runtimeActive = false
   private disposed = false
@@ -52,9 +56,11 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     entities: EntityComponentRuntime<TComponents>,
     createContext: (entityId: string) => TContext,
     queryRuntime?: EntityQueryRuntime<TComponents>,
+    batchProcessor?: EntityBatchProcessor<TComponents>,
   ) {
     this.createContext = createContext
     this.queryRuntime = queryRuntime ?? new EntityQueryRuntime(entities)
+    this.batchProcessor = batchProcessor ?? new EntityBatchProcessor(entities)
     this.ownsQueryRuntime = queryRuntime === undefined
     this.unsubscribeEntities = entities.subscribe(event => this.handleEntityEvent(event))
   }
@@ -64,6 +70,10 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     const id = definition.id.trim()
     if (!id) throw new Error('Entity systems require a non-empty identifier.')
     if (this.systems.has(id)) throw new Error(`Entity system already registered: "${id}".`)
+
+    if (definition.updateBatch && definition.updateEntity) {
+      throw new Error(`Entity system "${id}" cannot define both updateBatch and updateEntity.`)
+    }
 
     const required = this.uniqueComponents(definition.requiredComponents ?? [])
     const excluded = this.uniqueComponents(definition.excludedComponents ?? [])
@@ -140,6 +150,28 @@ export class EntitySystemRuntime<TComponents extends object, TContext> {
     for (const record of this.orderedSystems()) {
       if (!this.runtimeActive || this.disposed) break
       if (!record.active || !record.enabled || this.systems.get(record.id) !== record) continue
+      if (record.definition.updateBatch) {
+        const batch = this.batchProcessor.createView(
+          record.query,
+          this.createContext,
+          {
+            isEligible: entityId => record.activeEntities.has(entityId) && !record.faultedEntities.has(entityId),
+            onError: (entityId, error) => this.faultEntity(record, entityId, 'batch update', error),
+          },
+        )
+        try {
+          record.definition.updateBatch(dt, batch)
+        } catch (error) {
+          console.error(`[EntitySystemRuntime] System "${record.id}" failed during batch update.`, error)
+          for (const entityId of [...record.activeEntities].sort().reverse()) {
+            if (!record.activeEntities.has(entityId)) continue
+            record.faultedEntities.add(entityId)
+            this.leave(record, entityId)
+          }
+        }
+        continue
+      }
+
       for (const entityId of [...record.activeEntities].sort()) {
         if (!this.runtimeActive || this.disposed || !record.active) break
         if (this.systems.get(record.id) !== record || !record.activeEntities.has(entityId)) continue

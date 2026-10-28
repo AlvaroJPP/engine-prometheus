@@ -4,6 +4,7 @@ import { StatusEffectRuntime } from './StatusEffectRuntime.ts'
 import { EntityComponentRuntime } from './EntityComponentRuntime.ts'
 import { EntityBehaviorRuntime } from './EntityBehaviorRuntime.ts'
 import { EntityQueryRuntime } from './EntityQueryRuntime.ts'
+import { EntityBatchProcessor } from './EntityBatchProcessor.ts'
 import { EntitySystemRuntime } from './EntitySystemRuntime.ts'
 import { GameplayWorldSystems } from '../world/GameplayWorldSystems.ts'
 import type { SpatialItem3 } from '../world/SpatialHash3D.ts'
@@ -50,6 +51,7 @@ export class GameplayRuntime {
   readonly cooldowns = new CooldownScheduler()
   readonly entities = new EntityComponentRuntime()
   readonly queries: EntityQueryRuntime<Record<string, unknown>>
+  readonly batches: EntityBatchProcessor<Record<string, unknown>>
   readonly behaviors: EntityBehaviorRuntime<Record<string, unknown>, GameplayEntityContext>
   readonly systems: EntitySystemRuntime<Record<string, unknown>, GameplayEntityContext>
   private readonly behaviorNamespace: string
@@ -59,6 +61,7 @@ export class GameplayRuntime {
     this.statuses = new StatusEffectRuntime(options.maxCatchUpTicks)
     this.behaviorNamespace = options.behaviorNamespace?.trim() || 'gameplay'
     this.queries = new EntityQueryRuntime<Record<string, unknown>>(this.entities)
+    this.batches = new EntityBatchProcessor<Record<string, unknown>>(this.entities)
     const createEntityContext = (entityId: string): GameplayEntityContext => ({
       entityId,
       runtime: this as GameplayRuntime,
@@ -71,6 +74,7 @@ export class GameplayRuntime {
       this.entities,
       createEntityContext,
       this.queries,
+      this.batches,
     )
   }
 

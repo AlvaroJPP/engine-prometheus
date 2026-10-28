@@ -85,3 +85,6 @@ export { EntitySystemRuntime } from './runtime/EntitySystemRuntime'
 export type { EntitySystemDefinition, EntitySystemSnapshot } from './runtime/EntitySystemRuntime'
 export { EntityQueryRuntime } from './runtime/EntityQueryRuntime'
 export type { EntityQueryFilter, EntityQueryEvent, EntityQuerySnapshot, EntityQueryHandle } from './runtime/EntityQueryRuntime'
+
+export { EntityBatchProcessor } from './runtime/EntityBatchProcessor'
+export type { EntityBatchOptions, EntityBatchFailure, EntityBatchReport, EntityBatchItem, EntityBatchView } from './runtime/EntityBatchProcessor'
