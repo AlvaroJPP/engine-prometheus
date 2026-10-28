@@ -71,6 +71,7 @@ assert.equal(parsedLegacyHudScreen.elements[0].eventId, '')
 const runtimeScriptEngine = new RuleEngine({
   events: { emit() {} },
   getSelectedId: () => null,
+  info: () => [],
 })
 runtimeScriptEngine.load({
   formatVersion: 1,
