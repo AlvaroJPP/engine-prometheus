@@ -33,7 +33,7 @@ import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
-import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageJsonValue, PackageScalar } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
 import { markEntity } from './model/entity/Entity'
@@ -41,20 +41,9 @@ import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
-const PRESET_ORDER: CameraPreset[] = ['free', 'isometric', 'top']
-
-function isPackageJsonValue(value: unknown, depth = 0): value is PackageJsonValue {
-  if (depth > 16) return false
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (Array.isArray(value)) return value.every(item => isPackageJsonValue(item, depth + 1))
-  if (typeof value === 'object') return Object.values(value as Record<string, unknown>)
-    .every(item => isPackageJsonValue(item, depth + 1))
-  return false
-}
-
-const MAX_PLAYER_MODEL_BYTES = 30 * 1024 * 1024
-
+import { PRESET_ORDER } from './view/cameraPresets'
+import { isPackageJsonValue } from './script/packageJsonValue'
+import { MAX_PLAYER_MODEL_BYTES } from './model/playerModelLimits'
 export interface EngineOptions {
   /** Módulos de jogos fornecidos pela aplicação que hospeda a engine. */
   gameModules?: readonly EngineGameModule[]
