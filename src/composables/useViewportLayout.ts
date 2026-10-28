@@ -166,12 +166,11 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const maxX = Math.max(minX, width - scaledWidth - 4)
   const localX = Math.max(minX, Math.min(item.x * width, maxX))
   const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
-  // FPS e eixos ficam dentro de .viewport, cujo contain: paint torna o
-  // posicionamento fixo relativo à própria viewport. Para eles, use coordenadas
-  // locais; somar bounds.left/top deslocava os controles e os prendia no meio.
-  const positionedInsideViewport = id === 'fps' || id === 'axes'
-  const left = positionedInsideViewport ? localX : bounds.left + localX
-  const top = positionedInsideViewport ? localY : bounds.top + localY
+  // Todos os controles são montados dentro de .viewport (HUD da cena).
+  // A viewport cria o bloco de referência para position:fixed; use coordenadas
+  // locais para impedir que controles avancem sobre a hierarquia ou o inspetor.
+  const left = localX
+  const top = localY
   return {
     '--viewport-layout-left': Math.round(left) + 'px',
     '--viewport-layout-top': Math.round(top) + 'px',
