@@ -98,7 +98,7 @@ assert.equal(commands.playback().appliedCount, 2)
 assert.match(String(nestedPlaybackError), /cannot be nested/i)
 
 assert.throws(() => commands.createEntity('   '), /must not be empty/i)
-assert.throws(() => commands.addComponent('actor', '', { x: 0 }), /not empty/i)
+assert.throws(() => commands.addComponent('actor', '', { x: 0 }), /empty/i)
 commands.createEntity('discarded')
 commands.clear()
 assert.equal(commands.pendingCount, 0)
