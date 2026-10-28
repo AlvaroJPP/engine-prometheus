@@ -177,14 +177,86 @@
   outline:2px solid #e8572b;
   outline-offset:1px;
 }
-/* The scene actions stay in the viewport HUD even when the tool rail is expanded. */
+/* Add/Import return to the collapsed hierarchy rail, not the scene canvas. */
+.collapsed-sidebar-actions { display:none; }
 .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
-  --viewport-actions-compact-left:188px;
-  --viewport-actions-compact-right:12px;
-  display:flex !important;
-  left:188px !important;
-  right:12px !important;
-  max-width:none !important;
+  display:none !important;
+}
+.app.sidebar-collapsed:not(.world-fullscreen) .collapsed-sidebar-actions {
+  position:fixed;
+  z-index:30;
+  top:98px;
+  left:0;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:5px;
+  width:172px;
+  box-sizing:border-box;
+  padding:6px 7px 9px;
+  border-right:1px solid #363129;
+  border-bottom:1px solid #2e2b25;
+  background:#191713;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-wrap {
+  position:relative !important;
+  z-index:32;
+  top:auto !important;
+  right:auto !important;
+  left:auto !important;
+  width:100%;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  width:100%;
+  min-width:0;
+  height:34px;
+  min-height:34px;
+  padding:0 8px;
+  border:1px solid #3b3730;
+  border-radius:6px;
+  background:#211e19;
+  color:#e4ded3;
+  font:500 11px/1 'IBM Plex Sans',sans-serif;
+  text-align:left;
+  white-space:nowrap;
+  cursor:pointer;
+  box-sizing:border-box;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action:hover,
+.app.sidebar-collapsed .collapsed-sidebar-add-trigger[aria-expanded="true"] {
+  border-color:#75412e;
+  background:#34241c;
+  color:#f3efe6;
+}
+.app.sidebar-collapsed .collapsed-sidebar-action-icon {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:20px;
+  color:#e8572b;
+  font-size:17px;
+  line-height:1;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-trigger .quick-add-chevron {
+  margin-left:auto;
+  color:#b5afa2;
+  font-size:10px;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-popover {
+  z-index:50;
+  top:calc(100% + 5px) !important;
+  right:auto !important;
+  left:0 !important;
+  width:240px;
+  max-width:calc(100vw - 184px);
+  box-sizing:border-box;
+}
+.app.sidebar-collapsed .collapsed-sidebar-add-popover > button {
+  min-width:0;
 }
 /* The reopen control is the menu's own header, flush against the top bar. */
 .app.sidebar-collapsed .sidebar-hamburger {
@@ -215,11 +287,18 @@
 .app.sidebar-collapsed .sidebar-hamburger:hover { border-color:#363129; background:#26231e; color:#ff997d; }
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
-  .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
-    --viewport-actions-compact-left:172px;
-    --viewport-actions-compact-right:8px;
-    left:172px !important;
-    right:8px !important;
+  .app.sidebar-collapsed:not(.world-fullscreen) .collapsed-sidebar-actions {
+    width:160px;
+    max-width:calc(100vw - 12px);
+    padding:6px 5px 8px;
+  }
+  .app.sidebar-collapsed .collapsed-sidebar-action {
+    height:32px;
+    min-height:32px;
+    padding-inline:7px;
+  }
+  .app.sidebar-collapsed .collapsed-sidebar-add-popover {
+    max-width:calc(100vw - 172px);
   }
   .app.sidebar-collapsed .toolbar {
     top:56px !important;
