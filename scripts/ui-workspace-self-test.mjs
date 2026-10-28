@@ -105,6 +105,9 @@ toggleButton.variableName = 'ui.inventory.open'
 const parsedToggleScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [toggleButton] }])[0]
 assert.equal(parsedToggleScreen.elements[0].action, 'toggle-variable')
 assert.equal(parsedToggleScreen.elements[0].variableName, 'ui.inventory.open')
+const backButton = createUIElement('button')
+backButton.action = 'navigate-back'
+assert.equal(parseUIScreenDefinitions([{ ...hudEventScreen, elements: [backButton] }])[0].elements[0].action, 'navigate-back')
 const numericButton = createUIElement('button')
 numericButton.action = 'adjust-variable'
 numericButton.variableName = 'ouro'
@@ -197,6 +200,9 @@ assert.match(uiWorkspaceSource, /selectedElement\.variableLimitMax/)
 assert.match(uiWorkspaceSource, /value="adjust-variable">Ajustar variável numérica/)
 assert.match(uiWorkspaceSource, /selectedElement\.variableStep/)
 assert.match(uiWorkspaceSource, /value="toggle-variable">Alternar variável booleana/)
+assert.match(uiWorkspaceSource, /value="navigate-back">Voltar à tela anterior/)
+assert.match(gameUIRuntimeSource, /screenHistory\.value = \[\.\.\.screenHistory\.value, activeScreenId\.value\]\.slice\(-100\)/)
+assert.match(gameUIRuntimeSource, /element\.action === 'navigate-back'/)
 assert.match(uiWorkspaceSource, /element\.action === 'toggle-variable'/)
 assert.match(gameUIRuntimeSource, /screen\.visibilityVariable, screen\.visibilityValue, props\.gameVariables/)
 assert.match(gameUIRuntimeSource, /screen\.elements\.filter\(isElementVisible\)/)
