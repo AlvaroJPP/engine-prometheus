@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   createUIElement,
   createUIScreen,
+  getRenderableUIScreenDefinitions,
   parseUIScreenDefinitions,
 } from '../engine/ui/UIScreenDocument.ts'
 
@@ -22,6 +23,15 @@ assert.equal(parsed[0].name, 'Menu de teste')
 assert.equal(parsed[0].enabledInGame, true)
 assert.equal(parsed[0].displayMode, 'overlay')
 assert.deepEqual(parsed[0].elements.map(element => element.kind), ['panel', 'text', 'button', 'image', 'progress'])
+
+const emptyDraft = createUIScreen('Rascunho vazio')
+emptyDraft.enabledInGame = true
+const inactive = createUIScreen('Tela desativada')
+inactive.elements.push(createUIElement('text'))
+const active = createUIScreen('Menu ativo')
+active.enabledInGame = true
+active.elements.push(createUIElement('button'))
+assert.deepEqual(getRenderableUIScreenDefinitions([emptyDraft, inactive, active]).map(item => item.id), [active.id])
 assert.equal(parsed[0].elements[3].imageDataUrl, 'data:image/png;base64,AA==')
 
 const normalized = parseUIScreenDefinitions([{
