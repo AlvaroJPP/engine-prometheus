@@ -242,7 +242,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         </div>
         <span class="viewport-tools-divider" aria-hidden="true"></span>
             <details class="render-settings">
-        <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
+        <summary class="cam render-settings-trigger" :class="{ active: renderAll }" aria-label="Configurar renderização" title="Configurar a renderização geral do mundo">
           <span class="render-settings-icon" aria-hidden="true"></span>
           <span class="render-settings-label">{{ renderAll ? 'Render: Tudo' : 'Render' }}</span>
           <span class="render-settings-chevron">▾</span>
