@@ -13,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const activeScreenId = ref('')
+const screenHistory = ref<string[]>([])
 const availableScreens = computed(() => getRenderableUIScreenDefinitions(props.screens).filter(screen =>
   isUIVisibilityConditionMet(screen.visibilityVariable, screen.visibilityValue, props.gameVariables),
 ))
@@ -27,6 +28,7 @@ const visibleScreens = computed(() => [
 watch(navigableScreens, screens => {
   if (!screens.some(screen => screen.id === activeScreenId.value)) {
     activeScreenId.value = screens[0]?.id ?? ''
+    screenHistory.value = []
   }
 }, { immediate: true, deep: true })
 
@@ -77,8 +79,21 @@ function parseVariableValue(raw: string): string | number | boolean {
 
 function activate(element: UIElementDefinition): void {
   if (element.action === 'navigate-screen') {
-    if (navigableScreens.value.some(screen => screen.id === element.targetScreenId)) {
+    if (navigableScreens.value.some(screen => screen.id === element.targetScreenId) && element.targetScreenId !== activeScreenId.value) {
+      if (activeScreenId.value && navigableScreens.value.some(screen => screen.id === activeScreenId.value)) {
+        screenHistory.value = [...screenHistory.value, activeScreenId.value].slice(-100)
+      }
       activeScreenId.value = element.targetScreenId
+    }
+    return
+  }
+  if (element.action === 'navigate-back') {
+    while (screenHistory.value.length) {
+      const previousScreenId = screenHistory.value.pop()!
+      if (navigableScreens.value.some(screen => screen.id === previousScreenId)) {
+        activeScreenId.value = previousScreenId
+        break
+      }
     }
     return
   }
