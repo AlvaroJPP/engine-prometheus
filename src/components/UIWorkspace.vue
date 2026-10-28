@@ -498,6 +498,13 @@ function moveElement(event: PointerEvent): void {
 
 
 
+function finishElementDrag(): void {
+  dragState.value = null
+  window.removeEventListener('pointermove', moveElement)
+  window.removeEventListener('pointerup', finishElementDrag)
+  window.removeEventListener('pointercancel', finishElementDrag)
+}
+
 function chooseImage(): void {
   if (!selectedElement.value || selectedElement.value.kind !== 'image') return
   imageTargetId.value = selectedElement.value.id
