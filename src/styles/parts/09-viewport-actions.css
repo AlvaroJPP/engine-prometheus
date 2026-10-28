@@ -162,6 +162,30 @@
   .viewport-render-stats span:nth-child(n+2) { display:none; }
   .chips { left:54px !important; bottom:70px !important; }
   .axes { left:54px !important; bottom:36px !important; }
+}\n
+@container viewport-hud (max-width: 400px) {
+  .viewport-actions {
+    left: 54px;
+    right: 8px;
+    max-width: none;
+    gap: 4px;
+  }
+  .viewport-actions .quick-add-trigger,
+  .viewport-actions .model-import-launch {
+    box-sizing: border-box;
+    justify-content: center;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 !important;
+    gap: 2px;
+  }
+  .viewport-actions .viewport-action-label { display: none; }
+  .viewport-actions .quick-add-chevron { font-size: 0; }
+  .viewport-actions .quick-add-popover {
+    width: min(260px, calc(100cqw - 62px));
+    max-width: calc(100cqw - 62px);
+    box-sizing: border-box;
+  }
 }
-
-
