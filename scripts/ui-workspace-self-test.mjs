@@ -85,7 +85,7 @@ runtimeScriptEngine.load({
     conditions: [],
     actions: [{
       type: 'javascript',
-      code: "api.global.set('hud.source', api.event.get('source') ?? 'missing'); api.global.set('hud.screen', api.event.get('screenName') ?? 'missing')",
+      code: "api.global.set('hud.source', api.event.get('source') ?? 'missing'); api.global.set('hud.screen', api.event.get('screenName') ?? 'missing'); api.global.set('hud.screen_id', api.event.get('screenId') ?? 'missing'); api.global.set('hud.element_id', api.event.get('elementId') ?? 'missing'); api.global.set('hud.element', api.event.get('elementName') ?? 'missing')",
     }],
   }],
   packages: [],
@@ -93,17 +93,23 @@ runtimeScriptEngine.load({
 })
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.inventory.open', {
   source: 'hud',
+  screenId: 'screen-adventure',
   screenName: 'HUD de aventura',
+  elementId: 'button-inventory',
   elementName: 'Abrir inventário',
 }), true)
 assert.equal(runtimeScriptEngine.exportData().variables['hud.source'], 'hud')
 assert.equal(runtimeScriptEngine.exportData().variables['hud.screen'], 'HUD de aventura')
+assert.equal(runtimeScriptEngine.exportData().variables['hud.screen_id'], 'screen-adventure')
+assert.equal(runtimeScriptEngine.exportData().variables['hud.element_id'], 'button-inventory')
+assert.equal(runtimeScriptEngine.exportData().variables['hud.element'], 'Abrir inventário')
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
 const editorControllerSource = readFileSync(new URL('../src/composables/useEditor.ts', import.meta.url), 'utf8')
 const uiWorkspaceSource = readFileSync(new URL('../src/components/UIWorkspace.vue', import.meta.url), 'utf8')
 const appWorkspaceSource = readFileSync(new URL('../src/components/AppWorkspace.vue', import.meta.url), 'utf8')
+const gameUIRuntimeSource = readFileSync(new URL('../src/components/GameUIRuntime.vue', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
@@ -116,6 +122,8 @@ assert.match(uiWorkspaceSource, /requestedEventId \|\| undefined/)
 assert.match(uiWorkspaceSource, /Já existe um fluxo global/)
 assert.match(uiWorkspaceSource, /Criar fluxo global e vincular automaticamente/)
 assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogicEvent"/)
+assert.match(gameUIRuntimeSource, /source: 'hud'/)
+assert.match(gameUIRuntimeSource, /screenId, screenName, elementId, elementName/)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
