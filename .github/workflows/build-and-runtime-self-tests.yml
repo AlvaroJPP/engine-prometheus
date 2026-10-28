@@ -145,3 +145,6 @@ jobs:
 
       - name: Test component-filtered entity systems
         run: npm run entity:systems:self-test
+
+      - name: Test cached generic entity queries
+        run: npm run entity:queries:self-test
