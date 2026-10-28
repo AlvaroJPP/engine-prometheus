@@ -14,10 +14,10 @@ export interface EntityQueryEvent {
   readonly entityId: string
 }
 
-export interface EntityQuerySnapshot {
+export interface EntityQuerySnapshot<TComponents extends object = object> {
   readonly id: string
   readonly size: number
-  readonly filter: EntityQueryFilter<object>
+  readonly filter: EntityQueryFilter<TComponents>
 }
 
 interface QueryRecord<TComponents extends object> {
@@ -30,6 +30,7 @@ interface QueryRecord<TComponents extends object> {
   readonly listeners: Set<(event: EntityQueryEvent) => void>
   readonly reconciling: Set<string>
   readonly pendingSync: Set<string>
+  disposed: boolean
 }
 
 export interface EntityQueryHandle<TComponents extends object> {
@@ -81,6 +82,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
       listeners: new Set(),
       reconciling: new Set(),
       pendingSync: new Set(),
+      disposed: false,
     }
     this.queries.set(key, record)
     for (const entityId of this.entities.query([], { includeDisabled: true })) this.sync(record, entityId)
@@ -93,7 +95,9 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
       has: entityId => record.matches.has(entityId.trim()),
       subscribe: listener => {
         this.assertAvailable()
-        if (!active) throw new Error(`Entity query "${key}" has been disposed.`)
+        if (!active || record.disposed || this.queries.get(key) !== record) {
+          throw new Error(`Entity query "${key}" has been disposed.`)
+        }
         record.listeners.add(listener)
         let subscribed = true
         return () => {
@@ -106,6 +110,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
         if (!active) return
         active = false
         if (this.queries.get(key) === record) this.queries.delete(key)
+        record.disposed = true
         record.listeners.clear()
         record.matches.clear()
         record.pendingSync.clear()
@@ -114,7 +119,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
     return handle
   }
 
-  list(): EntityQuerySnapshot[] {
+  list(): EntityQuerySnapshot<TComponents>[] {
     return [...this.queries.values()]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map(record => ({
@@ -131,6 +136,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
 
   clear(): void {
     for (const record of this.queries.values()) {
+      record.disposed = true
       record.listeners.clear()
       record.matches.clear()
       record.pendingSync.clear()
