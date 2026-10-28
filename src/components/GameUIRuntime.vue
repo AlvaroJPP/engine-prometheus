@@ -36,6 +36,10 @@ function elementStyle(screen: UIScreenDefinition, element: UIElementDefinition):
     color: element.color,
     backgroundColor: element.kind === 'text' ? 'transparent' : element.background,
     fontSize: `${(element.fontSize / screen.width * 100).toFixed(3)}cqw`,
+    fontWeight: String(element.fontWeight),
+    textAlign: element.textAlign,
+    justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
+    opacity: String(element.opacity),
     borderRadius: `${element.borderRadius}px`,
   }
 }
@@ -91,14 +95,14 @@ function activate(element: UIElementDefinition): void {
         <template v-if="element.kind === 'panel'">{{ element.text }}</template>
         <template v-else-if="element.kind === 'text'">{{ element.text }}</template>
         <template v-else-if="element.kind === 'image'">
-          <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" />
+          <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" :style="{ objectFit: element.imageFit }" />
           <span v-else>{{ element.text }}</span>
         </template>
         <template v-else-if="element.kind === 'progress'">
           <span class="game-ui-progress-fill" :style="{ width: progressPercent(element) + '%', backgroundColor: element.color }" />
           <span class="game-ui-progress-caption">{{ element.text || element.variableName }} <small v-if="progressLabel(element)">{{ progressLabel(element) }}</small></span>
         </template>
-        <button v-else type="button" class="game-ui-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px' }" @pointerdown.stop @click.stop="activate(element)">
+        <button v-else type="button" class="game-ui-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontWeight: element.fontWeight, textAlign: element.textAlign }" @pointerdown.stop @click.stop="activate(element)">
           {{ element.text || 'Botão' }}
         </button>
       </div>
