@@ -12,7 +12,9 @@ import {
   duplicateUIElement,
   getClampedUIElementPosition,
   reorderUIElement,
+  resizeUIElements,
   type UIElementDefinition,
+  type UIElementRect,
   type UIElementKind,
   type UIElementGroupAlignment,
   type UIScreenPresetId,
@@ -32,12 +34,31 @@ const statusMessage = ref('As alterações são incluídas ao salvar o projeto.'
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const imageTargetId = ref('')
+type UIResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 const dragState = ref<{
   startX: number
   startY: number
   width: number
   height: number
   origins: Array<{ id: string; x: number; y: number; width: number; height: number }>
+} | null>(null)
+const marqueeSelection = ref<{
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  additive: boolean
+  originalIds: string[]
+} | null>(null)
+const selectionResize = ref<{
+  handle: UIResizeHandle
+  startX: number
+  startY: number
+  stageWidth: number
+  stageHeight: number
+  originBounds: UIElementRect
+  elementIds: string[]
+  originalElements: UIElementDefinition[]
 } | null>(null)
 const clipboardElement = ref<UIElementDefinition[] | null>(null)
 const canUndo = ref(false)
@@ -84,6 +105,8 @@ function restoreWorkspaceSnapshot(snapshot: UIWorkspaceSnapshot): void {
     : uiWorkspaceState.screens[0]?.id ?? ''
   clearSelection()
   finishElementDrag()
+  cancelCanvasSelection()
+  finishSelectionResize()
   refreshHistoryAvailability()
   void nextTick(() => {
     restoringHistory = false
@@ -124,6 +147,47 @@ const selectionGroupId = computed(() => {
 const activeElementIndex = computed(() =>
   activeScreen.value?.elements.findIndex(element => element.id === selectedElementId.value) ?? -1,
 )
+const selectionBounds = computed<UIElementRect | null>(() => {
+  const elements = selectedElements.value
+  if (!elements.length) return null
+  const left = Math.min(...elements.map(element => element.x))
+  const top = Math.min(...elements.map(element => element.y))
+  const right = Math.max(...elements.map(element => element.x + element.width))
+  const bottom = Math.max(...elements.map(element => element.y + element.height))
+  return { x: left, y: top, width: right - left, height: bottom - top }
+})
+const selectionFrameStyle = computed(() => {
+  const bounds = selectionBounds.value
+  return bounds ? {
+    left: `${bounds.x}%`,
+    top: `${bounds.y}%`,
+    width: `${bounds.width}%`,
+    height: `${bounds.height}%`,
+  } : {}
+})
+const marqueeStyle = computed(() => {
+  const rect = marqueeSelection.value
+  if (!rect) return {}
+  return {
+    left: `${Math.min(rect.startX, rect.endX)}%`,
+    top: `${Math.min(rect.startY, rect.endY)}%`,
+    width: `${Math.abs(rect.endX - rect.startX)}%`,
+    height: `${Math.abs(rect.endY - rect.startY)}%`,
+  }
+})
+
+function clampPercent(value: number, minimum = 0, maximum = 100): number {
+  return Math.max(minimum, Math.min(maximum, value))
+}
+
+function pointerPercentPosition(event: PointerEvent): { x: number; y: number } | null {
+  const bounds = canvasStage.value?.getBoundingClientRect()
+  if (!bounds || !bounds.width || !bounds.height) return null
+  return {
+    x: clampPercent((event.clientX - bounds.left) / bounds.width * 100),
+    y: clampPercent((event.clientY - bounds.top) / bounds.height * 100),
+  }
+}
 
 function setSelection(ids: string[], primaryId = ''): void {
   const screen = activeScreen.value
@@ -143,6 +207,137 @@ function elementSelectionIds(id: string): string[] {
   const element = screen?.elements.find(item => item.id === id)
   if (!screen || !element?.groupId) return [id]
   return screen.elements.filter(item => item.groupId === element.groupId).map(item => item.id)
+}
+
+function beginCanvasSelection(event: PointerEvent): void {
+  if (previewMode.value || event.button !== 0 || event.target !== canvasStage.value) return
+  const point = pointerPercentPosition(event)
+  if (!point) return
+  event.preventDefault()
+  const additive = event.shiftKey || event.ctrlKey || event.metaKey
+  marqueeSelection.value = {
+    startX: point.x,
+    startY: point.y,
+    endX: point.x,
+    endY: point.y,
+    additive,
+    originalIds: additive ? [...selectedElementIds.value] : [],
+  }
+  window.addEventListener('pointermove', moveCanvasSelection)
+  window.addEventListener('pointerup', finishCanvasSelection)
+  window.addEventListener('pointercancel', finishCanvasSelection)
+}
+
+function moveCanvasSelection(event: PointerEvent): void {
+  const selection = marqueeSelection.value
+  const point = pointerPercentPosition(event)
+  if (!selection || !point) return
+  selection.endX = point.x
+  selection.endY = point.y
+}
+
+function detachCanvasSelectionListeners(): void {
+  window.removeEventListener('pointermove', moveCanvasSelection)
+  window.removeEventListener('pointerup', finishCanvasSelection)
+  window.removeEventListener('pointercancel', finishCanvasSelection)
+}
+
+function cancelCanvasSelection(): void {
+  detachCanvasSelectionListeners()
+  marqueeSelection.value = null
+}
+
+function finishCanvasSelection(): void {
+  const selection = marqueeSelection.value
+  detachCanvasSelectionListeners()
+  marqueeSelection.value = null
+  const screen = activeScreen.value
+  if (!selection || !screen) return
+
+  const left = Math.min(selection.startX, selection.endX)
+  const right = Math.max(selection.startX, selection.endX)
+  const top = Math.min(selection.startY, selection.endY)
+  const bottom = Math.max(selection.startY, selection.endY)
+  const hasArea = right - left > 0.15 || bottom - top > 0.15
+  const hits = hasArea ? screen.elements.filter(element =>
+    element.x <= right &&
+    element.x + element.width >= left &&
+    element.y <= bottom &&
+    element.y + element.height >= top,
+  ).map(element => element.id) : []
+  const nextIds = [...new Set([...(selection.additive ? selection.originalIds : []), ...hits])]
+  setSelection(nextIds, hits.at(-1) ?? nextIds.at(-1) ?? '')
+}
+
+function beginSelectionResize(event: PointerEvent, handle: UIResizeHandle): void {
+  if (previewMode.value || event.button !== 0) return
+  const screen = activeScreen.value
+  const bounds = canvasStage.value?.getBoundingClientRect()
+  const originBounds = selectionBounds.value
+  if (!screen || !bounds || !bounds.width || !bounds.height || !originBounds) return
+  event.preventDefault()
+  event.stopPropagation()
+  selectionResize.value = {
+    handle,
+    startX: event.clientX,
+    startY: event.clientY,
+    stageWidth: bounds.width,
+    stageHeight: bounds.height,
+    originBounds: { ...originBounds },
+    elementIds: [...selectedElementIds.value],
+    originalElements: screen.elements.map(element => ({ ...element })),
+  }
+  window.addEventListener('pointermove', moveSelectionResize)
+  window.addEventListener('pointerup', finishSelectionResize)
+  window.addEventListener('pointercancel', finishSelectionResize)
+}
+
+function moveSelectionResize(event: PointerEvent): void {
+  const resize = selectionResize.value
+  const screen = activeScreen.value
+  if (!resize || !screen) return
+
+  const dx = (event.clientX - resize.startX) / resize.stageWidth * 100
+  const dy = (event.clientY - resize.startY) / resize.stageHeight * 100
+  const bounds = resize.originBounds
+  const originalRight = bounds.x + bounds.width
+  const originalBottom = bounds.y + bounds.height
+  let left = bounds.x
+  let right = originalRight
+  let top = bounds.y
+  let bottom = originalBottom
+
+  if (resize.handle.includes('w')) left = clampPercent(bounds.x + dx, 0, right - 1)
+  if (resize.handle.includes('e')) right = clampPercent(originalRight + dx, left + 1, 100)
+  if (resize.handle.includes('n')) top = clampPercent(bounds.y + dy, 0, bottom - 1)
+  if (resize.handle.includes('s')) bottom = clampPercent(originalBottom + dy, top + 1, 100)
+
+  const targetBounds: UIElementRect = {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }
+  const resized = resizeUIElements(
+    resize.originalElements,
+    resize.elementIds,
+    resize.originBounds,
+    targetBounds,
+  )
+  const resizedById = new Map(resized.map(element => [element.id, element]))
+  const ids = new Set(resize.elementIds)
+  for (const element of screen.elements) {
+    if (!ids.has(element.id)) continue
+    const next = resizedById.get(element.id)
+    if (next) Object.assign(element, { x: next.x, y: next.y, width: next.width, height: next.height })
+  }
+}
+
+function finishSelectionResize(): void {
+  selectionResize.value = null
+  window.removeEventListener('pointermove', moveSelectionResize)
+  window.removeEventListener('pointerup', finishSelectionResize)
+  window.removeEventListener('pointercancel', finishSelectionResize)
 }
 
 function selectElement(id: string, extend = false): void {
@@ -364,7 +559,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     copyElement()
     return
   }
-  if (modifier && clipboardElement.value?.length && activeScreen.value && !previewMode.value) {
+  if (modifier && key === 'v' && clipboardElement.value?.length && activeScreen.value && !previewMode.value) {
     event.preventDefault()
     pasteElement()
     return
@@ -564,6 +759,8 @@ onBeforeUnmount(() => {
   historyTimer = null
   window.removeEventListener('keydown', handleKeyboardShortcut)
   finishElementDrag()
+  cancelCanvasSelection()
+  finishSelectionResize()
 })
 </script>
 
@@ -663,6 +860,7 @@ onBeforeUnmount(() => {
               class="ui-screen-stage"
               :class="{ 'is-previewing': previewMode, 'grid-visible': showGrid }"
               :style="{ backgroundColor: activeScreen.background }"
+              @pointerdown="beginCanvasSelection"
             >
               <div class="ui-stage-grid" aria-hidden="true" />
               <div
@@ -689,8 +887,23 @@ onBeforeUnmount(() => {
                   <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit', fontWeight: element.fontWeight, textAlign: element.textAlign }">{{ element.text || 'Botão' }}</button>
                 </template>
                 <template v-else><span class="ui-element-label">{{ element.text }}</span></template>
-                <span v-if="!previewMode && selectedElementIds.includes(element.id)" class="ui-selection-box"><i /><i /><i /><i /></span>
               </div>
+              <div
+                v-if="!previewMode && selectionBounds"
+                class="ui-multi-selection-frame"
+                :style="selectionFrameStyle"
+                aria-label="Redimensionar seleção"
+              >
+                <button type="button" class="ui-resize-handle handle-nw" aria-label="Redimensionar pelo canto superior esquerdo" @pointerdown.stop.prevent="beginSelectionResize($event, 'nw')" />
+                <button type="button" class="ui-resize-handle handle-n" aria-label="Redimensionar pela borda superior" @pointerdown.stop.prevent="beginSelectionResize($event, 'n')" />
+                <button type="button" class="ui-resize-handle handle-ne" aria-label="Redimensionar pelo canto superior direito" @pointerdown.stop.prevent="beginSelectionResize($event, 'ne')" />
+                <button type="button" class="ui-resize-handle handle-e" aria-label="Redimensionar pela borda direita" @pointerdown.stop.prevent="beginSelectionResize($event, 'e')" />
+                <button type="button" class="ui-resize-handle handle-se" aria-label="Redimensionar pelo canto inferior direito" @pointerdown.stop.prevent="beginSelectionResize($event, 'se')" />
+                <button type="button" class="ui-resize-handle handle-s" aria-label="Redimensionar pela borda inferior" @pointerdown.stop.prevent="beginSelectionResize($event, 's')" />
+                <button type="button" class="ui-resize-handle handle-sw" aria-label="Redimensionar pelo canto inferior esquerdo" @pointerdown.stop.prevent="beginSelectionResize($event, 'sw')" />
+                <button type="button" class="ui-resize-handle handle-w" aria-label="Redimensionar pela borda esquerda" @pointerdown.stop.prevent="beginSelectionResize($event, 'w')" />
+              </div>
+              <div v-if="marqueeSelection && !previewMode" class="ui-selection-marquee" :style="marqueeStyle" aria-hidden="true" />
               <div v-if="!activeScreen.elements.length" class="ui-empty-canvas">
                 <span>＋</span><strong>Sua tela começa aqui</strong><small>Adicione textos, botões, painéis, imagens ou barras no topo.</small>
               </div>
