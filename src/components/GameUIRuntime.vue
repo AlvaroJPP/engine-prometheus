@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { getRenderableUIScreenDefinitions } from '@engine'
 import type { UIScreenDefinition, UIElementDefinition } from '@engine'
 
 const props = defineProps<{
@@ -11,7 +12,7 @@ const emit = defineEmits<{
 }>()
 
 const activeScreenId = ref('')
-const availableScreens = computed(() => props.screens.filter(screen => screen.enabledInGame))
+const availableScreens = computed(() => getRenderableUIScreenDefinitions(props.screens))
 const navigableScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode !== 'overlay'))
 const overlayScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode === 'overlay'))
 const activeScreen = computed(() => navigableScreens.value.find(screen => screen.id === activeScreenId.value) ?? null)
