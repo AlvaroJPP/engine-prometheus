@@ -27,6 +27,7 @@ interface QueryRecord<TComponents extends object> {
   readonly anyOf: readonly EntityComponentKey<TComponents>[]
   readonly noneOf: readonly EntityComponentKey<TComponents>[]
   readonly matches: Set<string>
+  orderedMatches: string[] | null
   readonly listeners: Set<(event: EntityQueryEvent) => void>
   readonly reconciling: Set<string>
   readonly pendingSync: Set<string>
@@ -79,6 +80,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
       anyOf,
       noneOf,
       matches: new Set(),
+      orderedMatches: null,
       listeners: new Set(),
       reconciling: new Set(),
       pendingSync: new Set(),
@@ -91,7 +93,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
     const handle: EntityQueryHandle = {
       id: key,
       get size() { return record.matches.size },
-      getEntities: () => [...record.matches].sort(),
+      getEntities: () => [...this.getOrderedMatches(record)],
       has: entityId => record.matches.has(entityId.trim()),
       subscribe: listener => {
         this.assertAvailable()
@@ -113,6 +115,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
         record.disposed = true
         record.listeners.clear()
         record.matches.clear()
+        record.orderedMatches = null
         record.pendingSync.clear()
       },
     }
@@ -139,6 +142,7 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
       record.disposed = true
       record.listeners.clear()
       record.matches.clear()
+      record.orderedMatches = null
       record.pendingSync.clear()
     }
     this.queries.clear()
@@ -210,13 +214,22 @@ export class EntityQueryRuntime<TComponents extends object = Record<string, unkn
     return !record.noneOf.some(type => this.entities.hasComponent(entityId, type))
   }
 
+  private getOrderedMatches(record: QueryRecord<TComponents>): readonly string[] {
+    if (record.orderedMatches === null) {
+      record.orderedMatches = [...record.matches].sort()
+    }
+    return record.orderedMatches
+  }
+
   private enter(record: QueryRecord<TComponents>, entityId: string): void {
     record.matches.add(entityId)
+    record.orderedMatches = null
     this.emit(record, { type: 'enter', queryId: record.id, entityId })
   }
 
   private leave(record: QueryRecord<TComponents>, entityId: string): void {
     if (!record.matches.delete(entityId)) return
+    record.orderedMatches = null
     this.emit(record, { type: 'exit', queryId: record.id, entityId })
   }
 
