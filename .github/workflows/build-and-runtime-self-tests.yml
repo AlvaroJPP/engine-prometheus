@@ -142,3 +142,6 @@ jobs:
 
       - name: Test entity behavior module integration
         run: npm run entity:game-module:self-test
+
+      - name: Test component-filtered entity systems
+        run: npm run entity:systems:self-test
