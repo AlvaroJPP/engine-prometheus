@@ -18,7 +18,7 @@ VEILBORNE é um jogo de fantasia sombria feito sobre o Engine Prometheus. As reg
 
 ## Integração preferida: host de jogo
 
-Em uma aplicação que já criou a instância de `Engine`, monte o host do pacote e passe os dados reativos que a própria aplicação mantém:
+Em uma aplicação que já criou a instância de `Engine`, monte o host do pacote para registrar o módulo de gameplay:
 
 ```vue
 <script setup lang="ts">
@@ -40,8 +40,6 @@ O host também aceita controles defensivos personalizados, quando necessário:
 ```vue
 <VeilborneGameHost
   :engine="engine"
-  :bindings="activeBindings"
-  :game-variables="globalVariables"
   :controls="{ block: 'KeyR', parry: 'KeyY', targetLock: 'KeyO' }"
 />
 ```
