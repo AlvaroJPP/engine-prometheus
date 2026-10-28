@@ -243,6 +243,44 @@ export function resizeUIElements(
   })
 }
 
+/** Distributes at least three selected elements with equal gaps along one axis. */
+export function distributeUIElements(
+  elements: readonly UIElementDefinition[],
+  elementIds: readonly string[],
+  axis: UIElementAxis,
+): readonly UIElementDefinition[] {
+  const selectedIds = new Set(elementIds)
+  const selected = elements.filter(element => selectedIds.has(element.id))
+  if (selected.length < 3) return elements
+
+  const coordinate = axis === 'horizontal' ? 'x' : 'y'
+  const size = axis === 'horizontal' ? 'width' : 'height'
+  const ordered = [...selected].sort((a, b) => a[coordinate] - b[coordinate])
+  const start = Math.min(...ordered.map(element => element[coordinate]))
+  const end = Math.max(...ordered.map(element => element[coordinate] + element[size]))
+  const totalSize = ordered.reduce((total, element) => total + clamp(element[size], 1, 100), 0)
+  const gap = (end - start - totalSize) / (ordered.length - 1)
+
+  // Equal gaps cannot be achieved without overlap if the content is wider/taller than its bounds.
+  if (gap < -0.001) return elements
+
+  const positions = new Map<string, number>()
+  let cursor = start
+  for (const element of ordered) {
+    positions.set(element.id, Number(cursor.toFixed(2)))
+    cursor += clamp(element[size], 1, 100) + gap
+  }
+
+  return elements.map(element => {
+    if (!selectedIds.has(element.id)) return element
+    const position = positions.get(element.id)
+    if (position === undefined) return element
+    const x = axis === 'horizontal' ? position : element.x
+    const y = axis === 'vertical' ? position : element.y
+    return { ...element, ...getClampedUIElementPosition(element, x, y) }
+  })
+}
+
 /** Reorders a layer by one position; the last array entry is rendered on top. */
 export function reorderUIElement(
   elements: readonly UIElementDefinition[],
