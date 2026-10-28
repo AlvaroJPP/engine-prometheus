@@ -12,6 +12,9 @@ gameplay.statuses.apply('player', 'regeneration', 2, { tickIntervalSeconds: 1 })
 gameplay.cooldowns.start('player::dash', 3)
 gameplay.objectives.register({ id: 'intro' })
 gameplay.entities.defineComponent('runtime-test')
+const queryCalls = []
+const runtimeQuery = gameplay.queries.create('runtime-test-query', { allOf: ['runtime-test'] })
+runtimeQuery.subscribe(event => queryCalls.push([event.type, event.entityId]))
 gameplay.entities.create('player')
 gameplay.entities.addComponent('player', 'runtime-test', { ready: true })
 const systemCalls = []
@@ -58,6 +61,8 @@ assert.deepEqual(systemCalls, [
   ['update', 1, 'player', true],
 ])
 assert.deepEqual(entityBehaviorTicks, [[1, 'player', true]])
+assert.deepEqual(queryCalls, [['enter', 'player']])
+assert.equal(runtimeQuery.has('player'), true)
 
 const cleanup = gameplay.removeEntity('player')
 assert.deepEqual(cleanup, {
@@ -74,8 +79,11 @@ assert.equal(gameplay.resources.get('player', 'energy'), undefined)
 assert.equal(gameplay.statuses.has('player', 'regeneration'), false)
 assert.equal(gameplay.cooldowns.isReady('player::dash'), true)
 assert.deepEqual(systemCalls.at(-1), ['exit', 'player', true], 'system cleanup should run before the indexed world entity is removed')
+assert.deepEqual(queryCalls, [['enter', 'player'], ['exit', 'player']])
+assert.equal(runtimeQuery.has('player'), false)
 assert.equal(gameplay.removeEntity('player').entityRemoved, false)
 dispose()
+runtimeQuery.dispose()
 gameplay.clear()
 assert.equal(gameplay.world.size, 0)
 assert.equal(gameplay.objectives.size, 0)
