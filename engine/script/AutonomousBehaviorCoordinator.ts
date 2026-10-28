@@ -25,7 +25,11 @@ export class AutonomousBehaviorCoordinator {
   private readonly behaviorSystem = new AutonomousBehaviorSystem()
   private readonly pathfinder = new GridPathfinder()
 
-  constructor(private readonly dependencies: AutonomousBehaviorCoordinatorDependencies) {}
+  private readonly dependencies: AutonomousBehaviorCoordinatorDependencies
+
+  constructor(dependencies: AutonomousBehaviorCoordinatorDependencies) {
+    this.dependencies = dependencies
+  }
 
   update(dt: number): void {
     const { world, logic, collisions, avatar, isRuntimeActive } = this.dependencies
