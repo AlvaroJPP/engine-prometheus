@@ -931,6 +931,10 @@ function activatePreviewElement(element: UIElementDefinition): void {
     }
   } else if (element.action === 'set-variable') {
     statusMessage.value = `Prévia: o botão definiria “${element.variableName || 'variável'}” como “${element.variableValue}” durante o jogo.`
+  } else if (element.action === 'trigger-event') {
+    statusMessage.value = element.eventId.trim()
+      ? `Prévia: o botão dispararia o evento global “${element.eventId}” do Visual Script.`
+      : 'Configure um identificador de evento global para conectar este botão ao Visual Script.'
   }
 }
 
@@ -1287,6 +1291,7 @@ onBeforeUnmount(() => {
                   <option value="none">Nenhuma ação</option>
                   <option value="navigate-screen">Abrir outra tela</option>
                   <option value="set-variable">Definir variável global</option>
+                  <option value="trigger-event">Disparar evento do Visual Script</option>
                 </select>
               </label>
               <label v-if="selectedElement.action === 'navigate-screen'" class="ui-field">Tela de destino
@@ -1294,6 +1299,10 @@ onBeforeUnmount(() => {
                   <option value="">Selecione uma tela</option>
                   <option v-for="screen in uiWorkspaceState.screens" :key="screen.id" :value="screen.id">{{ screen.name }}</option>
                 </select>
+              </label>
+              <label v-if="selectedElement.action === 'trigger-event'" class="ui-field">Evento global do Visual Script
+                <input v-model.trim="selectedElement.eventId" maxlength="100" placeholder="hud.inventory.open" />
+                <small class="ui-field-help">O botão dispara esse evento durante o Run. Crie um fluxo com o mesmo identificador no Visual Script.</small>
               </label>
               <template v-if="selectedElement.action === 'set-variable'">
                 <label class="ui-field">Nome da variável
