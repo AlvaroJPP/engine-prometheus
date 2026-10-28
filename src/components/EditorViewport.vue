@@ -45,7 +45,7 @@ function setExternalRef(name: string, element: unknown): void {
         />
         <div class="viewport-actions" aria-label="Ações rápidas da cena">
           <div class="quick-add-wrap">
-            <button class="quick-add-trigger" :aria-expanded="ctx.quickAddOpen" title="Adicionar objetos à cena." data-tooltip="Crie primitivas, plataformas, ponto inicial do jogador e exemplos interativos." @click.stop="ctx.quickAddOpen = !ctx.quickAddOpen"><span>＋</span> Adicionar <span class="quick-add-chevron">▾</span></button>
+            <button class="quick-add-trigger" :aria-expanded="ctx.quickAddOpen" aria-label="Adicionar objetos à cena" title="Adicionar objetos à cena." data-tooltip="Crie primitivas, plataformas, ponto inicial do jogador e exemplos interativos." @click.stop="ctx.quickAddOpen = !ctx.quickAddOpen"><span aria-hidden="true">＋</span><span class="viewport-action-label">Adicionar</span><span class="quick-add-chevron" aria-hidden="true">▾</span></button>
             <div v-if="ctx.quickAddOpen" class="quick-add-popover" @click.stop>
               <div class="quick-add-heading">CRIAR NA CENA</div>
               <button title="Adiciona um cubo à cena. Atalho indicado: 1." @click="ctx.addPrimitive('cube'); ctx.quickAddOpen = false"><span class="quick-add-icon">◇</span><span><strong>Cubo</strong><small>Objeto geométrico</small></span><kbd>1</kbd></button>
@@ -54,7 +54,7 @@ function setExternalRef(name: string, element: unknown): void {
               <button title="Cria um objeto de exemplo com evento de clique para testar o Visual Script." @click="ctx.addClickableCubeExample(); ctx.quickAddOpen = false"><span class="quick-add-icon">⌘</span><span><strong>Exemplo interativo</strong><small>Objeto com evento de clique</small></span></button>
             </div>
           </div>
-          <button class="model-import-launch" title="Importa arquivos 3D, configura o modelo e as animações antes de salvar na biblioteca." aria-label="Importar modelo 3D" @click="ctx.previewComponentAsset = null; ctx.modelImportOpen = true"><span aria-hidden="true">＋</span> Importar 3D</button>
+          <button class="model-import-launch" title="Importa arquivos 3D, configura o modelo e as animações antes de salvar na biblioteca." aria-label="Importar modelo 3D" @click="ctx.previewComponentAsset = null; ctx.modelImportOpen = true"><span aria-hidden="true">＋</span><span class="viewport-action-label">Importar 3D</span></button>
         </div>
         <div v-if="!ctx.modelImportOpen && ctx.executionMode !== 'running'" class="viewport-fps viewport-layout-positioned" :style="ctx.viewportLayoutStyle('fps')" aria-label="Diagnóstico de renderização">
           <div class="viewport-fps-head" :class="{ 'fps-low': ctx.fps > 0 && ctx.fps < 30, 'fps-medium': ctx.fps >= 30 && ctx.fps < 50 }">
