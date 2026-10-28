@@ -11,6 +11,7 @@ import {
   alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
+  getUIElementIdsInRect,
   reorderUIElement,
   resizeUIElements,
   type UIElementDefinition,
@@ -259,12 +260,12 @@ function finishCanvasSelection(): void {
   const top = Math.min(selection.startY, selection.endY)
   const bottom = Math.max(selection.startY, selection.endY)
   const hasArea = right - left > 0.15 || bottom - top > 0.15
-  const hits = hasArea ? screen.elements.filter(element =>
-    element.x <= right &&
-    element.x + element.width >= left &&
-    element.y <= bottom &&
-    element.y + element.height >= top,
-  ).map(element => element.id) : []
+  const hits = hasArea ? getUIElementIdsInRect(screen.elements, {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }) : []
   const hitIds = new Set(hits)
   for (const id of hits) {
     const hit = screen.elements.find(element => element.id === id)
