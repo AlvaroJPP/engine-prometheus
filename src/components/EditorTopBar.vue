@@ -228,7 +228,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </button>
     </div>
 
-    <div class="viewport-tools-overlay viewport-layout-positioned" :style="viewportLayoutStyle" role="toolbar" aria-label="Controles da visualização do mundo">
+    <Teleport to=".viewport" defer>
+      <div class="viewport-tools-overlay viewport-layout-positioned" :style="viewportLayoutStyle" role="toolbar" aria-label="Controles da visualização do mundo">
       <div class="viewport-camera-switch" role="group" aria-label="Câmera">
         <button class="viewport-tool" :class="{ active: firstPersonMode }" type="button" :aria-pressed="firstPersonMode" title="Alterna a visão em primeira pessoa." @click="emit('toggle-first-person')">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" /><circle cx="8" cy="8" r="1.8" /></svg>
@@ -243,7 +244,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <details class="render-settings">
       <summary class="cam render-settings-trigger" :class="{ active: renderAll }" title="Configurar a renderização geral do mundo">
         <span class="render-settings-icon" aria-hidden="true"></span>
-        {{ renderAll ? 'Render: Tudo' : 'Render' }}
+        <span class="render-settings-label">{{ renderAll ? 'Render: Tudo' : 'Render' }}</span>
         <span class="render-settings-chevron">▾</span>
       </summary>
       <div class="render-settings-popover">
@@ -384,7 +385,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></svg>
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3M16 3v5h5M8 21v-5H3M21 16h-5v5" /></svg>
       </button>
-    </div>
+      </div>
+    </Teleport>
   </header>
 </template>
 
