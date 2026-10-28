@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   createUIScreen,
   createUIElement,
   createUIScreenId,
   createUIScreenFromPreset,
   UI_SCREEN_PRESETS,
+  UIWorkspaceHistory,
   alignUIElement,
   duplicateUIElement,
   getClampedUIElementPosition,
@@ -13,6 +14,7 @@ import {
   type UIElementDefinition,
   type UIElementKind,
   type UIScreenPresetId,
+  type UIWorkspaceSnapshot,
 } from '@engine'
 import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 
@@ -28,6 +30,88 @@ const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const imageTargetId = ref('')
 const dragState = ref<{ id: string; startX: number; startY: number; originX: number; originY: number; width: number; height: number } | null>(null)
+const clipboardElement = ref<UIElementDefinition | null>(null)
+const canUndo = ref(false)
+const canRedo = ref(false)
+const editHistory = new UIWorkspaceHistory(40)
+let historyReady = false
+let restoringHistory = false
+let historyTimer: ReturnType<typeof setTimeout> | null = null
+
+function workspaceSnapshot(): UIWorkspaceSnapshot {
+  return {
+    screens: JSON.parse(JSON.stringify(uiWorkspaceState.screens)) as typeof uiWorkspaceState.screens,
+    activeScreenId: uiWorkspaceState.activeScreenId,
+  }
+}
+
+function refreshHistoryAvailability(): void {
+  canUndo.value = editHistory.canUndo
+  canRedo.value = editHistory.canRedo
+}
+
+function captureHistoryNow(): void {
+  if (historyTimer) clearTimeout(historyTimer)
+  historyTimer = null
+  if (!historyReady || restoringHistory) return
+  editHistory.record(workspaceSnapshot())
+  refreshHistoryAvailability()
+}
+
+function scheduleHistoryCapture(): void {
+  if (!historyReady || restoringHistory) return
+  if (historyTimer) clearTimeout(historyTimer)
+  historyTimer = setTimeout(captureHistoryNow, 300)
+}
+
+function restoreWorkspaceSnapshot(snapshot: UIWorkspaceSnapshot): void {
+  if (historyTimer) clearTimeout(historyTimer)
+  historyTimer = null
+  restoringHistory = true
+  uiWorkspaceState.screens = JSON.parse(JSON.stringify(snapshot.screens)) as typeof uiWorkspaceState.screens
+  uiWorkspaceState.activeScreenId = uiWorkspaceState.screens.some(screen => screen.id === snapshot.activeScreenId)
+    ? snapshot.activeScreenId
+    : uiWorkspaceState.screens[0]?.id ?? ''
+  selectedElementId.value = ''
+  finishElementDrag()
+  refreshHistoryAvailability()
+  void nextTick(() => {
+    restoringHistory = false
+  })
+}
+
+function undoWorkspace(): void {
+  captureHistoryNow()
+  const snapshot = editHistory.undo()
+  if (!snapshot) return
+  restoreWorkspaceSnapshot(snapshot)
+  statusMessage.value = 'Última alteração desfeita.'
+}
+
+function redoWorkspace(): void {
+  captureHistoryNow()
+  const snapshot = editHistory.redo()
+  if (!snapshot) return
+  restoreWorkspaceSnapshot(snapshot)
+  statusMessage.value = 'Alteração refeita.'
+}
+
+function copyElement(): void {
+  if (!selectedElement.value) return
+  clipboardElement.value = JSON.parse(JSON.stringify(selectedElement.value)) as UIElementDefinition
+  statusMessage.value = 'Elemento copiado. Troque de tela e use Colar para reutilizá-lo.'
+}
+
+function pasteElement(): void {
+  const screen = activeScreen.value
+  const source = clipboardElement.value
+  if (!screen || !source || previewMode.value) return
+  const pasted = duplicateUIElement(source, screen.elements.length)
+  pasted.name = (source.name + ' - cópia').slice(0, 80)
+  screen.elements.push(pasted)
+  selectedElementId.value = pasted.id
+  statusMessage.value = 'Elemento colado em "' + screen.name + '".'
+}
 
 const activeScreen = computed(() =>
   uiWorkspaceState.screens.find(screen => screen.id === uiWorkspaceState.activeScreenId) ?? null,
@@ -42,6 +126,8 @@ const activeElementIndex = computed(() =>
 watch(() => uiWorkspaceState.activeScreenId, () => {
   selectedElementId.value = ''
 })
+
+watch(() => uiWorkspaceState.screens, scheduleHistoryCapture, { deep: true, flush: 'post' })
 
 function createScreen(): void {
   const screen = createUIScreen(`Tela ${uiWorkspaceState.screens.length + 1}`)
@@ -140,7 +226,30 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   )) return
 
   const key = event.key.toLowerCase()
-  if ((event.ctrlKey || event.metaKey) && key === 'd') {
+  const modifier = event.ctrlKey || event.metaKey
+
+  if (modifier && key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) redoWorkspace()
+    else undoWorkspace()
+    return
+  }
+  if (modifier && key === 'y') {
+    event.preventDefault()
+    redoWorkspace()
+    return
+  }
+  if (modifier && key === 'c' && selectedElement.value && !previewMode.value) {
+    event.preventDefault()
+    copyElement()
+    return
+  }
+  if (modifier && key === 'v' && clipboardElement.value && activeScreen.value && !previewMode.value) {
+    event.preventDefault()
+    pasteElement()
+    return
+  }
+  if (modifier && key === 'd') {
     if (!previewMode.value && selectedElement.value) {
       event.preventDefault()
       duplicateElement()
@@ -290,8 +399,16 @@ function activatePreviewElement(element: UIElementDefinition): void {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeyboardShortcut))
+onMounted(() => {
+  editHistory.reset(workspaceSnapshot())
+  historyReady = true
+  refreshHistoryAvailability()
+  window.addEventListener('keydown', handleKeyboardShortcut)
+})
 onBeforeUnmount(() => {
+  historyReady = false
+  if (historyTimer) clearTimeout(historyTimer)
+  historyTimer = null
   window.removeEventListener('keydown', handleKeyboardShortcut)
   finishElementDrag()
 })
@@ -306,6 +423,9 @@ onBeforeUnmount(() => {
       </div>
       <div class="ui-workspace-header-actions">
         <span class="ui-save-hint"><i /> {{ statusMessage }}</span>
+        <button type="button" class="ui-header-button" :disabled="!canUndo" title="Desfazer (Ctrl+Z)" @click="undoWorkspace">↶ Desfazer</button>
+        <button type="button" class="ui-header-button" :disabled="!canRedo" title="Refazer (Ctrl+Y)" @click="redoWorkspace">↷ Refazer</button>
+        <button type="button" class="ui-header-button" :disabled="!clipboardElement || !activeScreen || previewMode" title="Colar elemento (Ctrl+V)" @click="pasteElement">Colar</button>
         <button type="button" class="ui-header-button" @click="previewMode = !previewMode">{{ previewMode ? 'Voltar a editar' : 'Prévia' }}</button>
         <button type="button" class="ui-close-button" aria-label="Fechar Workspace de UI" title="Voltar ao editor 3D" @click="emit('close')">×</button>
       </div>
@@ -363,6 +483,7 @@ onBeforeUnmount(() => {
         </div>
         <div v-if="selectedElement && !previewMode" class="ui-selection-toolbar" aria-label="Ações do elemento selecionado">
           <span>{{ selectedElement.name }}</span>
+          <button type="button" title="Copiar (Ctrl+C)" @click="copyElement">Copiar</button>
           <button type="button" title="Duplicar (Ctrl+D)" @click="duplicateElement">Duplicar</button>
           <button type="button" title="Trazer uma camada para frente" :disabled="activeElementIndex >= (activeScreen?.elements.length ?? 0) - 1" @click="moveSelectedLayer('front')">↑ Frente</button>
           <button type="button" title="Enviar uma camada para trás" :disabled="activeElementIndex <= 0" @click="moveSelectedLayer('back')">↓ Atrás</button>
