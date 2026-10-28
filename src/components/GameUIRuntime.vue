@@ -33,6 +33,11 @@ function elementStyle(screen: UIScreenDefinition, element: UIElementDefinition):
   }
 }
 
+function progressLabel(element: UIElementDefinition): string {
+  const value = props.gameVariables[element.variableName]
+  return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value)) : ''
+}
+
 function progressPercent(element: UIElementDefinition): number {
   const value = props.gameVariables[element.variableName]
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0
@@ -64,7 +69,7 @@ function activate(element: UIElementDefinition): void {
   <div v-if="activeScreen" class="game-ui-runtime" aria-label="Interface do jogo">
     <div class="game-ui-surface" :style="{ backgroundColor: activeScreen.background }">
       <div
-        v-for="element in activeScreen.elements.filter(item => item.kind !== 'panel' || item.text)"
+        v-for="element in activeScreen.elements"
         :key="element.id"
         class="game-ui-element"
         :class="'game-ui-' + element.kind"
@@ -78,7 +83,7 @@ function activate(element: UIElementDefinition): void {
         </template>
         <template v-else-if="element.kind === 'progress'">
           <span class="game-ui-progress-fill" :style="{ width: progressPercent(element) + '%', backgroundColor: element.color }" />
-          <span class="game-ui-progress-caption">{{ element.text || element.variableName }} <small v-if="typeof gameVariables[element.variableName] === 'number'">{{ Math.round(gameVariables[element.variableName] as number) }}</small></span>
+          <span class="game-ui-progress-caption">{{ element.text || element.variableName }} <small v-if="progressLabel(element)">{{ progressLabel(element) }}</small></span>
         </template>
         <button v-else type="button" class="game-ui-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px' }" @pointerdown.stop @click.stop="activate(element)">
           {{ element.text || 'Botão' }}
