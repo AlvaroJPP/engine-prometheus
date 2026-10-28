@@ -184,6 +184,10 @@ function elementStyle(element: UIElementDefinition): Record<string, string> {
       ? (element.kind === 'text' ? 'transparent' : element.background)
       : element.background,
     fontSize: `${(element.fontSize / 1280 * 100).toFixed(3)}cqw`,
+    fontWeight: String(element.fontWeight),
+    textAlign: element.textAlign,
+    justifyContent: element.textAlign === 'left' ? 'flex-start' : element.textAlign === 'right' ? 'flex-end' : 'center',
+    opacity: String(element.opacity),
     borderRadius: `${element.borderRadius}px`,
   }
 }
@@ -363,7 +367,7 @@ onBeforeUnmount(() => {
                   <span v-if="element.text">{{ element.text }}</span>
                 </template>
                 <template v-else-if="element.kind === 'image'">
-                  <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" />
+                  <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" :style="{ objectFit: element.imageFit }" />
                   <span v-else class="ui-image-placeholder">▧<small>Importar imagem</small></span>
                 </template>
                 <template v-else-if="element.kind === 'progress'">
@@ -371,7 +375,7 @@ onBeforeUnmount(() => {
                   <span class="ui-progress-caption">{{ element.text || element.variableName }}</span>
                 </template>
                 <template v-else-if="element.kind === 'button'">
-                  <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit' }">{{ element.text || 'Botão' }}</button>
+                  <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit', fontWeight: element.fontWeight, textAlign: element.textAlign }">{{ element.text || 'Botão' }}</button>
                 </template>
                 <template v-else>{{ element.text }}</template>
                 <span v-if="!previewMode && selectedElementId === element.id" class="ui-selection-box"><i /><i /><i /><i /></span>
@@ -468,6 +472,27 @@ onBeforeUnmount(() => {
                 <input v-model.number="selectedElement.borderRadius" type="number" min="0" max="48" step="1" />
               </label>
             </div>
+            <div v-if="selectedElement.kind !== 'image'" class="ui-two-fields">
+              <label class="ui-field">Alinhamento do texto
+                <select v-model="selectedElement.textAlign">
+                  <option value="left">À esquerda</option>
+                  <option value="center">Centralizado</option>
+                  <option value="right">À direita</option>
+                </select>
+              </label>
+              <label class="ui-field">Peso da fonte
+                <select v-model.number="selectedElement.fontWeight">
+                  <option :value="400">Normal · 400</option>
+                  <option :value="500">Médio · 500</option>
+                  <option :value="600">Seminegrito · 600</option>
+                  <option :value="700">Negrito · 700</option>
+                  <option :value="800">Extra negrito · 800</option>
+                </select>
+              </label>
+            </div>
+            <label class="ui-field">Opacidade · {{ Math.round(selectedElement.opacity * 100) }}%
+              <input v-model.number="selectedElement.opacity" type="range" min="0" max="1" step="0.05" />
+            </label>
             <label v-if="selectedElement.kind !== 'image'" class="ui-field">Cor do texto / preenchimento
               <span class="ui-color-field"><input v-model="selectedElement.color" type="color" /><input v-model="selectedElement.color" maxlength="9" /></span>
             </label>
@@ -475,6 +500,13 @@ onBeforeUnmount(() => {
               <span class="ui-color-field"><input v-model="selectedElement.background" type="color" /><input v-model="selectedElement.background" maxlength="9" /></span>
             </label>
             <template v-if="selectedElement.kind === 'image'">
+              <label class="ui-field">Ajuste da imagem
+                <select v-model="selectedElement.imageFit">
+                  <option value="contain">Conter · sem cortes</option>
+                  <option value="cover">Cobrir · preencher com corte</option>
+                  <option value="fill">Esticar · preencher tudo</option>
+                </select>
+              </label>
               <button type="button" class="ui-image-picker" @click="chooseImage">{{ selectedElement.imageDataUrl ? 'Trocar imagem' : '＋ Importar imagem' }}</button>
               <small class="ui-field-help">PNG, JPG ou WebP. Limite de 5 MB por arquivo.</small>
             </template>
