@@ -81,3 +81,5 @@ export type { EntityComponentKey, EntitySnapshot, EntityComponentDefinition, Ent
 export { EntityBehaviorRuntime } from './runtime/EntityBehaviorRuntime'
 export type { EntityBehavior, EntityBehaviorSnapshot } from './runtime/EntityBehaviorRuntime'
 export { createEntityBehaviorGameModule } from './runtime/EntityBehaviorGameModule'
+export { EntitySystemRuntime } from './runtime/EntitySystemRuntime'
+export type { EntitySystemDefinition, EntitySystemSnapshot } from './runtime/EntitySystemRuntime'
