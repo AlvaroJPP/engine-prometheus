@@ -209,6 +209,7 @@ const viewportLayoutSource = readFileSync(new URL('../src/composables/useViewpor
 const viewportRootCssSource = readFileSync(new URL('../src/styles/base/02-viewport-and-status.css', import.meta.url), 'utf8')
 const viewportActionsCssSource = readFileSync(new URL('../src/styles/parts/09-viewport-actions.css', import.meta.url), 'utf8')
 const sidebarHudCssSource = readFileSync(new URL('../src/styles/parts/10-sidebar-hud.css', import.meta.url), 'utf8')
+const viewportRuntimeCssSource = readFileSync(new URL('../src/styles/parts/03-visual-script-runtime.css', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
@@ -224,6 +225,9 @@ assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogi
 
 assert.match(appWorkspaceSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?<EditorToolbar/)
 assert.match(editorTopBarSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?class="viewport-tools-overlay viewport-layout-positioned"/)
+assert.match(editorTopBarSource, /class="topbar-fullscreen"[\s\S]*?@click="emit\('toggle-world-fullscreen'\)"/)
+assert.match(viewportRuntimeCssSource, /\.app\.is-running \.viewport-hud \.viewport-tools-overlay,\s*\.app\.is-running \.viewport-hud \.viewport-tools-overlay \* \{\s*pointer-events:auto !important;/)
+assert.match(viewportRuntimeCssSource, /\.app\.is-running \.viewport-hud \.viewport-tools-overlay \{\s*z-index:10005 !important;/)
 assert.match(editorViewportSource, /<div class="viewport-hud" role="group" aria-label="HUD da viewport">/)
 assert.match(editorViewportSource, /<div class="viewport-hud"[\s\S]*?<GameUIRuntime[\s\S]*?<RuntimeHUD[\s\S]*?class="viewport-actions"[\s\S]*?class="viewport-fps viewport-layout-positioned"[\s\S]*?class="chips"[\s\S]*?class="axes viewport-layout-positioned"[\s\S]*?class="statusbar"/)
 assert.match(viewportRootCssSource, /\.viewport-hud \{ position:absolute; inset:0;[\s\S]*?pointer-events:none; \}/)
