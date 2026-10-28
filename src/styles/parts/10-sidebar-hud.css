@@ -177,9 +177,12 @@
   outline:2px solid #e8572b;
   outline-offset:1px;
 }
-/* Quick actions docked into the upper part of the collapsed sidebar. */
+/* The scene actions stay in the viewport HUD even when the tool rail is expanded. */
 .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
-  display:none !important;
+  display:flex !important;
+  left:188px !important;
+  right:12px !important;
+  max-width:none !important;
 }
 .collapsed-sidebar-actions { display:none; }
 .app.sidebar-collapsed .collapsed-sidebar-actions {
@@ -288,6 +291,10 @@
 .app.sidebar-collapsed .sidebar-hamburger:hover { border-color:#363129; background:#26231e; color:#ff997d; }
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
+  .app.sidebar-collapsed:not(.world-fullscreen) .viewport-actions {
+    left:172px !important;
+    right:8px !important;
+  }
   .app.sidebar-collapsed .toolbar {
     top:56px !important;
     bottom:28px !important;
