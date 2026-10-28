@@ -1,5 +1,5 @@
-/* Keep the viewport controls reachable when the scene is fullscreen.
-   The header becomes a zero-height overlay container; only its viewport toolbar remains. */
+/* The camera/render controls and tool rail are mounted inside .viewport.
+   In fullscreen, collapse the app header and keep the viewport HUD anchored to the scene. */
 .app.world-fullscreen > .topbar {
   position:fixed !important;
   inset:0 0 auto 0 !important;
