@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
-import { MAIN_SCENE_PATH, parseProject, parseScene, parseSceneObject } from '@engine'
+import { MAIN_SCENE_PATH, parseProject, parseScene, parseSceneObject, parseUIScreenDefinitions } from '@engine'
 import { encodeArrayBufferBase64 } from '@engine/lib/BinaryEncoding'
 import type { FaceTextureMap, ProjectBundle, SceneFile, SceneObjectData } from '@engine'
 
@@ -39,7 +39,7 @@ async function readAsset(dir: string, rel: string): Promise<string> {
 export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgress?: ProjectProgress): Promise<void> {
   const totalFaces = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.reduce((n, object) => n + Object.keys(object.faceTextures ?? {}).length, 0), 0)
   const totalModels = Object.values(bundle.scenes).reduce((sum, scene) => sum + scene.objects.filter(object => object.importedModelData).length + Number(!!scene.playerModel?.glbData), 0)
-  const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length * 2 + 2)
+  const total = Math.max(1, totalFaces + totalModels + Object.keys(bundle.scenes).length * 2 + 3)
   let completed = 0
   const report = (message: string) => onProgress?.(message, Math.min(99, Math.round((completed / total) * 100)))
   const scenes: Record<string, SceneFile> = JSON.parse(JSON.stringify(bundle.scenes)) as Record<string, SceneFile>
@@ -115,6 +115,10 @@ export async function saveProjectTo(dir: string, bundle: ProjectBundle, onProgre
   })
   completed++
   report('Gravando eventos e regras…')
+  const uiScreens = parseUIScreenDefinitions(bundle.uiScreens ?? [])
+  await invoke('write_project_file', { dir, rel: 'ui/screens.json', contents: JSON.stringify(uiScreens, null, 2) })
+  completed++
+  report('Gravando telas, menus e HUDs…')
   await invoke('write_project_file', { dir, rel: 'project.json', contents: JSON.stringify(bundle.project, null, 2) })
   onProgress?.('Limpando recursos que não são mais usados…', 98)
   await invoke('prune_project_assets', { dir, keep: [...retainedAssets] })
@@ -270,8 +274,25 @@ export async function loadProjectFrom(dir: string, onProgress?: ProjectProgress)
     }
     logic = candidate as NonNullable<ProjectBundle['logic']>
   }
+  let uiScreens: ProjectBundle['uiScreens'] = []
+  const uiScreensExist = await invoke<boolean>('project_file_exists', { dir, rel: 'ui/screens.json' })
+  if (uiScreensExist) {
+    onProgress?.('Carregando telas, menus e HUDs…', 90)
+    const rawUiScreens = await invoke<string>('read_project_file', { dir, rel: 'ui/screens.json' })
+    let parsedUiScreens: unknown
+    try {
+      parsedUiScreens = JSON.parse(rawUiScreens)
+    } catch {
+      throw new Error('ui/screens.json existe, mas contém JSON inválido. O arquivo não foi ignorado para evitar perder os menus e HUDs do projeto.')
+    }
+    try {
+      uiScreens = parseUIScreenDefinitions(parsedUiScreens)
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'ui/screens.json tem estrutura inválida.')
+    }
+  }
   onProgress?.('Projeto carregado; preparando o mundo…', 95)
-  return { project, scenes, logic }
+  return { project, scenes, logic, uiScreens }
 }
 
 export async function confirmDiscard(dirty: boolean): Promise<boolean> {
