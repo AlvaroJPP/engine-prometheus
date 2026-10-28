@@ -151,6 +151,11 @@ export class EntityComponentRuntime<TComponents extends object = Record<string, 
     return this.entities.get(entityId.trim())?.components.has(componentType) ?? false
   }
 
+  /** True during destruction callbacks, while components are still readable for cleanup. */
+  isDestroying(entityId: string): boolean {
+    return this.destroying.has(entityId.trim())
+  }
+
   setEnabled(entityId: string, enabled: boolean): boolean {
     const id = entityId.trim()
     const record = this.entities.get(id)
