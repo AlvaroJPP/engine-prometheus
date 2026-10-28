@@ -8,7 +8,9 @@ import {
 import {
   alignUIElement,
   alignUIElements,
+  alignUIElementsToKey,
   distributeUIElements,
+  spaceUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   getResizedUIElementRect,
@@ -262,6 +264,29 @@ const tooCrowded = distributionSource.slice(0, 3).map((element, index) => ({
 }))
 assert.equal(distributeUIElements(tooCrowded, tooCrowded.map(element => element.id), 'horizontal'), tooCrowded)
 
+const spacedHorizontally = spaceUIElements(distributionSource, distributionIds, 'horizontal', 5)
+assert.deepEqual(spacedHorizontally.slice(0, 3).map(element => element.x), [10, 35, 50])
+assert.deepEqual(spacedHorizontally.slice(0, 3).map(element => element.y), [20, 35, 70])
+assert.equal(spacedHorizontally[3], alignUnselected)
+const spacedVertically = spaceUIElements(distributionSource, distributionIds, 'vertical', 3)
+assert.deepEqual(spacedVertically.slice(0, 3).map(element => element.y), [20, 33, 56])
+assert.deepEqual(spacedVertically.slice(0, 3).map(element => element.x), [10, 30, 70])
+assert.equal(spacedVertically[3], alignUnselected)
+assert.equal(spaceUIElements(distributionSource, distributionIds.slice(0, 1), 'horizontal', 5), distributionSource)
+assert.equal(spaceUIElements(distributionSource, distributionIds, 'horizontal', -1), distributionSource)
+assert.equal(spaceUIElements(distributionSource, distributionIds, 'horizontal', Number.NaN), distributionSource)
+assert.equal(spaceUIElements(distributionSource, distributionIds, 'horizontal', 80), distributionSource)
+
+const keyAlignedLeft = alignUIElementsToKey(distributionSource, distributionIds, distributionSecond.id, 'left')
+assert.deepEqual(keyAlignedLeft.slice(0, 3).map(element => element.x), [30, 30, 30])
+assert.equal(keyAlignedLeft[1], distributionSecond)
+assert.equal(keyAlignedLeft[3], alignUnselected)
+const keyAlignedCenter = alignUIElementsToKey(distributionSource, distributionIds, distributionSecond.id, 'vertical-center')
+assert.deepEqual(keyAlignedCenter.slice(0, 3).map(element => element.y), [40, 35, 40])
+assert.equal(keyAlignedCenter[1], distributionSecond)
+assert.equal(alignUIElementsToKey(distributionSource, distributionIds, 'missing-key', 'left'), distributionSource)
+assert.equal(alignUIElementsToKey(distributionSource, [alignFirst.id], alignFirst.id, 'left'), distributionSource)
+
 const resized = resizeUIElements(
   alignSource,
   alignIds,
@@ -307,4 +332,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment and distribution, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
+console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment, key-relative alignment and fixed-gap distribution, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
