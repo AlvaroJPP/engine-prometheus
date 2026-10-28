@@ -5,6 +5,12 @@ import {
   getRenderableUIScreenDefinitions,
   parseUIScreenDefinitions,
 } from '../engine/ui/UIScreenDocument.ts'
+import {
+  alignUIElement,
+  duplicateUIElement,
+  getClampedUIElementPosition,
+  reorderUIElement,
+} from '../engine/ui/UIEditorOperations.ts'
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -52,4 +58,32 @@ assert.throws(() => parseUIScreenDefinitions([{ ...screen }, { ...screen }]), /I
 assert.throws(() => parseUIScreenDefinitions([{ ...screen, elements: Array.from({ length: 513 }, (_, index) => ({ ...screen.elements[0], id: `element-${index}` })) }]), /512 elementos/)
 assert.throws(() => parseUIScreenDefinitions(Array.from({ length: 65 }, (_, index) => ({ ...screen, id: `screen-${index}` }))), /64 telas/)
 
-console.log('UI workspace self-test passed: creation, normalization, assets and validation.')
+
+const position = getClampedUIElementPosition(
+  { width: 25, height: 20 },
+  8.8,
+  11.1,
+  true,
+  2.5,
+)
+assert.deepEqual(position, { x: 7.5, y: 10 })
+assert.deepEqual(getClampedUIElementPosition({ width: 25, height: 20 }, 99, 99), { x: 75, y: 80 })
+assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'horizontal'), { x: 40, y: 12 })
+assert.deepEqual(alignUIElement({ x: 8, y: 12, width: 20, height: 10 }, 'vertical'), { x: 8, y: 45 })
+
+const duplicate = duplicateUIElement(screen.elements[3], screen.elements.length)
+assert.notEqual(duplicate.id, screen.elements[3].id)
+assert.equal(duplicate.name, screen.elements[3].name + ' - cópia')
+assert.equal(duplicate.imageDataUrl, screen.elements[3].imageDataUrl)
+assert.equal(duplicate.x, screen.elements[3].x + 2.5)
+assert.equal(duplicate.y, screen.elements[3].y + 2.5)
+
+const originalOrder = screen.elements.map(element => element.id)
+const raised = reorderUIElement(screen.elements, originalOrder[0], 1)
+assert.deepEqual(raised.map(element => element.id), [originalOrder[1], originalOrder[0], ...originalOrder.slice(2)])
+const lowered = reorderUIElement(raised, originalOrder[0], -1)
+assert.deepEqual(lowered.map(element => element.id), originalOrder)
+assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
+assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
+
+console.log('UI workspace self-test passed: validation, asset handling, snapping, alignment, duplication and layer ordering.')
