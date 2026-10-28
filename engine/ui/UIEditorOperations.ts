@@ -1,4 +1,4 @@
-import { createUIScreenId, type UIElementDefinition } from './UIScreenDocument'
+import { createUIScreenId, type UIElementDefinition } from './UIScreenDocument.ts'
 
 export type UIElementAxis = 'horizontal' | 'vertical'
 export type UIElementLayerDirection = -1 | 1
