@@ -23,6 +23,7 @@ import {
 } from '../engine/ui/UIEditorOperations.ts'
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
+import { RuleEngine } from '../engine/script/RuleEngine.ts'
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -66,6 +67,36 @@ const legacyHudElement = { ...hudEventButton }
 delete legacyHudElement.eventId
 const parsedLegacyHudScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [legacyHudElement] }])[0]
 assert.equal(parsedLegacyHudScreen.elements[0].eventId, '')
+
+const runtimeScriptEngine = new RuleEngine({
+  events: { emit() {} },
+  getSelectedId: () => null,
+})
+runtimeScriptEngine.load({
+  formatVersion: 1,
+  variables: {},
+  events: [{
+    id: 'hud-inventory-flow',
+    name: 'Abrir inventário via HUD',
+    enabled: true,
+    trigger: { type: 'global_event', eventId: 'hud.inventory.open' },
+    conditions: [],
+    actions: [{
+      type: 'javascript',
+      code: "api.global.set('hud.source', api.event.get('source') ?? 'missing'); api.global.set('hud.screen', api.event.get('screenName') ?? 'missing')",
+    }],
+  }],
+  packages: [],
+  disabledPackageScripts: [],
+})
+assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.inventory.open', {
+  source: 'hud',
+  screenName: 'HUD de aventura',
+  elementName: 'Abrir inventário',
+}), true)
+assert.equal(runtimeScriptEngine.exportData().variables['hud.source'], 'hud')
+assert.equal(runtimeScriptEngine.exportData().variables['hud.screen'], 'HUD de aventura')
+assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
@@ -135,6 +166,7 @@ assert.deepEqual(
   presets[2].elements.filter(element => element.kind === 'progress').map(element => element.variableName),
   ['vida', 'mana'],
 )
+assert.ok(presets[2].elements.some(element => element.kind === 'button' && element.action === 'trigger-event' && element.eventId === 'hud.inventory.open'))
 
 const firstHistoryScreen = createUIScreen('Estado A')
 const history = new UIWorkspaceHistory(3)
