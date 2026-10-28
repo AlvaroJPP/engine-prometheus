@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS } from '@engine'
+import { replaceUIScreenDefinitions, uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 import type {
   CameraPreset,
   ObjectInfo,
@@ -123,6 +124,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
 
   const engineInstance = shallowRef<Engine | null>(null)
   let engine: Engine | null = null
+  let applyingUiScreens = false
+  watch(() => uiWorkspaceState.screens, () => {
+    if (engine && !applyingUiScreens) dirty.value = true
+  }, { deep: true, flush: 'sync' })
   let playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   let appliedPerformancePreset: AppliedPerformancePreset = 'quality'
   let autoPerformanceHealthySamples = 0
@@ -1520,6 +1525,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     } finally {
       applyingProjectSettings = false
     }
+      applyingUiScreens = true
+    try {
+      replaceUIScreenDefinitions([])
+    } finally {
+      applyingUiScreens = false
+    }
     projectName.value = eng.projectName
     projectDir.value = null
     dirty.value = false
@@ -1565,6 +1576,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       } finally {
         applyingProjectSettings = false
       }
+      applyingUiScreens = true
+      try {
+        replaceUIScreenDefinitions(bundle.uiScreens ?? [])
+      } finally {
+        applyingUiScreens = false
+      }
       projectName.value = eng.projectName
       projectDir.value = dir
       dirty.value = false
@@ -1591,7 +1608,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       }
       ioProgress.value = { active: true, kind: 'save', message: 'Preparando os recursos para salvar…', percent: 0 }
       eng.setProjectName(projectName.value)
-      await saveProjectTo(dir, eng.exportProject(), (message, percent) => {
+      const bundle = eng.exportProject()
+      bundle.uiScreens = JSON.parse(JSON.stringify(uiWorkspaceState.screens))
+      await saveProjectTo(dir, bundle, (message, percent) => {
         ioProgress.value = { active: true, kind: 'save', message, percent }
         status.value = message
       })
