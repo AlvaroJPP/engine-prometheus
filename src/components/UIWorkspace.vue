@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   createUIScreen,
   createUIElement,
   createUIScreenId,
+  alignUIElement,
+  duplicateUIElement,
+  getClampedUIElementPosition,
+  reorderUIElement,
   type UIElementDefinition,
   type UIElementKind,
 } from '@engine'
@@ -14,6 +18,8 @@ const emit = defineEmits<{ (event: 'close'): void }>()
 
 const selectedElementId = ref('')
 const previewMode = ref(false)
+const showGrid = ref(true)
+const snapToGrid = ref(true)
 const statusMessage = ref('As alterações são incluídas ao salvar o projeto.')
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
@@ -25,6 +31,9 @@ const activeScreen = computed(() =>
 )
 const selectedElement = computed(() =>
   activeScreen.value?.elements.find(element => element.id === selectedElementId.value) ?? null,
+)
+const activeElementIndex = computed(() =>
+  activeScreen.value?.elements.findIndex(element => element.id === selectedElementId.value) ?? -1,
 )
 
 watch(() => uiWorkspaceState.activeScreenId, () => {
@@ -80,6 +89,80 @@ function selectElement(id: string): void {
   selectedElementId.value = id
 }
 
+function duplicateElement(): void {
+  const source = selectedElement.value
+  const screen = activeScreen.value
+  if (!source || !screen) return
+  const copy = duplicateUIElement(source, screen.elements.length)
+  screen.elements.push(copy)
+  selectedElementId.value = copy.id
+  statusMessage.value = 'Elemento "' + source.name + '" duplicado.'
+}
+
+function moveSelectedLayer(direction: 'front' | 'back'): void {
+  const screen = activeScreen.value
+  if (!screen || !selectedElementId.value) return
+  const reordered = reorderUIElement(screen.elements, selectedElementId.value, direction === 'front' ? 1 : -1)
+  if (reordered === screen.elements) return
+  screen.elements.splice(0, screen.elements.length, ...reordered)
+  statusMessage.value = direction === 'front' ? 'Elemento trazido para frente.' : 'Elemento enviado para trás.'
+}
+
+function alignSelected(axis: 'horizontal' | 'vertical'): void {
+  const element = selectedElement.value
+  if (!element) return
+  Object.assign(element, alignUIElement(element, axis))
+  statusMessage.value = axis === 'horizontal' ? 'Elemento centralizado horizontalmente.' : 'Elemento centralizado verticalmente.'
+}
+
+function moveSelectedBy(dx: number, dy: number): void {
+  const element = selectedElement.value
+  if (!element) return
+  Object.assign(element, getClampedUIElementPosition(element, element.x + dx, element.y + dy))
+}
+
+function handleKeyboardShortcut(event: KeyboardEvent): void {
+  const target = event.target
+  if (target instanceof HTMLElement && (
+    target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)
+  )) return
+
+  const key = event.key.toLowerCase()
+  if ((event.ctrlKey || event.metaKey) && key === 'd') {
+    if (!previewMode.value && selectedElement.value) {
+      event.preventDefault()
+      duplicateElement()
+    }
+    return
+  }
+  if (event.key === 'Escape') {
+    if (previewMode.value) previewMode.value = false
+    else selectedElementId.value = ''
+    return
+  }
+  if (previewMode.value) return
+
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (selectedElement.value) {
+      event.preventDefault()
+      removeElement()
+    }
+    return
+  }
+
+  const directions: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1],
+  }
+  const direction = directions[event.key]
+  if (!direction || !selectedElement.value) return
+  event.preventDefault()
+  const step = event.shiftKey ? 5 : snapToGrid.value ? 2.5 : 1
+  moveSelectedBy(direction[0] * step, direction[1] * step)
+}
+
 function removeElement(id = selectedElementId.value): void {
   const screen = activeScreen.value
   if (!screen || !id) return
@@ -132,8 +215,9 @@ function moveElement(event: PointerEvent): void {
   const drag = dragState.value
   const element = activeScreen.value?.elements.find(item => item.id === drag?.id)
   if (!drag || !element) return
-  element.x = Math.max(0, Math.min(100 - element.width, drag.originX + (event.clientX - drag.startX) / drag.width * 100))
-  element.y = Math.max(0, Math.min(100 - element.height, drag.originY + (event.clientY - drag.startY) / drag.height * 100))
+  const x = drag.originX + (event.clientX - drag.startX) / drag.width * 100
+  const y = drag.originY + (event.clientY - drag.startY) / drag.height * 100
+  Object.assign(element, getClampedUIElementPosition(element, x, y, snapToGrid.value, 2.5))
 }
 
 function finishElementDrag(): void {
@@ -190,7 +274,11 @@ function activatePreviewElement(element: UIElementDefinition): void {
   }
 }
 
-onBeforeUnmount(finishElementDrag)
+onMounted(() => window.addEventListener('keydown', handleKeyboardShortcut))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyboardShortcut)
+  finishElementDrag()
+})
 </script>
 
 <template>
@@ -239,6 +327,18 @@ onBeforeUnmount(finishElementDrag)
             <button type="button" :disabled="previewMode" @click="addElement('image')">▧ Imagem</button>
             <button type="button" :disabled="previewMode" @click="addElement('progress')">▰ Barra</button>
           </div>
+          <div class="ui-canvas-options">
+            <label title="Mostrar ou ocultar a grade visual"><input v-model="showGrid" type="checkbox" :disabled="previewMode" /> Grade</label>
+            <label title="Alinhar os elementos à grade de 2,5% durante o arraste"><input v-model="snapToGrid" type="checkbox" :disabled="previewMode" /> Encaixar</label>
+          </div>
+        </div>
+        <div v-if="selectedElement && !previewMode" class="ui-selection-toolbar" aria-label="Ações do elemento selecionado">
+          <span>{{ selectedElement.name }}</span>
+          <button type="button" title="Duplicar (Ctrl+D)" @click="duplicateElement">Duplicar</button>
+          <button type="button" title="Trazer uma camada para frente" :disabled="activeElementIndex >= (activeScreen?.elements.length ?? 0) - 1" @click="moveSelectedLayer('front')">↑ Frente</button>
+          <button type="button" title="Enviar uma camada para trás" :disabled="activeElementIndex <= 0" @click="moveSelectedLayer('back')">↓ Atrás</button>
+          <button type="button" title="Centralizar horizontalmente" @click="alignSelected('horizontal')">↔ Centro X</button>
+          <button type="button" title="Centralizar verticalmente" @click="alignSelected('vertical')">↕ Centro Y</button>
         </div>
 
         <div v-if="activeScreen" class="ui-canvas-area">
@@ -246,7 +346,7 @@ onBeforeUnmount(finishElementDrag)
             <div
               ref="canvasStage"
               class="ui-screen-stage"
-              :class="{ 'is-previewing': previewMode }"
+              :class="{ 'is-previewing': previewMode, 'grid-visible': showGrid }"
               :style="{ backgroundColor: activeScreen.background }"
             >
               <div class="ui-stage-grid" aria-hidden="true" />
@@ -282,7 +382,7 @@ onBeforeUnmount(finishElementDrag)
               <div class="ui-screen-dimensions">{{ activeScreen.width }} × {{ activeScreen.height }}</div>
             </div>
           </div>
-          <p class="ui-canvas-tip">{{ previewMode ? 'Prévia interativa: botões podem navegar para outra tela.' : 'Arraste os elementos para posicionar. Selecione um item para editar suas propriedades.' }}</p>
+          <p class="ui-canvas-tip">{{ previewMode ? 'Prévia interativa: botões podem navegar para outra tela.' : 'Arraste para posicionar. Setas movem, Shift+setas movem mais, Ctrl+D duplica e Delete remove. Encaixar adere à grade.' }}</p>
         </div>
 
         <div v-else class="ui-empty-workspace">
