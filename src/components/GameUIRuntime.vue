@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '@engine'
+import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue, resolveUIValueBindings } from '@engine'
 import type { UIScreenDefinition, UIElementDefinition } from '@engine'
 
 const props = defineProps<{
@@ -89,6 +89,11 @@ function activate(element: UIElementDefinition): void {
   if (element.action === 'toggle-variable' && element.variableName.trim()) {
     const variableName = element.variableName.trim()
     emit('set-global-variable', variableName, nextUIToggleValue(props.gameVariables[variableName]))
+    return
+  }
+  if (element.action === 'adjust-variable' && element.variableName.trim()) {
+    const variableName = element.variableName.trim()
+    emit('set-global-variable', variableName, adjustUINumericValue(props.gameVariables[variableName], element.variableStep))
     return
   }
   if (element.action === 'trigger-event' && element.eventId.trim()) {
