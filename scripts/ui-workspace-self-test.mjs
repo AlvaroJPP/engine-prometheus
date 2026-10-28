@@ -11,6 +11,7 @@ import {
   duplicateUIElement,
   getClampedUIElementPosition,
   reorderUIElement,
+  resizeUIElements,
 } from '../engine/ui/UIEditorOperations.ts'
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
@@ -199,6 +200,23 @@ const verticalCentered = alignUIElements(alignSource, alignIds, 'vertical-center
 assert.deepEqual(verticalCentered.slice(0, 2).map(element => element.y), [35, 30])
 assert.equal(alignUIElements(alignSource, [alignFirst.id], 'left'), alignSource)
 
+const resized = resizeUIElements(
+  alignSource,
+  alignIds,
+  { x: 10, y: 20, width: 50, height: 40 },
+  { x: 10, y: 20, width: 90, height: 80 },
+)
+assert.deepEqual(
+  resized.slice(0, 2).map(element => ({ x: element.x, y: element.y, width: element.width, height: element.height })),
+  [
+    { x: 10, y: 20, width: 36, height: 20 },
+    { x: 82, y: 60, width: 18, height: 40 },
+  ],
+)
+assert.equal(resized[2], alignUnselected)
+assert.equal(resizeUIElements(alignSource, ['missing-id'], { x: 0, y: 0, width: 10, height: 10 }, { x: 0, y: 0, width: 20, height: 20 }), alignSource)
+assert.equal(resizeUIElements(alignSource, alignIds, { x: 0, y: 0, width: 0, height: 10 }, { x: 0, y: 0, width: 20, height: 20 }), alignSource)
+
 const duplicate = duplicateUIElement(screen.elements[3], screen.elements.length)
 assert.notEqual(duplicate.id, screen.elements[3].id)
 assert.equal(duplicate.name, screen.elements[3].name + ' - cópia')
@@ -227,4 +245,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: undo/redo history, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, alignment, duplication and layers.')
+console.log('UI workspace self-test passed: undo/redo history, marquee selection and shared resize primitives, multi-element alignment, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
