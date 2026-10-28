@@ -30,7 +30,6 @@ const props = defineProps<{
   executionMode: 'edit' | 'running'
   worldFullscreen: boolean
   viewportLayoutConfigOpen: boolean
-  hudSettingsOpen?: boolean
   objects: Array<{ id: string; name: string }>
   components: Array<{ id: string; name: string }>
 }>()
@@ -69,7 +68,6 @@ const emit = defineEmits<{
   'edit-world': []
   'toggle-world-fullscreen': []
   'toggle-viewport-layout-config': []
-  'toggle-hud-settings': []
   'select-object': [id: string]
   'place-component': [id: string]
   'open-model-import': []
@@ -364,22 +362,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
           <p class="render-settings-note">Preferências aplicadas imediatamente e salvas neste navegador. Distâncias e resoluções menores podem ajudar em cenas pesadas.</p>
         </div>
       </details>
-        <button
-          v-if="executionMode === 'edit'"
-          class="viewport-tool hud-settings-toolbar-button"
-          :class="{ active: hudSettingsOpen }"
-          type="button"
-          :aria-pressed="hudSettingsOpen"
-          title="Configurar e pré-visualizar a HUD no modo de edição"
-          aria-label="Configurar HUD"
-          @click="emit('toggle-hud-settings')"
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.2" />
-            <path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8L3.4 3.4" />
-          </svg>
-          <span>HUD</span>
-        </button>
         <span class="viewport-tools-divider" aria-hidden="true"></span>
         <button class="topbar-fullscreen" type="button" :class="{ active: worldFullscreen }" :title="fullscreenToggleTitle" :aria-label="fullscreenToggleTitle" :aria-pressed="worldFullscreen" @click="emit('toggle-world-fullscreen')">
           <svg v-if="!worldFullscreen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5" /></svg>
