@@ -43,3 +43,17 @@ export function isUIVisibilityConditionMet(
 export function nextUIToggleValue(currentValue: UIValueBindingValue | undefined): boolean {
   return currentValue !== true
 }
+
+/**
+ * Applies a finite numeric delta to a global variable value.
+ * Undefined or non-numeric values start from zero; non-finite results keep the current finite value.
+ */
+export function adjustUINumericValue(
+  currentValue: UIValueBindingValue | undefined,
+  amount: number,
+): number {
+  const current = typeof currentValue === 'number' && Number.isFinite(currentValue) ? currentValue : 0
+  const delta = Number.isFinite(amount) ? amount : 1
+  const result = current + delta
+  return Number.isFinite(result) ? result : current
+}
