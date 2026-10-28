@@ -70,6 +70,11 @@
   margin: 12px; padding: 10px; border: 1px dashed #525b69; border-radius: 7px; color: #edb65e; background: #191d24; text-align: center;
 }
 .ui-add-screen:hover { border-color: var(--ui-accent); background: #252015; }
+.ui-template-section { padding-bottom: 8px; border-top: 1px solid var(--ui-border); border-bottom: 1px solid var(--ui-border); }
+.ui-template-button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: calc(100% - 20px); margin: 7px 10px; padding: 9px 10px; border: 1px solid #343b46; border-radius: 6px; background: #191d24; color: #e5eaf2; text-align: left; }
+.ui-template-button strong { font-size: 11px; font-weight: 650; }
+.ui-template-button small { color: #929baa; font-size: 10px; line-height: 1.4; }
+.ui-template-button:hover { border-color: #a87525; background: #252015; }
 .ui-left-footer { margin-top: auto; padding: 15px 14px 18px; border-top: 1px solid var(--ui-border); color: var(--ui-muted); }
 .ui-left-footer strong { color: #d6dbe4; font-size: 11px; }
 .ui-left-footer p { margin: 7px 0 0; font-size: 11px; line-height: 1.55; }
