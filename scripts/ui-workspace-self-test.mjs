@@ -70,6 +70,8 @@ assert.equal(normalized[0].elements[0].opacity, 0)
 assert.equal(normalized[0].elements[0].fontWeight, 600)
 assert.equal(normalized[0].elements[0].textAlign, 'center')
 assert.equal(normalized[0].elements[0].imageFit, 'contain')
+const normalizedGroup = parseUIScreenDefinitions([{ ...screen, elements: [{ ...screen.elements[0], groupId: '  clean-group  ' }] }])
+assert.equal(normalizedGroup[0].elements[0].groupId, 'clean-group')
 
 const legacyElement = { ...screen.elements[0] }
 delete legacyElement.opacity
