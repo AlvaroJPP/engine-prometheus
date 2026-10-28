@@ -2,15 +2,7 @@ import assert from 'node:assert/strict'
 import { EntityComponentRuntime } from '../engine/runtime/EntityComponentRuntime.ts'
 import { EntityCommandBuffer } from '../engine/runtime/EntityCommandBuffer.ts'
 
-interface Components {
-  position: { x: number }
-  flag: boolean
-  fragile: boolean
-  reentrant: boolean
-  reentrantHook: boolean
-}
-
-const entities = new EntityComponentRuntime<Components>()
+const entities = new EntityComponentRuntime()
 entities.defineComponent('position')
 entities.defineComponent('flag')
 entities.defineComponent('fragile', {
@@ -20,7 +12,7 @@ entities.defineComponent('fragile', {
 })
 entities.defineComponent('reentrant')
 let nestedPlaybackError: unknown
-let commands: EntityCommandBuffer<Components>
+let commands
 entities.defineComponent('reentrantHook', {
   onAttach: () => {
     try {
