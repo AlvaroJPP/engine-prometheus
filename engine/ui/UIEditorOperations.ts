@@ -3,7 +3,6 @@ import { createUIScreenId, type UIElementDefinition } from './UIScreenDocument.t
 export type UIElementAxis = 'horizontal' | 'vertical'
 export type UIElementLayerDirection = -1 | 1
 export type UIElementGroupAlignment = 'left' | 'right' | 'top' | 'bottom' | 'horizontal-center' | 'vertical-center'
-export type UIElementGroupAlignment = 'left' | 'right' | 'top' | 'bottom' | 'horizontal-center' | 'vertical-center'
 
 export interface UIElementPosition {
   x: number
@@ -70,39 +69,6 @@ export function alignUIElement(
   return axis === 'horizontal'
     ? { x: roundPosition((100 - clamp(element.width, 1, 100)) / 2), y: element.y }
     : { x: element.x, y: roundPosition((100 - clamp(element.height, 1, 100)) / 2) }
-}
-
-/** Aligns multiple selected elements against the shared selection bounds. */
-export function alignUIElements(
-  elements: readonly UIElementDefinition[],
-  elementIds: readonly string[],
-  alignment: UIElementGroupAlignment,
-): readonly UIElementDefinition[] {
-  const selectedIds = new Set(elementIds)
-  const selected = elements.filter(element => selectedIds.has(element.id))
-  if (selected.length < 2) return elements
-
-  const left = Math.min(...selected.map(element => element.x))
-  const top = Math.min(...selected.map(element => element.y))
-  const right = Math.max(...selected.map(element => element.x + element.width))
-  const bottom = Math.max(...selected.map(element => element.y + element.height))
-  const centerX = (left + right) / 2
-  const centerY = (top + bottom) / 2
-
-  return elements.map(element => {
-    if (!selectedIds.has(element.id)) return element
-    let x = element.x
-    let y = element.y
-    switch (alignment) {
-      case 'left': x = left; break
-      case 'right': x = right - element.width; break
-      case 'top': y = top; break
-      case 'bottom': y = bottom - element.height; break
-      case 'horizontal-center': x = centerX - element.width / 2; break
-      case 'vertical-center': y = centerY - element.height / 2; break
-    }
-    return { ...element, ...getClampedUIElementPosition(element, x, y) }
-  })
 }
 
 /** Aligns multiple selected elements against the shared selection bounds. */
