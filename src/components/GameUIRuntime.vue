@@ -93,7 +93,7 @@ function activate(element: UIElementDefinition): void {
   }
   if (element.action === 'adjust-variable' && element.variableName.trim()) {
     const variableName = element.variableName.trim()
-    emit('set-global-variable', variableName, adjustUINumericValue(props.gameVariables[variableName], element.variableStep))
+    emit('set-global-variable', variableName, adjustUINumericValue(props.gameVariables[variableName], element.variableStep, element.variableMin, element.variableLimitMax))
     return
   }
   if (element.action === 'trigger-event' && element.eventId.trim()) {
