@@ -122,7 +122,10 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
 
   const width = Math.max(1, target.offsetWidth)
   const height = Math.max(1, target.offsetHeight)
-  const availableWidth = Math.max(1, rect.width - 8)
+  // Em viewports estreitas, a barra de câmera fica em uma segunda linha
+  // depois das ações rápidas; reserve a coluna esquerda usada pela ferramenta.
+  const compactRenderHud = id === 'render' && !worldFullscreen.value && rect.width <= 440
+  const availableWidth = Math.max(1, rect.width - (compactRenderHud ? 56 : 8))
   const availableHeight = Math.max(1, usableHeight - 8)
 
   // A barra lateral recolhida tem largura fixa e rolagem interna.
@@ -162,10 +165,12 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const scale = lockedCollapsedToolbar ? 1 : getViewportLayoutEffectiveScale(id, target)
   const scaledWidth = (target?.offsetWidth || 180) * scale
   const scaledHeight = (target?.offsetHeight || 80) * scale
-  const minX = getViewportLayoutMinimumX(id, scaledWidth)
+  const compactRenderHud = id === 'render' && !worldFullscreen.value && width <= 440
+  const minX = compactRenderHud ? 48 : getViewportLayoutMinimumX(id, scaledWidth)
   const maxX = Math.max(minX, width - scaledWidth - 4)
   const localX = Math.max(minX, Math.min(item.x * width, maxX))
-  const localY = Math.max(0, Math.min(item.y * height, height - scaledHeight - 4))
+  const desiredY = compactRenderHud ? Math.max(48, item.y * height) : item.y * height
+  const localY = Math.max(0, Math.min(desiredY, height - scaledHeight - 4))
   // Todos os controles são montados dentro de .viewport (HUD da cena).
   // A viewport cria o bloco de referência para position:fixed; use coordenadas
   // locais para impedir que controles avancem sobre a hierarquia ou o inspetor.
