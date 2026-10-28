@@ -24,7 +24,7 @@ const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V7 = 'engine-prometheus.viewport-layout
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V6 = 'engine-prometheus.viewport-layout.v6'
 const LEGACY_VIEWPORT_LAYOUT_STORAGE_KEY_V5 = 'engine-prometheus.viewport-layout.v5'
 const DEFAULT_VIEWPORT_LAYOUT: ViewportLayoutSettings = {
-  render: { x: 0.29, y: 0.015, scale: 1 },
+  render: { x: 1, y: 0.015, scale: 1 },
   fps: { x: 0.66, y: 0.11, scale: 1 },
   axes: { x: 0.015, y: 0.78, scale: 1 },
   tools: { x: 0.015, y: 0.02, scale: 1 },
@@ -132,7 +132,10 @@ function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLEleme
   // Em viewports estreitas, a barra de câmera fica em uma segunda linha
   // depois das ações rápidas; reserve a coluna esquerda usada pela ferramenta.
   const compactRenderHud = id === 'render' && !worldFullscreen.value && rect.width <= 440
-  const availableWidth = Math.max(1, rect.width - (compactRenderHud ? 56 : 8))
+  const collapsedRailClearance = sidebarCollapsed.value
+    ? (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 172 : 188)
+    : 48
+  const availableWidth = Math.max(1, rect.width - (compactRenderHud ? collapsedRailClearance : 8))
   const availableHeight = Math.max(1, usableHeight - 8)
 
   // A barra lateral recolhida tem largura fixa e rolagem interna.
@@ -173,7 +176,10 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
   const scaledWidth = (target?.offsetWidth || 180) * scale
   const scaledHeight = (target?.offsetHeight || 80) * scale
   const compactRenderHud = id === 'render' && !worldFullscreen.value && width <= 440
-  const minX = compactRenderHud ? 48 : getViewportLayoutMinimumX(id, scaledWidth)
+  const compactRenderMinX = sidebarCollapsed.value
+    ? (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 172 : 188)
+    : 48
+  const minX = compactRenderHud ? compactRenderMinX : getViewportLayoutMinimumX(id, scaledWidth)
   const maxX = Math.max(minX, width - scaledWidth - 4)
   const localX = Math.max(minX, Math.min(item.x * width, maxX))
   const desiredY = compactRenderHud ? Math.max(48, item.y * height) : item.y * height
