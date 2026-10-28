@@ -44,6 +44,9 @@ assert.equal(nextUIToggleValue(1), true)
 assert.equal(nextUIToggleValue('true'), true)
 assert.equal(adjustUINumericValue(10, 2.5), 12.5)
 assert.equal(adjustUINumericValue(10, -3), 7)
+assert.equal(adjustUINumericValue(98, 10, 0, 100), 100)
+assert.equal(adjustUINumericValue(2, -10, 0, 100), 0)
+assert.equal(adjustUINumericValue(5, 1, 10, 0), 6)
 assert.equal(adjustUINumericValue(undefined, 1), 1)
 assert.equal(adjustUINumericValue('12', 2), 2)
 assert.equal(adjustUINumericValue(Number.MAX_VALUE, 1e6), Number.MAX_VALUE)
@@ -106,10 +109,14 @@ const numericButton = createUIElement('button')
 numericButton.action = 'adjust-variable'
 numericButton.variableName = 'ouro'
 numericButton.variableStep = -2
+numericButton.variableMin = 0
+numericButton.variableLimitMax = 50
 const parsedNumericScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [numericButton] }])[0]
 assert.equal(parsedNumericScreen.elements[0].action, 'adjust-variable')
 assert.equal(parsedNumericScreen.elements[0].variableName, 'ouro')
 assert.equal(parsedNumericScreen.elements[0].variableStep, -2)
+assert.equal(parsedNumericScreen.elements[0].variableMin, 0)
+assert.equal(parsedNumericScreen.elements[0].variableLimitMax, 50)
 const legacyHudElement = { ...hudEventButton }
 delete legacyHudElement.eventId
 delete legacyHudElement.visibilityVariable
@@ -184,7 +191,9 @@ assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
 assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 assert.match(gameUIRuntimeSource, /isUIVisibilityConditionMet/)
 assert.match(gameUIRuntimeSource, /nextUIToggleValue\(props\.gameVariables\[variableName\]\)/)
-assert.match(gameUIRuntimeSource, /adjustUINumericValue\(props\.gameVariables\[variableName\], element\.variableStep\)/)
+assert.match(gameUIRuntimeSource, /adjustUINumericValue\(props\.gameVariables\[variableName\], element\.variableStep, element\.variableMin, element\.variableLimitMax\)/)
+assert.match(uiWorkspaceSource, /selectedElement\.variableMin/)
+assert.match(uiWorkspaceSource, /selectedElement\.variableLimitMax/)
 assert.match(uiWorkspaceSource, /value="adjust-variable">Ajustar variável numérica/)
 assert.match(uiWorkspaceSource, /selectedElement\.variableStep/)
 assert.match(uiWorkspaceSource, /value="toggle-variable">Alternar variável booleana/)
