@@ -12,9 +12,14 @@ Na barra superior do Engine Prometheus, use **Workspace UI**. Crie uma tela e ad
 - **Botão:** pode ficar sem ação, navegar para outra tela ou definir uma variável global durante o jogo.
 - **Painel:** superfície visual para agrupar ou destacar conteúdo.
 - **Imagem:** importa PNG, JPG ou WebP de até 5 MB.
+  - Ajuste **Conter** preserva a imagem inteira, **Cobrir** preenche o quadro com cortes nas bordas quando necessário e **Esticar** ocupa toda a área.
 - **Barra:** acompanha uma variável global numérica, como `vida` ou `mana`.
 
 Cada tela usa a proporção 16:9 e coordenadas relativas, para que posições e tamanhos se adaptem a diferentes tamanhos de janela. O tipo pode ser **Tela navegável** (menu, pausa e diálogos) ou **Overlay persistente** (HUD).
+
+## Aparência dos elementos
+
+O inspetor permite ajustar a **opacidade** de 0% a 100% em todos os elementos. Textos, painéis, botões e legendas de barras também podem ter alinhamento à esquerda, centralizado ou à direita, além de peso de fonte de 400 a 800. Essas configurações aparecem tanto na prévia do Workspace quanto na interface executada no jogo. Projetos antigos sem esses campos recebem valores padrão ao serem carregados.
 
 ## Ferramentas de edição
 
