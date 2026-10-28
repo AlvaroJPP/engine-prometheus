@@ -208,7 +208,7 @@ const normalized = parseUIScreenDefinitions([{
   ...screen,
   background: 'url(javascript:alert(1))',
   displayMode: 'unsupported',
-  elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red', opacity: -3, fontWeight: 999, textAlign: 'diagonal', imageFit: 'stretch' }],
+  elements: [{ ...screen.elements[0], x: 200, width: 0, color: 'red', opacity: -3, fontWeight: 999, textAlign: 'diagonal', imageFit: 'stretch', variableStep: 2_000_000 }],
 }])
 assert.equal(normalized[0].background, '#00000000')
 assert.equal(normalized[0].displayMode, 'screen')
@@ -219,6 +219,7 @@ assert.equal(normalized[0].elements[0].opacity, 0)
 assert.equal(normalized[0].elements[0].fontWeight, 600)
 assert.equal(normalized[0].elements[0].textAlign, 'center')
 assert.equal(normalized[0].elements[0].imageFit, 'contain')
+assert.equal(normalized[0].elements[0].variableStep, 1_000_000)
 const normalizedGroup = parseUIScreenDefinitions([{ ...screen, elements: [{ ...screen.elements[0], groupId: '  clean-group  ' }] }])
 assert.equal(normalizedGroup[0].elements[0].groupId, 'clean-group')
 
@@ -228,12 +229,14 @@ delete legacyElement.fontWeight
 delete legacyElement.textAlign
 delete legacyElement.imageFit
 delete legacyElement.groupId
+delete legacyElement.variableStep
 const legacyDocument = parseUIScreenDefinitions([{ ...screen, elements: [legacyElement] }])
 assert.equal(legacyDocument[0].elements[0].opacity, 1)
 assert.equal(legacyDocument[0].elements[0].fontWeight, 600)
 assert.equal(legacyDocument[0].elements[0].textAlign, 'center')
 assert.equal(legacyDocument[0].elements[0].imageFit, 'contain')
 assert.equal(legacyDocument[0].elements[0].groupId, undefined)
+assert.equal(legacyDocument[0].elements[0].variableStep, 1)
 
 assert.throws(() => parseUIScreenDefinitions({ screens: [] }), /lista de telas/)
 assert.throws(() => parseUIScreenDefinitions([{ ...screen, id: '' }]), /ID válido/)
