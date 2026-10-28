@@ -9,7 +9,9 @@ import {
   UIWorkspaceHistory,
   alignUIElement,
   alignUIElements,
+  alignUIElementsToKey,
   distributeUIElements,
+  spaceUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   getResizedUIElementRect,
@@ -35,6 +37,8 @@ const selectedElementIds = ref<string[]>([])
 const previewMode = ref(false)
 const showGrid = ref(true)
 const snapToGrid = ref(true)
+const distributionGap = ref(5)
+const keyAlignment = ref<UIElementGroupAlignment>('left')
 const statusMessage = ref('As alterações são incluídas ao salvar o projeto.')
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
@@ -531,6 +535,92 @@ function distributeSelectedGroup(axis: UIElementAxis): void {
     (axis === 'horizontal' ? ' elementos distribuídos horizontalmente.' : ' elementos distribuídos verticalmente.')
 }
 
+function alignSelectedToKey(): void {
+  const screen = activeScreen.value
+  const keyId = selectedElementId.value
+  if (!screen || selectedElements.value.length < 2 || !selectedElementIds.value.includes(keyId)) return
+  const aligned = alignUIElementsToKey(screen.elements, selectedElementIds.value, keyId, keyAlignment.value)
+  if (aligned === screen.elements) return
+  screen.elements.splice(0, screen.elements.length, ...aligned)
+  const labels: Record<UIElementGroupAlignment, string> = {
+    left: 'à esquerda',
+    right: 'à direita',
+    top: 'ao topo',
+    bottom: 'à base',
+    'horizontal-center': 'ao centro horizontal',
+    'vertical-center': 'ao centro vertical',
+  }
+  statusMessage.value = 'Seleção alinhada ' + labels[keyAlignment.value] + ' ao elemento-chave "' +
+    (selectedElement.value?.name ?? 'Elemento') + '".'
+}
+
+function updateDistributionGap(event: Event): void {
+  const input = event.target as HTMLInputElement | null
+  if (!input) return
+  const parsed = Number(input.value)
+  if (!input.value.trim() || !Number.isFinite(parsed)) {
+    input.value = String(distributionGap.value)
+    return
+  }
+  distributionGap.value = Number(clampPercent(parsed, 0, 100).toFixed(2))
+  input.value = String(distributionGap.value)
+}
+
+function spaceSelectedGroup(axis: UIElementAxis): void {
+  const screen = activeScreen.value
+  if (!screen || selectedElements.value.length < 2) return
+  const spaced = spaceUIElements(screen.elements, selectedElementIds.value, axis, distributionGap.value)
+  if (spaced === screen.elements) {
+    statusMessage.value = 'O espaçamento solicitado não cabe na tela ou não é válido; a seleção não foi alterada.'
+    return
+  }
+  screen.elements.splice(0, screen.elements.length, ...spaced)
+  statusMessage.value = selectedElements.value.length + ' elementos separados por ' +
+    distributionGap.value + '% no eixo ' + (axis === 'horizontal' ? 'X.' : 'Y.')
+}
+
+function applySelectedElementBoundsField(field: keyof UIElementRect, event: Event): void {
+  const element = selectedElement.value
+  const input = event.target as HTMLInputElement | null
+  if (!element || selectedElements.value.length !== 1 || !input) return
+  const parsed = Number(input.value)
+  if (!input.value.trim() || !Number.isFinite(parsed)) {
+    input.value = String(element[field])
+    return
+  }
+
+  const target: UIElementRect = {
+    width: clampPercent(element.width, 1, 100),
+    height: clampPercent(element.height, 1, 100),
+    x: 0,
+    y: 0,
+  }
+  target.x = clampPercent(element.x, 0, 100 - target.width)
+  target.y = clampPercent(element.y, 0, 100 - target.height)
+
+  switch (field) {
+    case 'x':
+      target.x = clampPercent(parsed, 0, 100 - target.width)
+      break
+    case 'y':
+      target.y = clampPercent(parsed, 0, 100 - target.height)
+      break
+    case 'width':
+      target.width = clampPercent(parsed, 1, 100 - target.x)
+      break
+    case 'height':
+      target.height = clampPercent(parsed, 1, 100 - target.y)
+      break
+  }
+
+  for (const key of Object.keys(target) as Array<keyof UIElementRect>) {
+    target[key] = Number(target[key].toFixed(2))
+  }
+  Object.assign(element, target)
+  input.value = String(target[field])
+  statusMessage.value = 'Geometria de "' + element.name + '" atualizada com valores numéricos.'
+}
+
 function applySelectionBoundsField(field: keyof UIElementRect, event: Event): void {
   const screen = activeScreen.value
   const bounds = selectionBounds.value
@@ -898,6 +988,22 @@ onBeforeUnmount(() => {
             <button type="button" title="Alinhar as bases da seleção" @click="alignSelectedGroup('bottom')">Base ↓</button>
             <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento horizontal uniforme" @click="distributeSelectedGroup('horizontal')">↔ Distribuir X</button>
             <button type="button" :disabled="selectedElements.length < 3" title="Distribuir os elementos com espaçamento vertical uniforme" @click="distributeSelectedGroup('vertical')">↕ Distribuir Y</button>
+            <label class="ui-toolbar-field" title="Distância exata entre elementos adjacentes">Espaço %
+              <input type="number" min="0" max="100" step="0.25" :value="distributionGap" @change="updateDistributionGap($event)" />
+            </label>
+            <button type="button" title="Aplicar espaçamento horizontal definido" @click="spaceSelectedGroup('horizontal')">Espaçar X</button>
+            <button type="button" title="Aplicar espaçamento vertical definido" @click="spaceSelectedGroup('vertical')">Espaçar Y</button>
+            <label class="ui-toolbar-select" title="Escolhe como alinhar os demais elementos em relação ao elemento-chave">Em relação a
+              <select v-model="keyAlignment" aria-label="Alinhamento em relação ao elemento-chave">
+                <option value="left">Esquerda</option>
+                <option value="horizontal-center">Centro X</option>
+                <option value="right">Direita</option>
+                <option value="top">Topo</option>
+                <option value="vertical-center">Centro Y</option>
+                <option value="bottom">Base</option>
+              </select>
+            </label>
+            <button type="button" title="Alinhar os outros elementos à referência selecionada por último" @click="alignSelectedToKey">Alinhar à chave</button>
           </template>
           <template v-else>
             <button type="button" title="Centralizar horizontalmente na tela" @click="alignSelected('horizontal')">↔ Centro X</button>
@@ -1047,18 +1153,18 @@ onBeforeUnmount(() => {
             </label>
             <div class="ui-two-fields">
               <label class="ui-field">X · %
-                <input v-model.number="selectedElement.x" type="number" min="0" max="99" step="1" />
+                <input type="number" min="0" :max="100 - selectedElement.width" step="0.25" :value="selectedElement.x" @change="applySelectedElementBoundsField('x', $event)" />
               </label>
               <label class="ui-field">Y · %
-                <input v-model.number="selectedElement.y" type="number" min="0" max="99" step="1" />
+                <input type="number" min="0" :max="100 - selectedElement.height" step="0.25" :value="selectedElement.y" @change="applySelectedElementBoundsField('y', $event)" />
               </label>
             </div>
             <div class="ui-two-fields">
               <label class="ui-field">Largura · %
-                <input v-model.number="selectedElement.width" type="number" min="1" max="100" step="1" />
+                <input type="number" min="1" :max="100 - selectedElement.x" step="0.25" :value="selectedElement.width" @change="applySelectedElementBoundsField('width', $event)" />
               </label>
               <label class="ui-field">Altura · %
-                <input v-model.number="selectedElement.height" type="number" min="1" max="100" step="1" />
+                <input type="number" min="1" :max="100 - selectedElement.y" step="0.25" :value="selectedElement.height" @change="applySelectedElementBoundsField('height', $event)" />
               </label>
             </div>
             <div v-if="selectedElement.kind !== 'image'" class="ui-two-fields">
