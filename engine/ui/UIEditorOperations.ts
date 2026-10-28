@@ -111,6 +111,23 @@ export interface UIElementRect {
   height: number
 }
 
+/** Returns IDs of UI elements intersecting a selection rectangle in percentage coordinates. */
+export function getUIElementIdsInRect(
+  elements: readonly UIElementDefinition[],
+  rect: UIElementRect,
+): string[] {
+  const left = Math.min(rect.x, rect.x + rect.width)
+  const right = Math.max(rect.x, rect.x + rect.width)
+  const top = Math.min(rect.y, rect.y + rect.height)
+  const bottom = Math.max(rect.y, rect.y + rect.height)
+  return elements.filter(element =>
+    element.x <= right &&
+    element.x + element.width >= left &&
+    element.y <= bottom &&
+    element.y + element.height >= top,
+  ).map(element => element.id)
+}
+
 /** Scales a selected set of UI elements from one shared rectangle into another. */
 export function resizeUIElements(
   elements: readonly UIElementDefinition[],
