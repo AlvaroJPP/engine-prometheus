@@ -127,17 +127,28 @@ cleanupEntities.defineComponent('marker')
 cleanupEntities.create('cleanup')
 cleanupEntities.addComponent('cleanup', 'marker', true)
 let exitSawComponent = false
+let lateSystemEnters = 0
+let unregisterLateSystem
 const cleanupSystems = new EntitySystemRuntime(cleanupEntities, id => ({
   hasMarker: cleanupEntities.hasComponent(id, 'marker'),
 }))
 cleanupSystems.register({
   id: 'cleanup-system',
   requiredComponents: ['marker'],
-  onEntityExit: (_id, context) => { exitSawComponent = context.hasMarker },
+  onEntityExit: (_id, context) => {
+    exitSawComponent = context.hasMarker
+    unregisterLateSystem = cleanupSystems.register({
+      id: 'registered-during-destroy',
+      requiredComponents: ['marker'],
+      onEntityEnter: () => { lateSystemEnters += 1 },
+    })
+  },
 })
 cleanupSystems.start()
 cleanupEntities.destroy('cleanup')
 assert.equal(exitSawComponent, true)
+assert.equal(lateSystemEnters, 0, 'a system registered during destruction must not enter the destroying entity')
+unregisterLateSystem?.()
 cleanupSystems.dispose()
 
 console.log('Entity system runtime self-test passed.')
