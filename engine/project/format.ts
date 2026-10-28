@@ -1,3 +1,5 @@
+import type { UIScreenDefinition } from '../ui/UIScreenDocument'
+
 export const FORMAT_VERSION = 2
 export const ENGINE_VERSION = '0.1.0'
 export const MAIN_SCENE_PATH = 'scenes/main.scene.json'
@@ -119,4 +121,6 @@ export interface ProjectBundle {
   project: ProjectFile
   scenes: Record<string, SceneFile>
   logic?: import('../script/types').LogicEventsFile
+  /** Optional visual UI screens stored at ui/screens.json. */
+  uiScreens?: UIScreenDefinition[]
 }
