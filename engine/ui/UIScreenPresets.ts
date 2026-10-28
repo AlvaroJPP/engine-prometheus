@@ -4,7 +4,7 @@ import {
   type UIElementDefinition,
   type UIElementKind,
   type UIScreenDefinition,
-} from './UIScreenDocument'
+} from './UIScreenDocument.ts'
 
 export type UIScreenPresetId = 'main-menu' | 'pause-menu' | 'adventure-hud'
 
