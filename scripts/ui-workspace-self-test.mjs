@@ -10,7 +10,9 @@ import {
   alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
+  getResizedUIElementRect,
   getUIElementIdsInRect,
+  getUIElementsBounds,
   reorderUIElement,
   resizeUIElements,
 } from '../engine/ui/UIEditorOperations.ts'
