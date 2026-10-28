@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import RuntimeHUD from '@/components/RuntimeHUD.vue'
+import GameUIRuntime from '@/components/GameUIRuntime.vue'
+import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
@@ -18,6 +20,12 @@ function setExternalRef(name: string, element: unknown): void {
 <main :ref="element => setExternalRef('viewportRoot', element)" class="viewport">
         <canvas :ref="element => setExternalRef('canvas', element)" class="canvas" :class="['tool-' + ctx.tool, ctx.viewportCursorClass]" />
         <slot name="game-overlay" />
+        <GameUIRuntime
+          v-if="ctx.executionMode === 'running'"
+          :screens="uiWorkspaceState.screens"
+          :game-variables="ctx.globalLogicVariables"
+          @set-global-variable="ctx.setRuntimeGlobalVariable"
+        />
         <RuntimeHUD
           v-if="ctx.executionMode === 'running' || ctx.runtimeHudSettingsOpen"
           :player-name="ctx.playerModelName"
