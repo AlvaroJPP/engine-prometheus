@@ -27,6 +27,8 @@ Na lateral esquerda, em **Modelos prontos**, você pode criar uma nova tela a pa
 
 Os modelos são cópias independentes e criam IDs novos para a tela e cada elemento. Eles começam desativados no jogo para não cobrir a cena ou alterar uma interface existente sem intenção. Revise o modelo, ajuste os elementos e marque **Ativa no jogo** quando estiver pronto.
 
+A HUD antiga baseada em camadas avulsas de imagem não é mais aplicada como interface padrão. Na primeira execução após a atualização, uma migração remove as camadas antigas do tema **Alquimia Escarlate** e seus arquivos salvos, preservando outras imagens personalizadas. O tema continua disponível para aplicação manual no painel de personalização legado; para a interface principal do jogo, prefira as telas e overlays criados neste Workspace.
+
 Os botões de exemplo usam a ação genérica **Definir variável global** (por exemplo, `ui.action.start` ou `ui.action.resume`). Eles emitem valores que você pode conectar ao Visual Script ou a outro sistema do projeto; não iniciam ou pausam o jogo automaticamente. Os botões também podem usar **Disparar evento do Visual Script**, enviando um identificador de evento global ao runtime.
 
 ## Aparência dos elementos
