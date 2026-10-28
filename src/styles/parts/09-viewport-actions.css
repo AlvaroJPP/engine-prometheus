@@ -162,7 +162,8 @@
   .viewport-render-stats span:nth-child(n+2) { display:none; }
   .chips { left:54px !important; bottom:70px !important; }
   .axes { left:54px !important; bottom:36px !important; }
-}\n
+}
+
 @container viewport-hud (max-width: 400px) {
   .viewport-actions {
     left: 54px;
