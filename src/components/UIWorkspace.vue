@@ -1195,6 +1195,13 @@ onBeforeUnmount(() => {
               <span class="ui-color-field"><input v-model="activeScreen.background" type="color" /><input v-model="activeScreen.background" maxlength="7" /></span>
             </label>
             <label class="ui-check-field"><input v-model="activeScreen.enabledInGame" type="checkbox" /><span><strong>Ativa no jogo</strong><small>Inclui esta tela na interface durante o modo Jogar.</small></span></label>
+            <label class="ui-field">Visibilidade condicionada por variável (opcional)
+              <input v-model.trim="activeScreen.visibilityVariable" maxlength="80" placeholder="ui.inventory.open" />
+            </label>
+            <label v-if="activeScreen.visibilityVariable" class="ui-field">Valor exigido para mostrar
+              <input v-model="activeScreen.visibilityValue" maxlength="100" placeholder="true" />
+              <small class="ui-field-help">A tela só aparece quando a variável existe e seu valor corresponde exatamente ao texto informado.</small>
+            </label>
             <div class="ui-inspector-actions">
               <button type="button" @click="duplicateScreen">Duplicar tela</button>
               <button type="button" class="danger" @click="deleteScreen">Excluir</button>
@@ -1251,6 +1258,13 @@ onBeforeUnmount(() => {
               <input v-model="selectedElement.text" maxlength="240" />
             </label>
             <small v-if="['panel', 'text', 'button', 'progress'].includes(selectedElement.kind)" class="ui-field-help">Use &#123;&#123;vida&#125;&#125; para exibir uma variável global atualizada em tempo real, por exemplo: Vida: &#123;&#123;vida&#125;&#125;.</small>
+            <label class="ui-field">Visibilidade condicionada por variável (opcional)
+              <input v-model.trim="selectedElement.visibilityVariable" maxlength="80" placeholder="ui.inventory.open" />
+            </label>
+            <label v-if="selectedElement.visibilityVariable" class="ui-field">Valor exigido para mostrar
+              <input v-model="selectedElement.visibilityValue" maxlength="100" placeholder="true" />
+              <small class="ui-field-help">O elemento só aparece quando a variável existe e seu valor corresponde exatamente ao texto informado.</small>
+            </label>
             <div class="ui-two-fields">
               <label class="ui-field">X · %
                 <input type="number" min="0" :max="100 - selectedElement.width" step="0.25" :value="selectedElement.x" @change="applySelectedElementBoundsField('x', $event)" />
