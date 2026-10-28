@@ -25,6 +25,12 @@ import {
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
 import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
+import { resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
+
+assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
+assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
+assert.equal(resolveUIValueBindings('Sem valor: {{nao_existe}}', {}), 'Sem valor: {{nao_existe}}')
+assert.equal(resolveUIValueBindings('Texto comum sem vinculos', { vida: 73 }), 'Texto comum sem vinculos')
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -124,6 +130,8 @@ assert.match(uiWorkspaceSource, /Criar fluxo global e vincular automaticamente/)
 assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogicEvent"/)
 assert.match(gameUIRuntimeSource, /source: 'hud'/)
 assert.match(gameUIRuntimeSource, /screenId, screenName, elementId, elementName/)
+assert.match(gameUIRuntimeSource, /resolveUIValueBindings/)
+assert.match(gameUIRuntimeSource, /uiText\(element\.text, element\.variableName\)/)
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
