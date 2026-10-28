@@ -43,4 +43,4 @@ Imagens são incorporadas aos dados da tela. Para evitar arquivos grandes, cada 
 
 ## Teste
 
-Execute `npm run ui-workspace:self-test` para validar a estrutura, normalização de cores, limites, dados de imagem, encaixe, alinhamento, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
+Execute `npm run ui-workspace:self-test` para validar estrutura, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, alinhamento, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
