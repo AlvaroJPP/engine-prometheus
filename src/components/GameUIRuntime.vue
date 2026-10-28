@@ -92,8 +92,8 @@ function activate(element: UIElementDefinition): void {
         :class="'game-ui-' + element.kind"
         :style="elementStyle(screen, element)"
       >
-        <template v-if="element.kind === 'panel'">{{ element.text }}</template>
-        <template v-else-if="element.kind === 'text'">{{ element.text }}</template>
+        <template v-if="element.kind === 'panel'"><span class="game-ui-label">{{ element.text }}</span></template>
+        <template v-else-if="element.kind === 'text'"><span class="game-ui-label">{{ element.text }}</span></template>
         <template v-else-if="element.kind === 'image'">
           <img v-if="element.imageDataUrl" :src="element.imageDataUrl" :alt="element.name" :style="{ objectFit: element.imageFit }" />
           <span v-else>{{ element.text }}</span>
@@ -115,6 +115,7 @@ function activate(element: UIElementDefinition): void {
 .game-ui-surface { position: absolute; inset: 0; overflow: hidden; container-type: inline-size; pointer-events: none; }
 .game-ui-element { position: absolute; display: flex; align-items: center; justify-content: center; overflow: hidden; text-align: center; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 3px #0008; pointer-events: none; }
 .game-ui-panel { border: 1px solid #ffffff25; box-shadow: 0 8px 30px #0003; }
+.game-ui-label { display: block; width: 100%; min-width: 0; padding: 0 8px; overflow-wrap: anywhere; }
 .game-ui-text { overflow-wrap: anywhere; }
 .game-ui-image { border: 1px solid #ffffff20; }
 .game-ui-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
