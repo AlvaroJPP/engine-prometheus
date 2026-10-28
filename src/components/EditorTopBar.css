@@ -616,8 +616,8 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .viewport-tool.active { background:#34302a; color:#f3efe6; }
 .viewport-tool svg { flex:none; }
 .viewport-tools-divider { height:24px; }
-.topbar .render-settings { position:relative; flex:none; }
-.topbar .render-settings-trigger {
+.viewport-tools-overlay .render-settings { position:relative; flex:none; }
+.viewport-tools-overlay .render-settings-trigger {
   display:flex;
   align-items:center;
   gap:7px;
@@ -632,11 +632,11 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   white-space:nowrap;
   cursor:pointer;
 }
-.topbar .render-settings-trigger:hover,.topbar .render-settings[open] .render-settings-trigger { background:#26231e; border-color:#3c372f; }
-.topbar .render-settings-trigger.active { color:#f3efe6; background:#26231e; }
-.topbar .render-settings-icon { width:8px; height:8px; border-radius:50%; background:#e8572b; font-size:0; }
-.topbar .render-settings-chevron { color:#b5afa2; font-size:12px; }
-.topbar .render-settings-popover {
+.viewport-tools-overlay .render-settings-trigger:hover,.viewport-tools-overlay .render-settings[open] .render-settings-trigger { background:#26231e; border-color:#3c372f; }
+.viewport-tools-overlay .render-settings-trigger.active { color:#f3efe6; background:#26231e; }
+.viewport-tools-overlay .render-settings-icon { width:8px; height:8px; border-radius:50%; background:#e8572b; font-size:0; }
+.viewport-tools-overlay .render-settings-chevron { color:#b5afa2; font-size:12px; }
+.viewport-tools-overlay .render-settings-popover {
   top:calc(100% + 7px);
   right:0;
   width:min(360px,calc(100vw - 24px));
@@ -648,23 +648,23 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   color:#f3efe6;
   box-shadow:0 16px 40px #000a;
 }
-.topbar .render-settings-heading,.topbar .render-settings-section-title { color:#f3efe6; }
-.topbar .render-settings-description,.topbar .render-settings-help,.topbar .render-settings-note { color:#b5afa2; }
-.topbar .render-settings-field>span:first-child { color:#b5afa2; }
-.topbar .render-settings-number-wrap,.topbar .render-settings-select { border-color:#3b3730; background:#14120f; color:#f3efe6; }
-.topbar .render-settings input[type="number"],.topbar .render-settings select {
+.viewport-tools-overlay .render-settings-heading,.viewport-tools-overlay .render-settings-section-title { color:#f3efe6; }
+.viewport-tools-overlay .render-settings-description,.viewport-tools-overlay .render-settings-help,.viewport-tools-overlay .render-settings-note { color:#b5afa2; }
+.viewport-tools-overlay .render-settings-field>span:first-child { color:#b5afa2; }
+.viewport-tools-overlay .render-settings-number-wrap,.viewport-tools-overlay .render-settings-select { border-color:#3b3730; background:#14120f; color:#f3efe6; }
+.viewport-tools-overlay .render-settings input[type="number"],.viewport-tools-overlay .render-settings select {
   border-color:#3b3730;
   background:#14120f;
   color:#f3efe6;
 }
-.topbar .render-settings input[type="checkbox"],.topbar .render-settings input[type="range"] { accent-color:#e8572b; }
-.topbar .render-settings-range-labels { color:#8b8478; }
-.topbar .render-settings-everything { border-color:#2e2b25; background:#211e19; }
-.topbar .render-settings-everything strong { color:#f3efe6; }
-.topbar .render-settings-everything small { color:#b5afa2; }
-.topbar .render-settings-section { border-top-color:#2e2b25; }
-.topbar .render-settings-note { border-top-color:#2e2b25; }
-.topbar .topbar-fullscreen {
+.viewport-tools-overlay .render-settings input[type="checkbox"],.viewport-tools-overlay .render-settings input[type="range"] { accent-color:#e8572b; }
+.viewport-tools-overlay .render-settings-range-labels { color:#8b8478; }
+.viewport-tools-overlay .render-settings-everything { border-color:#2e2b25; background:#211e19; }
+.viewport-tools-overlay .render-settings-everything strong { color:#f3efe6; }
+.viewport-tools-overlay .render-settings-everything small { color:#b5afa2; }
+.viewport-tools-overlay .render-settings-section { border-top-color:#2e2b25; }
+.viewport-tools-overlay .render-settings-note { border-top-color:#2e2b25; }
+.viewport-tools-overlay .topbar-fullscreen {
   display:grid;
   place-items:center;
   flex:none;
@@ -678,8 +678,8 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   color:#f3efe6;
   cursor:pointer;
 }
-.topbar .topbar-fullscreen svg { display:block; width:16px; height:16px; }
-.topbar .topbar-fullscreen:hover,.topbar .topbar-fullscreen.active { border-color:#3c372f; background:#26231e; }
+.viewport-tools-overlay .topbar-fullscreen svg { display:block; width:16px; height:16px; }
+.viewport-tools-overlay .topbar-fullscreen:hover,.viewport-tools-overlay .topbar-fullscreen.active { border-color:#3c372f; background:#26231e; }
 :global(.app.world-fullscreen) .viewport-tools-overlay {
   top: 12px !important;
   right: 12px !important;
@@ -770,4 +770,62 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 .topbar .mode-segment button.viewport-layout-config-action:focus-visible {
   outline: 2px solid #e8572b;
   outline-offset: 2px;
+}
+
+
+/* Quando a própria viewport fica estreita, transforma a barra em ícones.
+   As opções continuam no HUD da cena e deixam de cobrir o inspetor lateral. */
+@container viewport-hud (max-width: 400px) {
+  .viewport-tools-overlay.viewport-layout-positioned {
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9px;
+  }
+  .viewport-tools-overlay .viewport-camera-switch { gap: 0; }
+  .viewport-tools-overlay .viewport-tool {
+    box-sizing: border-box;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 4px;
+    gap: 0;
+  }
+  .viewport-tools-overlay .viewport-tool > span { display: none; }
+  .viewport-tools-overlay .viewport-tools-divider { display: none; }
+  .viewport-tools-overlay .render-settings-trigger {
+    box-sizing: border-box;
+    width: 31px;
+    min-width: 31px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 3px;
+    gap: 2px;
+    font-size: 0;
+  }
+  .viewport-tools-overlay .render-settings-label { display: none; }
+  .viewport-tools-overlay .render-settings-icon { width: 6px; height: 6px; }
+  .viewport-tools-overlay .render-settings-chevron { font-size: 10px; }
+  .viewport-tools-overlay .hud-settings-toolbar-button {
+    box-sizing: border-box;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    gap: 0;
+  }
+  .viewport-tools-overlay .hud-settings-toolbar-button > span { display: none; }
+  .viewport-tools-overlay .topbar-fullscreen {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+  }
+  .viewport-tools-overlay .render-settings-popover {
+    right: -4px;
+    width: min(360px, calc(100cqw - 16px));
+    max-width: calc(100cqw - 16px);
+    max-height: calc(100cqh - 48px);
+  }
 }
