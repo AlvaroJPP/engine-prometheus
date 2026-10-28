@@ -100,6 +100,12 @@
   color:#f3efe6 !important;
   filter:none;
 }
+.app .viewport-actions .model-import-launch,
+.app .viewport-actions .model-import-launch:hover,
+.app .viewport-actions .model-import-launch .viewport-action-label {
+  color:#f3efe6 !important;
+  -webkit-text-fill-color:#f3efe6 !important;
+}
 .viewport-actions .model-import-launch > span:first-child { color:#e8572b !important; font-size:15px; }
 .viewport-fps {
   top:auto !important;
