@@ -1250,6 +1250,7 @@ onBeforeUnmount(() => {
             <label v-if="selectedElement.kind !== 'image'" class="ui-field">Texto / rótulo
               <input v-model="selectedElement.text" maxlength="240" />
             </label>
+            <small v-if="['panel', 'text', 'button', 'progress'].includes(selectedElement.kind)" class="ui-field-help">Use &#123;&#123;vida&#125;&#125; para exibir uma variável global atualizada em tempo real, por exemplo: Vida: &#123;&#123;vida&#125;&#125;.</small>
             <div class="ui-two-fields">
               <label class="ui-field">X · %
                 <input type="number" min="0" :max="100 - selectedElement.width" step="0.25" :value="selectedElement.x" @change="applySelectedElementBoundsField('x', $event)" />
