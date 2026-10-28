@@ -1380,6 +1380,15 @@ onBeforeUnmount(() => {
                   <input v-model.number="selectedElement.variableStep" type="number" min="-1000000" max="1000000" step="0.25" />
                   <small class="ui-field-help">Use um número negativo para subtrair, como -1 para consumir uma unidade.</small>
                 </label>
+                <template v-if="selectedElement.action === 'adjust-variable'">
+                  <label class="ui-field">Valor mínimo
+                    <input v-model.number="selectedElement.variableMin" type="number" min="-1000000" max="1000000" step="0.25" />
+                  </label>
+                  <label class="ui-field">Valor máximo
+                    <input v-model.number="selectedElement.variableLimitMax" type="number" min="-1000000" max="1000000" step="0.25" />
+                  </label>
+                  <small class="ui-field-help">O valor fica limitado a esta faixa, útil para vida, energia, munição e pontos.</small>
+                </template>
                 <small v-else class="ui-field-help">Cada clique alterna entre true e false. Se a variável ainda não estiver em true, o primeiro clique define true.</small>
               </template>
             </template>
