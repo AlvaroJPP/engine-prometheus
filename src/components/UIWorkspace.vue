@@ -8,11 +8,13 @@ import {
   UI_SCREEN_PRESETS,
   UIWorkspaceHistory,
   alignUIElement,
+  alignUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   reorderUIElement,
   type UIElementDefinition,
   type UIElementKind,
+  type UIElementGroupAlignment,
   type UIScreenPresetId,
   type UIWorkspaceSnapshot,
 } from '@engine'
@@ -22,6 +24,7 @@ defineProps<{ projectName?: string }>()
 const emit = defineEmits<{ (event: 'close'): void }>()
 
 const selectedElementId = ref('')
+const selectedElementIds = ref<string[]>([])
 const previewMode = ref(false)
 const showGrid = ref(true)
 const snapToGrid = ref(true)
@@ -29,8 +32,14 @@ const statusMessage = ref('As alterações são incluídas ao salvar o projeto.'
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const imageTargetId = ref('')
-const dragState = ref<{ id: string; startX: number; startY: number; originX: number; originY: number; width: number; height: number } | null>(null)
-const clipboardElement = ref<UIElementDefinition | null>(null)
+const dragState = ref<{
+  startX: number
+  startY: number
+  width: number
+  height: number
+  origins: Array<{ id: string; x: number; y: number; width: number; height: number }>
+} | null>(null)
+const clipboardElement = ref<UIElementDefinition[] | null>(null)
 const canUndo = ref(false)
 const canRedo = ref(false)
 const editHistory = new UIWorkspaceHistory(40)
@@ -73,7 +82,7 @@ function restoreWorkspaceSnapshot(snapshot: UIWorkspaceSnapshot): void {
   uiWorkspaceState.activeScreenId = uiWorkspaceState.screens.some(screen => screen.id === snapshot.activeScreenId)
     ? snapshot.activeScreenId
     : uiWorkspaceState.screens[0]?.id ?? ''
-  selectedElementId.value = ''
+  clearSelection()
   finishElementDrag()
   refreshHistoryAvailability()
   void nextTick(() => {
@@ -97,35 +106,97 @@ function redoWorkspace(): void {
   statusMessage.value = 'Alteração refeita.'
 }
 
-function copyElement(): void {
-  if (!selectedElement.value) return
-  clipboardElement.value = JSON.parse(JSON.stringify(selectedElement.value)) as UIElementDefinition
-  statusMessage.value = 'Elemento copiado. Troque de tela e use Colar para reutilizá-lo.'
-}
-
-function pasteElement(): void {
-  const screen = activeScreen.value
-  const source = clipboardElement.value
-  if (!screen || !source || previewMode.value) return
-  const pasted = duplicateUIElement(source, screen.elements.length)
-  pasted.name = (source.name + ' - cópia').slice(0, 80)
-  screen.elements.push(pasted)
-  selectedElementId.value = pasted.id
-  statusMessage.value = 'Elemento colado em "' + screen.name + '".'
-}
-
 const activeScreen = computed(() =>
   uiWorkspaceState.screens.find(screen => screen.id === uiWorkspaceState.activeScreenId) ?? null,
 )
 const selectedElement = computed(() =>
   activeScreen.value?.elements.find(element => element.id === selectedElementId.value) ?? null,
 )
+const selectedElements = computed(() => {
+  const ids = new Set(selectedElementIds.value)
+  return activeScreen.value?.elements.filter(element => ids.has(element.id)) ?? []
+})
+const selectionGroupId = computed(() => {
+  const elements = selectedElements.value
+  const groupId = elements[0]?.groupId
+  return elements.length > 1 && groupId && elements.every(element => element.groupId === groupId) ? groupId : ''
+})
 const activeElementIndex = computed(() =>
   activeScreen.value?.elements.findIndex(element => element.id === selectedElementId.value) ?? -1,
 )
 
+function setSelection(ids: string[], primaryId = ''): void {
+  const screen = activeScreen.value
+  const requested = new Set(ids)
+  selectedElementIds.value = screen?.elements.filter(element => requested.has(element.id)).map(element => element.id) ?? []
+  selectedElementId.value = primaryId && selectedElementIds.value.includes(primaryId)
+    ? primaryId
+    : selectedElementIds.value.at(-1) ?? ''
+}
+
+function clearSelection(): void {
+  setSelection([], '')
+}
+
+function elementSelectionIds(id: string): string[] {
+  const screen = activeScreen.value
+  const element = screen?.elements.find(item => item.id === id)
+  if (!screen || !element?.groupId) return [id]
+  return screen.elements.filter(item => item.groupId === element.groupId).map(item => item.id)
+}
+
+function selectElement(id: string, extend = false): void {
+  if (previewMode.value) return
+  const members = elementSelectionIds(id)
+  if (!extend) {
+    setSelection(members, id)
+    return
+  }
+  const next = new Set(selectedElementIds.value)
+  if (members.every(memberId => next.has(memberId))) members.forEach(memberId => next.delete(memberId))
+  else members.forEach(memberId => next.add(memberId))
+  const nextIds = [...next]
+  setSelection(nextIds, next.has(id) ? id : nextIds.at(-1) ?? '')
+}
+
+function cloneElementsWithFreshIds(sources: readonly UIElementDefinition[], startCount: number): UIElementDefinition[] {
+  const nextGroupIds = new Map<string, string>()
+  return sources.map((source, index) => {
+    const copy = duplicateUIElement(source, startCount + index)
+    copy.name = (source.name + ' - cópia').slice(0, 80)
+    if (source.groupId) {
+      if (!nextGroupIds.has(source.groupId)) nextGroupIds.set(source.groupId, createUIScreenId('group'))
+      copy.groupId = nextGroupIds.get(source.groupId)
+    }
+    return copy
+  })
+}
+
+function copyElement(): void {
+  const sources = selectedElements.value.length
+    ? selectedElements.value
+    : selectedElement.value ? [selectedElement.value] : []
+  if (!sources.length) return
+  clipboardElement.value = JSON.parse(JSON.stringify(sources)) as UIElementDefinition[]
+  statusMessage.value = sources.length > 1
+    ? sources.length + ' elementos copiados. Troque de tela e use Colar para reutilizá-los.'
+    : 'Elemento copiado. Troque de tela e use Colar para reutilizá-lo.'
+}
+
+function pasteElement(): void {
+  const screen = activeScreen.value
+  const sources = clipboardElement.value
+  if (!screen || !sources?.length || previewMode.value) return
+  const pasted = cloneElementsWithFreshIds(sources, screen.elements.length)
+  screen.elements.push(...pasted)
+  setSelection(pasted.map(element => element.id), pasted[0]?.id ?? '')
+  statusMessage.value = pasted.length > 1
+    ? pasted.length + ' elementos colados em "' + screen.name + '".'
+    : 'Elemento colado em "' + screen.name + '".'
+}
+
 watch(() => uiWorkspaceState.activeScreenId, () => {
-  selectedElementId.value = ''
+  clearSelection()
 })
 
 watch(() => uiWorkspaceState.screens, scheduleHistoryCapture, { deep: true, flush: 'post' })
@@ -134,7 +205,7 @@ function createScreen(): void {
   const screen = createUIScreen(`Tela ${uiWorkspaceState.screens.length + 1}`)
   uiWorkspaceState.screens.push(screen)
   uiWorkspaceState.activeScreenId = screen.id
-  selectedElementId.value = ''
+  clearSelection()
   statusMessage.value = 'Tela criada. Configure os elementos e marque “Ativa no jogo” quando quiser exibi-la.'
 }
 
@@ -142,7 +213,7 @@ function addPreset(presetId: UIScreenPresetId): void {
   const screen = createUIScreenFromPreset(presetId)
   uiWorkspaceState.screens.push(screen)
   uiWorkspaceState.activeScreenId = screen.id
-  selectedElementId.value = ''
+  clearSelection()
   previewMode.value = false
   statusMessage.value = 'Modelo "' + screen.name + '" adicionado. Revise os elementos e ative a tela no jogo quando estiver pronta.'
 }
@@ -165,7 +236,7 @@ function deleteScreen(): void {
   const index = uiWorkspaceState.screens.findIndex(item => item.id === screen.id)
   uiWorkspaceState.screens.splice(index, 1)
   uiWorkspaceState.activeScreenId = uiWorkspaceState.screens[Math.max(0, index - 1)]?.id ?? uiWorkspaceState.screens[0]?.id ?? ''
-  selectedElementId.value = ''
+  clearSelection()
   statusMessage.value = 'Tela removida. Salve o projeto para registrar a alteração.'
 }
 
@@ -183,20 +254,41 @@ function addElement(kind: UIElementKind): void {
   statusMessage.value = `${element.name} adicionado à tela.`
 }
 
-function selectElement(id: string): void {
-  if (previewMode.value) return
-  selectedElementId.value = id
+function duplicateElement(): void {
+  const screen = activeScreen.value
+  const sources = selectedElements.value
+  if (!screen || !sources.length) return
+  const copies = cloneElementsWithFreshIds(sources, screen.elements.length)
+  screen.elements.push(...copies)
+  setSelection(copies.map(element => element.id), copies[0]?.id ?? '')
+  statusMessage.value = copies.length > 1
+    ? copies.length + ' elementos duplicados.'
+    : 'Elemento "' + sources[0].name + '" duplicado.'
 }
 
-function duplicateElement(): void {
-  const source = selectedElement.value
+function groupSelectedElements(): void {
   const screen = activeScreen.value
-  if (!source || !screen) return
-  const copy = duplicateUIElement(source, screen.elements.length)
-  screen.elements.push(copy)
-  selectedElementId.value = copy.id
-  statusMessage.value = 'Elemento "' + source.name + '" duplicado.'
+  const ids = new Set(selectedElements.value.map(element => element.id))
+  if (!screen || ids.size < 2) return
+  const groupId = createUIScreenId('group')
+  for (const element of screen.elements) {
+    if (ids.has(element.id)) element.groupId = groupId
+  }
+  setSelection([...ids], selectedElementId.value)
+  statusMessage.value = ids.size + ' elementos agrupados. Arraste qualquer membro para mover o grupo.'
 }
+
+function ungroupSelectedElements(): void {
+  const screen = activeScreen.value
+  const groupId = selectionGroupId.value
+  if (!screen || !groupId) return
+  const members = screen.elements.filter(element => element.groupId === groupId)
+  for (const element of members) delete element.groupId
+  setSelection(members.map(element => element.id), selectedElementId.value)
+  statusMessage.value = members.length + ' elementos desagrupados.'
+}
+
+
 
 function moveSelectedLayer(direction: 'front' | 'back'): void {
   const screen = activeScreen.value
@@ -211,14 +303,41 @@ function alignSelected(axis: 'horizontal' | 'vertical'): void {
   const element = selectedElement.value
   if (!element) return
   Object.assign(element, alignUIElement(element, axis))
-  statusMessage.value = axis === 'horizontal' ? 'Elemento centralizado horizontalmente.' : 'Elemento centralizado verticalmente.'
+  statusMessage.value = axis === 'horizontal' ? 'Elemento centralizado no eixo X da tela.' : 'Elemento centralizado no eixo Y da tela.'
+}
+
+function alignSelectedGroup(alignment: UIElementGroupAlignment): void {
+  const screen = activeScreen.value
+  if (!screen || selectedElements.value.length < 2) return
+  const aligned = alignUIElements(screen.elements, selectedElementIds.value, alignment)
+  screen.elements.splice(0, screen.elements.length, ...aligned)
+  const labels: Record<UIElementGroupAlignment, string> = {
+    left: 'à esquerda',
+    right: 'à direita',
+    top: 'ao topo',
+    bottom: 'à base',
+    'horizontal-center': 'ao centro horizontal',
+    'vertical-center': 'ao centro vertical',
+  }
+  statusMessage.value = selectedElements.value.length + ' elementos alinhados ' + labels[alignment] + '.'
 }
 
 function moveSelectedBy(dx: number, dy: number): void {
-  const element = selectedElement.value
-  if (!element) return
-  Object.assign(element, getClampedUIElementPosition(element, element.x + dx, element.y + dy, snapToGrid.value, 2.5))
+  const elements = selectedElements.value
+  if (!elements.length) return
+  const minX = Math.min(...elements.map(element => element.x))
+  const minY = Math.min(...elements.map(element => element.y))
+  const maxX = Math.max(...elements.map(element => element.x + element.width))
+  const maxY = Math.max(...elements.map(element => element.y + element.height))
+  const safeDx = Math.max(-minX, Math.min(100 - maxX, dx))
+  const safeDy = Math.max(-minY, Math.min(100 - maxY, dy))
+  for (const element of elements) {
+    element.x = Number((element.x + safeDx).toFixed(2))
+    element.y = Number((element.y + safeDy).toFixed(2))
+  }
 }
+
+
 
 function handleKeyboardShortcut(event: KeyboardEvent): void {
   const target = event.target
@@ -240,12 +359,12 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     redoWorkspace()
     return
   }
-  if (modifier && key === 'c' && selectedElement.value && !previewMode.value) {
+  if (modifier && key === 'c' && selectedElements.value.length && !previewMode.value) {
     event.preventDefault()
     copyElement()
     return
   }
-  if (modifier && key === 'v' && clipboardElement.value && activeScreen.value && !previewMode.value) {
+  if (modifier && clipboardElement.value?.length && activeScreen.value && !previewMode.value) {
     event.preventDefault()
     pasteElement()
     return
@@ -259,7 +378,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   }
   if (event.key === 'Escape') {
     if (previewMode.value) previewMode.value = false
-    else selectedElementId.value = ''
+    else clearSelection()
     return
   }
   if (previewMode.value) return
@@ -285,15 +404,19 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   moveSelectedBy(direction[0] * step, direction[1] * step)
 }
 
-function removeElement(id = selectedElementId.value): void {
+function removeElement(id?: string): void {
   const screen = activeScreen.value
-  if (!screen || !id) return
-  const index = screen.elements.findIndex(element => element.id === id)
-  if (index < 0) return
-  screen.elements.splice(index, 1)
-  if (selectedElementId.value === id) selectedElementId.value = ''
-  statusMessage.value = 'Elemento removido.'
+  if (!screen) return
+  const ids = new Set(id ? [id] : selectedElementIds.value.length ? selectedElementIds.value : selectedElementId.value ? [selectedElementId.value] : [])
+  if (!ids.size) return
+  const removed = screen.elements.filter(element => ids.has(element.id)).length
+  if (!removed) return
+  screen.elements.splice(0, screen.elements.length, ...screen.elements.filter(element => !ids.has(element.id)))
+  clearSelection()
+  statusMessage.value = removed > 1 ? removed + ' elementos removidos.' : 'Elemento removido.'
 }
+
+
 
 function elementStyle(element: UIElementDefinition): Record<string, string> {
   return {
@@ -322,15 +445,26 @@ function beginElementDrag(event: PointerEvent, element: UIElementDefinition): vo
   if (!bounds.width || !bounds.height) return
   event.preventDefault()
   event.stopPropagation()
-  selectedElementId.value = element.id
+
+  const extendSelection = event.shiftKey || event.ctrlKey || event.metaKey
+  if (extendSelection) {
+    selectElement(element.id, true)
+    return
+  }
+  if (!selectedElementIds.value.includes(element.id)) selectElement(element.id)
+  else selectedElementId.value = element.id
+
+  const screen = activeScreen.value
+  const ids = new Set(selectedElementIds.value.includes(element.id) ? selectedElementIds.value : [element.id])
+  const origins = screen.elements.filter(item => ids.has(item.id)).map(item => ({
+    id: item.id, x: item.x, y: item.y, width: item.width, height: item.height,
+  }))
   dragState.value = {
-    id: element.id,
     startX: event.clientX,
     startY: event.clientY,
-    originX: element.x,
-    originY: element.y,
     width: bounds.width,
     height: bounds.height,
+    origins,
   }
   window.addEventListener('pointermove', moveElement)
   window.addEventListener('pointerup', finishElementDrag)
@@ -339,19 +473,30 @@ function beginElementDrag(event: PointerEvent, element: UIElementDefinition): vo
 
 function moveElement(event: PointerEvent): void {
   const drag = dragState.value
-  const element = activeScreen.value?.elements.find(item => item.id === drag?.id)
-  if (!drag || !element) return
-  const x = drag.originX + (event.clientX - drag.startX) / drag.width * 100
-  const y = drag.originY + (event.clientY - drag.startY) / drag.height * 100
-  Object.assign(element, getClampedUIElementPosition(element, x, y, snapToGrid.value, 2.5))
+  const screen = activeScreen.value
+  if (!drag || !screen) return
+
+  let dx = (event.clientX - drag.startX) / drag.width * 100
+  let dy = (event.clientY - drag.startY) / drag.height * 100
+  if (snapToGrid.value) {
+    dx = Math.round(dx / 2.5) * 2.5
+    dy = Math.round(dy / 2.5) * 2.5
+  }
+  const minX = Math.min(...drag.origins.map(origin => origin.x))
+  const minY = Math.min(...drag.origins.map(origin => origin.y))
+  const maxX = Math.max(...drag.origins.map(origin => origin.x + origin.width))
+  const maxY = Math.max(...drag.origins.map(origin => origin.y + origin.height))
+  dx = Math.max(-minX, Math.min(100 - maxX, dx))
+  dy = Math.max(-minY, Math.min(100 - maxY, dy))
+
+  for (const origin of drag.origins) {
+    const element = screen.elements.find(item => item.id === origin.id)
+    if (!element) continue
+    Object.assign(element, getClampedUIElementPosition(element, origin.x + dx, origin.y + dy))
+  }
 }
 
-function finishElementDrag(): void {
-  dragState.value = null
-  window.removeEventListener('pointermove', moveElement)
-  window.removeEventListener('pointerup', finishElementDrag)
-  window.removeEventListener('pointercancel', finishElementDrag)
-}
+
 
 function chooseImage(): void {
   if (!selectedElement.value || selectedElement.value.kind !== 'image') return
@@ -482,14 +627,26 @@ onBeforeUnmount(() => {
             <label title="Alinhar os elementos à grade de 2,5% durante o arraste"><input v-model="snapToGrid" type="checkbox" :disabled="previewMode" /> Encaixar</label>
           </div>
         </div>
-        <div v-if="selectedElement && !previewMode" class="ui-selection-toolbar" aria-label="Ações do elemento selecionado">
-          <span>{{ selectedElement.name }}</span>
-          <button type="button" title="Copiar (Ctrl+C)" @click="copyElement">Copiar</button>
-          <button type="button" title="Duplicar (Ctrl+D)" @click="duplicateElement">Duplicar</button>
-          <button type="button" title="Trazer uma camada para frente" :disabled="activeElementIndex >= (activeScreen?.elements.length ?? 0) - 1" @click="moveSelectedLayer('front')">↑ Frente</button>
-          <button type="button" title="Enviar uma camada para trás" :disabled="activeElementIndex <= 0" @click="moveSelectedLayer('back')">↓ Atrás</button>
-          <button type="button" title="Centralizar horizontalmente" @click="alignSelected('horizontal')">↔ Centro X</button>
-          <button type="button" title="Centralizar verticalmente" @click="alignSelected('vertical')">↕ Centro Y</button>
+        <div v-if="selectedElements.length && !previewMode" class="ui-selection-toolbar" aria-label="Ações da seleção">
+          <span>{{ selectedElements.length > 1 ? selectedElements.length + ' elementos selecionados' : selectedElement?.name }}</span>
+          <button type="button" title="Copiar seleção (Ctrl+C)" @click="copyElement">Copiar</button>
+          <button type="button" title="Duplicar seleção (Ctrl+D)" @click="duplicateElement">Duplicar</button>
+          <button v-if="selectedElements.length > 1 && selectionGroupId" type="button" title="Desagrupar elementos selecionados" @click="ungroupSelectedElements">Desagrupar</button>
+          <button v-else-if="selectedElements.length > 1" type="button" title="Agrupar elementos selecionados" @click="groupSelectedElements">Agrupar</button>
+          <button v-if="selectedElements.length === 1" type="button" title="Trazer uma camada para frente" :disabled="activeElementIndex >= (activeScreen?.elements.length ?? 0) - 1" @click="moveSelectedLayer('front')">↑ Frente</button>
+          <button v-if="selectedElements.length === 1" type="button" title="Enviar uma camada para trás" :disabled="activeElementIndex <= 0" @click="moveSelectedLayer('back')">↓ Atrás</button>
+          <template v-if="selectedElements.length > 1">
+            <button type="button" title="Alinhar as bordas esquerdas da seleção" @click="alignSelectedGroup('left')">← Esquerda</button>
+            <button type="button" title="Centralizar a seleção no eixo X" @click="alignSelectedGroup('horizontal-center')">↔ Centro X</button>
+            <button type="button" title="Alinhar as bordas direitas da seleção" @click="alignSelectedGroup('right')">Direita →</button>
+            <button type="button" title="Alinhar os topos da seleção" @click="alignSelectedGroup('top')">↑ Topo</button>
+            <button type="button" title="Centralizar a seleção no eixo Y" @click="alignSelectedGroup('vertical-center')">↕ Centro Y</button>
+            <button type="button" title="Alinhar as bases da seleção" @click="alignSelectedGroup('bottom')">Base ↓</button>
+          </template>
+          <template v-else>
+            <button type="button" title="Centralizar horizontalmente na tela" @click="alignSelected('horizontal')">↔ Centro X</button>
+            <button type="button" title="Centralizar verticalmente na tela" @click="alignSelected('vertical')">↕ Centro Y</button>
+          </template>
         </div>
 
         <div v-if="activeScreen" class="ui-canvas-area">
@@ -505,10 +662,10 @@ onBeforeUnmount(() => {
                 v-for="element in activeScreen.elements"
                 :key="element.id"
                 class="ui-design-element"
-                :class="['kind-' + element.kind, { selected: !previewMode && selectedElementId === element.id, hidden: element.kind === 'panel' && !element.text }]"
+                :class="['kind-' + element.kind, { selected: !previewMode && selectedElementIds.includes(element.id), hidden: element.kind === 'panel' && !element.text }]"
                 :style="elementStyle(element)"
                 @pointerdown="beginElementDrag($event, element)"
-                @click.stop="previewMode ? activatePreviewElement(element) : selectElement(element.id)"
+                @click.stop="previewMode && activatePreviewElement(element)"
               >
                 <template v-if="element.kind === 'panel'">
                   <span v-if="element.text" class="ui-element-label">{{ element.text }}</span>
@@ -525,7 +682,7 @@ onBeforeUnmount(() => {
                   <button type="button" tabindex="-1" class="ui-preview-button" :style="{ color: element.color, backgroundColor: element.background, borderRadius: element.borderRadius + 'px', fontSize: 'inherit', fontWeight: element.fontWeight, textAlign: element.textAlign }">{{ element.text || 'Botão' }}</button>
                 </template>
                 <template v-else><span class="ui-element-label">{{ element.text }}</span></template>
-                <span v-if="!previewMode && selectedElementId === element.id" class="ui-selection-box"><i /><i /><i /><i /></span>
+                <span v-if="!previewMode && selectedElementIds.includes(element.id) class="ui-selection-box"><i /><i /><i /><i /></span>
               </div>
               <div v-if="!activeScreen.elements.length" class="ui-empty-canvas">
                 <span>＋</span><strong>Sua tela começa aqui</strong><small>Adicione textos, botões, painéis, imagens ou barras no topo.</small>
@@ -576,8 +733,8 @@ onBeforeUnmount(() => {
             :key="element.id"
             type="button"
             class="ui-element-row"
-            :class="{ active: selectedElementId === element.id && !previewMode }"
-            @click="selectElement(element.id)"
+            :class="{ active: selectedElementIds.includes(element.id) && !previewMode }"
+            @click="selectElement(element.id, $event.shiftKey || $event.ctrlKey || $event.metaKey)"
           >
             <span class="ui-element-kind">{{ element.kind === 'text' ? 'T' : element.kind === 'button' ? '▣' : element.kind === 'panel' ? '▤' : element.kind === 'image' ? '▧' : '▰' }}</span>
             <span>{{ element.name }}</span>
