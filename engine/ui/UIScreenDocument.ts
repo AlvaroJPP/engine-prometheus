@@ -1,5 +1,5 @@
 export type UIElementKind = 'panel' | 'text' | 'button' | 'image' | 'progress'
-export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable'
+export type UIElementAction = 'none' | 'navigate-screen' | 'set-variable' | 'trigger-event'
 export type UIElementTextAlign = 'left' | 'center' | 'right'
 export type UIElementImageFit = 'contain' | 'cover' | 'fill'
 export type UIElementFontWeight = 400 | 500 | 600 | 700 | 800
@@ -24,6 +24,8 @@ export interface UIElementDefinition {
   variableName: string
   variableMax: number
   action: UIElementAction
+  /** Global Visual Script event invoked by a HUD/button action. */
+  eventId: string
   targetScreenId: string
   variableValue: string
   /** Editor-only group identity; ignored by game runtime rendering. */
@@ -64,7 +66,7 @@ export function createUIScreen(name = 'Nova tela'): UIScreenDefinition {
 }
 
 export function createUIElement(kind: UIElementKind, count = 0): UIElementDefinition {
-  const defaults: Record<UIElementKind, Omit<UIElementDefinition, 'id' | 'name' | 'x' | 'y'>> = {
+  const defaults: Record<UIElementKind, Omit<UIElementDefinition, 'id' | 'name' | 'x' | 'y' | 'eventId'>> = {
     panel: {
       kind: 'panel', width: 42, height: 44, text: '', color: '#F4F1E9',
       background: '#202631', fontSize: 24, fontWeight: 600, textAlign: 'center', opacity: 1, imageFit: 'contain', borderRadius: 14,
@@ -98,6 +100,7 @@ export function createUIElement(kind: UIElementKind, count = 0): UIElementDefini
     name: `${kind === 'panel' ? 'Painel' : kind === 'text' ? 'Texto' : kind === 'button' ? 'Botão' : kind === 'image' ? 'Imagem' : 'Barra'} ${count + 1}`,
     x: Math.min(72, 8 + (count % 4) * 5),
     y: Math.min(78, 10 + (count % 5) * 7),
+    eventId: '',
   }
 }
 
@@ -151,7 +154,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       const kind: UIElementKind = element.kind === 'panel' || element.kind === 'text' || element.kind === 'button' || element.kind === 'image' || element.kind === 'progress'
         ? element.kind
         : 'text'
-      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' ? element.action : 'none'
+      const action: UIElementAction = element.action === 'navigate-screen' || element.action === 'set-variable' || element.action === 'trigger-event' ? element.action : 'none'
       const imageDataUrl = typeof element.imageDataUrl === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(element.imageDataUrl) && element.imageDataUrl.length <= 7_000_000
         ? element.imageDataUrl
         : undefined
@@ -175,6 +178,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
         variableName: boundedString(element.variableName, '', 80),
         variableMax: boundedNumber(element.variableMax, 100, 1, 1_000_000),
         action,
+        eventId: boundedString(element.eventId, '', 100),
         targetScreenId: boundedString(element.targetScreenId, '', 100),
         variableValue: boundedString(element.variableValue, 'true', 100),
         ...(typeof element.groupId === 'string' && element.groupId.trim()
