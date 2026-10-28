@@ -86,7 +86,8 @@
    A escala reduz o conjunto inteiro; não comprimimos a largura dos botões. */
 .app.sidebar-collapsed .toolbar.viewport-layout-positioned {
   position: fixed !important;
-  top: 56px !important;
+  top: 184px !important;
+  bottom: 8px !important;
   left: 0 !important;
   right: auto !important;
   bottom: auto !important;
@@ -96,9 +97,9 @@
   max-width: none !important;
   height: auto !important;
   min-height: 0 !important;
-  max-height: calc((100dvh - 84px) / var(--viewport-layout-scale, 1)) !important;
+  max-height: calc((100dvh - 192px) / var(--viewport-layout-scale, 1)) !important;
   margin: 0 !important;
-  padding: 132px 7px 10px !important;
+  padding: 6px 7px 10px !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -106,8 +107,19 @@
   gap: 6px !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #494137 transparent !important;
   transform: scale(var(--viewport-layout-scale, 1)) !important;
   transform-origin: top left !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned::-webkit-scrollbar {
+  display: block !important;
+  width: 4px !important;
+  height: 4px !important;
+}
+.app.sidebar-collapsed .toolbar.viewport-layout-positioned::-webkit-scrollbar-thumb {
+  border-radius: 4px !important;
+  background: #494137 !important;
 }
 .app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-group {
   display: flex !important;
