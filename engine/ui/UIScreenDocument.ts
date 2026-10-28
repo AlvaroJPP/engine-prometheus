@@ -45,7 +45,7 @@ export function createUIScreen(name = 'Nova tela'): UIScreenDefinition {
     name: name.slice(0, 80),
     width: 1280,
     height: 720,
-    background: '#101319',
+    background: '#00000000',
     enabledInGame: false,
     elements: [],
   }
@@ -164,7 +164,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       name: boundedString(source.name, `Tela ${screenIndex + 1}`, 80),
       width: boundedNumber(source.width, 1280, 320, 4096),
       height: boundedNumber(source.height, 720, 180, 4096),
-      background: safeColor(source.background, '#101319'),
+      background: safeColor(source.background, '#00000000'),
       enabledInGame: source.enabledInGame === true,
       elements,
     }
