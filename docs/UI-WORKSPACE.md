@@ -77,6 +77,12 @@ Esse caminho usa o sistema genérico de eventos da engine; não é necessário a
 
 Barras de progresso leem a variável global indicada e usam o valor máximo configurado. Se a variável não for numérica ou ainda não existir, a barra começa vazia.
 
+### Visibilidade controlada por scripts
+
+Telas e elementos podem ter a visibilidade ligada a uma variável global no inspetor. Deixe **Visibilidade condicionada por variável** vazio para manter o item sempre visível; ao informar um nome, ele só será mostrado quando a variável existir e `String(valor)` corresponder exatamente ao **Valor exigido para mostrar**. O valor inicial esperado é `true`, mas também pode ser `false`, um número como `1` ou uma string como `aberto`. Se a variável ainda não existir, a UI condicionada fica oculta.
+
+Exemplo de inventário: configure a tela do inventário com variável `ui.inventory.open` e valor exigido `true`. No Visual Script, o botão de inventário define `ui.inventory.open = true` para abrir e outro botão define `ui.inventory.open = false` para fechar. O mesmo mecanismo serve para diálogos, dicas contextuais, barras de estado ou elementos individuais, sem código específico por jogo.
+
 ### Textos dinâmicos ligados a variáveis
 
 O texto de painéis, rótulos, botões e legendas de barras aceita marcadores `{{nome_da_variavel}}`. Durante o modo **Run**, o runtime substitui cada marcador pelo valor global atual a cada atualização reativa da interface. Por exemplo, `Vida: {{vida}} / {{vida_maxima}}` mostra o valor atual da vida e o limite definido pelo jogo. Números, textos e booleanos são convertidos para texto; um marcador cuja variável ainda não existe é mantido visível para ajudar a encontrar erros de digitação. Os nomes podem usar letras, números, `_`, `.`, `-` e `:`.
