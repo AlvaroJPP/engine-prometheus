@@ -107,6 +107,8 @@ type ViewportLayoutDrag = {
 }
 let viewportLayoutDrag: ViewportLayoutDrag | null = null
 let viewportLayoutResizeObserver: ResizeObserver | null = null
+let viewportLayoutMutationObserver: MutationObserver | null = null
+const observedViewportLayoutTargets = new Set<HTMLElement>()
 
 const viewportLayoutUsableHeight = computed(() => Math.max(
   1,
@@ -120,6 +122,25 @@ function getViewportLayoutTarget(id: ViewportLayoutId): HTMLElement | null {
     tools: '.toolbar',
   }
   return typeof document === 'undefined' ? null : document.querySelector<HTMLElement>(selectors[id])
+}
+function syncViewportLayoutTargets(): void {
+  if (!viewportLayoutResizeObserver) return
+  const currentTargets = new Set<HTMLElement>()
+  for (const item of viewportLayoutItems) {
+    const target = getViewportLayoutTarget(item.id)
+    if (target) currentTargets.add(target)
+  }
+
+  for (const target of observedViewportLayoutTargets) {
+    if (currentTargets.has(target)) continue
+    viewportLayoutResizeObserver.unobserve(target)
+    observedViewportLayoutTargets.delete(target)
+  }
+  for (const target of currentTargets) {
+    if (observedViewportLayoutTargets.has(target)) continue
+    viewportLayoutResizeObserver.observe(target)
+    observedViewportLayoutTargets.add(target)
+  }
 }
 function getViewportLayoutMaximumScale(id: ViewportLayoutId, element?: HTMLElement | null): number {
   const target = element ?? getViewportLayoutTarget(id)
@@ -405,9 +426,20 @@ onMounted(() => {
     if (viewportRoot.value && typeof ResizeObserver !== 'undefined') {
       viewportLayoutResizeObserver = new ResizeObserver(handleViewportLayoutWindowResize)
       viewportLayoutResizeObserver.observe(viewportRoot.value)
+      syncViewportLayoutTargets()
+    }
+    if (viewportRoot.value && typeof MutationObserver !== 'undefined') {
+      viewportLayoutMutationObserver = new MutationObserver(() => {
+        // Teleport e elementos condicionais podem criar/substituir a barra
+        // depois do primeiro layout (ex.: fechar o importador ou alternar telas).
+        syncViewportLayoutTargets()
+        refreshViewportLayoutBounds()
+      })
+      viewportLayoutMutationObserver.observe(viewportRoot.value, { childList: true, subtree: true })
     }
     window.addEventListener('resize', handleViewportLayoutWindowResize)
     requestAnimationFrame(() => {
+      syncViewportLayoutTargets()
       refreshViewportLayoutBounds()
     })
   })
@@ -415,6 +447,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   viewportLayoutResizeObserver?.disconnect()
   viewportLayoutResizeObserver = null
+  observedViewportLayoutTargets.clear()
+  viewportLayoutMutationObserver?.disconnect()
+  viewportLayoutMutationObserver = null
   window.removeEventListener('resize', handleViewportLayoutWindowResize)
   window.removeEventListener('pointermove', moveViewportLayoutDrag)
   window.removeEventListener('pointerup', finishViewportLayoutDrag)
