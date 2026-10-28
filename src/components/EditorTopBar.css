@@ -823,7 +823,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
     min-height: 28px;
   }
   .viewport-tools-overlay .render-settings-popover {
-    left: 0;
+    left: -64px;
     right: auto;
     width: min(360px, calc(100cqw - var(--viewport-layout-left, 48px) - 8px));
     max-width: calc(100cqw - var(--viewport-layout-left, 48px) - 8px);
