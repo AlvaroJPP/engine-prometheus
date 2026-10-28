@@ -25,6 +25,8 @@ screen.elements = (['panel', 'text', 'button', 'image', 'progress']).map((kind, 
   return element
 })
 screen.elements[3].imageDataUrl = 'data:image/png;base64,AA=='
+screen.elements[0].groupId = 'group-header'
+screen.elements[1].groupId = 'group-header'
 screen.elements[0].opacity = 0.35
 screen.elements[0].textAlign = 'left'
 screen.elements[0].fontWeight = 800
