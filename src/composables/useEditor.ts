@@ -1319,6 +1319,20 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     dirty.value = true
   }
 
+  /** Runs global Visual Script flows dispatched by HUD buttons and other runtime interfaces. */
+  function triggerRuntimeGlobalEvent(
+    eventId: string,
+    payload: Record<string, boolean | number | string> = {},
+  ): boolean {
+    const key = eventId.trim()
+    if (!engine || !runtimeMode || !key) return false
+    const executed = engine.logic.triggerGlobalEvent(key, payload)
+    globalLogicVariables.value = engine.logicVariables()
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    dirty.value = true
+    return executed
+  }
+
   function toggleLogicVariable(name: string, scope: 'global' | 'object' = 'object') {
     const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
     const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
@@ -1733,7 +1747,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, deleteLogicVariable, addLogicRule, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
