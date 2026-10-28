@@ -224,7 +224,7 @@ assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogi
 
 assert.match(appWorkspaceSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?<EditorToolbar/)
 assert.match(editorTopBarSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?class="viewport-tools-overlay viewport-layout-positioned"/)
-assert.match(editorViewportSource, /<div class="viewport-hud" aria-label="HUD da viewport">/)
+assert.match(editorViewportSource, /<div class="viewport-hud" role="group" aria-label="HUD da viewport">/)
 assert.match(editorViewportSource, /<div class="viewport-hud"[\s\S]*?<GameUIRuntime[\s\S]*?<RuntimeHUD[\s\S]*?class="viewport-actions"[\s\S]*?class="viewport-fps viewport-layout-positioned"[\s\S]*?class="chips"[\s\S]*?class="axes viewport-layout-positioned"[\s\S]*?class="statusbar"/)
 assert.match(viewportRootCssSource, /\.viewport-hud \{ position:absolute; inset:0;[\s\S]*?pointer-events:none; \}/)
 assert.match(viewportRootCssSource, /\.viewport-hud > \* \{ pointer-events:auto; \}/)
