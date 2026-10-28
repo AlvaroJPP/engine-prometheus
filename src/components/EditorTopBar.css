@@ -823,9 +823,10 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
     min-height: 28px;
   }
   .viewport-tools-overlay .render-settings-popover {
-    right: -4px;
+    left: -56px;
+    right: auto;
     width: min(360px, calc(100cqw - 16px));
     max-width: calc(100cqw - 16px);
-    max-height: calc(100cqh - 48px);
+    max-height: calc(100dvh - 176px);
   }
 }
