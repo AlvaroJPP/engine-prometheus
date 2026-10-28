@@ -12,13 +12,14 @@ import { MAIN_SCENE_PATH } from './project/format'
 import type { CameraPreset, ObjectType, PlayerModelData, ProjectBundle, SceneObjectData } from './project/format'
 import { buildBundle, objectFromData } from './project/serialize'
 import { restoreImportedProjectModels } from './project/ImportedModelProjectRestorer'
+import { restorePlayerModelFromProject } from './project/PlayerModelProjectRestorer'
 import type { ProjectMeta } from './project/serialize'
 import { ProjectFormatError } from './project/validate'
 import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
 import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
-import { decodeBase64ArrayBuffer, encodeArrayBufferBase64 } from './lib/BinaryEncoding'
+import { encodeArrayBufferBase64 } from './lib/BinaryEncoding'
 import { World } from './world/World'
 import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
@@ -1299,33 +1300,12 @@ export class Engine {
         this.addImportedModel(name, model, height, restoreData),
     })
 
-    if (scene.playerModel?.glbData) {
-      report('Restaurando modelo personalizado do jogador…', 91)
-      try {
-        const playerBytes = decodeBase64ArrayBuffer(scene.playerModel.glbData)
-        const playerHeight = clamp(scene.playerModel.height ?? 1.8, 0.1, 10000)
-        await this.avatar.setCustomModel(playerBytes, scene.playerModel.animationRoles, playerHeight)
-        this.playerModelData = {
-          name: scene.playerModel.name,
-          glbData: scene.playerModel.glbData,
-          height: playerHeight,
-          ...(scene.playerModel.sourceUrl ? { sourceUrl: scene.playerModel.sourceUrl } : {}),
-          ...(scene.playerModel.animationRoles ? { animationRoles: { ...scene.playerModel.animationRoles } } : {}),
-        }
-      } catch (error) {
-        console.error('[Engine] Não foi possível restaurar o modelo personalizado do jogador:', error)
-        throw new ProjectFormatError('Não foi possível carregar o modelo personalizado do jogador salvo neste projeto.')
-      }
-    } else if (this.playerModelData) {
-      report('Restaurando modelo padrão do jogador…', 91)
-      try {
-        await this.avatar.resetDefaultModel()
-        this.playerModelData = null
-      } catch (error) {
-        console.error('[Engine] Não foi possível restaurar o avatar padrão:', error)
-        throw new ProjectFormatError('Não foi possível restaurar o modelo padrão do jogador.')
-      }
-    }
+    this.playerModelData = await restorePlayerModelFromProject(
+      scene.playerModel,
+      this.playerModelData,
+      this.avatar,
+      report,
+    )
 
     report('Finalizando configurações do editor…', 93)
     const editorSettings = bundle.project.settings.editor
