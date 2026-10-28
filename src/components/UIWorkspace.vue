@@ -29,7 +29,6 @@ const selectedElement = computed(() =>
 
 watch(() => uiWorkspaceState.activeScreenId, () => {
   selectedElementId.value = ''
-  previewMode.value = false
 })
 
 function createScreen(): void {
