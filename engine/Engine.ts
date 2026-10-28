@@ -38,12 +38,16 @@ import { EngineBehaviorTreeRuntime } from './script/EngineBehaviorTreeRuntime'
 import { MountModelStateController } from './script/MountModelStateController'
 import type { LogicRule } from './script/types'
 import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountPackageSettings } from './script/packages'
-import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageScalar } from './script/packages'
+import type { AnimationRole, BehaviorPackageInstance, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
 import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
 import { createRuntimeFrameUpdateHandler } from './runtime/RuntimeFrameCoordinator'
+import { installComponentLogicTemplates } from './script/ComponentLogicInstaller'
+import { resolveModelControlBindings } from './script/ModelControlBindings'
+import { placeSpawnPlatform } from './world/SpawnPlatformPlacement'
+import { dispatchMouseBinding, isInteractiveRuntimeTarget, mouseButtonBindingCode } from './input/RuntimePointerBindings'
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 
 import { PRESET_ORDER } from './view/cameraPresets'
@@ -378,24 +382,7 @@ export class Engine {
     const instance = this.logic.installPackage(ownerObjectId, packageId)
     if (packageId === 'mount' && !alreadyInstalled) {
       const rawBindings = this.world.get(ownerObjectId)?.mesh.userData.importControlBindings
-      const candidate = rawBindings && typeof rawBindings === 'object'
-        ? rawBindings as Partial<ModelControlBindings>
-        : {}
-      const readKey = (key: keyof ModelControlBindings): string => {
-        const value = candidate[key]
-        return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(value)
-          ? value
-          : DEFAULT_MODEL_CONTROL_BINDINGS[key]
-      }
-      const controlBindings: ModelControlBindings = {
-        forward: readKey('forward'),
-        backward: readKey('backward'),
-        left: readKey('left'),
-        right: readKey('right'),
-        run: readKey('run'),
-        jump: readKey('jump'),
-        interact: readKey('interact'),
-      }
+      const controlBindings = resolveModelControlBindings(rawBindings)
       this.logic.updatePackage(instance.id, {
         config: {
           ...instance.config,
@@ -585,7 +572,7 @@ export class Engine {
       this.logic.removeObjectVariables(objectId)
     }
     this.runtimeModeActive = false
-    for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
+    for (const code of this.pressedMouseBindings.values()) dispatchMouseBinding(code, 'keyup')
     this.pressedMouseBindings.clear()
     this.input.setRuntimeMode(false)
     if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
@@ -634,69 +621,7 @@ export class Engine {
 
   /** Cria uma pequena plataforma persistente que define o ponto inicial do jogador. */
   addSpawnPlatform(): void {
-    const x = clamp(snap(this.orbit.target.x, 0.5), -48, 48)
-    const z = clamp(snap(this.orbit.target.z, 0.5), -48, 48)
-    const groundY = this.world.terrain.heightAt(x, z)
-
-    // Mantém apenas um ponto de spawn ativo por projeto.
-    for (const object of this.world.list()) {
-      if (object.name === 'Plataforma de Spawn' || object.mesh.userData.playerSpawn === true) {
-        this.world.rename(object.id, 'Plataforma')
-        object.mesh.userData.playerSpawn = false
-      }
-    }
-
-    const spawn = this.world.place('platform', x, groundY, z)
-    spawn.name = 'Plataforma de Spawn'
-    spawn.mesh.name = 'Plataforma de Spawn'
-    spawn.mesh.scale.set(0.5, 0.5, 0.5)
-    spawn.mesh.position.y = groundY + 0.1
-    spawn.mesh.userData.playerSpawn = true
-    this.world.notifyChanged(spawn.id)
-    this.world.select(spawn.id)
-  }
-
-  /** Clona e vincula ao objeto os nós embutidos no asset reutilizável. */
-  private applyComponentLogic(objectId: string, templates: unknown): void {
-    if (!Array.isArray(templates)) return
-    for (const raw of templates) {
-      if (!raw || typeof raw !== 'object') continue
-      const template = JSON.parse(JSON.stringify(raw)) as LogicRule
-      const remap = (value: string): string => value === '{ID_OBJECT}' ? objectId : value
-      template.id = `${template.id || 'component-event'}-${objectId}`
-      template.ownerObjectId = objectId
-      if (template.trigger.type === 'object_clicked') {
-        template.trigger.objectId = remap(template.trigger.objectId)
-      }
-      for (const action of template.actions) {
-        if ('objectId' in action && typeof action.objectId === 'string') {
-          action.objectId = remap(action.objectId)
-        }
-      }
-      this.logic.upsert(template)
-    }
-  }
-
-  private mouseButtonBindingCode(button: number): string | null {
-    const codes: Record<number, string> = {
-      0: 'MouseLeft',
-      1: 'MouseMiddle',
-      2: 'MouseRight',
-      3: 'MouseBack',
-      4: 'MouseForward',
-    }
-    return codes[button] ?? null
-  }
-
-  private dispatchMouseBinding(code: string, type: 'keydown' | 'keyup'): void {
-    // Usa a mesma rota do teclado para controles, animações e Visual Script.
-    window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }))
-  }
-
-  private isInteractiveRuntimeTarget(target: EventTarget | null): boolean {
-    return target instanceof Element && !!target.closest(
-      'button, input, select, textarea, a, [role="dialog"], [data-no-game-attack], .hud-settings-panel, .hud-custom-image',
-    )
+    placeSpawnPlatform(this.world, this.orbit.target)
   }
 
   private onRuntimePointerDown = (event: PointerEvent): void => {
@@ -706,8 +631,8 @@ export class Engine {
       !this.runtimeModeActive
     ) return
 
-    const code = this.mouseButtonBindingCode(event.button)
-    if (!code || this.isInteractiveRuntimeTarget(event.target)) return
+    const code = mouseButtonBindingCode(event.button)
+    if (!code || isInteractiveRuntimeTarget(event.target)) return
 
     const isMappedControl = Object.values(this.playerControlBindings).some(binding => binding === code)
     const dispatchedCode = isMappedControl ? code : null
@@ -717,12 +642,12 @@ export class Engine {
     event.stopImmediatePropagation()
     if (this.pressedMouseBindings.has(code)) return
     this.pressedMouseBindings.set(code, dispatchedCode)
-    this.dispatchMouseBinding(dispatchedCode, 'keydown')
+    dispatchMouseBinding(dispatchedCode, 'keydown')
   }
 
   private onRuntimePointerUp = (event: PointerEvent): void => {
     if (!this.cameraStateBeforeRun || !this.runtimeModeActive) return
-    const mouseCode = this.mouseButtonBindingCode(event.button)
+    const mouseCode = mouseButtonBindingCode(event.button)
     if (!mouseCode) return
     const dispatchedCode = this.pressedMouseBindings.get(mouseCode)
     if (!dispatchedCode) return
@@ -730,7 +655,7 @@ export class Engine {
     event.preventDefault()
     event.stopImmediatePropagation()
     this.pressedMouseBindings.delete(mouseCode)
-    this.dispatchMouseBinding(dispatchedCode, 'keyup')
+    dispatchMouseBinding(dispatchedCode, 'keyup')
   }
 
   private onGameModuleKeyUp = (event: KeyboardEvent): void => {
@@ -738,7 +663,7 @@ export class Engine {
   }
 
   private onGameModuleBlur = (): void => {
-    for (const code of this.pressedMouseBindings.values()) this.dispatchMouseBinding(code, 'keyup')
+    for (const code of this.pressedMouseBindings.values()) dispatchMouseBinding(code, 'keyup')
     this.pressedMouseBindings.clear()
     this.gameModules.dispatchInputBlur()
   }
@@ -859,7 +784,7 @@ export class Engine {
       created.mesh.position.set(x, baseY + pending.height / 2, z)
       created.mesh.updateMatrixWorld(true)
       this.world.notifyChanged(created.id) 
-      this.applyComponentLogic(created.id, pending.model.userData.componentLogic)
+      installComponentLogicTemplates(this.logic, created.id, pending.model.userData.componentLogic)
       // Instala no objeto recém-criado os pacotes escolhidos durante a importação.
       // Filtra IDs contra o catálogo do motor para não interromper a construção
       // se um componente salvo tiver metadados antigos ou inválidos.
