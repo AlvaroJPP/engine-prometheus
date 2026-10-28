@@ -39,6 +39,8 @@ O inspetor permite ajustar a **opacidade** de 0% a 100% em todos os elementos. T
 - **Duplicar:** cria uma cópia do elemento selecionado, com ID próprio e deslocamento inicial para facilitar a composição.
 - **Camadas:** use **Frente** e **Atrás** para alterar a ordem de desenho; itens mais abaixo na lista interna de elementos são desenhados por cima.
 - **Seleção múltipla:** segure `Shift`, `Ctrl` ou `Cmd` e clique nos elementos do canvas ou da hierarquia para adicionar/remover itens da seleção. Arrastar qualquer elemento selecionado move a seleção inteira.
+- **Seleção por retângulo:** arraste em uma área vazia do canvas para selecionar todos os elementos que cruzarem o retângulo. Segure `Shift`, `Ctrl` ou `Cmd` durante o arraste para adicionar os novos elementos à seleção existente.
+- **Redimensionar:** a moldura da seleção tem oito alças. Arraste uma borda para alterar um eixo ou um canto para redimensionar largura e altura simultaneamente. Em seleções múltiplas, os tamanhos e posições relativos são escalados em conjunto.
 - **Agrupar:** selecione dois ou mais elementos e use **Agrupar**. O grupo continua junto depois de salvar e reabrir o projeto; selecione o grupo e use **Desagrupar** para liberar os elementos.
 - **Alinhamento em lote:** com vários elementos selecionados, alinhe bordas esquerdas/direitas, topo/base, ou centralize a seleção pelos eixos X e Y. O alinhamento se baseia nos limites compartilhados da seleção; o restante da tela não é alterado.
 - **Centralizar:** com um único elemento, os comandos **Centro X** e **Centro Y** alinham o elemento ao centro da tela no eixo escolhido.
@@ -64,4 +66,4 @@ Imagens são incorporadas aos dados da tela. Para evitar arquivos grandes, cada 
 
 ## Teste
 
-Execute `npm run ui-workspace:self-test` para validar estrutura, histórico de desfazer/refazer, agrupamento persistente, alinhamento múltiplo, cópia de snapshots, modelos prontos, IDs únicos, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
+Execute `npm run ui-workspace:self-test` para validar estrutura, histórico de desfazer/refazer, agrupamento persistente, seleção por retângulo, redimensionamento conjunto, alinhamento múltiplo, cópia de snapshots, modelos prontos, IDs únicos, normalização das propriedades visuais, compatibilidade com telas antigas, dados de imagem, encaixe, duplicação e ordem das camadas. A build completa também valida os componentes Vue e TypeScript.
