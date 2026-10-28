@@ -8,6 +8,7 @@ import {
 import {
   alignUIElement,
   alignUIElements,
+  distributeUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
   getResizedUIElementRect,
@@ -238,6 +239,29 @@ const verticalCentered = alignUIElements(alignSource, alignIds, 'vertical-center
 assert.deepEqual(verticalCentered.slice(0, 2).map(element => element.y), [35, 30])
 assert.equal(alignUIElements(alignSource, [alignFirst.id], 'left'), alignSource)
 
+const distributionThird = createUIElement('button')
+distributionThird.id = 'distribution-third'
+Object.assign(distributionThird, { x: 70, y: 70, width: 10, height: 10 })
+const distributionSecond = { ...alignSecond, x: 30, y: 35 }
+const distributionSource = [alignFirst, distributionSecond, distributionThird, alignUnselected]
+const distributionIds = [alignFirst.id, distributionSecond.id, distributionThird.id]
+const horizontallyDistributed = distributeUIElements(distributionSource, distributionIds, 'horizontal')
+assert.deepEqual(horizontallyDistributed.slice(0, 3).map(element => element.x), [10, 45, 70])
+assert.deepEqual(horizontallyDistributed.slice(0, 3).map(element => element.y), [20, 35, 70])
+assert.equal(horizontallyDistributed[3], alignUnselected)
+const verticallyDistributed = distributeUIElements(distributionSource, distributionIds, 'vertical')
+assert.deepEqual(verticallyDistributed.slice(0, 3).map(element => element.y), [20, 40, 70])
+assert.deepEqual(verticallyDistributed.slice(0, 3).map(element => element.x), [10, 30, 70])
+assert.equal(verticallyDistributed[3], alignUnselected)
+assert.equal(distributeUIElements(distributionSource, distributionIds.slice(0, 2), 'horizontal'), distributionSource)
+const tooCrowded = distributionSource.slice(0, 3).map((element, index) => ({
+  ...element,
+  id: 'crowded-' + index,
+  x: 10 + index * 5,
+  width: 30,
+}))
+assert.equal(distributeUIElements(tooCrowded, tooCrowded.map(element => element.id), 'horizontal'), tooCrowded)
+
 const resized = resizeUIElements(
   alignSource,
   alignIds,
@@ -283,4 +307,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
+console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment and distribution, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
