@@ -1420,7 +1420,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       conditions: [],
       actions: [{
         type: 'javascript',
-        code: "api.global.set('ui.last_event_source', String(api.event.get('source') ?? 'global'));\\napi.global.set('ui.last_event_element', String(api.event.get('elementName') ?? ''));",
+        code: [
+          "api.global.set('ui.last_event_source', String(api.event.get('source') ?? 'global'));",
+          "api.global.set('ui.last_event_element', String(api.event.get('elementName') ?? ''));",
+        ].join(String.fromCharCode(10)),
       }],
     }
     engine.upsertRule(rule)
