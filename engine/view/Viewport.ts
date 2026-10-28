@@ -4,7 +4,10 @@ import { ViewportDiagnostics } from './ViewportDiagnostics'
 export type PerformancePreset = 'quality' | 'balanced' | 'economy'
 
 export interface ViewportRenderStats {
+  /** FPS calculados apenas em amostras com solicitação de renderização contínua. */
   fps: number
+  /** Diferencia jogo/animação ativos de uma cena estática renderizada sob demanda. */
+  continuousRendering: boolean
   drawCalls: number
   triangles: number
   geometries: number
@@ -54,6 +57,9 @@ export class Viewport {
   private fpsListener: ((fps: number) => void) | null = null
   private renderStatsListener: ((stats: ViewportRenderStats) => void) | null = null
   private renderTimeAccumulated = 0
+  private renderTimeSamples = 0
+  private continuousRenderRequests = 0
+  private wasContinuouslyRendering = false
   private updateTimeAccumulated = 0
   private updateTimeSamples = 0
   private readonly invalidateFromInput = () => this.invalidate()
@@ -251,6 +257,7 @@ export class Viewport {
     this.fpsListener = listener
     this.fpsFrameCount = 0
     this.fpsWindowStart = 0
+    this.continuousRenderRequests = 0
   }
 
   /** Recebe métricas nativas do WebGL para comparar mudanças reais de carga gráfica. */
@@ -259,6 +266,8 @@ export class Viewport {
     this.fpsFrameCount = 0
     this.fpsWindowStart = 0
     this.renderTimeAccumulated = 0
+    this.renderTimeSamples = 0
+    this.continuousRenderRequests = 0
     this.updateTimeAccumulated = 0
     this.updateTimeSamples = 0
   }
@@ -266,6 +275,17 @@ export class Viewport {
   /** Renderiza dentro do limite do preset e dorme enquanto uma cena estática não muda. */
   render(scene: THREE.Scene, camera: THREE.Camera, now = performance.now(), force = false): boolean {
     if (document.visibilityState === 'hidden') return false
+
+    if (force) {
+      this.continuousRenderRequests += 1
+    } else if (this.wasContinuouslyRendering && this.dynamicResolutionMultiplier < 0.999) {
+      // A resolução adaptativa só deve reduzir a imagem durante trabalho contínuo.
+      // Ao voltar para uma cena estática, restaure a escala base, sem deixá-la borrada.
+      this.dynamicResolutionMultiplier = 1
+      this.applyPixelRatio()
+      this.resize()
+    }
+    this.wasContinuouslyRendering = force
 
     const cameraZoom = camera instanceof THREE.PerspectiveCamera || camera instanceof THREE.OrthographicCamera
       ? camera.zoom
@@ -318,23 +338,31 @@ export class Viewport {
         this.fpsFrameCount += 1
       }
       this.renderTimeAccumulated += renderDuration
+      this.renderTimeSamples += 1
       const elapsed = now - this.fpsWindowStart
       if (elapsed >= 500) {
         const fps = Math.round((this.fpsFrameCount * 1000) / elapsed)
-        this.fpsListener?.(fps)
+        // A scene estática é redesenhada sob demanda. Seus poucos redraws não
+        // representam FPS baixo e não devem disparar os modos Auto/resolução dinâmica.
+        const continuousRendering = this.continuousRenderRequests >= 4
+        const measuredFps = continuousRendering ? fps : 0
+        this.fpsListener?.(measuredFps)
         this.renderStatsListener?.({
           fps,
+          continuousRendering,
           drawCalls: this.renderer.info.render.calls,
           triangles: this.renderer.info.render.triangles,
           geometries: this.renderer.info.memory.geometries,
           textures: this.renderer.info.memory.textures,
-          cpuRenderMs: this.renderTimeAccumulated / Math.max(1, this.fpsFrameCount),
+          cpuRenderMs: this.renderTimeAccumulated / Math.max(1, this.renderTimeSamples),
           cpuUpdateMs: this.updateTimeAccumulated / Math.max(1, this.updateTimeSamples),
         })
-        this.updateDynamicResolution(fps, now)
+        if (continuousRendering) this.updateDynamicResolution(fps, now)
         this.fpsFrameCount = 0
         this.fpsWindowStart = now
         this.renderTimeAccumulated = 0
+        this.renderTimeSamples = 0
+        this.continuousRenderRequests = 0
         this.updateTimeAccumulated = 0
         this.updateTimeSamples = 0
       }
