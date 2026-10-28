@@ -25,6 +25,7 @@ function setExternalRef(name: string, element: unknown): void {
           :screens="uiWorkspaceState.screens"
           :game-variables="ctx.globalLogicVariables"
           @set-global-variable="ctx.setRuntimeGlobalVariable"
+          @trigger-global-event="ctx.triggerRuntimeGlobalEvent"
         />
         <RuntimeHUD
           v-if="ctx.executionMode === 'running' || ctx.runtimeHudSettingsOpen"
