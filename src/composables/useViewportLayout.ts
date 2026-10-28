@@ -180,7 +180,8 @@ function viewportLayoutStyle(id: ViewportLayoutId): Record<string, string> {
     ? (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 172 : 188)
     : 48
   const minX = compactRenderHud ? compactRenderMinX : getViewportLayoutMinimumX(id, scaledWidth)
-  const maxX = Math.max(minX, width - scaledWidth - 4)
+  const rightGutter = id === 'render' ? 12 : 4
+  const maxX = Math.max(minX, width - scaledWidth - rightGutter)
   const localX = Math.max(minX, Math.min(item.x * width, maxX))
   const desiredY = compactRenderHud ? Math.max(48, item.y * height) : item.y * height
   const localY = Math.max(0, Math.min(desiredY, height - scaledHeight - 4))
@@ -231,7 +232,8 @@ function clampViewportLayoutItem(id: ViewportLayoutId): void {
   const targetWidth = Math.max(1, target.offsetWidth) * effectiveScale
   const targetHeight = Math.max(1, target.offsetHeight) * effectiveScale
   const minX = getViewportLayoutMinimumX(id, targetWidth)
-  const maxX = Math.max(minX, width - targetWidth - 4)
+  const rightGutter = id === 'render' ? 12 : 4
+  const maxX = Math.max(minX, width - targetWidth - rightGutter)
   const maxY = Math.max(0, height - targetHeight - 4)
   item.x = Math.max(minX, Math.min(maxX, item.x * width)) / width
   item.y = Math.max(0, Math.min(maxY, item.y * height)) / height
@@ -360,7 +362,8 @@ function moveViewportLayoutDrag(event: PointerEvent): void {
   if (drag.mode === 'move') {
     const targetWidth = target.offsetWidth * effectiveScale
     const minX = getViewportLayoutMinimumX(drag.id, targetWidth)
-    const maxX = Math.max(minX, width - targetWidth - 4)
+    const rightGutter = drag.id === 'render' ? 12 : 4
+    const maxX = Math.max(minX, width - targetWidth - rightGutter)
     const maxY = Math.max(0, usableHeight - target.offsetHeight * effectiveScale - 4)
     item.x = Math.max(minX, Math.min(maxX, drag.originX + dx)) / width
     item.y = Math.max(0, Math.min(maxY, drag.originY + dy)) / usableHeight
