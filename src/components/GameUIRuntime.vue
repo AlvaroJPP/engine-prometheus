@@ -12,9 +12,15 @@ const emit = defineEmits<{
 
 const activeScreenId = ref('')
 const availableScreens = computed(() => props.screens.filter(screen => screen.enabledInGame))
-const activeScreen = computed(() => availableScreens.value.find(screen => screen.id === activeScreenId.value) ?? null)
+const navigableScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode !== 'overlay'))
+const overlayScreens = computed(() => availableScreens.value.filter(screen => screen.displayMode === 'overlay'))
+const activeScreen = computed(() => navigableScreens.value.find(screen => screen.id === activeScreenId.value) ?? null)
+const visibleScreens = computed(() => [
+  ...(activeScreen.value ? [activeScreen.value] : []),
+  ...overlayScreens.value.filter(screen => screen.id !== activeScreen.value?.id),
+])
 
-watch(availableScreens, screens => {
+watch(navigableScreens, screens => {
   if (!screens.some(screen => screen.id === activeScreenId.value)) {
     activeScreenId.value = screens[0]?.id ?? ''
   }
@@ -54,7 +60,7 @@ function parseVariableValue(raw: string): string | number | boolean {
 
 function activate(element: UIElementDefinition): void {
   if (element.action === 'navigate-screen') {
-    if (availableScreens.value.some(screen => screen.id === element.targetScreenId)) {
+    if (navigableScreens.value.some(screen => screen.id === element.targetScreenId)) {
       activeScreenId.value = element.targetScreenId
     }
     return
@@ -66,14 +72,20 @@ function activate(element: UIElementDefinition): void {
 </script>
 
 <template>
-  <div v-if="activeScreen" class="game-ui-runtime" aria-label="Interface do jogo">
-    <div class="game-ui-surface" :style="{ backgroundColor: activeScreen.background }">
+  <div v-if="visibleScreens.length" class="game-ui-runtime" aria-label="Interface do jogo">
+    <div
+      v-for="screen in visibleScreens"
+      :key="screen.id"
+      class="game-ui-surface"
+      :style="{ backgroundColor: screen.background }"
+      :aria-label="screen.name"
+    >
       <div
-        v-for="element in activeScreen.elements"
+        v-for="element in screen.elements"
         :key="element.id"
         class="game-ui-element"
         :class="'game-ui-' + element.kind"
-        :style="elementStyle(activeScreen, element)"
+        :style="elementStyle(screen, element)"
       >
         <template v-if="element.kind === 'panel'">{{ element.text }}</template>
         <template v-else-if="element.kind === 'text'">{{ element.text }}</template>
