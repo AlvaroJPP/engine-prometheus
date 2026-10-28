@@ -12,6 +12,7 @@ import {
   reorderUIElement,
 } from '../engine/ui/UIEditorOperations.ts'
 import { createUIScreenFromPreset, UI_SCREEN_PRESETS } from '../engine/ui/UIScreenPresets.ts'
+import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 
 const screen = createUIScreen('Menu de teste')
 screen.enabledInGame = true
@@ -104,6 +105,52 @@ assert.deepEqual(
   ['vida', 'mana'],
 )
 
+const firstHistoryScreen = createUIScreen('Estado A')
+const history = new UIWorkspaceHistory(3)
+history.reset({ screens: [firstHistoryScreen], activeScreenId: firstHistoryScreen.id })
+assert.equal(history.canUndo, false)
+assert.equal(history.canRedo, false)
+assert.equal(history.size, 1)
+
+const secondHistoryState = JSON.parse(JSON.stringify(firstHistoryScreen))
+secondHistoryState.name = 'Estado B'
+assert.equal(history.record({ screens: [secondHistoryState], activeScreenId: secondHistoryState.id }), true)
+assert.equal(history.canUndo, true)
+assert.equal(history.canRedo, false)
+
+const thirdHistoryState = JSON.parse(JSON.stringify(secondHistoryState))
+thirdHistoryState.name = 'Estado C'
+history.record({ screens: [thirdHistoryState], activeScreenId: thirdHistoryState.id })
+assert.equal(history.size, 3)
+assert.equal(history.undo().screens[0].name, 'Estado B')
+assert.equal(history.canRedo, true)
+assert.equal(history.redo().screens[0].name, 'Estado C')
+
+history.undo()
+const fourthHistoryState = JSON.parse(JSON.stringify(secondHistoryState))
+fourthHistoryState.name = 'Estado D'
+history.record({ screens: [fourthHistoryState], activeScreenId: fourthHistoryState.id })
+assert.equal(history.canRedo, false)
+assert.equal(history.undo().screens[0].name, 'Estado B')
+assert.equal(history.redo().screens[0].name, 'Estado D')
+
+const boundedHistory = new UIWorkspaceHistory(3)
+boundedHistory.reset({ screens: [firstHistoryScreen], activeScreenId: firstHistoryScreen.id })
+for (const name of ['Limite B', 'Limite C', 'Limite D']) {
+  boundedHistory.record({
+    screens: [{ ...firstHistoryScreen, name }],
+    activeScreenId: firstHistoryScreen.id,
+  })
+}
+assert.equal(boundedHistory.size, 3)
+assert.equal(boundedHistory.undo().screens[0].name, 'Limite C')
+assert.equal(boundedHistory.undo().screens[0].name, 'Limite B')
+assert.equal(boundedHistory.undo(), null)
+
+const isolatedSnapshot = history.undo()
+isolatedSnapshot.screens[0].name = 'Mutação externa'
+assert.equal(history.redo().screens[0].name, 'Estado D')
+
 const position = getClampedUIElementPosition(
   { width: 25, height: 20 },
   8.8,
@@ -131,4 +178,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: screen presets, unique IDs, legacy compatibility, appearance settings, asset handling, snapping, alignment, duplication and layer ordering.')
+console.log('UI workspace self-test passed: undo/redo history, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, alignment, duplication and layers.')
