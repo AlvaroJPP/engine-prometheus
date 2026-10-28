@@ -26,7 +26,12 @@ import { GridPathfinder } from './navigation/GridPathfinder'
 import { ModelOcclusionSystem } from './world/ModelOcclusionSystem'
 import { ModelLodSystem } from './world/ModelLodSystem'
 import { HumanoidAvatar } from './world/HumanoidAvatar'
-import { AnimationController, createAnimationActionMap, getAnimationControllerFromObject } from './world/AnimationController'
+import { getAnimationControllerFromObject } from './world/AnimationController'
+import { validateImportedModel } from './model/validateImportedModel'
+import { splitStaticModelIntoSpatialParts } from './model/ImportedModelSpatialGrouping'
+import { prepareImportedModelGeometry } from './model/ImportedModelGeometryPreparation'
+import { setupImportedModelAnimations } from './model/ImportedModelAnimationSetup'
+import { applyImportedModelMetadata } from './model/ImportedModelMetadata'
 import type { TerrainInfo } from './world/World'
 import { RuleEngine } from './script/RuleEngine'
 import { AutonomousBehaviorSystem, isAutonomousMovingState } from './script/AutonomousBehaviorSystem'
@@ -37,7 +42,6 @@ import { DEFAULT_MODEL_CONTROL_BINDINGS, getBehaviorPackageDefinition, getMountP
 import type { AnimationRole, BehaviorPackageInstance, ModelControlBindings, PackageScalar } from './script/packages'
 import { DEFAULT_CONTROL_MAPS } from './input/ControlMaps'
 import type { ControlMapBindings } from './input/ControlMaps'
-import { markEntity } from './model/entity/Entity'
 import type { Entity } from './model/entity/Entity'
 import { GameModuleRegistry } from './runtime/GameModuleRegistry'
 import type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
@@ -1065,126 +1069,17 @@ export class Engine {
 
   /** Adiciona um modelo externo como objeto transformável na cena. */
   addImportedModel(name: string, model: THREE.Object3D, targetHeight: number, restoreData?: SceneObjectData): void {
-    // Evita congelamentos ao inserir assets acidentalmente gigantes no editor.
-    // A contagem é feita antes da análise de agrupamento e antes de adicionar ao render loop.
-    const MAX_IMPORTED_TRIANGLES = 5_000_000
-    let preflightTriangles = 0
-    let preflightMeshes = 0
-    model.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return
-      preflightMeshes += 1
-      const position = child.geometry.getAttribute('position')
-      preflightTriangles += child.geometry.index
-        ? child.geometry.index.count / 3
-        : (position?.count ?? 0) / 3
-    })
-    if (preflightMeshes === 0 || preflightTriangles === 0) {
-      throw new Error('O modelo não contém malhas trianguladas para inserir no mundo.')
-    }
-    if (preflightTriangles > MAX_IMPORTED_TRIANGLES) {
-      throw new Error(`Este modelo contém ${Math.round(preflightTriangles).toLocaleString('pt-BR')} triângulos, acima do limite seguro de ${MAX_IMPORTED_TRIANGLES.toLocaleString('pt-BR')}. Reduza ou otimize o modelo antes de importá-lo.`)
-    }
+    validateImportedModel(model)
 
-    // Alguns GLBs representam cada árvore como um grupo; outros exportam tronco,
-    // copa e galhos como irmãos. Agrupamos irmãos pelo centro X/Z para separar
-    // árvores sem transformar cada malha (tronco/folhas) em um objeto isolado.
     const importedAnimations = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    // Modelos animados e entidades precisam manter a hierarquia original: separar malhas
-    // por proximidade espacial pode destacar partes do modelo da raiz que o gizmo move.
-    // A divisão em componentes continua disponível para assets estáticos comuns, como árvores.
+    // A divisão espacial só se aplica a modelos estáticos comuns: entidades e modelos animados
+    // preservam a hierarquia e os nomes de nós necessários aos bindings de animação.
     if (model.userData.sceneKind !== 'entity' && model.userData.importPart !== true && importedAnimations.length === 0) {
-      model.removeFromParent()
-      model.updateMatrixWorld(true)
-
-      type PartCluster = { center: THREE.Vector3; nodes: THREE.Object3D[]; span: number }
-      const hasMesh = (node: THREE.Object3D): boolean => {
-        let found = false
-        node.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.geometry.getAttribute('position')) found = true
-        })
-        return found
-      }
-      const boundsOf = (node: THREE.Object3D): THREE.Box3 => new THREE.Box3().setFromObject(node)
-      const clustersOf = (node: THREE.Object3D): PartCluster[] => {
-        const candidates = node.children.filter(hasMesh)
-        if (candidates.length < 2) return []
-        const clusters: PartCluster[] = []
-        for (const candidate of candidates) {
-          const bounds = boundsOf(candidate)
-          if (bounds.isEmpty()) continue
-          const center = bounds.getCenter(new THREE.Vector3())
-          const size = bounds.getSize(new THREE.Vector3())
-          const span = Math.max(size.x, size.z, 0.001)
-          // Componentes da mesma árvore tendem a compartilhar o centro X/Z.
-          // A tolerância escala com o tamanho das próprias malhas.
-          const existing = clusters.find((cluster) => {
-            const distance = Math.hypot(center.x - cluster.center.x, center.z - cluster.center.z)
-            const tolerance = Math.max(0.2, Math.min(span, cluster.span) * 0.28)
-            return distance <= tolerance
-          })
-          if (existing) {
-            existing.nodes.push(candidate)
-            const count = existing.nodes.length
-            existing.center.lerp(center, 1 / count)
-            existing.span = Math.max(existing.span, span)
-          } else {
-            clusters.push({ center, nodes: [candidate], span })
-          }
+      const spatialParts = splitStaticModelIntoSpatialParts(name, model)
+      if (spatialParts) {
+        for (const part of spatialParts) {
+          this.addImportedModel(`${name} — ${part.label}`, part.model, targetHeight)
         }
-        return clusters
-      }
-
-      let bestContainer: THREE.Object3D | null = null
-      let bestClusters: PartCluster[] = []
-      const findPartContainer = (node: THREE.Object3D): void => {
-        const clusters = clustersOf(node)
-        // Preferir o nível com mais exemplares separados, normalmente as três árvores.
-        if (clusters.length >= 2 && clusters.length > bestClusters.length) {
-          bestContainer = node
-          bestClusters = clusters
-        }
-        for (const child of node.children) findPartContainer(child)
-      }
-      findPartContainer(model)
-
-      if (bestContainer && bestClusters.length >= 2) {
-        const animations = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-        console.info('[Engine] Componentes espaciais do GLB:', {
-          name,
-          clusters: bestClusters.map((cluster, index) => ({
-            name: cluster.nodes.map((part) => part.name).filter(Boolean).join(' + ') || `Árvore ${index + 1}`,
-            meshes: cluster.nodes.reduce((total, part) => {
-              let count = 0
-              part.traverse((child) => { if (child instanceof THREE.Mesh) count += 1 })
-              return total + count
-            }, 0),
-            center: cluster.center.toArray(),
-          })),
-          animationClips: animations.map((clip) => clip.name),
-        })
-
-        bestClusters.forEach((cluster, index) => {
-          const group = new THREE.Group()
-          const label = cluster.nodes.map((part) => part.name.trim()).filter(Boolean)[0] || `Árvore ${index + 1}`
-          group.name = label
-          // Converta cada irmão para coordenadas do mundo antes de reagrupá-lo.
-          // Isso mantém as transformações do GLB e os nomes usados pelas animações.
-          for (const part of cluster.nodes) {
-            part.updateWorldMatrix(true, false)
-            const worldMatrix = part.matrixWorld.clone()
-            part.removeFromParent()
-            worldMatrix.decompose(part.position, part.quaternion, part.scale)
-            part.updateMatrix()
-            group.add(part)
-          }
-          const bounds = boundsOf(group)
-          const center = bounds.getCenter(new THREE.Vector3())
-          group.position.set(-center.x, -center.y, -center.z)
-          group.userData.importOffset = [center.x, center.z]
-          group.userData.importAnimations = animations
-          group.userData.importPart = true
-          this.addImportedModel(`${name} — ${label}`, group, targetHeight)
-        })
         return
       }
     }
@@ -1204,107 +1099,13 @@ export class Engine {
       throw new Error('Não foi possível calcular a altura do modelo importado.')
     }
 
-    // Modelos de terceiros podem conter dezenas de malhas e sombras caras.
-    // Desativa sombras por malha importada e prepara limites de geometria para
-    // evitar trabalho desnecessário durante renderização e seleção.
-    let meshCount = 0
-    let triangleCount = 0
-    let generatedNormalCount = 0
-    let enhancedTextureCount = 0
     const preferredAnisotropy = Math.min(4, this.viewport.renderer.capabilities.getMaxAnisotropy())
-    const importedMeshes: THREE.Mesh[] = []
-    // Mantém materiais independentes entre modelos importados, mas evita criar
-    // um clone de material por bloco da mesma geometria particionada.
-    const clonedMaterials = new Map<THREE.Material, THREE.Material>()
-    model.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return
-      importedMeshes.push(child)
-      meshCount += 1
-      // Não herdar estado de visibilidade de exporters/visualizadores externos.
-      child.visible = true
-      child.castShadow = false
-      child.receiveShadow = false
-      // Malhas GLB originais mantêm a proteção contra bounds incorretos do preview.
-      // Só os blocos gerados habilitam frustum culling, pois seus bounds foram
-      // recalculados sobre os vértices de cada região espacial.
-      child.frustumCulled = child.userData.generatedOcclusionCluster === true
-      const geometries = child.geometry
-      const position = geometries.getAttribute('position')
-      // Alguns OBJ/FBX/PLY exportados não incluem normais. Gere-as apenas quando
-      // faltarem, preservando o sombreamento e a topologia dos modelos que já
-      // possuem normais válidas no arquivo de origem.
-      const normal = geometries.getAttribute('normal')
-      if (position && position.count >= 3 && (!normal || normal.count !== position.count)) {
-        geometries.computeVertexNormals()
-        generatedNormalCount += 1
-      }
-      if (!geometries.boundingSphere) geometries.computeBoundingSphere()
-      if (!geometries.boundingBox) geometries.computeBoundingBox()
-      if (position) triangleCount += geometries.index
-        ? geometries.index.count / 3
-        : position.count / 3
-      const sourceMaterials = Array.isArray(child.material) ? child.material : [child.material]
-      const materials: THREE.Material[] = sourceMaterials.map((material) => {
-        // GLTFs válidos costumam definir material, mas meshes sem material podem
-        // aparecer em arquivos exportados por ferramentas externas.
-        if (!(material instanceof THREE.Material)) return new THREE.MeshStandardMaterial()
-        let clone = clonedMaterials.get(material)
-        if (!clone) {
-          clone = material.clone()
-          clonedMaterials.set(material, clone)
-        }
-        return clone
-      })
-      child.material = Array.isArray(child.material) ? materials : (materials[0] ?? child.material)
-      for (const material of materials) {
-        // Preserve os valores PBR da origem e trate mapas de cor como sRGB.
-        // Mapas de normais, rugosidade, metalness e oclusão mantêm espaço linear.
-        material.visible = true
-        const texturedMaterial = material as THREE.Material & {
-          colorWrite?: boolean
-          [key: string]: unknown
-        }
-        if ('colorWrite' in texturedMaterial) texturedMaterial.colorWrite = true
-        for (const [slot, value] of Object.entries(texturedMaterial)) {
-          if (!(value instanceof THREE.Texture)) continue
-          if ((slot === 'map' || slot === 'emissiveMap') && value.colorSpace !== THREE.SRGBColorSpace) {
-            value.colorSpace = THREE.SRGBColorSpace
-            value.needsUpdate = true
-          }
-          // Filtragem anisotrópica limitada a 4x deixa texturas oblíquas mais
-          // nítidas sem escolher o custo máximo da GPU para todos os materiais.
-          if (preferredAnisotropy > value.anisotropy) {
-            value.anisotropy = preferredAnisotropy
-            value.needsUpdate = true
-            enhancedTextureCount += 1
-          }
-        }
-        material.needsUpdate = true
-      }
-    })
-    if (meshCount === 0 || triangleCount === 0) {
-      throw new Error('O arquivo foi carregado, mas não contém malhas trianguladas para renderizar.')
-    }
-    // Evita manter uma hierarquia invisível herdada do preview.
-    // A visibilidade de qualquer ancestral controla todos os descendentes.
-    let ancestor: THREE.Object3D | null = model
-    while (ancestor) {
-      ancestor.visible = true
-      ancestor = ancestor.parent
-    }
-    // A seleção usa uma caixa simples; o modelo real não precisa ser testado
-    // face por face pelo raycaster a cada clique.
-    model.userData.importStats = { meshCount, triangleCount }
-    console.info('[Engine] Modelo importado preparado:', {
+    const { meshCount, triangleCount, importedMeshes } = prepareImportedModelGeometry(
+      model,
       name,
-      meshCount,
-      triangleCount,
-      generatedNormalCount,
-      enhancedTextureCount,
-      textureAnisotropy: preferredAnisotropy,
-      bounds: originalSize.toArray(),
-      visibleMeshes: importedMeshes.filter((mesh) => mesh.visible).length,
-    })
+      preferredAnisotropy,
+      originalSize,
+    )
 
     const height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : originalSize.y
     // Preserva o nó raiz original do glTF: os clips podem referenciar seu nome
@@ -1320,43 +1121,13 @@ export class Engine {
     visualPivot.position.copy(visualCenter).negate()
     visualPivot.add(model)
 
-    // Os clipes são mapeados pela mesma regra central usada pelo avatar.
-    // Só o controlador decide pesos, sincronização de ciclo e fim de ações pontuais.
-    const animationClips = (model.userData.importAnimations as THREE.AnimationClip[] | undefined) ?? []
-    const explicitRoles = model.userData.importAnimationRoles as Record<string, AnimationRole> | undefined
-    let animationMixer: THREE.AnimationMixer | undefined
-    let animationController: AnimationController | undefined
-    let animationFallbackAction: THREE.AnimationAction | undefined
-    let animationActions: Partial<Record<AnimationRole, THREE.AnimationAction>> = {}
-    if (animationClips.length > 0) {
-      animationMixer = new THREE.AnimationMixer(model)
-      const actionMap = createAnimationActionMap(animationMixer, animationClips, explicitRoles, {
-        genericFallback: !explicitRoles,
-      })
-      const startingRole = [
-        'idle', 'walk', 'run',
-        'walk_diagonal_left', 'walk_diagonal_right',
-        'walk_left', 'walk_right',
-        'walk_backward', 'run_backward',
-        'walk_backward_diagonal_left', 'walk_backward_diagonal_right',
-        'run_diagonal_left', 'run_diagonal_right',
-        'run_left', 'run_right',
-        'run_backward_diagonal_left', 'run_backward_diagonal_right',
-        '__fallback__',
-      ].find(role => actionMap.has(role))
-      animationController = new AnimationController(animationMixer, actionMap, {
-        genericFallback: actionMap.has('__fallback__'),
-      })
-      if (startingRole) animationController.setState(startingRole)
-      animationActions = Object.fromEntries(actionMap) as Partial<Record<AnimationRole, THREE.AnimationAction>>
-      animationFallbackAction = actionMap.get('__fallback__')
-      console.info('[Engine] Animações do componente:', {
-        name,
-        initialClip: startingRole ? actionMap.get(startingRole)?.getClip().name : '(sem estado contínuo mapeado)',
-        availableClips: animationClips.map((clip) => clip.name),
-        mappedRoles: explicitRoles ?? 'automático por nome',
-      })
-    }
+    const {
+      explicitRoles,
+      animationMixer,
+      animationController,
+      animationFallbackAction,
+      animationActions,
+    } = setupImportedModelAnimations(model, name)
 
     // A caixa de seleção usa as dimensões do modelo e compartilha sua raiz editável.
     const proxyGeometry = new THREE.BoxGeometry(
@@ -1439,62 +1210,12 @@ export class Engine {
       meshCount: importedMeshes.length,
     })
 
-    const id = `model_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)}`
-    root.userData.id = id
-    root.userData.locked = false
-    root.userData.groupId = null
-    root.userData.wireframeVisible = false
-    root.userData.mass = 1
-    // O colisor é configurado no importador e fica independente da malha visual.
-    root.userData.colliderType = model.userData.importColliderType === 'box' || model.userData.importColliderType === 'sphere' || model.userData.importColliderType === 'capsule' || model.userData.importColliderType === 'mesh' || model.userData.importColliderType === 'none'
-      ? model.userData.importColliderType
-      : 'box'
-    const importedColliderSize = model.userData.importColliderSize
-    if (Array.isArray(importedColliderSize) && importedColliderSize.length === 3 && importedColliderSize.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
-      root.userData.colliderSize = importedColliderSize.map((value: number) => clamp(value, 0.05, 100))
-    }
-    const importedColliderOffset = model.userData.importColliderOffset
-    if (Array.isArray(importedColliderOffset) && importedColliderOffset.length === 3 && importedColliderOffset.every((value: unknown) => typeof value === 'number' && Number.isFinite(value))) {
-      root.userData.colliderOffset = importedColliderOffset.map((value: number) => clamp(value, -100, 100))
-    }
-    root.userData.importedModel = true
-    root.userData.importAnimationRoles = explicitRoles ? { ...explicitRoles } : undefined
-    const importedControlBindings = model.userData.importControlBindings
-      ?? restoreData?.importControlBindings
-    root.userData.importControlBindings = importedControlBindings && typeof importedControlBindings === 'object'
-      ? { ...importedControlBindings as Partial<ModelControlBindings> }
-      : undefined
-    const componentId = typeof model.userData.componentId === 'string' ? model.userData.componentId : null
-    const componentLogic = Array.isArray(model.userData.componentLogic) ? model.userData.componentLogic : []
-    if (model.userData.sceneKind === 'entity') {
-      // A entidade usa a raiz editável do World; o GLB permanece como filho visual.
-      // Entidades importadas compartilham o mesmo ID, gizmo, colisor e persistência.
-      markEntity(root, { componentId, componentLogic })
-    } else {
-      root.userData.sceneKind = 'object'
-      root.userData.componentId = componentId ?? undefined
-      root.userData.componentLogic = componentLogic
-    }
-    root.userData.importedModelData = typeof model.userData.importedModelData === 'string' ? model.userData.importedModelData : restoreData?.importedModelData
-    root.userData.importedModelHeight = height
-    root.userData.sourceUrl = typeof model.userData.sourceUrl === 'string' ? model.userData.sourceUrl : restoreData?.sourceUrl
-    if (restoreData) {
-      root.userData.locked = restoreData.locked ?? false
-      root.userData.groupId = restoreData.groupId ?? null
-      root.userData.wireframeVisible = restoreData.wireframeVisible ?? false
-      root.userData.mass = restoreData.mass ?? 1
-      if (restoreData.colliderType) root.userData.colliderType = restoreData.colliderType
-      if (restoreData.colliderSize) root.userData.colliderSize = [...restoreData.colliderSize]
-      if (restoreData.colliderOffset) root.userData.colliderOffset = [...restoreData.colliderOffset]
-    }
-    // Projetos salvos antes de existir "Malha estática" guardavam cidades como
-    // caixas sólidas. Corrige esses cenários ao abrir o mundo para que ruas,
-    // rampas e vãos usem a geometria real sem exigir reimportação manual.
-    if ((isStaticCityLike || model.userData.importColliderType === 'mesh') && root.userData.colliderType === 'box') {
-      root.userData.colliderType = 'mesh'
-      root.userData.colliderOffset = [0, 0, 0]
-      console.info('[Engine] Colisor de cenário atualizado automaticamente para malha estática:', root.name)
-    }
+    const id = applyImportedModelMetadata(root, model, {
+      height,
+      restoreData,
+      explicitRoles,
+      isStaticCityLike,
+    })
     const finalId = restoreData?.id ?? id
     root.userData.id = finalId
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root })
