@@ -28,6 +28,8 @@ export interface UIScreenDefinition {
   width: number
   height: number
   background: string
+  /** Main navigable screen or persistent overlay such as an in-game HUD. */
+  displayMode: 'screen' | 'overlay'
   enabledInGame: boolean
   elements: UIElementDefinition[]
 }
@@ -46,6 +48,7 @@ export function createUIScreen(name = 'Nova tela'): UIScreenDefinition {
     width: 1280,
     height: 720,
     background: '#00000000',
+    displayMode: 'screen',
     enabledInGame: false,
     elements: [],
   }
@@ -165,6 +168,7 @@ export function parseUIScreenDefinitions(value: unknown): UIScreenDefinition[] {
       width: boundedNumber(source.width, 1280, 320, 4096),
       height: boundedNumber(source.height, 720, 180, 4096),
       background: safeColor(source.background, '#00000000'),
+      displayMode: source.displayMode === 'overlay' ? 'overlay' : 'screen',
       enabledInGame: source.enabledInGame === true,
       elements,
     }
