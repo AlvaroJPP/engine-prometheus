@@ -188,6 +188,37 @@ alignUnselected.id = 'align-unselected'
 Object.assign(alignUnselected, { x: 80, y: 12, width: 8, height: 6 })
 const alignSource = [alignFirst, alignSecond, alignUnselected]
 const alignIds = [alignFirst.id, alignSecond.id]
+assert.deepEqual(getUIElementsBounds(alignSource.slice(0, 2)), { x: 10, y: 20, width: 50, height: 40 })
+assert.equal(getUIElementsBounds([]), null)
+assert.deepEqual(
+  getResizedUIElementRect({ x: 10, y: 20, width: 50, height: 40 }, 'se', 20, 10),
+  { x: 10, y: 20, width: 70, height: 50 },
+)
+assert.deepEqual(
+  getResizedUIElementRect({ x: 10, y: 20, width: 50, height: 40 }, 'nw', 10, 5),
+  { x: 20, y: 25, width: 40, height: 35 },
+)
+assert.deepEqual(
+  getResizedUIElementRect({ x: 10, y: 20, width: 50, height: 40 }, 'e', 4, 99),
+  { x: 10, y: 20, width: 54, height: 40 },
+)
+assert.deepEqual(
+  getResizedUIElementRect({ x: 10, y: 20, width: 50, height: 40 }, 'se', 13, 7, { snapToGrid: true }),
+  { x: 10, y: 20, width: 62.5, height: 47.5 },
+)
+const aspectLocked = getResizedUIElementRect(
+  { x: 10, y: 20, width: 50, height: 40 },
+  'se',
+  20,
+  0,
+  { preserveAspectRatio: true },
+)
+assert.deepEqual(aspectLocked, { x: 10, y: 20, width: 70, height: 56 })
+assert.equal(aspectLocked.width / aspectLocked.height, 1.25)
+assert.deepEqual(
+  getResizedUIElementRect({ x: 80, y: 80, width: 15, height: 15 }, 'se', 20, 20),
+  { x: 80, y: 80, width: 20, height: 20 },
+)
 assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 15, y: 25, width: 5, height: 5 }), [alignFirst.id])
 assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 49, y: 39, width: 3, height: 4 }), [alignSecond.id])
 assert.deepEqual(getUIElementIdsInRect(alignSource, { x: 70, y: 70, width: 5, height: 5 }), [])
@@ -252,4 +283,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: undo/redo history, marquee selection and shared resize primitives, multi-element alignment, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
+console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
