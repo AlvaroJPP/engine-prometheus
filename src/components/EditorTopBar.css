@@ -806,16 +806,6 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .viewport-tools-overlay .render-settings-label { display: none; }
   .viewport-tools-overlay .render-settings-icon { width: 6px; height: 6px; }
   .viewport-tools-overlay .render-settings-chevron { font-size: 10px; }
-  .viewport-tools-overlay .hud-settings-toolbar-button {
-    box-sizing: border-box;
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-    min-height: 28px;
-    padding: 0;
-    gap: 0;
-  }
-  .viewport-tools-overlay .hud-settings-toolbar-button > span { display: none; }
   .viewport-tools-overlay .topbar-fullscreen {
     width: 28px;
     min-width: 28px;
