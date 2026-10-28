@@ -265,7 +265,16 @@ function finishCanvasSelection(): void {
     element.y <= bottom &&
     element.y + element.height >= top,
   ).map(element => element.id) : []
-  const nextIds = [...new Set([...(selection.additive ? selection.originalIds : []), ...hits])]
+  const hitIds = new Set(hits)
+  for (const id of hits) {
+    const hit = screen.elements.find(element => element.id === id)
+    if (!hit?.groupId) continue
+    for (const member of screen.elements) {
+      if (member.groupId === hit.groupId) hitIds.add(member.id)
+    }
+  }
+  const requestedIds = new Set([...(selection.additive ? selection.originalIds : []), ...hitIds])
+  const nextIds = screen.elements.filter(element => requestedIds.has(element.id)).map(element => element.id)
   setSelection(nextIds, hits.at(-1) ?? nextIds.at(-1) ?? '')
 }
 
@@ -391,6 +400,9 @@ function pasteElement(): void {
 }
 
 watch(() => uiWorkspaceState.activeScreenId, () => {
+  finishElementDrag()
+  cancelCanvasSelection()
+  finishSelectionResize()
   clearSelection()
 }, { flush: 'sync' })
 
@@ -910,7 +922,7 @@ onBeforeUnmount(() => {
               <div class="ui-screen-dimensions">{{ activeScreen.width }} × {{ activeScreen.height }}</div>
             </div>
           </div>
-          <p class="ui-canvas-tip">{{ previewMode ? 'Prévia interativa: botões podem navegar para outra tela.' : 'Arraste para posicionar. Setas movem, Shift+setas movem mais, Ctrl+D duplica e Delete remove. Encaixar adere à grade.' }}</p>
+          <p class="ui-canvas-tip">{{ previewMode ? 'Prévia interativa: botões podem navegar para outra tela.' : 'Arraste elementos para posicionar ou uma área vazia para selecionar por retângulo. Use as oito alças para redimensionar. Setas movem, Shift+setas movem mais, Ctrl+D duplica e Delete remove.' }}</p>
         </div>
 
         <div v-else class="ui-empty-workspace">
