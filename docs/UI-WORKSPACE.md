@@ -65,6 +65,8 @@ Marque **Ativa no jogo** nas telas que devem estar disponíveis durante a execu�
 
 ### Acionar scripts pela HUD
 
+O botão **＋ Evento global** no topo do Visual Script cria esse tipo de fluxo sem exigir um objeto selecionado. A nova regra já vem com um script de exemplo que registra a origem e o nome do elemento em `ui.last_event_source` e `ui.last_event_element`; substitua a ação pelo comportamento do seu jogo. O identificador gerado fica no inspetor do nó **Evento** para copiar para o botão da HUD.
+
 1. No **Visual Script**, crie um fluxo e, no nó **Evento**, selecione **Evento global · HUD / interface**. Defina um identificador, por exemplo `hud.inventory.open`, e configure as condições e ações desse fluxo.
 2. No **Workspace de UI**, selecione um botão de uma tela ou overlay, escolha **Disparar evento do Visual Script** e informe exatamente o mesmo identificador no campo **Evento global do Visual Script**.
 3. Marque a tela como **Ativa no jogo** e inicie o modo **Run**. Clicar no botão dispara o fluxo global correspondente. O evento recebe também `source`, `screenId`, `screenName`, `elementId` e `elementName` como dados de contexto, que podem ser lidos pelo script via `event.get('nome')`.
