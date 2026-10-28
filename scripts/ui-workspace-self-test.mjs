@@ -10,6 +10,8 @@ import {
   alignUIElements,
   alignUIElementsToKey,
   distributeUIElements,
+  distributeUIElementsInGrid,
+  getUIElementSmartAlignment,
   spaceUIElements,
   duplicateUIElement,
   getClampedUIElementPosition,
@@ -51,6 +53,19 @@ assert.equal(parsed[0].elements[0].fontWeight, 800)
 assert.equal(parsed[0].elements[3].imageFit, 'cover')
 assert.equal(parsed[0].elements[0].groupId, 'group-header')
 assert.equal(parsed[0].elements[1].groupId, 'group-header')
+
+const hudEventScreen = createUIScreen('HUD com evento')
+const hudEventButton = createUIElement('button')
+hudEventButton.action = 'trigger-event'
+hudEventButton.eventId = 'hud.inventory.open'
+hudEventScreen.elements = [hudEventButton]
+const parsedHudEvent = parseUIScreenDefinitions([hudEventScreen])[0]
+assert.equal(parsedHudEvent.elements[0].action, 'trigger-event')
+assert.equal(parsedHudEvent.elements[0].eventId, 'hud.inventory.open')
+const legacyHudElement = { ...hudEventButton }
+delete legacyHudElement.eventId
+const parsedLegacyHudScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [legacyHudElement] }])[0]
+assert.equal(parsedLegacyHudScreen.elements[0].eventId, '')
 
 const emptyDraft = createUIScreen('Rascunho vazio')
 emptyDraft.enabledInGame = true
@@ -264,6 +279,36 @@ const tooCrowded = distributionSource.slice(0, 3).map((element, index) => ({
 }))
 assert.equal(distributeUIElements(tooCrowded, tooCrowded.map(element => element.id), 'horizontal'), tooCrowded)
 
+const gridArranged = distributeUIElementsInGrid(distributionSource, distributionIds, 2, 3, 3)
+assert.deepEqual(
+  gridArranged.slice(0, 3).map(element => ({ x: element.x, y: element.y })),
+  [{ x: 10, y: 25 }, { x: 33, y: 20 }, { x: 15, y: 43 }],
+)
+assert.equal(gridArranged[3], alignUnselected)
+assert.equal(distributeUIElementsInGrid(distributionSource, distributionIds.slice(0, 1), 2), distributionSource)
+assert.equal(distributeUIElementsInGrid(distributionSource, distributionIds, 2, 100, 100), distributionSource)
+assert.equal(distributeUIElementsInGrid(distributionSource, distributionIds, 2, -1, 0), distributionSource)
+
+const smartAlignment = getUIElementSmartAlignment(
+  distributionSource,
+  [alignFirst],
+  58,
+  -8,
+  0.8,
+)
+assert.deepEqual(
+  { deltaX: smartAlignment.deltaX, deltaY: smartAlignment.deltaY },
+  { deltaX: 58, deltaY: -8 },
+)
+assert.deepEqual(smartAlignment.guides, [
+  { axis: 'vertical', position: 88 },
+  { axis: 'horizontal', position: 12 },
+])
+assert.deepEqual(
+  getUIElementSmartAlignment(distributionSource, [alignFirst], 0, 0, 0),
+  { deltaX: 0, deltaY: 0, guides: [] },
+)
+
 const spacedHorizontally = spaceUIElements(distributionSource, distributionIds, 'horizontal', 5)
 assert.deepEqual(spacedHorizontally.slice(0, 3).map(element => element.x), [10, 35, 50])
 assert.deepEqual(spacedHorizontally.slice(0, 3).map(element => element.y), [20, 35, 70])
@@ -332,4 +377,4 @@ assert.deepEqual(lowered.map(element => element.id), originalOrder)
 assert.equal(reorderUIElement(screen.elements, 'missing-element', 1), screen.elements)
 assert.equal(reorderUIElement(screen.elements, originalOrder.at(-1), 1), screen.elements)
 
-console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment, key-relative alignment and fixed-gap distribution, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
+console.log('UI workspace self-test passed: undo/redo history, marquee selection, bounded/grid-snapped/aspect-locked resizing, multi-element alignment, grid layout, edge/center smart snapping, key-relative alignment, HUD event actions and fixed-gap distribution, persistent grouping metadata, cross-screen clipboard primitives, screen presets, unique IDs, legacy compatibility, appearance settings, assets, snapping, duplication and layers.')
