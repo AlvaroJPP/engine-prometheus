@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { deleteHudImage, readHudImage, storeHudImage } from '@/lib/hud/HudImageStorage'
+import { ALQUIMIA_HUD_MIGRATION_KEY, removeLegacyDefaultAlquimiaHudLayers } from '@/lib/hud/HudPresetMigration'
 
 const props = defineProps<{
   playerName: string
@@ -173,11 +174,18 @@ function boundedHudNumber(value: unknown, fallback: number, min: number, max: nu
 }
 
 onMounted(async () => {
+  let migrationPending = false
+  try {
+    migrationPending = localStorage.getItem(ALQUIMIA_HUD_MIGRATION_KEY) !== '1'
+  } catch {
+    // Se storage local não estiver disponível, não tente executar uma migração persistente.
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const saved = JSON.parse(raw) as Partial<HudSettings>
-      const images = Array.isArray(saved.images)
+      const storedImages = Array.isArray(saved.images)
         ? saved.images
             .filter((layer): layer is HudImageLayer => Boolean(layer && typeof layer.id === 'string' && typeof layer.name === 'string'))
             .map((layer) => {
@@ -194,6 +202,10 @@ onMounted(async () => {
               }
             })
         : []
+      const migration = migrationPending
+        ? removeLegacyDefaultAlquimiaHudLayers(storedImages)
+        : { layers: storedImages, removedIds: [] }
+
       Object.assign(settings, {
         ...defaults,
         ...saved,
@@ -202,11 +214,27 @@ onMounted(async () => {
         quickSlots: Array.isArray(saved.quickSlots)
           ? defaults.quickSlots.map((fallback, index) => String(saved.quickSlots?.[index] ?? fallback).slice(0, 22))
           : [...defaults.quickSlots],
-        images,
+        images: migration.layers,
       })
+
+      if (migrationPending) {
+        if (migration.removedIds.length) {
+          // Persiste a remoção antes de marcar a migração como concluída.
+          persistHudSettings()
+          await Promise.all(migration.removedIds.map(async id => {
+            try { await deleteHudImage(id) } catch { /* a camada já foi removida das configurações */ }
+          }))
+        }
+        try { localStorage.setItem(ALQUIMIA_HUD_MIGRATION_KEY, '1') } catch { /* a migração da sessão já foi aplicada */ }
+      }
+    } else if (migrationPending) {
+      try { localStorage.setItem(ALQUIMIA_HUD_MIGRATION_KEY, '1') } catch { /* storage local indisponível */ }
     }
   } catch {
     Object.assign(settings, defaults, { quickSlots: [...defaults.quickSlots], images: [] })
+    if (migrationPending) {
+      try { localStorage.setItem(ALQUIMIA_HUD_MIGRATION_KEY, '1') } catch { /* storage local indisponível */ }
+    }
   }
 
   for (const layer of settings.images) {
@@ -218,7 +246,6 @@ onMounted(async () => {
     }
   }
 })
-
 onBeforeUnmount(() => {
   finishHudImageDrag()
   cancelHudCropDrag()
