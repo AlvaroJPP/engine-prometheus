@@ -420,6 +420,7 @@ export class RuleEngine {
         && rule.trigger.type === 'player_event'
         && rule.trigger.eventId === key
         && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID
+        && (!(key === 'key_pressed' || key === 'key_released') || !rule.trigger.key || rule.trigger.key === payload.key)
         && this.conditionsMatch(rule, PLAYER_LOGIC_SCOPE_ID),
       )
       let executed = false
