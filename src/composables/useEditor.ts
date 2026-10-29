@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS, DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '@engine'
@@ -118,7 +118,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const behaviorPackages = ref<BehaviorPackageInstance[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
-  const runtimeHudVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event'>('object_clicked')
   const rulePackageId = ref('mount')
   const rulePackageEventId = ref('mounted')
@@ -712,7 +711,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
     playerLogicEditor.refresh()
-    syncRuntimeHudVariables()
   }
 
   const playerLogicEditor = usePlayerLogicEditor({
@@ -734,16 +732,13 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     deletePlayerScript,
   } = playerLogicEditor
 
-  /** Exposes player variables to HUD bindings under the explicit player.* namespace. */
-  function syncRuntimeHudVariables(): void {
-    const playerEntries = Object.entries(playerLogicVariables.value).map(
-      ([name, value]): [string, boolean | number | string] => [`player.${name}`, value],
-    )
-    runtimeHudVariables.value = {
-      ...globalLogicVariables.value,
-      ...Object.fromEntries(playerEntries),
-    }
-  }
+  /** Always expose the latest global values plus the player's explicit player.* namespace to HUDs. */
+  const runtimeHudVariables = computed<Record<string, boolean | number | string>>(() => ({
+    ...globalLogicVariables.value,
+    ...Object.fromEntries(Object.entries(playerLogicVariables.value).map(
+      ([name, value]) => [`player.${name}`, value],
+    )),
+  }))
 
   /** Refreshes reactive variable views after runtime script execution without rebuilding the world view. */
   function refreshLogicVariableViews(): void {
@@ -752,7 +747,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
     playerLogicEditor.refresh()
-    syncRuntimeHudVariables()
   }
 
   // A seleção pode mudar por clique na cena ou pela hierarquia. Sincronize
@@ -765,7 +759,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     logicVariables.value = engine.logicVariables(id)
     globalLogicVariables.value = engine.logicVariables()
     playerLogicEditor.refresh()
-    syncRuntimeHudVariables()
   }, { flush: 'sync' })
 
   let colliderInputActive = false
@@ -846,8 +839,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         logicVariables.value = e.logicVariables(ev.id)
         globalLogicVariables.value = e.logicVariables()
         playerLogicEditor.refresh()
-        syncRuntimeHudVariables()
-      }),
+          }),
       e.events.on('toolChanged', (ev) => {
         tool.value = ev.tool
         transform.value = ev.transform
