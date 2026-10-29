@@ -64,6 +64,7 @@ const emit = defineEmits<{
   'grass-wind-change': [value: number]
   'open-control-maps': []
   'open-ui-workspace': []
+  'open-player-workspace': []
   'run-world': []
   'edit-world': []
   'toggle-world-fullscreen': []
@@ -219,6 +220,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       <button class="topbar-controls" type="button" title="Criar menus, telas, botões, barras e HUDs para o jogo." @click="emit('open-ui-workspace')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="13" height="12" rx="1.5"/><path d="M1.5 5.5h13M5 5.5V14M7.5 8h4M7.5 10.5h4"/></svg>
         <span>Workspace UI</span>
+      </button>
+      <button class="topbar-controls player-workspace-trigger" type="button" title="Configurar aparência, movimento, física, câmera e controles do jogador." aria-label="Abrir Workspace do Player" @click="emit('open-player-workspace')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9H5a3 3 0 0 0-2.8 2L1 15.5A2.5 2.5 0 0 0 5 18l3-3h8l3 3a2.5 2.5 0 0 0 4-2.5L21.8 11A3 3 0 0 0 19 9h-2"/><path d="M8 6h8a3 3 0 0 1 3 3H5a3 3 0 0 1 3-3Z"/><path d="M7 11v4M5 13h4M16.5 12h.01M19 14h.01"/></svg>
+        <span>Player</span>
       </button>
       <button class="topbar-controls" type="button" title="Personalize mapas de teclas, ações de movimento e atalhos do jogador." @click="emit('open-control-maps')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 5h12M2 11h12" /><circle cx="10" cy="5" r="1.6" fill="#1d1b17" /><circle cx="6" cy="11" r="1.6" fill="#1d1b17" /></svg>
