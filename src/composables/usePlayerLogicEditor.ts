@@ -101,6 +101,25 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     }
   }
 
+  /** Atualiza uma variável já declarada do jogador a partir de um botão do HUD em modo Jogar. */
+  function setRuntimePlayerLogicVariable(name: string, value: PlayerScalar): void {
+    const engine = dependencies.getEngine()
+    if (!engine || !dependencies.isRuntime()) return
+    const key = name.trim()
+    if (!key || (typeof value === 'number' && !Number.isFinite(value))) return
+    const current = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)[key]
+    if (current === undefined) {
+      dependencies.say(`A variável do jogador "${key}" não existe. Crie-a no Player Workspace antes de usá-la no HUD.`)
+      return
+    }
+    if (typeof current !== typeof value) {
+      dependencies.say(`O valor enviado ao HUD não corresponde ao tipo da variável "${key}".`)
+      return
+    }
+    engine.setLogicVariable(key, value, PLAYER_LOGIC_SCOPE_ID)
+    dependencies.refresh()
+  }
+
   function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string, rawKey = 'KeyE'): void {
     const engine = dependencies.getEngine()
     if (!engine || dependencies.isRuntime()) return
@@ -167,6 +186,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     createPlayerLogicVariable,
     setPlayerLogicVariableValue,
     deletePlayerLogicVariable,
+    setRuntimePlayerLogicVariable,
     addPlayerScript,
     updatePlayerScript,
     deletePlayerScript,
