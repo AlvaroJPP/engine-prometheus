@@ -127,25 +127,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </div>
       <span class="topbar-divider" aria-hidden="true"></span>
 
-      <div class="project-shell">
+      <div class="project-shell" title="Nome do projeto atual">
         <div class="project-name-field">
           <input :value="projectName" class="pname" aria-label="Nome do projeto" title="Edite o nome do projeto; alterações precisam ser salvas." spellcheck="false" @input="emit('update:projectName', ($event.target as HTMLInputElement).value); emit('mark-dirty')" />
           <span class="save-state" :class="dirty ? 'is-dirty' : 'is-saved'" :title="dirty ? 'Há alterações não salvas' : 'Todas as alterações estão salvas'" :aria-label="dirty ? 'Projeto não salvo' : 'Projeto salvo'"><i class="dot" :class="dirty ? 'warn' : 'ok'" />{{ dirty ? 'Não salvo' : 'Salvo' }}</span>
         </div>
-        <span class="project-divider" aria-hidden="true"></span>
-        <details class="file-menu">
-          <summary data-tooltip="Crie um projeto, abra um arquivo existente ou salve as alterações.">
-            Arquivo
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-          </summary>
-          <div class="file-menu-popover">
-            <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
-            <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
-            <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
-            <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar como…</button>
-          </div>
-        </details>
       </div>
+      <details class="file-menu">
+        <summary data-tooltip="Crie um projeto, abra um projeto existente ou salve as alterações." title="Arquivo do projeto: criar, abrir, salvar ou salvar como.">
+          <span>Arquivo</span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </summary>
+        <div class="file-menu-popover">
+          <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
+          <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
+          <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
+          <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar como…</button>
+        </div>
+      </details>
 
       <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h8l2 2v8H3z" /><path d="M5 3v4h5V3M5 13V9h6v4" /></svg>
