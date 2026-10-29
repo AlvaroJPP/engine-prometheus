@@ -210,7 +210,7 @@ assert.equal(runtimeScriptEngine.exportData().variables['hud.element_id'], 'butt
 assert.equal(runtimeScriptEngine.exportData().variables['hud.element'], 'Abrir inventário')
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
-assert.deepEqual(PLAYER_RUNTIME_EVENTS.map(event => event.id), ['started', 'interact', 'jump'])
+assert.deepEqual(PLAYER_RUNTIME_EVENTS.map(event => event.id), ['started', 'interact', 'jump', 'key_pressed', 'key_released'])
 runtimeScriptEngine.load({
   formatVersion: 1,
   variables: { score: 99, run_count: 0, globalOnly: true },
@@ -252,6 +252,42 @@ assert.equal(playerLogicData.variables.run_count, 1)
 assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.received_project, 'Demo project')
 assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.global_leaked, undefined)
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('missing-player-event'), false)
+
+runtimeScriptEngine.upsert({
+  id: 'player-key-e-test',
+  name: 'Handle E',
+  ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+  enabled: true,
+  trigger: { type: 'player_event', eventId: 'key_pressed', key: 'KeyE' },
+  conditions: [],
+  actions: [{ type: 'javascript', code: "api.set('pressed_e', true); api.set('event_key', String(api.event.get('key') ?? 'missing'))" }],
+})
+runtimeScriptEngine.upsert({
+  id: 'player-key-q-test',
+  name: 'Handle Q',
+  ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+  enabled: true,
+  trigger: { type: 'player_event', eventId: 'key_pressed', key: 'KeyQ' },
+  conditions: [],
+  actions: [{ type: 'javascript', code: "api.set('pressed_q', true)" }],
+})
+runtimeScriptEngine.upsert({
+  id: 'player-key-release-test',
+  name: 'Handle E released',
+  ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+  enabled: true,
+  trigger: { type: 'player_event', eventId: 'key_released', key: 'KeyE' },
+  conditions: [],
+  actions: [{ type: 'javascript', code: "api.set('released_e', true)" }],
+})
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_pressed', { key: 'KeyE' }), true)
+assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).pressed_e, true)
+assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).pressed_q, undefined)
+assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).event_key, 'KeyE')
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyQ' }), false)
+assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).released_e, undefined)
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyE' }), true)
+assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).released_e, true)
 
 
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
@@ -351,6 +387,14 @@ assert.match(playerWorkspaceSource, /Informe um número válido para/)
 assert.match(playerLogicSource, /id: 'started'/)
 assert.match(playerLogicSource, /id: 'interact'/)
 assert.match(playerLogicSource, /id: 'jump'/)
+assert.match(playerLogicSource, /id: 'key_pressed'/)
+assert.match(playerLogicSource, /id: 'key_released'/)
+assert.match(playerLogicSource, /requiresKey: true/)
+assert.match(playerEngineSource, /triggerPlayerEvent\('key_pressed', \{ key: event\.code \}\)/)
+assert.match(playerEngineSource, /triggerPlayerEvent\('key_released', \{ key: event\.code \}\)/)
+assert.match(playerRuleEngineSource, /rule\.trigger\.key === payload\.key/)
+assert.match(playerWorkspaceSource, /newScriptKey/)
+assert.match(playerWorkspaceSource, /KeyboardEvent\.code/)
 assert.match(playerRuleEngineSource, /triggerPlayerEvent\(eventId: string/)
 assert.match(playerRuleEngineSource, /if \(objectId === PLAYER_LOGIC_SCOPE_ID\) return undefined/)
 assert.match(playerRuleEngineSource, /const playerScope = scopeId === PLAYER_LOGIC_SCOPE_ID/)
