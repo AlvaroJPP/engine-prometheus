@@ -1338,10 +1338,11 @@ onBeforeUnmount(() => {
               <small class="ui-field-help">PNG, JPG ou WebP. Limite de 5 MB por arquivo.</small>
             </template>
             <template v-if="selectedElement.kind === 'progress'">
-              <label class="ui-field">Variável global
-                <input v-model="selectedElement.variableName" list="ui-global-variable-list" maxlength="80" placeholder="vida" />
+              <label class="ui-field">Variável de progresso
+                <input v-model="selectedElement.variableName" list="ui-global-variable-list" maxlength="80" placeholder="player.health" />
               </label>
-              <datalist id="ui-global-variable-list"><option value="vida" /><option value="mana" /><option value="stamina" /></datalist>
+              <datalist id="ui-global-variable-list"><option value="vida" /><option value="mana" /><option value="stamina" /><option value="player.health" /><option value="player.stamina" /></datalist>
+              <small class="ui-field-help">Use uma variável global como vida ou uma do jogador com o prefixo player., por exemplo player.health.</small>
               <label class="ui-field">Valor máximo
                 <input v-model.number="selectedElement.variableMax" type="number" min="1" max="1000000" />
               </label>
@@ -1352,7 +1353,7 @@ onBeforeUnmount(() => {
                   <option value="none">Nenhuma ação</option>
                   <option value="navigate-screen">Abrir outra tela</option>
                   <option value="navigate-back">Voltar à tela anterior</option>
-                  <option value="set-variable">Definir variável global</option>
+                  <option value="set-variable">Definir variável</option>
                   <option value="toggle-variable">Alternar variável booleana</option>
                   <option value="adjust-variable">Ajustar variável numérica</option>
                   <option value="trigger-event">Disparar evento do Visual Script</option>
@@ -1376,6 +1377,7 @@ onBeforeUnmount(() => {
                 <label class="ui-field">Nome da variável
                   <input v-model="selectedElement.variableName" maxlength="80" :placeholder="selectedElement.action === 'adjust-variable' ? 'ouro' : 'ui.inventory.open'" />
                 </label>
+                <small class="ui-field-help">Variáveis globais usam o nome normal. Para acessar o estado isolado do jogador, use player.health, player.stamina etc.; esses botões atualizam o escopo do jogador em vez do global.</small>
                 <label v-if="selectedElement.action === 'set-variable'" class="ui-field">Valor
                   <input v-model="selectedElement.variableValue" maxlength="100" placeholder="true" />
                 </label>
