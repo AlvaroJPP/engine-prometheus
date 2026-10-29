@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue, resolveUIValueBindings, appendUIScreenHistory, takePreviousUIScreen } from '@engine'
+import { getRenderableUIScreenDefinitions, isUIVisibilityConditionMet, nextUIToggleValue, adjustUINumericValue, resolveUIValueBindings, appendUIScreenHistory, takePreviousUIScreen, resolveUIVariableReference } from '@engine'
 
 import type { UIScreenDefinition, UIElementDefinition } from '@engine'
 
@@ -81,14 +81,13 @@ function parseVariableValue(raw: string): string | number | boolean {
 
 /** player.* is an explicit HUD binding to the player scope; all other keys remain global. */
 function writeGameVariable(rawName: string, value: string | number | boolean): void {
-  const name = rawName.trim()
-  if (!name) return
-  if (name.startsWith('player.')) {
-    const playerName = name.slice('player.'.length).trim()
-    if (playerName) emit('set-player-variable', playerName, value)
+  const reference = resolveUIVariableReference(rawName)
+  if (!reference) return
+  if (reference.scope === 'player') {
+    emit('set-player-variable', reference.name, value)
     return
   }
-  emit('set-global-variable', name, value)
+  emit('set-global-variable', reference.name, value)
 }
 
 function activate(element: UIElementDefinition): void {
