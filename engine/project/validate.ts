@@ -11,6 +11,7 @@ import type {
   Vec3,
 } from './format'
 import type { AnimationRole, ModelControlBindings } from '../script/packages'
+import { sanitizePlayerSettings } from '../player/PlayerSettings'
 
 export class ProjectFormatError extends Error {}
 
@@ -117,6 +118,7 @@ export function parseProject(text: string): ProjectFile {
   const editor = isRecord(settings.editor) ? settings.editor : {}
   const brushStrength = isNum(editor.brushStrength) ? Math.min(3, Math.max(0.2, editor.brushStrength)) : 1.5
   const brushRadius = isNum(editor.brushRadius) ? Math.min(12, Math.max(1, editor.brushRadius)) : 4
+  const playerSettings = isRecord(settings.player) ? settings.player : {}
 
   return {
     formatVersion: version,
@@ -135,6 +137,7 @@ export function parseProject(text: string): ProjectFile {
         brushStrength,
         brushRadius,
       },
+      player: sanitizePlayerSettings(playerSettings as unknown as import('../player/PlayerSettings').PlayerSettings),
     },
     modules: Array.isArray(obj.modules)
       ? obj.modules.filter((m): m is { id: string; version: string } => isRecord(m) && typeof m.id === 'string' && typeof m.version === 'string')
