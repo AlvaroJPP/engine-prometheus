@@ -606,6 +606,9 @@ export class Engine {
     if (this.pressedMouseBindings.has(code)) return
     this.pressedMouseBindings.set(code, dispatchedCode)
     dispatchMouseBinding(dispatchedCode, 'keydown')
+    if (code === this.playerControlBindings.interact) {
+      this.logic.triggerPlayerEvent('interact', { key: code })
+    }
   }
 
   private onRuntimePointerUp = (event: PointerEvent): void => {
