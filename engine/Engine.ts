@@ -268,6 +268,7 @@ export class Engine {
       notifyBehaviorPackageChanged: ownerObjectId => this.notifyBehaviorPackageChanged(ownerObjectId),
       triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
         this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
+      triggerPlayerEvent: (eventId, payload) => this.logic.triggerPlayerEvent(eventId, payload),
       applyMountModelStates: instance => this.applyMountModelStates(instance),
     }))
   }
@@ -526,6 +527,7 @@ export class Engine {
 
   /** Alterna entre o editor livre e a execução controlada pelo jogador. */
   setRuntimeMode(enabled: boolean): void {
+    const wasRuntimeActive = this.runtimeModeActive
     configureRuntimeMode(enabled, {
       avatar: this.avatar,
       orbit: this.orbit,
@@ -545,6 +547,14 @@ export class Engine {
       dismountActiveMount: () => this.dismountActiveMount(),
       emitTool: () => this.emitTool(),
     })
+    if (enabled && !wasRuntimeActive && this.runtimeModeActive) {
+      this.logic.triggerPlayerEvent('started', { projectName: this.meta.name })
+    }
+  }
+
+  /** Dispara um evento de script no escopo exclusivo do jogador. */
+  triggerPlayerEvent(eventId: string, payload: Record<string, boolean | number | string> = {}): boolean {
+    return this.logic.triggerPlayerEvent(eventId, payload)
   }
 
   setFirstPersonMode(enabled: boolean): void {
@@ -622,6 +632,10 @@ export class Engine {
   }
 
   private onRuleKeyDown = (event: KeyboardEvent): void => {
+    const shouldDispatchPlayerInteract =
+      this.runtimeModeActive &&
+      !event.repeat &&
+      event.code === this.playerControlBindings.interact
     handleRuntimeKeyDown(event, {
       isRuntimeActive: () => this.cameraStateBeforeRun !== null,
       playerControlBindings: this.playerControlBindings,
@@ -637,6 +651,9 @@ export class Engine {
       triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
         this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
     })
+    if (shouldDispatchPlayerInteract) {
+      this.logic.triggerPlayerEvent('interact', { key: event.code })
+    }
   }
 
   /** Selects a reusable library component for placement with the Build tool. */
