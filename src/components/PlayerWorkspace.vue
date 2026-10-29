@@ -5,6 +5,7 @@ import type { ControlMapProfile, LogicRule, PlayerRuntimeEventId, PlayerSettings
 
 type PlayerWorkspaceTab = 'overview' | 'appearance' | 'movement' | 'collision' | 'camera' | 'controls' | 'scripts'
 type PlayerSettingKey = keyof PlayerSettings
+type PlayerScriptRule = Omit<LogicRule, 'trigger'> & { trigger: Extract<LogicRule['trigger'], { type: 'player_event' }> }
 
 const props = defineProps<{
   projectName: string
@@ -47,7 +48,9 @@ const newVariableValue = ref('0')
 const newScriptName = ref('')
 const newScriptEvent = ref<PlayerRuntimeEventId>('started')
 const newScriptCode = ref("// Exemplo: api.set('score', (api.get('score') ?? 0) + 1);")
-const playerScripts = computed(() => props.logicRules.filter(rule => rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID))
+const playerScripts = computed(() => props.logicRules.filter(
+  (rule): rule is PlayerScriptRule => rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID,
+))
 const canEdit = computed(() => props.executionMode === 'edit')
 const actualColliderRadius = computed(() =>
   Math.max(0.01, props.playerSettings.colliderRadius * (props.playerModelHeight / 1.8)),
@@ -126,7 +129,7 @@ function createScript(): void {
   newScriptName.value = ''
 }
 function patchPlayerScript(
-  rule: LogicRule,
+  rule: PlayerScriptRule,
   patch: { name?: string; enabled?: boolean; eventId?: PlayerRuntimeEventId; code?: string },
 ): void {
   if (!canEdit.value || rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
@@ -146,7 +149,7 @@ function patchPlayerScript(
     ],
   })
 }
-function scriptCode(rule: LogicRule): string {
+function scriptCode(rule: PlayerScriptRule): string {
   const action = rule.actions[0]
   return action && (action.type === 'javascript' || action.type === 'script') ? action.code : ''
 }
