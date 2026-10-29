@@ -29,7 +29,7 @@ import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, re
 import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
 import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
 import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../engine/player/PlayerSettings.ts'
-import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '../engine/player/PlayerLogic.ts'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidCustomPlayerEventName } from '../engine/player/PlayerLogic.ts'
 import { resolveUIVariableReference } from '../engine/ui/UIVariableScope.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
@@ -147,6 +147,13 @@ const parsedHudEvent = parseUIScreenDefinitions([hudEventScreen])[0]
 assert.equal(parsedHudEvent.elements[0].action, 'trigger-event')
 assert.equal(parsedHudEvent.elements[0].eventId, 'hud.inventory.open')
 
+const playerEventButton = createUIElement('button')
+playerEventButton.action = 'trigger-player-event'
+playerEventButton.eventId = 'player.inventory.open'
+const parsedPlayerEventScreen = parseUIScreenDefinitions([{ ...hudEventScreen, elements: [playerEventButton] }])[0]
+assert.equal(parsedPlayerEventScreen.elements[0].action, 'trigger-player-event')
+assert.equal(parsedPlayerEventScreen.elements[0].eventId, 'player.inventory.open')
+
 const toggleButton = createUIElement('button')
 toggleButton.action = 'toggle-variable'
 toggleButton.variableName = 'ui.inventory.open'
@@ -217,7 +224,11 @@ assert.equal(runtimeScriptEngine.exportData().variables['hud.element_id'], 'butt
 assert.equal(runtimeScriptEngine.exportData().variables['hud.element'], 'Abrir inventário')
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
-assert.deepEqual(PLAYER_RUNTIME_EVENTS.map(event => event.id), ['started', 'interact', 'jump', 'key_pressed', 'key_released'])
+assert.deepEqual(PLAYER_RUNTIME_EVENTS.map(event => event.id), ['started', 'interact', 'jump', 'key_pressed', 'key_released', 'custom_event'])
+assert.equal(isValidCustomPlayerEventName('player.inventory.open'), true)
+assert.equal(isValidCustomPlayerEventName('started'), false)
+assert.equal(isValidCustomPlayerEventName('custom_event'), false)
+assert.equal(isValidCustomPlayerEventName('invalid space'), false)
 runtimeScriptEngine.load({
   formatVersion: 1,
   variables: { score: 99, run_count: 0, globalOnly: true },
@@ -296,6 +307,22 @@ assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyQ
 assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).released_e, undefined)
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyE' }), true)
 assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).released_e, true)
+
+runtimeScriptEngine.upsert({
+  id: 'player-custom-hud-test',
+  name: 'Handle inventory HUD',
+  ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+  enabled: true,
+  trigger: { type: 'player_event', eventId: 'player.inventory.open' },
+  conditions: [],
+  actions: [{ type: 'javascript', code: "api.set('custom_hud_triggered', String(api.event.get('elementName') ?? 'missing'))" }],
+})
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('player.inventory.open', {
+  source: 'hud',
+  screenName: 'HUD de inventário',
+  elementName: 'Abrir inventário',
+}), true)
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).custom_hud_triggered, 'Abrir inventário')
 
 
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
@@ -392,7 +419,7 @@ assert.match(playerEngineSource, /this\.logic\.triggerPlayerEvent\('started'/)
 assert.match(playerEngineSource, /this\.logic\.triggerPlayerEvent\('interact', \{ key: event\.code \}\)/)
 assert.match(playerEngineSource, /code === this\.playerControlBindings\.interact/)
 assert.match(playerLogicSource, /PLAYER_LOGIC_SCOPE_ID = '__engine_player__'/)
-assert.match(enginePublicIndexSource, /export \{ PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS \} from '\.\/player\/PlayerLogic'/)
+assert.match(enginePublicIndexSource, /PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidPlayerScriptEventName, isValidCustomPlayerEventName/)
 assert.match(enginePublicIndexSource, /export type \{ PlayerRuntimeEventId \} from '\.\/player\/PlayerLogic'/)
 assert.match(playerWorkspaceSource, /Use um nome começando com letra ou _/)
 assert.match(playerWorkspaceSource, /Informe um número válido para/)
@@ -401,6 +428,11 @@ assert.match(playerLogicSource, /id: 'interact'/)
 assert.match(playerLogicSource, /id: 'jump'/)
 assert.match(playerLogicSource, /id: 'key_pressed'/)
 assert.match(playerLogicSource, /id: 'key_released'/)
+assert.match(playerLogicSource, /id: 'custom_event'/)
+assert.match(playerLogicSource, /requiresEventName: true/)
+assert.match(playerLogicEditorSource, /triggerEventId = eventId === 'custom_event' \? customEventName : eventId/)
+assert.match(playerWorkspaceSource, /newScriptCustomEventName/)
+assert.match(playerWorkspaceSource, /playerEventSelection\(script\.trigger\.eventId\)/)
 assert.match(playerLogicSource, /requiresKey: true/)
 assert.match(playerEngineSource, /triggerPlayerEvent\('key_pressed', \{ key: event\.code \}\)/)
 assert.match(playerEngineSource, /triggerPlayerEvent\('key_released', \{ key: event\.code \}\)/)
@@ -418,6 +450,14 @@ assert.match(editorControllerSource, /const runtimeHudVariables = ref/)
 assert.match(editorControllerSource, /player\.\$\{name\}/)
 assert.match(playerLogicEditorSource, /function setRuntimePlayerLogicVariable\(/)
 assert.match(gameUIRuntimeSource, /resolveUIVariableReference\(rawName\)/)
+assert.match(gameUIRuntimeSource, /element\.action === 'trigger-player-event'/)
+assert.match(gameUIRuntimeSource, /emit\('trigger-player-event', element\.eventId\.trim\(\),/)
+assert.match(uiWorkspaceSource, /value="trigger-player-event">Disparar evento do jogador/)
+assert.match(uiWorkspaceSource, /Evento personalizado do jogador/)
+assert.match(uiWorkspaceSource, /playerEventRules/)
+assert.match(editorViewportSource, /@trigger-player-event="ctx\.triggerRuntimePlayerEvent"/)
+assert.match(editorControllerSource, /function triggerRuntimePlayerEvent\(/)
+assert.match(appControllerSource, /triggerRuntimeGlobalEvent, triggerRuntimePlayerEvent/)
 assert.match(gameUIRuntimeSource, /emit\('set-player-variable', playerName, value\)/)
 assert.match(gameUIRuntimeSource, /writeGameVariable\(variableName, nextUIToggleValue/)
 assert.match(gameUIRuntimeSource, /writeGameVariable\(variableName, adjustUINumericValue/)
