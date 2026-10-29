@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '@engine'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidCustomPlayerEventName } from '@engine'
 import type { ControlMapProfile, LogicRule, PlayerRuntimeEventId, PlayerSettings } from '@engine'
 
 type PlayerWorkspaceTab = 'overview' | 'appearance' | 'movement' | 'collision' | 'camera' | 'controls' | 'scripts'
@@ -161,7 +161,7 @@ function updateVariable(name: string, value: string): void {
 function createScript(): void {
   if (!canEdit.value) return
   const name = newScriptName.value.trim()
-  if (newScriptEvent.value === 'custom_event' && !/^[A-Za-z_][A-Za-z0-9_.:-]{0,99}$/.test(newScriptCustomEventName.value.trim())) {
+  if (newScriptEvent.value === 'custom_event' && !isValidCustomPlayerEventName(newScriptCustomEventName.value)) {
     scriptFeedback.value = 'Informe um evento válido, como player.inventory.open.'
     return
   }
@@ -182,7 +182,7 @@ function patchPlayerScript(
   const customEventName = patch.customEventName?.trim() || (
     playerEventSelection(rule.trigger.eventId) === 'custom_event' ? rule.trigger.eventId : 'player.custom'
   )
-  if (selectedEvent === 'custom_event' && !/^[A-Za-z_][A-Za-z0-9_.:-]{0,99}$/.test(customEventName)) return
+  if (selectedEvent === 'custom_event' && !isValidCustomPlayerEventName(customEventName)) return
   const nextEventId = selectedEvent === 'custom_event' ? customEventName : selectedEvent
   const nextKey = patch.key?.trim() || rule.trigger.key?.trim() || 'KeyE'
   emit('update-player-script', {
