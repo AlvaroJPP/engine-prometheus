@@ -29,7 +29,7 @@ Os modelos são cópias independentes e criam IDs novos para a tela e cada eleme
 
 A HUD antiga baseada em camadas avulsas de imagem não é mais aplicada como interface padrão. Na primeira execução após a atualização, uma migração remove as camadas antigas do tema **Alquimia Escarlate** e seus arquivos salvos, preservando outras imagens personalizadas. O tema continua disponível para aplicação manual no painel de personalização legado; para a interface principal do jogo, prefira as telas e overlays criados neste Workspace.
 
-Os botões de exemplo usam a ação genérica **Definir variável global** (por exemplo, `ui.action.start` ou `ui.action.resume`). Eles emitem valores que você pode conectar ao Visual Script ou a outro sistema do projeto; não iniciam ou pausam o jogo automaticamente. Os botões também podem usar **Disparar evento do Visual Script**, enviando um identificador de evento global ao runtime.
+Os botões de exemplo usam a ação genérica **Definir variável global** (por exemplo, `ui.action.start` ou `ui.action.resume`). Eles emitem valores que você pode conectar ao Visual Script ou a outro sistema do projeto; não iniciam ou pausam o jogo automaticamente. Os botões também podem usar **Disparar evento global do Visual Script**, enviando um identificador global, ou **Disparar evento do jogador**, que chama diretamente scripts registrados no Player Workspace sem precisar de um fluxo global intermediário.
 
 ## Aparência dos elementos
 
@@ -71,11 +71,22 @@ O botão **＋ Evento global** no topo do Visual Script cria esse tipo de fluxo 
 
 No próprio **Workspace de UI**, a ação **Disparar evento do Visual Script** também oferece sugestões de eventos existentes. Clique em **＋ Criar fluxo global e vincular automaticamente** para criar uma regra e preencher o identificador do botão em uma única operação. O fluxo aparece no Visual Script para você personalizar as condições e ações.
 
+### Chamar scripts do jogador diretamente
+
+Para disparar um script inscrito no escopo do jogador, sem criar um evento global intermediário:
+
+1. No **Player Workspace → Scripts e variáveis**, crie um script e escolha **Evento personalizado**.
+2. Defina um identificador, por exemplo `player.inventory.open`, e escreva as ações JavaScript desse script.
+3. No **Workspace de UI**, selecione o botão e escolha **Disparar evento do jogador**. Informe exatamente `player.inventory.open` no campo de evento.
+4. Salve o projeto e inicie **Run**. Ao clicar no botão, o runtime dispara os scripts do jogador com esse identificador.
+
+O evento do jogador recebe os mesmos dados de contexto da HUD (`source`, `screenId`, `screenName`, `elementId` e `elementName`), disponíveis via `api.event.get('elementName')`, por exemplo. O identificador da opção **Evento personalizado** é apenas uma escolha do editor; o projeto salva o nome real, como `player.inventory.open`.
+
 1. No **Visual Script**, crie um fluxo e, no nó **Evento**, selecione **Evento global · HUD / interface**. Defina um identificador, por exemplo `hud.inventory.open`, e configure as condições e ações desse fluxo.
 2. No **Workspace de UI**, selecione um botão de uma tela ou overlay, escolha **Disparar evento do Visual Script** e informe exatamente o mesmo identificador no campo **Evento global do Visual Script**.
 3. Marque a tela como **Ativa no jogo** e inicie o modo **Run**. Clicar no botão dispara o fluxo global correspondente. O evento recebe também `source`, `screenId`, `screenName`, `elementId` e `elementName` como dados de contexto, que podem ser lidos pelo script via `event.get('nome')`.
 
-Esse caminho usa o sistema genérico de eventos da engine; não é necessário adicionar código específico para cada HUD ou jogo. Os botões continuam capazes de navegar entre telas e de definir variáveis globais.
+Esse caminho usa o sistema genérico de eventos da engine; não é necessário adicionar código específico para cada HUD ou jogo. Os botões continuam capazes de navegar entre telas, definir variáveis globais ou do jogador usando o prefixo `player.` e disparar scripts globais ou do próprio jogador.
 
 Barras de progresso leem a variável global indicada e usam o valor máximo configurado. Se a variável não for numérica ou ainda não existir, a barra começa vazia.
 
