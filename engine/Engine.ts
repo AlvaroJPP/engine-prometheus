@@ -626,6 +626,9 @@ export class Engine {
 
   private onGameModuleKeyUp = (event: KeyboardEvent): void => {
     this.gameModules.dispatchKeyUp(event)
+    if (this.runtimeModeActive && !event.repeat) {
+      this.logic.triggerPlayerEvent('key_released', { key: event.code })
+    }
   }
 
   private onGameModuleBlur = (): void => {
@@ -654,6 +657,9 @@ export class Engine {
       triggerBehaviorPackageEvent: (ownerObjectId, packageId, eventId) =>
         this.triggerBehaviorPackageEvent(ownerObjectId, packageId, eventId),
     })
+    if (this.runtimeModeActive && !event.repeat) {
+      this.logic.triggerPlayerEvent('key_pressed', { key: event.code })
+    }
     if (shouldDispatchPlayerInteract) {
       this.logic.triggerPlayerEvent('interact', { key: event.code })
     }
