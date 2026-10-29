@@ -69,7 +69,13 @@ Marque **Ativa no jogo** nas telas que devem estar disponíveis durante a execu�
 
 O botão **＋ Evento global** no topo do Visual Script cria esse tipo de fluxo sem exigir um objeto selecionado. A nova regra já vem com um script de exemplo que registra a origem e o nome do elemento em `ui.last_event_source` e `ui.last_event_element`; substitua a ação pelo comportamento do seu jogo. O identificador gerado fica no inspetor do nó **Evento** para copiar para o botão da HUD.
 
-No próprio **Workspace de UI**, a ação **Disparar evento do Visual Script** também oferece sugestões de eventos existentes. Clique em **＋ Criar fluxo global e vincular automaticamente** para criar uma regra e preencher o identificador do botão em uma única operação. O fluxo aparece no Visual Script para você personalizar as condições e ações.
+No próprio **Workspace de UI**, a ação **Disparar evento global do Visual Script** também oferece sugestões de eventos existentes. Clique em **＋ Criar fluxo global e vincular automaticamente** para criar uma regra e preencher o identificador do botão em uma única operação. O fluxo aparece no Visual Script para você personalizar as condições e ações.
+
+1. No **Visual Script**, crie um fluxo e, no nó **Evento**, selecione **Evento global · HUD / interface**. Defina um identificador, por exemplo `hud.inventory.open`, e configure as condições e ações desse fluxo.
+2. No **Workspace de UI**, selecione um botão de uma tela ou overlay, escolha **Disparar evento global do Visual Script** e informe exatamente o mesmo identificador no campo de evento global.
+3. Marque a tela como **Ativa no jogo** e inicie o modo **Run**. Clicar no botão dispara o fluxo global correspondente. O evento recebe `source`, `screenId`, `screenName`, `elementId` e `elementName` como dados de contexto, que podem ser lidos pelo script via `api.event.get('nome')`.
+
+Esse caminho usa o sistema genérico de eventos da engine; não é necessário adicionar código específico para cada HUD ou jogo.
 
 ### Chamar scripts do jogador diretamente
 
@@ -82,11 +88,7 @@ Para disparar um script inscrito no escopo do jogador, sem criar um evento globa
 
 O evento do jogador recebe os mesmos dados de contexto da HUD (`source`, `screenId`, `screenName`, `elementId` e `elementName`), disponíveis via `api.event.get('elementName')`, por exemplo. O identificador da opção **Evento personalizado** é apenas uma escolha do editor; o projeto salva o nome real, como `player.inventory.open`.
 
-1. No **Visual Script**, crie um fluxo e, no nó **Evento**, selecione **Evento global · HUD / interface**. Defina um identificador, por exemplo `hud.inventory.open`, e configure as condições e ações desse fluxo.
-2. No **Workspace de UI**, selecione um botão de uma tela ou overlay, escolha **Disparar evento do Visual Script** e informe exatamente o mesmo identificador no campo **Evento global do Visual Script**.
-3. Marque a tela como **Ativa no jogo** e inicie o modo **Run**. Clicar no botão dispara o fluxo global correspondente. O evento recebe também `source`, `screenId`, `screenName`, `elementId` e `elementName` como dados de contexto, que podem ser lidos pelo script via `event.get('nome')`.
-
-Esse caminho usa o sistema genérico de eventos da engine; não é necessário adicionar código específico para cada HUD ou jogo. Os botões continuam capazes de navegar entre telas, definir variáveis globais ou do jogador usando o prefixo `player.` e disparar scripts globais ou do próprio jogador.
+Os botões continuam capazes de navegar entre telas, definir variáveis globais ou do jogador usando o prefixo `player.` e disparar scripts globais ou do próprio jogador.
 
 Barras de progresso leem a variável global indicada e usam o valor máximo configurado. Se a variável não for numérica ou ainda não existir, a barra começa vazia.
 
