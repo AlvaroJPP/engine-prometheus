@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getGameOverlays } from '@/lib/gameOverlayRegistry'
+import { resolveUIVariableReference } from '@engine'
 
 const props = defineProps<{
   engine: unknown
@@ -20,13 +21,13 @@ const overlays = computed(() => getGameOverlays().filter(overlay =>
 ))
 
 const handleSetGlobalVariable = (name: string, value: string | number | boolean) => {
-  const key = name.trim()
-  if (key.startsWith('player.')) {
-    const playerName = key.slice('player.'.length).trim()
-    if (playerName) emit('set-player-variable', playerName, value)
+  const reference = resolveUIVariableReference(name)
+  if (!reference) return
+  if (reference.scope === 'player') {
+    emit('set-player-variable', reference.name, value)
     return
   }
-  emit('set-global-variable', name, value)
+  emit('set-global-variable', reference.name, value)
 }
 </script>
 
