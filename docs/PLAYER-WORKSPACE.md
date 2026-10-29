@@ -10,7 +10,7 @@ O Player Workspace centraliza a configuração do personagem controlado durante 
 - **Colisão:** raio base da cápsula física. O raio final acompanha proporcionalmente a altura do personagem.
 - **Câmera:** alterna a visão em primeira pessoa e os enquadramentos externos disponíveis.
 - **Controles:** mostra o mapa ativo e abre o editor de mapas já existente, incluindo captura de teclas e botões do mouse.
-- **Scripts e variáveis:** cria variáveis isoladas do jogador (número, booleano e texto) e scripts JavaScript associados aos eventos Ao iniciar o jogo, Ao interagir e Ao pular. Cada script pode ser ligado/desligado, renomeado, editado ou removido.
+- **Scripts e variáveis:** cria variáveis isoladas do jogador (número, booleano e texto) e scripts JavaScript associados aos eventos Ao iniciar o jogo, Ao interagir, Ao pular, Ao pressionar uma tecla, Ao soltar uma tecla e Evento personalizado. Cada script pode ser ligado/desligado, renomeado, editado ou removido.
 
 ## Persistência e limites
 
@@ -23,6 +23,15 @@ Os mapas de teclas são preferências locais do editor, preservando o comportame
 Os scripts e variáveis do jogador são salvos junto ao arquivo de lógica do projeto. As variáveis ficam em um escopo reservado próprio do jogador e não são lidas/escritas como variáveis globais por padrão. Para compartilhar estado global deliberadamente, use `api.global.get/set/add/toggle`.
 
 Os eventos disponíveis são `started` (entrada no modo Jogar), `interact` (tecla ou botão de interação configurado), `jump` (início de um salto válido), `key_pressed` (pressionamento de tecla configurada) e `key_released` (soltura dessa tecla). Para os dois eventos de teclado, informe o valor de `KeyboardEvent.code` no campo Código da tecla, como `KeyE`, `Space` ou `Digit1`. Cada script é filtrado pela tecla configurada; pressionar `KeyE` não dispara um script configurado para `KeyQ`.
+
+O evento **Personalizado** usa um identificador definido pelo criador, como `player.inventory.open`. Use no campo o mesmo identificador que um botão do Workspace de UI aciona com a opção **Disparar evento do jogador**. O script escuta o nome real salvo no projeto; não é necessário criar um fluxo global como intermediário. Identificadores personalizados aceitam letras, números, `_`, ponto, hífen e dois-pontos, devem começar com letra ou `_`, e não podem reutilizar nomes dos eventos predefinidos (`started`, `interact`, `jump`, `key_pressed`, `key_released`).
+
+Exemplo: crie o evento `player.inventory.open` e use o seguinte código para registrar o elemento da HUD que o acionou:
+
+```javascript
+api.set('lastHudAction', String(api.event.get('elementName') ?? 'unknown'));
+```
+
 
 Dentro de um script:
 - `api.get('health')` lê uma variável do jogador.
