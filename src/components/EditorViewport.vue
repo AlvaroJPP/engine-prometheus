@@ -24,8 +24,9 @@ function setExternalRef(name: string, element: unknown): void {
         <GameUIRuntime
           v-if="ctx.executionMode === 'running'"
           :screens="uiWorkspaceState.screens"
-          :game-variables="ctx.globalLogicVariables"
+          :game-variables="ctx.runtimeHudVariables"
           @set-global-variable="ctx.setRuntimeGlobalVariable"
+          @set-player-variable="ctx.setRuntimePlayerLogicVariable"
           @trigger-global-event="ctx.triggerRuntimeGlobalEvent"
         />
         <RuntimeHUD
@@ -39,7 +40,7 @@ function setExternalRef(name: string, element: unknown): void {
           :editor-preview="ctx.executionMode !== 'running'"
           :world-fullscreen="ctx.worldFullscreen"
           :bindings="ctx.activeControlMap.bindings"
-          :game-variables="ctx.globalLogicVariables"
+          :game-variables="ctx.runtimeHudVariables"
           @toggle-camera="ctx.handleHudToggleCamera"
           @exit-runtime="ctx.handleHudExitRuntime"
           @settings-open-change="ctx.runtimeHudSettingsOpen = $event"
