@@ -112,11 +112,19 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
       dependencies.say(`A variável do jogador "${key}" não existe. Crie-a no Player Workspace antes de usá-la no HUD.`)
       return
     }
-    if (typeof current !== typeof value) {
-      dependencies.say(`O valor enviado ao HUD não corresponde ao tipo da variável "${key}".`)
+    let nextValue: PlayerScalar = value
+    if (typeof current === 'string') {
+      nextValue = String(value)
+    } else if (typeof current === 'number') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        dependencies.say(`A variável "${key}" exige um valor numérico.`)
+        return
+      }
+    } else if (typeof value !== 'boolean') {
+      dependencies.say(`A variável "${key}" exige um valor booleano.`)
       return
     }
-    engine.setLogicVariable(key, value, PLAYER_LOGIC_SCOPE_ID)
+    engine.setLogicVariable(key, nextValue, PLAYER_LOGIC_SCOPE_ID)
     dependencies.refresh()
   }
 
