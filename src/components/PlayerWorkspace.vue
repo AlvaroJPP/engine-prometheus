@@ -139,6 +139,15 @@ function createVariable(): void {
 }
 function updateVariable(name: string, value: string): void {
   if (!canEdit.value) return
+  const current = props.playerLogicVariables[name]
+  if (typeof current === 'number' && (!value.trim() || !Number.isFinite(Number(value)))) {
+    variableFeedback.value = `Informe um número válido para "${name}".`
+    return
+  }
+  if (typeof current === 'boolean' && value !== 'true' && value !== 'false') {
+    variableFeedback.value = `Escolha true ou false para "${name}".`
+    return
+  }
   emit('set-player-variable', name, value)
   variableFeedback.value = `Valor de "${name}" atualizado.`
 }
