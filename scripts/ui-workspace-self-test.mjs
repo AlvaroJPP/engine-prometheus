@@ -251,6 +251,8 @@ assert.match(editorTopBarSource, /class="topbar-controls player-workspace-trigge
 assert.match(editorTopBarSource, /@click="emit\('open-player-workspace'\)"/)
 assert.match(editorTopBarSource, /<div class="project-shell" title="Nome do projeto atual">[\s\S]*?<\/div>\s*<\/div>\s*<details class="file-menu">/)
 assert.match(editorTopBarSource, /@click="emit\('open-project'\)">Abrir projeto…/)
+assert.match(editorTopBarSource, /class="topbar-open" title="Abrir projeto existente" @click="emit\('open-project'\)">[\s\S]*?<span>Abrir<\/span>/)
+assert.match(editorTopBarCssSource, /\.topbar \.topbar-open \{[\s\S]*?height:36px;[\s\S]*?border-radius:8px;/)
 assert.match(editorTopBarCssSource, /\.topbar-left \.project-shell \{[\s\S]*?flex:0 0 190px;[\s\S]*?width:190px;/)
 assert.match(editorTopBarCssSource, /\.topbar-left \.file-menu > summary \{[\s\S]*?min-width:86px;[\s\S]*?border-radius:8px;/)
 assert.match(editorTopBarCssSource, /\.topbar-right \{[\s\S]*?justify-content:flex-start;/)
