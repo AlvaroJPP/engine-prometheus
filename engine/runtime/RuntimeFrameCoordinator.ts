@@ -30,6 +30,7 @@ export interface RuntimeFrameDependencies {
   updateBehaviorTrees: (dt: number) => void
   notifyBehaviorPackageChanged: (ownerObjectId: string) => void
   triggerBehaviorPackageEvent: (ownerObjectId: string, packageId: string, eventId: string) => boolean
+  triggerPlayerEvent: (eventId: string, payload?: Record<string, boolean | number | string>) => boolean
   applyMountModelStates: (instance: BehaviorPackageInstance) => void
 }
 
@@ -69,6 +70,13 @@ export function createRuntimeFrameUpdateHandler(
         if (currentMount?.enabled) avatar.updateMountSettings(getMountPackageSettings(currentMount))
       }
       avatar.update(dt)
+      if (avatar.consumeJumpStarted()) {
+        dependencies.triggerPlayerEvent('jump', {
+          x: avatar.mesh.position.x,
+          y: avatar.mesh.position.y,
+          z: avatar.mesh.position.z,
+        })
+      }
       dependencies.updateAutonomousBehaviors(dt)
       dependencies.updateBehaviorTrees(dt)
       gameModules.update(dt)
