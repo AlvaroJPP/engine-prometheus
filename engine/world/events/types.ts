@@ -11,6 +11,8 @@ export interface EngineEvents {
   objectChanged: { id: string }
   /** Uma instância de pacote mudou de configuração ou estado de execução. */
   behaviorPackageChanged: { ownerObjectId: string }
+  /** Scripts alteraram variáveis durante um evento de lógica. */
+  logicVariablesChanged: { scopeId: string }
   objectClicked: { id: string }
   /** Dois objetos começaram a se sobrepor no sistema de colisão. */
   collisionStarted: { a: string; b: string }
