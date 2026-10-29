@@ -28,8 +28,21 @@ import { RuleEngine } from '../engine/script/RuleEngine.ts'
 import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
 import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
+import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../engine/player/PlayerSettings.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
+assert.deepEqual(sanitizePlayerSettings(), DEFAULT_PLAYER_SETTINGS)
+assert.deepEqual(
+  sanitizePlayerSettings({ walkSpeed: 100, runMultiplier: 0.2, jumpSpeed: -1, gravity: 100, colliderRadius: 9 }),
+  { walkSpeed: 15, runMultiplier: 1, jumpSpeed: 0, gravity: 40, colliderRadius: 0.8 },
+)
+assert.deepEqual(sanitizePlayerSettings({ walkSpeed: Number.NaN }), { ...DEFAULT_PLAYER_SETTINGS })
+assert.deepEqual(sanitizePlayerSettings({ walkSpeed: 7.5, colliderRadius: 0.24 }), {
+  ...DEFAULT_PLAYER_SETTINGS,
+  walkSpeed: 7.5,
+  colliderRadius: 0.24,
+})
+
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
 assert.equal(resolveUIValueBindings('Sem valor: {{nao_existe}}', {}), 'Sem valor: {{nao_existe}}')
 assert.equal(resolveUIValueBindings('Texto comum sem vinculos', { vida: 73 }), 'Texto comum sem vinculos')
@@ -214,6 +227,13 @@ const viewportRuntimeCssSource = readFileSync(new URL('../src/styles/parts/03-vi
 const viewportPositioningCssSource = readFileSync(new URL('../src/styles/parts/11-viewport-positioning.css', import.meta.url), 'utf8')
 const responsiveWorkspaceCssSource = readFileSync(new URL('../src/styles/parts/12-responsive-workspace.css', import.meta.url), 'utf8')
 const appStylesAggregatorSource = readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
+const playerWorkspaceSource = readFileSync(new URL('../src/components/PlayerWorkspace.vue', import.meta.url), 'utf8')
+const playerSettingsSource = readFileSync(new URL('../engine/player/PlayerSettings.ts', import.meta.url), 'utf8')
+const playerAvatarSource = readFileSync(new URL('../engine/world/HumanoidAvatar.ts', import.meta.url), 'utf8')
+const playerEngineSource = readFileSync(new URL('../engine/Engine.ts', import.meta.url), 'utf8')
+const projectFormatSource = readFileSync(new URL('../engine/project/format.ts', import.meta.url), 'utf8')
+const projectValidationSource = readFileSync(new URL('../engine/project/validate.ts', import.meta.url), 'utf8')
+const appControllerSource = readFileSync(new URL('../src/composables/useAppController.ts', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
@@ -226,6 +246,31 @@ assert.match(uiWorkspaceSource, /requestedEventId \|\| undefined/)
 assert.match(uiWorkspaceSource, /Já existe um fluxo global/)
 assert.match(uiWorkspaceSource, /Criar fluxo global e vincular automaticamente/)
 assert.match(appWorkspaceSource, /:create-global-logic-event="ctx\.addGlobalLogicEvent"/)
+
+assert.match(editorTopBarSource, /class="topbar-controls player-workspace-trigger"/)
+assert.match(editorTopBarSource, /@click="emit\('open-player-workspace'\)"/)
+assert.match(appWorkspaceSource, /<PlayerWorkspace/)
+assert.match(appWorkspaceSource, /:player-settings="ctx\.playerSettings"/)
+assert.match(appWorkspaceSource, /@update-player-settings="ctx\.setPlayerSettings"/)
+assert.match(playerWorkspaceSource, /Visão geral/)
+assert.match(playerWorkspaceSource, /Movimento e salto/)
+assert.match(playerWorkspaceSource, /Colisor do jogador/)
+assert.match(playerWorkspaceSource, /Mapas de controles/)
+assert.match(playerWorkspaceSource, /@click="emit\('open-model-import'\)"/)
+assert.match(playerWorkspaceSource, /@click="emit\('open-controls'\)"/)
+assert.match(playerSettingsSource, /walkSpeed: bounded\(value\?\.walkSpeed, DEFAULT_PLAYER_SETTINGS\.walkSpeed, 0\.5, 15\)/)
+assert.match(playerSettingsSource, /colliderRadius: bounded\(value\?\.colliderRadius/)
+assert.match(playerAvatarSource, /this\.playerSettings\.walkSpeed/)
+assert.match(playerAvatarSource, /this\.playerSettings\.runMultiplier/)
+assert.match(playerAvatarSource, /this\.playerSettings\.jumpSpeed/)
+assert.match(playerAvatarSource, /this\.playerSettings\.gravity/)
+assert.match(playerAvatarSource, /this\.playerSettings\.colliderRadius/)
+assert.match(playerEngineSource, /bundle\.project\.settings\.player = \{ \.\.\.this\.playerSettings \}/)
+assert.match(playerEngineSource, /this\.playerSettings = sanitizePlayerSettings\(bundle\.project\.settings\.player\)/)
+assert.match(playerEngineSource, /async setPlayerModelHeight\(height: number\)/)
+assert.match(projectFormatSource, /player\?: PlayerSettings/)
+assert.match(projectValidationSource, /player: sanitizePlayerSettings\(playerSettings/)
+assert.match(appControllerSource, /playerSettings,\s*setPlayerSettings,\s*setPlayerModelHeight/)
 
 assert.match(appWorkspaceSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?<EditorToolbar/)
 assert.match(editorTopBarSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?class="viewport-tools-overlay viewport-layout-positioned"/)
