@@ -2,8 +2,8 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS, DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '@engine'
-import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '@engine'
 import { replaceUIScreenDefinitions, uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
+import { usePlayerLogicEditor } from './usePlayerLogicEditor'
 import type {
   CameraPreset,
   ObjectInfo,
@@ -18,7 +18,6 @@ import type {
   FaceTextureData,
   ControlMapBindings,
   PlayerSettings,
-  PlayerRuntimeEventId,
 } from '@engine'
 import {
   chooseFolder,
@@ -110,7 +109,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const playerModelCustom = ref(false)
   const playerModelHeight = ref(1.8)
   const playerSettings = ref<PlayerSettings>({ ...DEFAULT_PLAYER_SETTINGS })
-  const playerLogicVariables = ref<Record<string, boolean | number | string>>({})
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -712,8 +710,26 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     behaviorPackages.value = engine.listBehaviorPackages()
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
-    playerLogicVariables.value = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)
+    playerLogicEditor.refresh()
   }
+
+  const playerLogicEditor = usePlayerLogicEditor({
+    getEngine: () => engine,
+    isRuntime: () => runtimeMode,
+    dirty,
+    say,
+    refresh,
+    createUniqueRuleId,
+  })
+  const {
+    playerLogicVariables,
+    createPlayerLogicVariable,
+    setPlayerLogicVariableValue,
+    deletePlayerLogicVariable,
+    addPlayerScript,
+    updatePlayerScript,
+    deletePlayerScript,
+  } = playerLogicEditor
 
   // A seleção pode mudar por clique na cena ou pela hierarquia. Sincronize
   // explicitamente o inspetor lateral com o objeto atualmente selecionado.
@@ -1032,116 +1048,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const next = sanitizePlayerSettings({ ...playerSettings.value, ...update })
     eng.setPlayerSettings(next)
     playerSettings.value = next
-    dirty.value = true
-  }
-
-  function createPlayerLogicVariable(
-    rawName: string,
-    type: 'boolean' | 'number' | 'string',
-    rawValue: string,
-  ): void {
-    if (!engine || runtimeMode) return
-    const name = rawName.trim()
-    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) {
-      say('Nome inválido. Use letras, números e _; o nome deve começar com letra ou _.')
-      return
-    }
-    if (Object.prototype.hasOwnProperty.call(playerLogicVariables.value, name)) {
-      say(`A variável do jogador "${name}" já existe.`)
-      return
-    }
-    let value: boolean | number | string
-    if (type === 'boolean') {
-      if (rawValue !== 'true' && rawValue !== 'false') {
-        say('Escolha true ou false para uma variável booleana.')
-        return
-      }
-      value = rawValue === 'true'
-    } else if (type === 'number') {
-      if (!rawValue.trim() || !Number.isFinite(Number(rawValue))) {
-        say('Informe um número finito para a variável do jogador.')
-        return
-      }
-      value = Number(rawValue)
-    } else {
-      value = rawValue
-    }
-    engine.setLogicVariable(name, value, PLAYER_LOGIC_SCOPE_ID)
-    playerLogicVariables.value = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)
-    dirty.value = true
-  }
-
-  function setPlayerLogicVariableValue(name: string, rawValue: string): void {
-    if (!engine || runtimeMode || !Object.prototype.hasOwnProperty.call(playerLogicVariables.value, name)) return
-    const current = playerLogicVariables.value[name]
-    let value: boolean | number | string = rawValue
-    if (typeof current === 'boolean') {
-      if (rawValue !== 'true' && rawValue !== 'false') return
-      value = rawValue === 'true'
-    } else if (typeof current === 'number') {
-      if (!rawValue.trim() || !Number.isFinite(Number(rawValue))) {
-        say(`Valor inválido para a variável "${name}".`)
-        return
-      }
-      value = Number(rawValue)
-    }
-    engine.setLogicVariable(name, value, PLAYER_LOGIC_SCOPE_ID)
-    playerLogicVariables.value = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)
-    dirty.value = true
-  }
-
-  function deletePlayerLogicVariable(name: string): void {
-    if (!engine || runtimeMode) return
-    if (engine.removeLogicVariable(name, PLAYER_LOGIC_SCOPE_ID)) {
-      playerLogicVariables.value = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)
-      dirty.value = true
-    }
-  }
-
-  function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string): void {
-    if (!engine || runtimeMode) return
-    if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === eventId)) return
-    const nextName = name.trim() || `Script do jogador ${logicRules.value.filter(rule => rule.trigger.type === 'player_event').length + 1}`
-    const rule: LogicRule = {
-      id: createUniqueRuleId('player-script'),
-      ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
-      name: nextName,
-      enabled: true,
-      trigger: { type: 'player_event', eventId },
-      conditions: [],
-      actions: [{
-        type: 'javascript',
-        code: rawCode.trim() || "// Use api.get('score'), api.set('score', 10), api.add('score', 1) e api.toggle('portaAberta').",
-      }],
-    }
-    engine.upsertRule(rule)
-    refresh()
-    dirty.value = true
-  }
-
-  function updatePlayerScript(rule: LogicRule): void {
-    if (!engine || runtimeMode) return
-    if (rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
-    if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === rule.trigger.eventId)) return
-    const safeRule: LogicRule = {
-      ...rule,
-      ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
-      conditions: [...rule.conditions],
-      actions: rule.actions.map(action => ({ ...action })),
-    }
-    engine.upsertRule(safeRule)
-    refresh()
-    dirty.value = true
-  }
-
-  function deletePlayerScript(id: string): void {
-    if (!engine || runtimeMode) return
-    const rule = engine.listRules().find(item =>
-      item.id === id && item.trigger.type === 'player_event' && item.ownerObjectId === PLAYER_LOGIC_SCOPE_ID,
-    )
-    if (!rule) return
-    engine.removeRule(id)
-    refresh()
     dirty.value = true
   }
 
