@@ -12,6 +12,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'set-global-variable', name: string, value: string | number | boolean): void
+  (event: 'set-player-variable', name: string, value: string | number | boolean): void
 }>()
 
 const overlays = computed(() => getGameOverlays().filter(overlay =>
@@ -19,6 +20,12 @@ const overlays = computed(() => getGameOverlays().filter(overlay =>
 ))
 
 const handleSetGlobalVariable = (name: string, value: string | number | boolean) => {
+  const key = name.trim()
+  if (key.startsWith('player.')) {
+    const playerName = key.slice('player.'.length).trim()
+    if (playerName) emit('set-player-variable', playerName, value)
+    return
+  }
   emit('set-global-variable', name, value)
 }
 </script>
