@@ -30,6 +30,7 @@ import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavi
 import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
 import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../engine/player/PlayerSettings.ts'
 import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '../engine/player/PlayerLogic.ts'
+import { resolveUIVariableReference } from '../engine/ui/UIVariableScope.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.deepEqual(sanitizePlayerSettings(), DEFAULT_PLAYER_SETTINGS)
@@ -46,6 +47,11 @@ assert.deepEqual(sanitizePlayerSettings({ walkSpeed: 7.5, colliderRadius: 0.24 }
 
 assert.equal(resolveUIValueBindings('Ativo: {{ativo}} · Jogador: {{player.name}}', { ativo: false, 'player.name': 'Alvaro' }), 'Ativo: false · Jogador: Alvaro')
 assert.equal(resolveUIValueBindings('Sem valor: {{nao_existe}}', {}), 'Sem valor: {{nao_existe}}')
+assert.equal(resolveUIValueBindings('Vida: {{player.health}}', { 'player.health': 80 }), 'Vida: 80')
+assert.deepEqual(resolveUIVariableReference(' player.health '), { scope: 'player', name: 'health' })
+assert.deepEqual(resolveUIVariableReference('health'), { scope: 'global', name: 'health' })
+assert.equal(resolveUIVariableReference('player.'), null)
+assert.equal(resolveUIVariableReference(' '), null)
 assert.equal(resolveUIValueBindings('Texto comum sem vinculos', { vida: 73 }), 'Texto comum sem vinculos')
 assert.equal(isUIVisibilityConditionMet('', 'true', {}), true)
 assert.equal(isUIVisibilityConditionMet('ui.inventory.open', 'true', { 'ui.inventory.open': true }), true)
@@ -411,7 +417,7 @@ assert.match(editorControllerSource, /e\.events\.on\('logicVariablesChanged', \(
 assert.match(editorControllerSource, /const runtimeHudVariables = ref/)
 assert.match(editorControllerSource, /player\.\$\{name\}/)
 assert.match(playerLogicEditorSource, /function setRuntimePlayerLogicVariable\(/)
-assert.match(gameUIRuntimeSource, /name\.startsWith\('player\.'\)/)
+assert.match(gameUIRuntimeSource, /resolveUIVariableReference\(rawName\)/)
 assert.match(gameUIRuntimeSource, /emit\('set-player-variable', playerName, value\)/)
 assert.match(gameUIRuntimeSource, /writeGameVariable\(variableName, nextUIToggleValue/)
 assert.match(gameUIRuntimeSource, /writeGameVariable\(variableName, adjustUINumericValue/)
@@ -419,7 +425,7 @@ assert.match(editorViewportSource, /:game-variables="ctx\.runtimeHudVariables"/)
 assert.match(editorViewportSource, /@set-player-variable="ctx\.setRuntimePlayerLogicVariable"/)
 assert.match(appWorkspaceSource, /:game-variables="ctx\.runtimeHudVariables"/)
 assert.match(appWorkspaceSource, /@set-player-variable="ctx\.setRuntimePlayerLogicVariable"/)
-assert.match(gameOverlayHostSource, /key\.startsWith\('player\.'\)/)
+assert.match(gameOverlayHostSource, /resolveUIVariableReference\(name\)/)
 assert.match(gameOverlayHostSource, /emit\('set-player-variable', playerName, value\)/)
 assert.match(runtimeFrameSource, /avatar\.consumeJumpStarted\(\)/)
 assert.match(runtimeFrameSource, /dependencies\.triggerPlayerEvent\('jump'/)
