@@ -12,6 +12,7 @@ import { newId } from '../lib/id.ts'
 import { getAnimationControllerFromObject } from '../world/AnimationController.ts'
 import type { ObjectType } from '../project/format.ts'
 import type { InventoryStack } from './InventoryRuntime.ts'
+import { PLAYER_LOGIC_SCOPE_ID } from '../player/PlayerLogic.ts'
 
 /** Runtime determinístico para gatilhos, condições e ações do projeto. */
 type ScriptApi = {
@@ -90,6 +91,10 @@ export class RuleEngine {
       rule.lastInside = false
       if (rule.trigger.type === 'global_event') {
         delete rule.ownerObjectId
+        continue
+      }
+      if (rule.trigger.type === 'player_event') {
+        rule.ownerObjectId = PLAYER_LOGIC_SCOPE_ID
         continue
       }
       // Migra projetos antigos para uma regra pertencente a um único objeto.
@@ -399,6 +404,28 @@ export class RuleEngine {
       readSerialized: () => this.getVariable(name),
       writeSerialized: serialized => this.setVariable(name, serialized),
     })
+  }
+
+  /** Dispara scripts associados ao jogador, usando o escopo reservado de variáveis. */
+  triggerPlayerEvent(eventId: string, payload: Record<string, PackageScalar> = {}): boolean {
+    const key = eventId.trim()
+    if (!key) return false
+    const previousPayload = this.currentGlobalEventPayload
+    this.currentGlobalEventPayload = { ...payload }
+    try {
+      const matchingRules = this.rulesInHierarchyOrder().filter(rule =>
+        rule.enabled
+        && rule.trigger.type === 'player_event'
+        && rule.trigger.eventId === key
+        && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID
+        && this.conditionsMatch(rule, PLAYER_LOGIC_SCOPE_ID),
+      )
+      let executed = false
+      for (const rule of matchingRules) executed = this.run(rule, PLAYER_LOGIC_SCOPE_ID, true) || executed
+      return executed
+    } finally {
+      this.currentGlobalEventPayload = previousPayload
+    }
   }
 
   /** Dispara regras globais definidas por pacotes, transportando dados de evento transitórios. */
