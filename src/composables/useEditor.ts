@@ -740,7 +740,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     behaviorPackages.value = engine.listBehaviorPackages()
     logicVariables.value = engine.logicVariables(id)
     globalLogicVariables.value = engine.logicVariables()
-    playerLogicVariables.value = engine.logicVariables(PLAYER_LOGIC_SCOPE_ID)
+    playerLogicEditor.refresh()
   }, { flush: 'sync' })
 
   let colliderInputActive = false
