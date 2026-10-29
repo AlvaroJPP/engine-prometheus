@@ -16,6 +16,9 @@ import { OrbitCamera } from './view/OrbitCamera'
 import { Viewport } from './view/Viewport'
 import type { ViewportRenderStats } from './view/Viewport'
 import { clamp, snap } from './lib/math'
+import { decodeBase64ArrayBuffer } from './lib/BinaryEncoding'
+import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from './player/PlayerSettings'
+import type { PlayerSettings } from './player/PlayerSettings'
 import { World } from './world/World'
 import type { GrassRenderOptions } from './world/map/GrassLayer'
 import { CollisionSystem } from './world/CollisionSystem'
@@ -72,6 +75,7 @@ export class Engine {
   private transformControls: TransformControls
   private avatar: HumanoidAvatar
   private playerModelData: PlayerModelData | null = null
+  private playerSettings: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS }
   private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private meta: ProjectMeta = { id: uuid(), name: 'Novo Mundo' }
   private groupTransformSnapshot: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null = null
@@ -470,6 +474,32 @@ export class Engine {
     return this.playerModelData !== null
   }
 
+  /** Configuração física/movimento ativa do jogador. */
+  getPlayerSettings(): PlayerSettings {
+    return { ...this.playerSettings }
+  }
+
+  /** Atualiza movimento e colisor do jogador sem exigir reiniciar o motor. */
+  setPlayerSettings(settings: Partial<PlayerSettings>): void {
+    this.playerSettings = sanitizePlayerSettings({ ...this.playerSettings, ...settings })
+    this.avatar.setPlayerSettings(this.playerSettings)
+    this.viewport.invalidate()
+  }
+
+  /** Altera a escala final do modelo de jogador, atualizando junto a altura física. */
+  async setPlayerModelHeight(height: number): Promise<void> {
+    if (!this.playerModelData) throw new Error('Importe um modelo GLB para ajustar a altura do jogador.')
+    const nextHeight = clamp(Number.isFinite(height) ? height : (this.playerModelData.height ?? 1.8), 0.1, 10000)
+    const model = this.playerModelData
+    await this.avatar.setCustomModel(
+      decodeBase64ArrayBuffer(model.glbData),
+      model.animationRoles,
+      nextHeight,
+    )
+    this.playerModelData = { ...model, height: nextHeight }
+    this.viewport.invalidate()
+  }
+
   /** Aplica um modelo GLB escolhido pelo usuário, preservando a cápsula física do jogador. */
   async setPlayerModel(
     data: ArrayBuffer,
@@ -841,6 +871,8 @@ export class Engine {
     this.runtimeModeActive = false
     resetIds()
     this.meta = { id: uuid(), name }
+    this.playerSettings = { ...DEFAULT_PLAYER_SETTINGS }
+    this.avatar.setPlayerSettings(this.playerSettings)
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset('free')
@@ -868,6 +900,7 @@ export class Engine {
       brushStrength: this.state.brush.strength,
       brushRadius: this.state.brush.radius,
     })
+    bundle.project.settings.player = { ...this.playerSettings }
     const scenePath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     bundle.scenes[scenePath].environment = this.world.getEnvironment()
     if (this.playerModelData) bundle.scenes[scenePath].playerModel = { ...this.playerModelData }
@@ -897,6 +930,8 @@ export class Engine {
 
     resetIds()
     this.meta = { id: bundle.project.id, name: bundle.project.name }
+    this.playerSettings = sanitizePlayerSettings(bundle.project.settings.player)
+    this.avatar.setPlayerSettings(this.playerSettings)
     this.orbit.restore(scene.camera)
     this.events.emit('cameraChanged', { preset: scene.camera.preset })
 
