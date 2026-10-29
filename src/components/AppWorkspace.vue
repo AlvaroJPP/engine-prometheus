@@ -12,6 +12,7 @@ import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
 import FullscreenDiagnostics from '@/components/FullscreenDiagnostics.vue'
 import GameOverlayHost from '@/components/GameOverlayHost.vue'
 import UIWorkspace from '@/components/UIWorkspace.vue'
+import PlayerWorkspace from '@/components/PlayerWorkspace.vue'
 const context = useAppController() as Record<string, any>
 const ctx = reactive(context)
 function setExternalRef(name: string, element: unknown): void {
@@ -20,6 +21,7 @@ function setExternalRef(name: string, element: unknown): void {
 }
 const diagnosticsOpen = ref(false)
 const uiWorkspaceOpen = ref(false)
+const playerWorkspaceOpen = ref(false)
 
 function handleDiagnosticsShortcut(event: KeyboardEvent): void {
   const diagnosticChord = (event.ctrlKey || event.metaKey) && event.shiftKey && event.code === 'KeyF'
@@ -109,6 +111,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       @save-project="ctx.saveProject"
       @cycle-camera="ctx.cycleCameraView"
       @open-ui-workspace="uiWorkspaceOpen = true"
+      @open-player-workspace="playerWorkspaceOpen = true"
     />
 
     <UIWorkspace
@@ -117,6 +120,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       :logic-rules="ctx.logicRules"
       :create-global-logic-event="ctx.addGlobalLogicEvent"
       @close="uiWorkspaceOpen = false"
+    />
+
+    <PlayerWorkspace
+      v-if="playerWorkspaceOpen"
+      :project-name="ctx.projectName"
+      :dirty="ctx.dirty"
+      :execution-mode="ctx.executionMode"
+      :player-model-name="ctx.playerModelName"
+      :player-model-custom="ctx.playerModelCustom"
+      :player-model-height="ctx.playerModelHeight"
+      :player-settings="ctx.playerSettings"
+      :active-control-map="ctx.activeControlMap"
+      :first-person-mode="ctx.firstPersonMode"
+      :camera-label="ctx.cameraLabel"
+      @close="playerWorkspaceOpen = false"
+      @open-model-import="ctx.previewComponentAsset = null; ctx.modelImportOpen = true"
+      @reset-player-model="ctx.resetPlayerModel"
+      @set-player-model-height="ctx.setPlayerModelHeight"
+      @update-player-settings="ctx.setPlayerSettings"
+      @open-controls="ctx.controlMapsOpen = true"
+      @toggle-first-person="ctx.toggleFirstPerson"
+      @cycle-camera="ctx.cycleCameraView"
+      @save-project="ctx.saveProject"
     />
 
     <ControlMapsDialog
