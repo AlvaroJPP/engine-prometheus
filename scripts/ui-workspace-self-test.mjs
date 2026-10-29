@@ -281,13 +281,13 @@ runtimeScriptEngine.upsert({
   actions: [{ type: 'javascript', code: "api.set('released_e', true)" }],
 })
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_pressed', { key: 'KeyE' }), true)
-assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).pressed_e, true)
-assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).pressed_q, undefined)
-assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).event_key, 'KeyE')
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).pressed_e, true)
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).pressed_q, undefined)
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).event_key, 'KeyE')
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyQ' }), false)
-assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).released_e, undefined)
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).released_e, undefined)
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('key_released', { key: 'KeyE' }), true)
-assert.equal(runtimeScriptEngine.logicVariables(PLAYER_LOGIC_SCOPE_ID).released_e, true)
+assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).released_e, true)
 
 
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
