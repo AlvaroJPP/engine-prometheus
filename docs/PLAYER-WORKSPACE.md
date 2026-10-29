@@ -22,7 +22,9 @@ Os mapas de teclas são preferências locais do editor, preservando o comportame
 
 Os scripts e variáveis do jogador são salvos junto ao arquivo de lógica do projeto. As variáveis ficam em um escopo reservado próprio do jogador e não são lidas/escritas como variáveis globais por padrão. Para compartilhar estado global deliberadamente, use `api.global.get/set/add/toggle`.
 
-Os eventos disponíveis são `started` (entrada no modo Jogar), `interact` (tecla ou botão de interação configurado) e `jump` (início de um salto válido). Dentro de um script:
+Os eventos disponíveis são `started` (entrada no modo Jogar), `interact` (tecla ou botão de interação configurado), `jump` (início de um salto válido), `key_pressed` (pressionamento de tecla configurada) e `key_released` (soltura dessa tecla). Para os dois eventos de teclado, informe o valor de `KeyboardEvent.code` no campo Código da tecla, como `KeyE`, `Space` ou `Digit1`. Cada script é filtrado pela tecla configurada; pressionar `KeyE` não dispara um script configurado para `KeyQ`.
+
+Dentro de um script:
 - `api.get('health')` lê uma variável do jogador.
 - `api.set('health', 100)` cria/atualiza uma variável do jogador.
 - `api.add('score', 1)` soma a uma variável numérica existente.
