@@ -28,6 +28,7 @@ function setExternalRef(name: string, element: unknown): void {
           @set-global-variable="ctx.setRuntimeGlobalVariable"
           @set-player-variable="ctx.setRuntimePlayerLogicVariable"
           @trigger-global-event="ctx.triggerRuntimeGlobalEvent"
+          @trigger-player-event="ctx.triggerRuntimePlayerEvent"
         />
         <RuntimeHUD
           v-if="ctx.executionMode === 'running' || ctx.runtimeHudSettingsOpen"
