@@ -29,7 +29,7 @@ export interface UIElementDefinition {
   variableMin: number
   variableLimitMax: number
   action: UIElementAction
-  /** Global Visual Script event invoked by a HUD/button action. */
+  /** Visual Script event invoked by a HUD/button action; may target global or player scope. */
   eventId: string
   targetScreenId: string
   variableValue: string
