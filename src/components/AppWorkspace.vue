@@ -270,8 +270,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
             :engine="ctx.engineInstance"
             :behavior-packages="ctx.behaviorPackages"
             :bindings="ctx.activeControlMap.bindings"
-            :game-variables="ctx.globalLogicVariables"
+            :game-variables="ctx.runtimeHudVariables"
             :editor-preview="ctx.executionMode !== 'running'"
+            @set-global-variable="ctx.setRuntimeGlobalVariable"
+            @set-player-variable="ctx.setRuntimePlayerLogicVariable"
           />
         </template>
       </EditorViewport>
