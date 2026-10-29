@@ -252,6 +252,8 @@ export class RuleEngine {
   getVariable(name: string, objectId?: string | null): boolean | number | string | undefined {
     const scoped = objectId ? this.data.objectVariables?.[objectId] : undefined
     if (scoped && Object.prototype.hasOwnProperty.call(scoped, name)) return scoped[name]
+    // O escopo do jogador é isolado: não herda variáveis globais implicitamente.
+    if (objectId === PLAYER_LOGIC_SCOPE_ID) return undefined
     return this.data.variables[name]
   }
 
@@ -538,7 +540,9 @@ export class RuleEngine {
       const scoped = scopeId ? this.data.objectVariables?.[scopeId] : undefined
       const hasPackage = !!packageVariables && Object.prototype.hasOwnProperty.call(packageVariables, c.name)
       const hasScoped = !!scoped && Object.prototype.hasOwnProperty.call(scoped, c.name)
-      if (!hasPackage && !hasScoped && !Object.prototype.hasOwnProperty.call(this.data.variables, c.name)) return false
+      const playerScope = scopeId === PLAYER_LOGIC_SCOPE_ID
+      const hasGlobal = !playerScope && Object.prototype.hasOwnProperty.call(this.data.variables, c.name)
+      if (!hasPackage && !hasScoped && !hasGlobal) return false
       const actual = hasPackage
         ? packageVariables![c.name]!
         : hasScoped ? scoped![c.name]! : this.data.variables[c.name]!
@@ -611,8 +615,11 @@ export class RuleEngine {
   private executeJavaScript(source: string, eventObjectId?: string): void {
     source = this.resolveObjectIdToken(source, true, eventObjectId)
     const scopeId = eventObjectId ?? this.world.getSelectedId() ?? undefined
-    // Keep the legacy `vars.name = value` API, but reject non-scalar and non-finite writes.
-    const vars = new Proxy(this.data.variables, {
+    // Preserve `vars.name = value`; player events write to player storage, never globals.
+    const varsTarget = scopeId === PLAYER_LOGIC_SCOPE_ID
+      ? ((this.data.objectVariables ??= {}), (this.data.objectVariables[scopeId] ??= {}))
+      : this.data.variables
+    const vars = new Proxy(varsTarget, {
       set: (target, property, value) => {
         if (typeof property !== 'string' || !isValidPackageScalar(value)) return true
         target[property] = value
