@@ -182,7 +182,11 @@ function patchPlayerScript(
   const customEventName = patch.customEventName?.trim() || (
     playerEventSelection(rule.trigger.eventId) === 'custom_event' ? rule.trigger.eventId : 'player.custom'
   )
-  if (selectedEvent === 'custom_event' && !isValidCustomPlayerEventName(customEventName)) return
+  if (selectedEvent === 'custom_event' && !isValidCustomPlayerEventName(customEventName)) {
+    scriptFeedback.value = 'Identificador inválido. Use letras, números, _, ponto, hífen ou dois-pontos; não reutilize eventos predefinidos.'
+    return
+  }
+  scriptFeedback.value = ''
   const nextEventId = selectedEvent === 'custom_event' ? customEventName : selectedEvent
   const nextKey = patch.key?.trim() || rule.trigger.key?.trim() || 'KeyE'
   emit('update-player-script', {
