@@ -30,6 +30,7 @@ import {
   type UIScreenPresetId,
   type UIWorkspaceSnapshot,
   type LogicRule,
+  PLAYER_LOGIC_SCOPE_ID,
 } from '@engine'
 import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 
@@ -65,7 +66,7 @@ const globalEventRules = computed(() => (props.logicRules ?? []).filter(
 ))
 const playerEventRules = computed(() => (props.logicRules ?? []).filter(
   (rule): rule is PlayerEventLogicRule => rule.trigger.type === 'player_event'
-    && rule.ownerObjectId === '__engine_player__'
+    && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID
     && Boolean(rule.trigger.eventId.trim()),
 ))
 const canvasStage = ref<HTMLElement | null>(null)
