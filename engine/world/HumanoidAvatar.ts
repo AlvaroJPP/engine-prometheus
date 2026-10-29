@@ -13,11 +13,6 @@ import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
 import type { ControlMapBindings } from '../input/ControlMaps'
 import {
   PLAYER_ID,
-  WALK_SPEED,
-  RUN_MULTIPLIER,
-  JUMP_SPEED,
-  GRAVITY,
-  PLAYER_RADIUS,
   PLAYER_HEIGHT,
   WALKABLE_SURFACE_NORMAL_Y,
   MAX_WALK_STEP_UP,
@@ -38,6 +33,8 @@ import {
   getColliderBounds,
 } from './HumanoidAvatarShared'
 import type { PlayerManeuver, PlayerPosture } from './HumanoidAvatarShared'
+import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../player/PlayerSettings'
+import type { PlayerSettings } from '../player/PlayerSettings'
 import { createHumanoidAvatarMountMethods, createHumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
 import type { HumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
 import type { HumanoidAvatarMountMethods } from './HumanoidAvatarMountMethods'
@@ -52,6 +49,7 @@ export class HumanoidAvatar {
   private disposed = false
   /** Altura física normalizada do avatar, em unidades do mundo. */
   private standingPlayerHeight = PLAYER_HEIGHT
+  private playerSettings: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS }
   private modelLoadRevision = 0
   private animationActions = new Map<string, THREE.AnimationAction>()
   private animationController: AnimationController | null = null
@@ -162,12 +160,23 @@ export class HumanoidAvatar {
     return this.standingPlayerHeight
   }
 
+  getPlayerSettings(): PlayerSettings {
+    return { ...this.playerSettings }
+  }
+
+  setPlayerSettings(settings: Partial<PlayerSettings>): void {
+    this.playerSettings = sanitizePlayerSettings(settings)
+    this.pressed.clear()
+    this.sprintToggled = false
+    this.walkToggled = false
+  }
+
   private getBodyScale(): number {
     return this.standingPlayerHeight / PLAYER_HEIGHT
   }
 
   private getPlayerRadius(): number {
-    return Math.max(0.01, PLAYER_RADIUS * this.getBodyScale())
+    return Math.max(0.01, this.playerSettings.colliderRadius * this.getBodyScale())
   }
 
   private getMaxWalkStepUp(): number {
@@ -459,10 +468,10 @@ export class HumanoidAvatar {
     const sideInput = actionLocked ? 0 : Number(this.pressed.has(bindings.right)) - Number(this.pressed.has(bindings.left))
     const length = Math.hypot(forwardInput, sideInput)
     const running = this.pressed.has(bindings.run) || this.sprintToggled
-    let speed = WALK_SPEED * (running ? RUN_MULTIPLIER : 1)
-    if (this.walkToggled && !running) speed = WALK_SPEED * 0.48
-    if (this.posture === 'crouching') speed = WALK_SPEED * 0.54
-    else if (this.posture === 'prone') speed = WALK_SPEED * 0.24
+    let speed = this.playerSettings.walkSpeed * (running ? this.playerSettings.runMultiplier : 1)
+    if (this.walkToggled && !running) speed = this.playerSettings.walkSpeed * 0.48
+    if (this.posture === 'crouching') speed = this.playerSettings.walkSpeed * 0.54
+    else if (this.posture === 'prone') speed = this.playerSettings.walkSpeed * 0.24
 
     // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
     if (this.mountedRoot && this.mountSettings) {
@@ -484,10 +493,10 @@ export class HumanoidAvatar {
     const requestedJump = this.jumpRequested
     this.jumpRequested = false
     if (requestedJump && this.grounded) {
-      this.verticalVelocity = JUMP_SPEED * Math.sqrt(this.getBodyScale())
+      this.verticalVelocity = this.playerSettings.jumpSpeed * Math.sqrt(this.getBodyScale())
       this.grounded = false
     }
-    this.verticalVelocity -= GRAVITY * step
+    this.verticalVelocity -= this.playerSettings.gravity * step
     const oldY = this.mesh.position.y
     const wasGrounded = this.grounded
     let nextY = oldY + this.verticalVelocity * step
@@ -1046,7 +1055,7 @@ export class HumanoidAvatar {
         this.getCameraYaw(), this.mesh.rotation.y, running,
       )
       if (targetWeights.size > 0) {
-        const nominalSpeed = running ? WALK_SPEED * RUN_MULTIPLIER : WALK_SPEED
+        const nominalSpeed = running ? this.playerSettings.walkSpeed * this.playerSettings.runMultiplier : this.playerSettings.walkSpeed
         const dominantRole = controller.setBlendWeights(
           targetWeights,
           actualHorizontalSpeed / Math.max(0.1, nominalSpeed),
