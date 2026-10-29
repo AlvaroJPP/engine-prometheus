@@ -101,7 +101,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     }
   }
 
-  function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string): void {
+  function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string, rawKey = 'KeyE'): void {
     const engine = dependencies.getEngine()
     if (!engine || dependencies.isRuntime()) return
     if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === eventId)) return
@@ -114,7 +114,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
       ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
       name: nextName,
       enabled: true,
-      trigger: { type: 'player_event', eventId },
+      trigger: { type: 'player_event', eventId, ...((eventId === 'key_pressed' || eventId === 'key_released') ? { key: rawKey.trim() || 'KeyE' } : {}) },
       conditions: [],
       actions: [{
         type: 'javascript',
@@ -131,9 +131,16 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     if (!engine || dependencies.isRuntime()) return
     if (rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
     if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === rule.trigger.eventId)) return
+    const nextEventId = rule.trigger.eventId
+    const nextKey = rule.trigger.key?.trim() || 'KeyE'
     const safeRule: LogicRule = {
       ...rule,
       ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+      trigger: {
+        type: 'player_event',
+        eventId: nextEventId,
+        ...((nextEventId === 'key_pressed' || nextEventId === 'key_released') ? { key: nextKey } : {}),
+      },
       conditions: [...rule.conditions],
       actions: rule.actions.map(action => ({ ...action })),
     }
