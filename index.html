@@ -80,23 +80,12 @@
         const frameDiagnostics = (detail) => {
           firstFrame = true;
           if (panel?.dataset.fatal === 'true') return;
-          if (detail && Number(detail.drawCalls) > 0) {
-            if (panel) panel.hidden = true;
-            return;
-          }
-          show('WEBGL INICIOU, MAS NÃO DESENHOU GEOMETRIA', JSON.stringify({
-            drawCalls: detail?.drawCalls ?? 'não informado',
-            triangles: detail?.triangles ?? 'não informado',
-            canvas: (() => {
-              const canvas = document.querySelector('canvas.canvas');
-              return canvas ? {
-                clientSize: canvas.clientWidth + 'x' + canvas.clientHeight,
-                bufferSize: canvas.width + 'x' + canvas.height,
-                webglReady: canvas.dataset.engineWebglReady || 'não registrado',
-                resizeBlocked: canvas.dataset.engineResizeBlocked || 'não',
-              } : 'canvas não encontrado';
-            })(),
-          }, null, 2));
+
+          // Um quadro sem draw calls pode acontecer durante a inicialização ou
+          // em uma cena legitimamente vazia. Não transforme isso em erro fatal:
+          // a camada de diagnóstico cobre a viewport inteira e ficaria preta
+          // permanentemente mesmo quando os objetos fossem carregados depois.
+          if (panel) panel.hidden = true;
         };
         window.addEventListener('error', (event) => {
           if (!(event instanceof ErrorEvent) || !event.message) return;
