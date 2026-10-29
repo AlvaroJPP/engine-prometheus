@@ -40,6 +40,9 @@ interface GlobalEventCreationResult {
 type GlobalEventLogicRule = LogicRule & {
   trigger: Extract<LogicRule['trigger'], { type: 'global_event' }>
 }
+type PlayerEventLogicRule = LogicRule & {
+  trigger: Extract<LogicRule['trigger'], { type: 'player_event' }>
+}
 const props = defineProps<{
   projectName?: string
   logicRules?: LogicRule[]
@@ -59,6 +62,11 @@ const keyAlignment = ref<UIElementGroupAlignment>('left')
 const statusMessage = ref('As alterações são incluídas ao salvar o projeto.')
 const globalEventRules = computed(() => (props.logicRules ?? []).filter(
   (rule): rule is GlobalEventLogicRule => rule.trigger.type === 'global_event' && Boolean(rule.trigger.eventId.trim()),
+))
+const playerEventRules = computed(() => (props.logicRules ?? []).filter(
+  (rule): rule is PlayerEventLogicRule => rule.trigger.type === 'player_event'
+    && rule.ownerObjectId === '__engine_player__'
+    && Boolean(rule.trigger.eventId.trim()),
 ))
 const canvasStage = ref<HTMLElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
@@ -981,6 +989,10 @@ function activatePreviewElement(element: UIElementDefinition): void {
     statusMessage.value = element.eventId.trim()
       ? `Prévia: o botão dispararia o evento global “${element.eventId}” do Visual Script.`
       : 'Configure um identificador de evento global para conectar este botão ao Visual Script.'
+  } else if (element.action === 'trigger-player-event') {
+    statusMessage.value = element.eventId.trim()
+      ? `Prévia: o botão dispararia o evento do jogador “${element.eventId}”.`
+      : 'Configure um evento personalizado existente no Player Workspace.'
   }
 }
 
@@ -1356,7 +1368,8 @@ onBeforeUnmount(() => {
                   <option value="set-variable">Definir variável</option>
                   <option value="toggle-variable">Alternar variável booleana</option>
                   <option value="adjust-variable">Ajustar variável numérica</option>
-                  <option value="trigger-event">Disparar evento do Visual Script</option>
+                  <option value="trigger-event">Disparar evento global do Visual Script</option>
+                  <option value="trigger-player-event">Disparar evento do jogador</option>
                 </select>
               </label>
               <label v-if="selectedElement.action === 'navigate-screen'" class="ui-field">Tela de destino
@@ -1372,6 +1385,13 @@ onBeforeUnmount(() => {
                 </datalist>
                 <button type="button" class="ui-event-create-button" @click="createGlobalEventForButton(selectedElement)">＋ Criar fluxo global e vincular automaticamente</button>
                 <small class="ui-field-help">Escolha um evento existente ou crie um fluxo aqui. O identificador será preenchido no botão e poderá ser editado.</small>
+              </label>
+              <label v-if="selectedElement.action === 'trigger-player-event'" class="ui-field">Evento personalizado do jogador
+                <input v-model.trim="selectedElement.eventId" list="ui-player-script-events" maxlength="100" placeholder="player.inventory.open" />
+                <datalist id="ui-player-script-events">
+                  <option v-for="rule in playerEventRules" :key="rule.id" :value="rule.trigger.eventId">{{ rule.name }}</option>
+                </datalist>
+                <small class="ui-field-help">Crie um script com “Evento personalizado” no Player Workspace e use exatamente o mesmo identificador aqui. Não precisa criar um evento global intermediário.</small>
               </label>
               <template v-if="selectedElement.action === 'set-variable' || selectedElement.action === 'toggle-variable' || selectedElement.action === 'adjust-variable'">
                 <label class="ui-field">Nome da variável
