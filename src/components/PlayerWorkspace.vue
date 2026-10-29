@@ -48,7 +48,8 @@ const newVariableValue = ref('0')
 const newScriptName = ref('')
 const newScriptEvent = ref<PlayerRuntimeEventId>('started')
 const newScriptCode = ref("// Exemplo: api.set('score', (api.get('score') ?? 0) + 1);")
-const scriptingFeedback = ref('')
+const variableFeedback = ref('')
+const scriptFeedback = ref('')
 const playerScripts = computed(() => props.logicRules.filter(
   (rule): rule is PlayerScriptRule => rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID,
 ))
@@ -120,33 +121,33 @@ function createVariable(): void {
   if (!canEdit.value) return
   const name = newVariableName.value.trim()
   if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) {
-    scriptingFeedback.value = 'Use um nome começando com letra ou _, com até 64 caracteres.'
+    variableFeedback.value = 'Use um nome começando com letra ou _, com até 64 caracteres.'
     return
   }
   if (Object.prototype.hasOwnProperty.call(props.playerLogicVariables, name)) {
-    scriptingFeedback.value = `A variável "${name}" já existe neste jogador.`
+    variableFeedback.value = `A variável "${name}" já existe neste jogador.`
     return
   }
   if (newVariableType.value === 'number' && (!newVariableValue.value.trim() || !Number.isFinite(Number(newVariableValue.value)))) {
-    scriptingFeedback.value = 'Informe um número finito como valor inicial.'
+    variableFeedback.value = 'Informe um número finito como valor inicial.'
     return
   }
-  scriptingFeedback.value = ''
+  variableFeedback.value = ''
   emit('create-player-variable', name, newVariableType.value, newVariableValue.value)
   newVariableName.value = ''
-  scriptingFeedback.value = `Variável "${name}" criada no escopo do jogador.`
+  variableFeedback.value = `Variável "${name}" criada no escopo do jogador.`
 }
 function updateVariable(name: string, value: string): void {
   if (!canEdit.value) return
   emit('set-player-variable', name, value)
-  scriptingFeedback.value = `Valor de "${name}" atualizado.`
+  variableFeedback.value = `Valor de "${name}" atualizado.`
 }
 function createScript(): void {
   if (!canEdit.value) return
   const name = newScriptName.value.trim()
   emit('create-player-script', name, newScriptEvent.value, newScriptCode.value)
   newScriptName.value = ''
-  scriptingFeedback.value = `Script "${name || 'do jogador'}" criado; será executado no evento selecionado.`
+  scriptFeedback.value = `Script "${name || 'do jogador'}" criado; será executado no evento selecionado.`
 }
 function patchPlayerScript(
   rule: PlayerScriptRule,
@@ -378,7 +379,7 @@ function commitModelHeight(): void {
               <section class="player-settings-card player-variable-panel">
                 <div class="player-scripting-heading"><div><h3>Variáveis do jogador</h3><p>{{ Object.keys(playerLogicVariables).length }} variáveis no escopo do player</p></div><span class="player-scripting-badge">PLAYER</span></div>
                 <form class="player-variable-create" @submit.prevent="createVariable">
-                  <span v-if="scriptingFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ scriptingFeedback }}</span>
+                  <span v-if="variableFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ variableFeedback }}</span>
                   <label class="player-number-field"><span>Nome</span><input v-model="newVariableName" type="text" maxlength="64" placeholder="ex.: health" :disabled="!canEdit" /></label>
                   <label class="player-number-field"><span>Tipo</span><select v-model="newVariableType" :disabled="!canEdit" @change="newVariableValue = newVariableType === 'boolean' ? 'false' : newVariableType === 'number' ? '0' : ''"><option value="number">Número</option><option value="boolean">Booleano</option><option value="string">Texto</option></select></label>
                   <label class="player-number-field"><span>Valor inicial</span><select v-if="newVariableType === 'boolean'" v-model="newVariableValue" :disabled="!canEdit"><option value="false">false</option><option value="true">true</option></select><input v-else v-model="newVariableValue" :type="newVariableType === 'number' ? 'number' : 'text'" placeholder="Valor inicial" :disabled="!canEdit" /></label>
@@ -398,7 +399,7 @@ function commitModelHeight(): void {
               <section class="player-settings-card player-script-panel">
                 <div class="player-scripting-heading"><div><h3>Scripts do jogador</h3><p>{{ playerScripts.length }} scripts vinculados ao player</p></div><span class="player-scripting-badge">EVENTOS</span></div>
                 <form class="player-script-create" @submit.prevent="createScript">
-                  <span v-if="scriptingFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ scriptingFeedback }}</span>
+                  <span v-if="scriptFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ scriptFeedback }}</span>
                   <label class="player-number-field"><span>Nome do script</span><input v-model="newScriptName" type="text" maxlength="100" placeholder="ex.: Inicializar jogador" :disabled="!canEdit" /></label>
                   <label class="player-number-field"><span>Executar quando</span><select v-model="newScriptEvent" :disabled="!canEdit"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
                   <button class="player-primary-button" type="submit" :disabled="!canEdit">＋ Criar script</button>
