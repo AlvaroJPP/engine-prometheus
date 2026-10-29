@@ -888,3 +888,112 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   }
   .topbar .mode-segment button { padding-inline:3px; font-size:9px; }
 }
+
+/* Project name and File menu remain distinct and readable in the editor header. */
+.topbar {
+  display:flex;
+  align-items:center;
+  justify-content:initial;
+  gap:8px;
+}
+.topbar-left {
+  order:1;
+  flex:0 1 auto;
+  min-width:0;
+  gap:8px;
+}
+.topbar-right {
+  order:2;
+  flex:1 1 auto;
+  min-width:0;
+  gap:6px;
+}
+.topbar .mode-segment {
+  order:3;
+  flex:0 0 auto;
+  margin-left:0;
+}
+.topbar-left .project-shell {
+  display:flex;
+  flex:0 0 190px;
+  width:190px;
+  max-width:none;
+  min-width:0;
+  height:36px;
+}
+.topbar .project-name-field {
+  flex:1 1 auto;
+  width:100%;
+  min-width:0;
+}
+.topbar .pname {
+  flex:1 1 0;
+  width:0;
+  min-width:0;
+  padding-inline:10px 5px;
+}
+.topbar-left .file-menu {
+  align-self:center;
+  flex:none;
+  height:36px;
+}
+.topbar-left .file-menu > summary {
+  justify-content:center;
+  gap:7px;
+  min-width:86px;
+  height:36px;
+  padding:0 12px;
+  border:1px solid #2e2b25;
+  border-radius:8px;
+  background:#1d1b17;
+  color:#e5ddd0;
+}
+.topbar-left .file-menu > summary:hover,
+.topbar-left .file-menu[open] > summary {
+  border-color:#514231;
+  background:#26231e;
+  color:#fff3df;
+}
+.topbar-left .file-menu-popover {
+  top:calc(100% + 6px);
+  left:0;
+}
+.topbar .global-search-wrap {
+  flex:0 1 200px;
+  width:200px;
+  max-width:220px;
+  min-width:145px;
+}
+@media(max-width:1180px) {
+  .topbar { gap:6px; padding-inline:8px; }
+  .topbar-left,.topbar-right { gap:5px; }
+  .topbar-left .project-shell { flex-basis:166px; width:166px; }
+  .topbar .global-search-wrap {
+    flex-basis:155px;
+    width:155px;
+    max-width:185px;
+    min-width:115px;
+  }
+}
+@media(max-width:960px) {
+  .topbar-left .project-shell { flex-basis:148px; width:148px; }
+  .topbar-left .file-menu > summary { min-width:76px; padding-inline:9px; }
+  .topbar .global-search-wrap {
+    flex-basis:130px;
+    width:130px;
+    max-width:150px;
+    min-width:95px;
+  }
+}
+@media(max-width:760px) {
+  .topbar { gap:4px; padding-inline:5px; }
+  .topbar-left,.topbar-right { gap:4px; }
+  .topbar-left .project-shell { flex-basis:132px; width:132px; }
+  .topbar-left .file-menu > summary { min-width:68px; padding-inline:7px; font-size:10px; }
+  .topbar .pname { padding-inline:6px 2px; font-size:11px; }
+}
+@media(max-width:560px) {
+  .topbar-left .project-shell { flex-basis:112px; width:112px; }
+  .topbar-left .file-menu > summary { min-width:62px; padding-inline:5px; }
+}
+
