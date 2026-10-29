@@ -1,7 +1,7 @@
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
-import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS } from '@engine'
+import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS, DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '@engine'
 import { replaceUIScreenDefinitions, uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
 import type {
   CameraPreset,
@@ -16,6 +16,7 @@ import type {
   TextureFace,
   FaceTextureData,
   ControlMapBindings,
+  PlayerSettings,
 } from '@engine'
 import {
   chooseFolder,
@@ -106,6 +107,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const playerModelName = ref('Modelo padrão (Dummy)')
   const playerModelCustom = ref(false)
   const playerModelHeight = ref(1.8)
+  const playerSettings = ref<PlayerSettings>({ ...DEFAULT_PLAYER_SETTINGS })
   const skyTextureDataUrl = ref('')
   const timeOfDay = ref(12)
   const dayNightCycleEnabled = ref(false)
@@ -994,6 +996,41 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
+  async function setPlayerModelHeight(height: number): Promise<void> {
+    const eng = engine
+    if (!eng) return
+    if (runtimeMode) {
+      say('Pare a execução antes de alterar o tamanho do jogador.')
+      return
+    }
+    if (!eng.hasCustomPlayerModel()) {
+      say('Importe primeiro um modelo GLB para ajustar sua altura.')
+      return
+    }
+    try {
+      await eng.setPlayerModelHeight(height)
+      playerModelHeight.value = eng.getPlayerModelHeight()
+      dirty.value = true
+      say(`Altura do jogador ajustada para ${playerModelHeight.value.toFixed(2)} unidades. Salve o projeto para manter a alteração.`)
+    } catch (error) {
+      say(`Não foi possível alterar a altura do jogador: ${errMsg(error)}`)
+    }
+  }
+
+  function updatePlayerSettings(update: Partial<PlayerSettings>): void {
+    const eng = engine
+    if (!eng) return
+    if (runtimeMode) {
+      say('Pare a execução antes de alterar as configurações do jogador.')
+      return
+    }
+    const next = sanitizePlayerSettings({ ...playerSettings.value, ...update })
+    eng.setPlayerSettings(next)
+    playerSettings.value = next
+    dirty.value = true
+    say('Configurações do jogador atualizadas. Salve o projeto para mantê-las.')
+  }
+
   function setControlBindings(bindings: ControlMapBindings) {
     playerControlBindings = { ...bindings }
     engine?.setControlBindings(playerControlBindings)
@@ -1560,6 +1597,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
       playerModelHeight.value = eng.getPlayerModelHeight()
+      playerSettings.value = eng.getPlayerSettings()
       // worldReset é emitido antes de o motor limpar as regras; atualize a interface
       // depois que o estado inteiro do projeto novo já estiver redefinido.
       refresh()
@@ -1606,6 +1644,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         playerModelName.value = eng.getPlayerModelName()
         playerModelCustom.value = eng.hasCustomPlayerModel()
         playerModelHeight.value = eng.getPlayerModelHeight()
+        playerSettings.value = eng.getPlayerSettings()
         // Projetos antigos podem ter salvo wireframe ligado por padrão.
         // A visualização das linhas começa desligada, mas pode ser reativada na toolbar.
         polygonLinesVisible.value = false
@@ -1776,6 +1815,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     playerModelName,
     playerModelCustom,
     playerModelHeight,
+    playerSettings,
+    setPlayerSettings: updatePlayerSettings,
+    setPlayerModelHeight,
     setPlayerModelFile,
     setPlayerModelAsset,
     resetPlayerModel,
