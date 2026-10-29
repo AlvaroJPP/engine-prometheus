@@ -959,6 +959,31 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   top:calc(100% + 6px);
   left:0;
 }
+.topbar .topbar-open {
+  display:inline-flex;
+  flex:none;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  height:36px;
+  min-height:36px;
+  padding:0 11px;
+  border:1px solid #2e2b25;
+  border-radius:8px;
+  background:#1d1b17;
+  color:#f3efe6;
+  font:500 13px/1 'IBM Plex Sans',sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.topbar .topbar-open:hover {
+  border-color:#484136;
+  background:#26231e;
+  color:#f2c36f;
+}
+.topbar .topbar-open svg { flex:none; }
+.topbar-left .topbar-open { order:3; }
+.topbar-left .topbar-save { order:4; }
 .topbar .global-search-wrap {
   flex:0 1 200px;
   width:200px;
@@ -979,6 +1004,8 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
 @media(max-width:960px) {
   .topbar-left .project-shell { flex-basis:148px; width:148px; }
   .topbar-left .file-menu > summary { min-width:76px; padding-inline:9px; }
+  .topbar .topbar-open { width:36px; min-width:36px; padding:0; }
+  .topbar .topbar-open span { display:none; }
   .topbar .global-search-wrap {
     flex-basis:130px;
     width:130px;
