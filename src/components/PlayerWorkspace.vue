@@ -31,7 +31,7 @@ const emit = defineEmits<{
   'create-player-variable': [name: string, type: 'boolean' | 'number' | 'string', value: string]
   'set-player-variable': [name: string, value: string]
   'delete-player-variable': [name: string]
-  'create-player-script': [name: string, eventId: PlayerRuntimeEventId, code: string, key?: string]
+  'create-player-script': [name: string, eventId: PlayerRuntimeEventId, code: string, key?: string, customEventName?: string]
   'update-player-script': [rule: LogicRule]
   'delete-player-script': [id: string]
   'open-controls': []
@@ -48,12 +48,18 @@ const newVariableValue = ref('0')
 const newScriptName = ref('')
 const newScriptEvent = ref<PlayerRuntimeEventId>('started')
 const newScriptKey = ref('KeyE')
+const newScriptCustomEventName = ref('player.inventory.open')
+const builtInPlayerEventIds = new Set<string>(PLAYER_RUNTIME_EVENTS.filter(event => event.id !== 'custom_event').map(event => event.id))
 const newScriptCode = ref("// Exemplo: api.set('score', (api.get('score') ?? 0) + 1);")
 const variableFeedback = ref('')
 const scriptFeedback = ref('')
 const playerScripts = computed(() => props.logicRules.filter(
   (rule): rule is PlayerScriptRule => rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID,
 ))
+
+function playerEventSelection(eventId: string): PlayerRuntimeEventId {
+  return builtInPlayerEventIds.has(eventId) ? eventId as PlayerRuntimeEventId : 'custom_event'
+}
 const canEdit = computed(() => props.executionMode === 'edit')
 const actualColliderRadius = computed(() =>
   Math.max(0.01, props.playerSettings.colliderRadius * (props.playerModelHeight / 1.8)),
@@ -155,20 +161,29 @@ function updateVariable(name: string, value: string): void {
 function createScript(): void {
   if (!canEdit.value) return
   const name = newScriptName.value.trim()
-  emit('create-player-script', name, newScriptEvent.value, newScriptCode.value, newScriptKey.value)
+  if (newScriptEvent.value === 'custom_event' && !/^[A-Za-z_][A-Za-z0-9_.:-]{0,99}$/.test(newScriptCustomEventName.value.trim())) {
+    scriptFeedback.value = 'Informe um evento válido, como player.inventory.open.'
+    return
+  }
+  emit('create-player-script', name, newScriptEvent.value, newScriptCode.value, newScriptKey.value, newScriptCustomEventName.value)
   newScriptName.value = ''
   scriptFeedback.value = `Script "${name || 'do jogador'}" criado; será executado no evento selecionado.`
 }
 function patchPlayerScript(
   rule: PlayerScriptRule,
-  patch: { name?: string; enabled?: boolean; eventId?: PlayerRuntimeEventId; code?: string; key?: string },
+  patch: { name?: string; enabled?: boolean; eventId?: PlayerRuntimeEventId; code?: string; key?: string; customEventName?: string },
 ): void {
   if (!canEdit.value || rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
   const firstAction = rule.actions[0]
   const currentCode = firstAction && (firstAction.type === 'javascript' || firstAction.type === 'script')
     ? firstAction.code
     : ''
-  const nextEventId = patch.eventId ?? rule.trigger.eventId
+  const selectedEvent = patch.eventId ?? playerEventSelection(rule.trigger.eventId)
+  const customEventName = patch.customEventName?.trim() || (
+    playerEventSelection(rule.trigger.eventId) === 'custom_event' ? rule.trigger.eventId : 'player.custom'
+  )
+  if (selectedEvent === 'custom_event' && !/^[A-Za-z_][A-Za-z0-9_.:-]{0,99}$/.test(customEventName)) return
+  const nextEventId = selectedEvent === 'custom_event' ? customEventName : selectedEvent
   const nextKey = patch.key?.trim() || rule.trigger.key?.trim() || 'KeyE'
   emit('update-player-script', {
     ...rule,
@@ -178,7 +193,7 @@ function patchPlayerScript(
     trigger: {
       type: 'player_event',
       eventId: nextEventId,
-      ...(PLAYER_RUNTIME_EVENTS.find(event => event.id === nextEventId)?.requiresKey ? { key: nextKey } : {}),
+      ...(PLAYER_RUNTIME_EVENTS.find(event => event.id === selectedEvent)?.requiresKey ? { key: nextKey } : {}),
     },
     actions: [
       { type: 'javascript', code: patch.code ?? currentCode },
@@ -419,6 +434,7 @@ function commitModelHeight(): void {
                   <label class="player-number-field"><span>Nome do script</span><input v-model="newScriptName" type="text" maxlength="100" placeholder="ex.: Inicializar jogador" :disabled="!canEdit" /></label>
                   <label class="player-number-field"><span>Executar quando</span><select v-model="newScriptEvent" :disabled="!canEdit"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
                   <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresKey" class="player-number-field"><span>Código da tecla</span><input v-model="newScriptKey" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" /><small>Use KeyboardEvent.code, por exemplo KeyE, KeyF, Space ou Digit1.</small></label>
+                  <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresEventName" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input v-model="newScriptCustomEventName" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" /><small>O botão HUD ou outro sistema deve emitir exatamente esse nome.</small></label>
                   <button class="player-primary-button" type="submit" :disabled="!canEdit">＋ Criar script</button>
                 </form>
                 <div v-if="playerScripts.length" class="player-script-list">
@@ -428,10 +444,11 @@ function commitModelHeight(): void {
                       <input class="player-script-name" :value="script.name" maxlength="100" :disabled="!canEdit" aria-label="Nome do script" @change="patchPlayerScript(script, { name: ($event.target as HTMLInputElement).value })" />
                       <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir script ' + script.name" title="Excluir script" @click="emit('delete-player-script', script.id)">×</button>
                     </div>
-                    <label class="player-number-field"><span>Evento</span><select :value="script.trigger.eventId" :disabled="!canEdit" @change="patchPlayerScript(script, { eventId: ($event.target as HTMLSelectElement).value as PlayerRuntimeEventId })"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
-                    <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === script.trigger.eventId)?.requiresKey" class="player-number-field"><span>Código da tecla</span><input :value="script.trigger.key ?? 'KeyE'" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" @change="patchPlayerScript(script, { key: ($event.target as HTMLInputElement).value })" /><small>KeyE = tecla E; Space = Espaço; Digit1 = 1.</small></label>
+                    <label class="player-number-field"><span>Evento</span><select :value="playerEventSelection(script.trigger.eventId)" :disabled="!canEdit" @change="patchPlayerScript(script, { eventId: ($event.target as HTMLSelectElement).value as PlayerRuntimeEventId })"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
+                    <label v-if="playerEventSelection(script.trigger.eventId) === 'custom_event'" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input :value="script.trigger.eventId" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" @change="patchPlayerScript(script, { customEventName: ($event.target as HTMLInputElement).value })" /><small>Use o mesmo identificador configurado no botão do HUD.</small></label>
+                    <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.requiresKey" class="player-number-field"><span>Código da tecla</span><input :value="script.trigger.key ?? 'KeyE'" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" @change="patchPlayerScript(script, { key: ($event.target as HTMLInputElement).value })" /><small>KeyE = tecla E; Space = Espaço; Digit1 = 1.</small></label>
                     <label class="player-number-field player-script-code-label"><span>Código JavaScript</span><textarea :value="scriptCode(script)" :disabled="!canEdit" spellcheck="false" rows="5" placeholder="api.set('score', (api.get('score') ?? 0) + 1);" @change="patchPlayerScript(script, { code: ($event.target as HTMLTextAreaElement).value })"></textarea></label>
-                    <small class="player-script-event-help">{{ PLAYER_RUNTIME_EVENTS.find(event => event.id === (script.trigger.type === 'player_event' ? script.trigger.eventId : '') )?.description ?? 'Evento de script do jogador.' }}</small>
+                    <small class="player-script-event-help">{{ PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.description ?? 'Evento personalizado: disparado pelo mesmo identificador configurado em um botão de HUD.' }}</small>
                   </article>
                 </div>
                 <div v-else class="player-empty-state"><span>⌘</span><strong>Nenhum script vinculado</strong><p>Crie um script para responder a eventos do jogador. Os scripts desativados continuam salvos, mas não executam.</p></div>
@@ -631,6 +648,7 @@ function commitModelHeight(): void {
 .player-script-code-label textarea{box-sizing:border-box;width:100%;min-width:0;resize:vertical;min-height:90px;padding:9px;border:1px solid #39332a;border-radius:5px;background:#0c0d0b;color:#d9e0d0;font:10px/1.6 'IBM Plex Mono',monospace;tab-size:2}
 .player-script-code-label textarea:focus{outline:1px solid #986338;border-color:#a16d3d}
 .player-script-event-help{color:#8e8678;font-size:9px;line-height:1.5}
+.player-custom-event-field input{box-sizing:border-box;width:100%;min-width:0}
 .player-scripting-feedback{grid-column:1/-1;display:block;color:#d5b58c}
 .player-empty-state{display:flex;align-items:center;flex-direction:column;gap:7px;padding:24px 12px;text-align:center;color:#8c8477}
 .player-empty-state>span{display:grid;place-items:center;width:34px;height:34px;border:1px solid #3b3227;border-radius:7px;background:#211b13;color:#d9a05b;font-size:19px}
