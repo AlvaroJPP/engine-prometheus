@@ -1428,6 +1428,16 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     return executed
   }
 
+  /** Dispara um evento personalizado no escopo exclusivo dos scripts do jogador. */
+  function triggerRuntimePlayerEvent(
+    eventId: string,
+    payload: Record<string, boolean | number | string> = {},
+  ): boolean {
+    const key = eventId.trim()
+    if (!engine || !runtimeMode || !key) return false
+    return engine.triggerPlayerEvent(key, payload)
+  }
+
   function toggleLogicVariable(name: string, scope: 'global' | 'object' = 'object') {
     const objectId = scope === 'object' && selectedId.value && selectedId.value !== TERRAIN_ID ? selectedId.value : null
     const source = scope === 'global' ? globalLogicVariables.value : logicVariables.value
@@ -1881,7 +1891,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     resetPlayerModel,
     logicRules, behaviorPackages, logicVariables, globalLogicVariables, runtimeHudVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
-    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, deleteLogicVariable, addLogicRule, addGlobalLogicEvent, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
+    toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, triggerRuntimePlayerEvent, deleteLogicVariable, addLogicRule, addGlobalLogicEvent, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
     setTool,
     setTransform,
