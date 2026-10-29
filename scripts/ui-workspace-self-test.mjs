@@ -263,6 +263,7 @@ assert.match(playerSettingsSource, /colliderRadius: bounded\(value\?\.colliderRa
 assert.match(playerAvatarSource, /this\.playerSettings\.walkSpeed/)
 assert.match(playerAvatarSource, /this\.playerSettings\.runMultiplier/)
 assert.match(playerAvatarSource, /this\.playerSettings\.jumpSpeed/)
+assert.match(playerAvatarSource, /requestedJump && this\.grounded && this\.playerSettings\.jumpSpeed > 0/)
 assert.match(playerAvatarSource, /this\.playerSettings\.gravity/)
 assert.match(playerAvatarSource, /this\.playerSettings\.colliderRadius/)
 assert.match(playerEngineSource, /bundle\.project\.settings\.player = \{ \.\.\.this\.playerSettings \}/)
