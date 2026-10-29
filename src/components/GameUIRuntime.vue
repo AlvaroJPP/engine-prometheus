@@ -10,6 +10,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (event: 'set-global-variable', name: string, value: string | number | boolean): void
+  (event: 'set-player-variable', name: string, value: string | number | boolean): void
   (event: 'trigger-global-event', eventId: string, payload: Record<string, string | number | boolean>): void
 }>()
 
@@ -78,6 +79,18 @@ function parseVariableValue(raw: string): string | number | boolean {
   return raw
 }
 
+/** player.* is an explicit HUD binding to the player scope; all other keys remain global. */
+function writeGameVariable(rawName: string, value: string | number | boolean): void {
+  const name = rawName.trim()
+  if (!name) return
+  if (name.startsWith('player.')) {
+    const playerName = name.slice('player.'.length).trim()
+    if (playerName) emit('set-player-variable', playerName, value)
+    return
+  }
+  emit('set-global-variable', name, value)
+}
+
 function activate(element: UIElementDefinition): void {
   if (element.action === 'navigate-screen') {
     if (navigableScreens.value.some(screen => screen.id === element.targetScreenId) && element.targetScreenId !== activeScreenId.value) {
@@ -97,17 +110,17 @@ function activate(element: UIElementDefinition): void {
     return
   }
   if (element.action === 'set-variable' && element.variableName.trim()) {
-    emit('set-global-variable', element.variableName.trim(), parseVariableValue(element.variableValue))
+    writeGameVariable(element.variableName, parseVariableValue(element.variableValue))
     return
   }
   if (element.action === 'toggle-variable' && element.variableName.trim()) {
     const variableName = element.variableName.trim()
-    emit('set-global-variable', variableName, nextUIToggleValue(props.gameVariables[variableName]))
+    writeGameVariable(variableName, nextUIToggleValue(props.gameVariables[variableName]))
     return
   }
   if (element.action === 'adjust-variable' && element.variableName.trim()) {
     const variableName = element.variableName.trim()
-    emit('set-global-variable', variableName, adjustUINumericValue(props.gameVariables[variableName], element.variableStep, element.variableMin, element.variableLimitMax))
+    writeGameVariable(variableName, adjustUINumericValue(props.gameVariables[variableName], element.variableStep, element.variableMin, element.variableLimitMax))
     return
   }
   if (element.action === 'trigger-event' && element.eventId.trim()) {
