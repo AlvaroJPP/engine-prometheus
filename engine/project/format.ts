@@ -1,4 +1,5 @@
 import type { UIScreenDefinition } from '../ui/UIScreenDocument'
+import type { PlayerSettings } from '../player/PlayerSettings'
 
 export const FORMAT_VERSION = 2
 export const ENGINE_VERSION = '0.1.0'
@@ -111,6 +112,8 @@ export interface ProjectFile {
       brushStrength: number
       brushRadius: number
     }
+    /** Physical/movement profile for the player; optional in older projects. */
+    player?: PlayerSettings
   }
   modules: Array<{ id: string; version: string }>
   scenes: string[]
