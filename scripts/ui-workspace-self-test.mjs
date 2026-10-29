@@ -410,7 +410,7 @@ assert.match(engineEventTypesSource, /logicVariablesChanged: \{ scopeId: string 
 assert.match(editorControllerSource, /e\.events\.on\('logicVariablesChanged', \(\) => refreshLogicVariableViews\(\)\)/)
 assert.match(editorControllerSource, /const runtimeHudVariables = ref/)
 assert.match(editorControllerSource, /player\.\$\{name\}/)
-assert.match(playerWorkspaceSource, /setRuntimePlayerLogicVariable/)
+assert.match(playerLogicEditorSource, /function setRuntimePlayerLogicVariable\(/)
 assert.match(gameUIRuntimeSource, /name\.startsWith\('player\.'\)/)
 assert.match(gameUIRuntimeSource, /emit\('set-player-variable', playerName, value\)/)
 assert.match(gameUIRuntimeSource, /writeGameVariable\(variableName, nextUIToggleValue/)
