@@ -446,7 +446,7 @@ assert.match(playerRuleEngineSource, /const varsTarget = scopeId === PLAYER_LOGI
 assert.match(playerRuleEngineSource, /events\.emit\('logicVariablesChanged', \{ scopeId: PLAYER_LOGIC_SCOPE_ID \}\)/)
 assert.match(engineEventTypesSource, /logicVariablesChanged: \{ scopeId: string \}/)
 assert.match(editorControllerSource, /e\.events\.on\('logicVariablesChanged', \(\) => refreshLogicVariableViews\(\)\)/)
-assert.match(editorControllerSource, /const runtimeHudVariables = ref/)
+assert.match(editorControllerSource, /const runtimeHudVariables = computed/)
 assert.match(editorControllerSource, /player\.\$\{name\}/)
 assert.match(playerLogicEditorSource, /function setRuntimePlayerLogicVariable\(/)
 assert.match(gameUIRuntimeSource, /resolveUIVariableReference\(rawName\)/)
