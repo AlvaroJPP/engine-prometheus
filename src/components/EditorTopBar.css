@@ -907,6 +907,7 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   flex:1 1 auto;
   min-width:0;
   gap:6px;
+  justify-content:flex-start;
 }
 .topbar .mode-segment {
   order:3;
