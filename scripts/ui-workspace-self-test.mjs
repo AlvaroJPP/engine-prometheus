@@ -225,7 +225,7 @@ runtimeScriptEngine.load({
       conditions: [],
       actions: [{
         type: 'javascript',
-        code: "api.set('score', (api.get('score') ?? 0) + 1); vars.playerAlias = 'player-only'; api.global.add('run_count', 1); api.set('received_project', String(api.event.get('projectName') ?? 'missing'))",
+        code: "api.set('score', (api.get('score') ?? 0) + 1); api.add('score', 2); api.set('doorOpen', false); api.toggle('doorOpen'); vars.playerAlias = 'player-only'; api.global.add('run_count', 1); api.set('received_project', String(api.event.get('projectName') ?? 'missing'))",
       }],
     },
     {
@@ -244,7 +244,8 @@ runtimeScriptEngine.load({
 assert.equal(runtimeScriptEngine.triggerPlayerEvent('started', { projectName: 'Demo project' }), true)
 const playerLogicData = runtimeScriptEngine.exportData()
 assert.equal(playerLogicData.events[0].ownerObjectId, PLAYER_LOGIC_SCOPE_ID)
-assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.score, 1)
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.score, 3)
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.doorOpen, true)
 assert.equal(playerLogicData.variables.score, 99)
 assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.playerAlias, 'player-only')
 assert.equal(playerLogicData.variables.run_count, 1)
