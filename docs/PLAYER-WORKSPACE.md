@@ -33,3 +33,7 @@ Dentro de um script:
 - `api.global.set('round', 2)` altera explicitamente uma variável global.
 
 Os scripts usam o executor JavaScript existente do projeto; execute apenas código confiável. Alterações de scripts/variáveis e parâmetros físicos devem ser feitas no modo Editar; durante Jogar as entradas ficam bloqueadas.
+
+Os HUDs do Workspace de UI e os overlays de jogo podem ler as variáveis do jogador usando o namespace explícito `player.`: escreva `{{player.health}}` no texto de um elemento ou use `player.health` no nome da variável de uma barra de progresso. Os nomes sem esse prefixo continuam globais, então uma variável global `health` pode coexistir com `player.health`.
+
+Os botões do HUD com ações Definir variável, Alternar variável booleana e Ajustar variável numérica também aceitam `player.health`, `player.stamina` etc. Essas ações escrevem no escopo do jogador, verificam se a variável existe e preservam seu tipo. Scripts executados pelo jogador notificam o editor para atualizar os bindings do HUD imediatamente.
