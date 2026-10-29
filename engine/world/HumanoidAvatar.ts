@@ -492,7 +492,7 @@ export class HumanoidAvatar {
     // salto force um novo salto ao tocar o chão e interrompa a corrida continuamente.
     const requestedJump = this.jumpRequested
     this.jumpRequested = false
-    if (requestedJump && this.grounded) {
+    if (requestedJump && this.grounded && this.playerSettings.jumpSpeed > 0) {
       this.verticalVelocity = this.playerSettings.jumpSpeed * Math.sqrt(this.getBodyScale())
       this.grounded = false
     }
