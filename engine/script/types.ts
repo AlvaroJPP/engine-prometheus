@@ -5,6 +5,7 @@ export type RuleTrigger =
   | { type: 'enter_area'; center: [number, number, number]; radius: number }
   | { type: 'key_pressed'; key: string }
   | { type: 'global_event'; eventId: string }
+  | { type: 'player_event'; eventId: string }
   | { type: 'package_event'; objectId: string; packageId: string; eventId: string }
 
 export type RuleCondition = { type: 'variable'; name: string; operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than'; value: boolean | number | string }
