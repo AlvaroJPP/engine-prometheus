@@ -414,7 +414,7 @@ assert.match(playerLogicEditorSource, /function setRuntimePlayerLogicVariable\(/
 assert.match(playerLogicEditorSource, /A variável do jogador/)
 assert.match(editorControllerSource, /const playerLogicEditor = usePlayerLogicEditor\(/)
 assert.match(editorControllerSource, /playerLogicEditor\.refresh\(\)/)
-assert.match(appControllerSource, /playerLogicVariables,\s*createPlayerLogicVariable,\s*setPlayerLogicVariableValue,\s*deletePlayerLogicVariable,\s*addPlayerScript,\s*updatePlayerScript,\s*deletePlayerScript/)
+assert.match(appControllerSource, /playerLogicVariables,\s*runtimeHudVariables,\s*createPlayerLogicVariable,\s*setPlayerLogicVariableValue,\s*deletePlayerLogicVariable,\s*setRuntimePlayerLogicVariable,\s*addPlayerScript,\s*updatePlayerScript,\s*deletePlayerScript/)
 assert.match(playerEngineSource, /this\.logic\.triggerPlayerEvent\('started'/)
 assert.match(playerEngineSource, /this\.logic\.triggerPlayerEvent\('interact', \{ key: event\.code \}\)/)
 assert.match(playerEngineSource, /code === this\.playerControlBindings\.interact/)

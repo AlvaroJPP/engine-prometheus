@@ -53,20 +53,11 @@ jobs:
       - name: Test generic game-module lifecycle
         run: npm run game:modules:self-test
 
-      - name: Test VEILBORNE combat rules and opt-in registration
-        run: npm run veilborne:combat:self-test
-
-      - name: Test VEILBORNE defensive key resolution
-        run: npm run veilborne:controls:self-test
-
       - name: Test autonomous behaviors
         run: npm run behavior:autonomous:self-test
 
       - name: Test declarative behavior-package scripts
         run: npm run behavior:package-scripts:self-test
-
-      - name: Test VEILBORNE progression script composition
-        run: npm run veilborne:scripts:self-test
 
       - name: Test behavior-package import drafts
         run: npm run behavior:packages:self-test

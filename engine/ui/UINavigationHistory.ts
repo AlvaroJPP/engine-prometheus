@@ -16,7 +16,7 @@ export function appendUIScreenHistory(
   return next.slice(-safeLimit)
 }
 
-/** Pops entries until an available previous screen is found, returning the remaining history. */
+/** Pops entries until an available previous screen is found, returning the remaining history without unavailable entries. */
 export function takePreviousUIScreen(
   history: readonly string[],
   isAvailable: (screenId: string) => boolean,
@@ -24,7 +24,11 @@ export function takePreviousUIScreen(
   const remaining = [...history]
   while (remaining.length) {
     const screenId = remaining.pop() ?? ''
-    if (screenId && isAvailable(screenId)) return { history: remaining, screenId }
+    if (screenId && isAvailable(screenId)) {
+      // Filter out unavailable entries from the returned history
+      const filteredHistory = remaining.filter(id => isAvailable(id))
+      return { history: filteredHistory, screenId }
+    }
   }
-  return { history: remaining, screenId: '' }
+  return { history: remaining.filter(id => isAvailable(id)), screenId: '' }
 }

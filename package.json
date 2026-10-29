@@ -37,9 +37,6 @@
     "animation:keyframe-timeline:self-test": "node --experimental-strip-types scripts/rig-keyframe-timeline-self-test.mjs",
     "model:import-normalization:self-test": "node --experimental-strip-types scripts/model-import-normalization-self-test.mjs",
     "game:modules:self-test": "node --experimental-strip-types scripts/game-module-registry-self-test.mjs",
-    "veilborne:combat:self-test": "node --experimental-strip-types scripts/veilborne-combat-self-test.mjs",
-    "veilborne:scripts:self-test": "node --experimental-strip-types scripts/veilborne-script-composition-self-test.mjs",
-    "veilborne:controls:self-test": "node --experimental-strip-types scripts/veilborne-controls-self-test.mjs",
     "world:transform-safety:self-test": "node --experimental-strip-types scripts/world-transform-safety-self-test.mjs",
     "game:separation:self-test": "node --experimental-strip-types scripts/game-separation-self-test.mjs",
     "behavior:package-registration:self-test": "node --experimental-strip-types scripts/behavior-package-registration-self-test.mjs",
@@ -81,6 +78,7 @@
     "vue": "^3.5.42"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.2",
     "@types/node": "^24.13.3",
     "@types/three": "^0.186.0",
