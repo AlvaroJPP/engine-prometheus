@@ -29,6 +29,7 @@ import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, re
 import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
 import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
 import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../engine/player/PlayerSettings.ts'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '../engine/player/PlayerLogic.ts'
 
 assert.equal(resolveUIValueBindings('Vida: {{vida}} / Mana: {{ mana }}', { vida: 73, mana: 0 }), 'Vida: 73 / Mana: 0')
 assert.deepEqual(sanitizePlayerSettings(), DEFAULT_PLAYER_SETTINGS)
@@ -209,6 +210,49 @@ assert.equal(runtimeScriptEngine.exportData().variables['hud.element_id'], 'butt
 assert.equal(runtimeScriptEngine.exportData().variables['hud.element'], 'Abrir inventário')
 assert.equal(runtimeScriptEngine.triggerGlobalEvent('hud.event.missing'), false)
 
+assert.deepEqual(PLAYER_RUNTIME_EVENTS.map(event => event.id), ['started', 'interact', 'jump'])
+runtimeScriptEngine.load({
+  formatVersion: 1,
+  variables: { score: 99, run_count: 0, globalOnly: true },
+  objectVariables: {},
+  events: [
+    {
+      id: 'player-started-test',
+      name: 'Initialize player variables',
+      enabled: true,
+      ownerObjectId: 'old-owner-should-be-replaced',
+      trigger: { type: 'player_event', eventId: 'started' },
+      conditions: [],
+      actions: [{
+        type: 'javascript',
+        code: "api.set('score', (api.get('score') ?? 0) + 1); vars.playerAlias = 'player-only'; api.global.add('run_count', 1); api.set('received_project', String(api.event.get('projectName') ?? 'missing'))",
+      }],
+    },
+    {
+      id: 'player-global-isolation-test',
+      name: 'Must not read global variables implicitly',
+      enabled: true,
+      ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+      trigger: { type: 'player_event', eventId: 'started' },
+      conditions: [{ type: 'variable', name: 'globalOnly', operator: 'equals', value: true }],
+      actions: [{ type: 'javascript', code: "api.set('global_leaked', true)" }],
+    },
+  ],
+  packages: [],
+  disabledPackageScripts: [],
+})
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('started', { projectName: 'Demo project' }), true)
+const playerLogicData = runtimeScriptEngine.exportData()
+assert.equal(playerLogicData.events[0].ownerObjectId, PLAYER_LOGIC_SCOPE_ID)
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.score, 1)
+assert.equal(playerLogicData.variables.score, 99)
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.playerAlias, 'player-only')
+assert.equal(playerLogicData.variables.run_count, 1)
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.received_project, 'Demo project')
+assert.equal(playerLogicData.objectVariables?.[PLAYER_LOGIC_SCOPE_ID]?.global_leaked, undefined)
+assert.equal(runtimeScriptEngine.triggerPlayerEvent('missing-player-event'), false)
+
+
 const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
 const editorControllerSource = readFileSync(new URL('../src/composables/useEditor.ts', import.meta.url), 'utf8')
 const uiWorkspaceSource = readFileSync(new URL('../src/components/UIWorkspace.vue', import.meta.url), 'utf8')
@@ -229,6 +273,9 @@ const responsiveWorkspaceCssSource = readFileSync(new URL('../src/styles/parts/1
 const appStylesAggregatorSource = readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
 const playerWorkspaceSource = readFileSync(new URL('../src/components/PlayerWorkspace.vue', import.meta.url), 'utf8')
 const playerSettingsSource = readFileSync(new URL('../engine/player/PlayerSettings.ts', import.meta.url), 'utf8')
+const playerLogicSource = readFileSync(new URL('../engine/player/PlayerLogic.ts', import.meta.url), 'utf8')
+const playerRuleEngineSource = readFileSync(new URL('../engine/script/RuleEngine.ts', import.meta.url), 'utf8')
+const runtimeFrameSource = readFileSync(new URL('../engine/runtime/RuntimeFrameCoordinator.ts', import.meta.url), 'utf8')
 const playerAvatarSource = readFileSync(new URL('../engine/world/HumanoidAvatar.ts', import.meta.url), 'utf8')
 const playerEngineSource = readFileSync(new URL('../engine/Engine.ts', import.meta.url), 'utf8')
 const projectFormatSource = readFileSync(new URL('../engine/project/format.ts', import.meta.url), 'utf8')
@@ -268,6 +315,28 @@ assert.match(editorTopBarCssSource, /@media\(max-width:1400px\)[\s\S]*?\.topbar-
 assert.match(appWorkspaceSource, /<PlayerWorkspace/)
 assert.match(appWorkspaceSource, /:player-settings="ctx\.playerSettings"/)
 assert.match(appWorkspaceSource, /@update-player-settings="ctx\.setPlayerSettings"/)
+assert.match(appWorkspaceSource, /:logic-rules="ctx\.logicRules"/)
+assert.match(appWorkspaceSource, /:player-logic-variables="ctx\.playerLogicVariables"/)
+assert.match(appWorkspaceSource, /@create-player-variable="ctx\.createPlayerLogicVariable"/)
+assert.match(appWorkspaceSource, /@create-player-script="ctx\.addPlayerScript"/)
+assert.match(appWorkspaceSource, /@update-player-script="ctx\.updatePlayerScript"/)
+assert.match(appWorkspaceSource, /@delete-player-script="ctx\.deletePlayerScript"/)
+assert.match(playerWorkspaceSource, /Scripts e variáveis/)
+assert.match(playerWorkspaceSource, /Variáveis do jogador/)
+assert.match(playerWorkspaceSource, /Scripts do jogador/)
+assert.match(playerWorkspaceSource, /api\.get\('nome'\)/)
+assert.match(playerWorkspaceSource, /create-player-variable/)
+assert.match(playerWorkspaceSource, /create-player-script/)
+assert.match(playerLogicSource, /PLAYER_LOGIC_SCOPE_ID = '__engine_player__'/)
+assert.match(playerLogicSource, /id: 'started'/)
+assert.match(playerLogicSource, /id: 'interact'/)
+assert.match(playerLogicSource, /id: 'jump'/)
+assert.match(playerRuleEngineSource, /triggerPlayerEvent\(eventId: string/)
+assert.match(playerRuleEngineSource, /if \(objectId === PLAYER_LOGIC_SCOPE_ID\) return undefined/)
+assert.match(playerRuleEngineSource, /const playerScope = scopeId === PLAYER_LOGIC_SCOPE_ID/)
+assert.match(playerRuleEngineSource, /const varsTarget = scopeId === PLAYER_LOGIC_SCOPE_ID/)
+assert.match(runtimeFrameSource, /avatar\.consumeJumpStarted\(\)/)
+assert.match(runtimeFrameSource, /dependencies\.triggerPlayerEvent\('jump'/)
 assert.match(playerWorkspaceSource, /Visão geral/)
 assert.match(playerWorkspaceSource, /Movimento e salto/)
 assert.match(playerWorkspaceSource, /Colisor do jogador/)
