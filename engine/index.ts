@@ -1,4 +1,6 @@
 export { Engine } from './Engine'
+export { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from './player/PlayerSettings'
+export type { PlayerSettings } from './player/PlayerSettings'
 export type { EngineOptions } from './Engine'
 export type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 export { GameModuleRegistry } from './runtime/GameModuleRegistry'
