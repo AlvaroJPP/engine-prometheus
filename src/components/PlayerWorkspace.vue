@@ -239,7 +239,7 @@ function commitModelHeight(): void {
             <div class="player-settings-list">
               <div class="player-setting-row">
                 <div class="player-setting-copy"><strong>Velocidade de caminhada</strong><p>Deslocamento básico do personagem.</p><small>Limites: 0,5–15 unidades por segundo.</small></div>
-                <div class="player-setting-inputs"><input class="player-range" type="range" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @input="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value)" /><label class="player-number-field"><span>u/s</span><input type="number" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @change="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value))" /></label></div>
+                <div class="player-setting-inputs"><input class="player-range" type="range" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @input="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>u/s</span><input type="number" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @change="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value))" /></label></div>
               </div>
               <div class="player-setting-row">
                 <div class="player-setting-copy"><strong>Multiplicador de corrida</strong><p>Define quantas vezes a corrida é mais rápida que a caminhada.</p><small>Velocidade atual da corrida: {{ estimatedRunSpeed.toFixed(1) }} u/s.</small></div>
