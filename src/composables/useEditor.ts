@@ -1028,7 +1028,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     eng.setPlayerSettings(next)
     playerSettings.value = next
     dirty.value = true
-    say('Configurações do jogador atualizadas. Salve o projeto para mantê-las.')
   }
 
   function setControlBindings(bindings: ControlMapBindings) {
