@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { ControlMapProfile, PlayerSettings } from '@engine'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '@engine'
+import type { ControlMapProfile, LogicRule, PlayerRuntimeEventId, PlayerSettings } from '@engine'
 
-type PlayerWorkspaceTab = 'overview' | 'appearance' | 'movement' | 'collision' | 'camera' | 'controls'
+type PlayerWorkspaceTab = 'overview' | 'appearance' | 'movement' | 'collision' | 'camera' | 'controls' | 'scripts'
 type PlayerSettingKey = keyof PlayerSettings
 
 const props = defineProps<{
@@ -13,6 +14,8 @@ const props = defineProps<{
   playerModelCustom: boolean
   playerModelHeight: number
   playerSettings: PlayerSettings
+  logicRules: LogicRule[]
+  playerLogicVariables: Record<string, boolean | number | string>
   activeControlMap: ControlMapProfile
   firstPersonMode: boolean
   cameraLabel: string
@@ -24,6 +27,12 @@ const emit = defineEmits<{
   'reset-player-model': []
   'set-player-model-height': [value: number]
   'update-player-settings': [value: Partial<PlayerSettings>]
+  'create-player-variable': [name: string, type: 'boolean' | 'number' | 'string', value: string]
+  'set-player-variable': [name: string, value: string]
+  'delete-player-variable': [name: string]
+  'create-player-script': [name: string, eventId: PlayerRuntimeEventId, code: string]
+  'update-player-script': [rule: LogicRule]
+  'delete-player-script': [id: string]
   'open-controls': []
   'toggle-first-person': []
   'cycle-camera': []
@@ -32,6 +41,13 @@ const emit = defineEmits<{
 
 const activeTab = ref<PlayerWorkspaceTab>('overview')
 const modelHeightDraft = ref(props.playerModelHeight)
+const newVariableName = ref('')
+const newVariableType = ref<'boolean' | 'number' | 'string'>('number')
+const newVariableValue = ref('0')
+const newScriptName = ref('')
+const newScriptEvent = ref<PlayerRuntimeEventId>('started')
+const newScriptCode = ref("// Exemplo: api.set('score', (api.get('score') ?? 0) + 1);")
+const playerScripts = computed(() => props.logicRules.filter(rule => rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID))
 const canEdit = computed(() => props.executionMode === 'edit')
 const actualColliderRadius = computed(() =>
   Math.max(0.01, props.playerSettings.colliderRadius * (props.playerModelHeight / 1.8)),
@@ -45,6 +61,7 @@ const tabs: Array<{ id: PlayerWorkspaceTab; title: string; description: string; 
   { id: 'collision', title: 'Colisão', description: 'Corpo físico', icon: '⬡' },
   { id: 'camera', title: 'Câmera', description: 'Perspectiva do jogador', icon: '◎' },
   { id: 'controls', title: 'Controles', description: 'Teclas e ações', icon: '⌘' },
+  { id: 'scripts', title: 'Scripts e variáveis', description: 'Lógica exclusiva do jogador', icon: '⌘' },
 ]
 const controlSummary: Array<{ key: keyof ControlMapProfile['bindings']; label: string }> = [
   { key: 'forward', label: 'Frente' },
@@ -95,6 +112,45 @@ function applyPreset(preset: 'default' | 'action' | 'heavy'): void {
   emit('update-player-settings', presets[preset])
 }
 
+function createVariable(): void {
+  if (!canEdit.value) return
+  emit('create-player-variable', newVariableName.value, newVariableType.value, newVariableValue.value)
+  newVariableName.value = ''
+}
+function updateVariable(name: string, value: string): void {
+  if (canEdit.value) emit('set-player-variable', name, value)
+}
+function createScript(): void {
+  if (!canEdit.value) return
+  emit('create-player-script', newScriptName.value, newScriptEvent.value, newScriptCode.value)
+  newScriptName.value = ''
+}
+function patchPlayerScript(
+  rule: LogicRule,
+  patch: { name?: string; enabled?: boolean; eventId?: PlayerRuntimeEventId; code?: string },
+): void {
+  if (!canEdit.value || rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
+  const firstAction = rule.actions[0]
+  const currentCode = firstAction && (firstAction.type === 'javascript' || firstAction.type === 'script')
+    ? firstAction.code
+    : ''
+  emit('update-player-script', {
+    ...rule,
+    name: patch.name ?? rule.name,
+    enabled: patch.enabled ?? rule.enabled,
+    ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
+    trigger: { type: 'player_event', eventId: patch.eventId ?? rule.trigger.eventId },
+    actions: [
+      { type: 'javascript', code: patch.code ?? currentCode },
+      ...rule.actions.slice(1),
+    ],
+  })
+}
+function scriptCode(rule: LogicRule): string {
+  const action = rule.actions[0]
+  return action && (action.type === 'javascript' || action.type === 'script') ? action.code : ''
+}
+
 function commitModelHeight(): void {
   if (!canEdit.value || !props.playerModelCustom) return
   const next = Number(modelHeightDraft.value)
@@ -117,7 +173,7 @@ function commitModelHeight(): void {
           <div>
             <div class="player-workspace-eyebrow">ENGINE PROMETHEUS · PLAYER WORKSPACE</div>
             <h1 id="player-workspace-title">Configurar jogador</h1>
-            <p>Aparência, movimento, colisor, câmera e controles em um único lugar.</p>
+            <p>Aparência, movimento, colisor, câmera, controles, scripts e variáveis por jogador.</p>
           </div>
         </div>
         <button class="player-workspace-close" type="button" aria-label="Fechar Workspace do Player" title="Fechar Workspace do Player" @click="emit('close')">×</button>
@@ -193,6 +249,12 @@ function commitModelHeight(): void {
                 <strong class="player-card-value">{{ activeControlMap.name }}</strong>
                 <p>Movimento, salto, corrida, interação e ações de gameplay.</p>
                 <button class="player-secondary-button" @click="emit('open-controls')">Editar mapa de controles <span>→</span></button>
+              </article>
+              <article class="player-card">
+                <div class="player-card-head"><span>SCRIPTS E VARIÁVEIS</span><span class="player-card-icon">⌘</span></div>
+                <strong class="player-card-value">{{ playerScripts.length }} scripts · {{ Object.keys(playerLogicVariables).length }} variáveis</strong>
+                <p>Eventos, valores e lógica exclusivos do personagem controlado.</p>
+                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'scripts'">Configurar scripts <span>→</span></button>
               </article>
             </div>
             <div class="player-inline-banner">
@@ -283,6 +345,58 @@ function commitModelHeight(): void {
               <button class="player-camera-card" :class="{ active: !firstPersonMode }" type="button" :disabled="!canEdit" @click="emit('cycle-camera')"><span class="player-camera-glyph" aria-hidden="true">◉</span><strong>{{ firstPersonMode ? 'Câmera externa' : cameraLabel }}</strong><small>Alterna os enquadramentos externos disponíveis no editor.</small><b>ALTERNAR CÂMERA</b></button>
             </div>
             <div class="player-inline-banner"><div class="player-inline-symbol">i</div><div><strong>Mapeamento de câmera</strong><p>Os atalhos para alternar câmera e primeira pessoa podem ser ajustados na seção Controles.</p></div></div>
+          </section>
+
+          <section v-else-if="activeTab === 'scripts'" class="player-page player-scripts-page">
+            <div class="player-page-heading">
+              <div><div class="player-section-eyebrow">LÓGICA DO JOGADOR</div><h2>Scripts e variáveis</h2><p>Variáveis e scripts separados dos objetos da cena e das variáveis globais.</p></div>
+            </div>
+            <div class="player-scripting-layout">
+              <section class="player-settings-card player-variable-panel">
+                <div class="player-scripting-heading"><div><h3>Variáveis do jogador</h3><p>{{ Object.keys(playerLogicVariables).length }} variáveis no escopo do player</p></div><span class="player-scripting-badge">PLAYER</span></div>
+                <form class="player-variable-create" @submit.prevent="createVariable">
+                  <label class="player-number-field"><span>Nome</span><input v-model="newVariableName" type="text" maxlength="64" placeholder="ex.: health" :disabled="!canEdit" /></label>
+                  <label class="player-number-field"><span>Tipo</span><select v-model="newVariableType" :disabled="!canEdit" @change="newVariableValue = newVariableType === 'boolean' ? 'false' : newVariableType === 'number' ? '0' : ''"><option value="number">Número</option><option value="boolean">Booleano</option><option value="string">Texto</option></select></label>
+                  <label class="player-number-field"><span>Valor inicial</span><select v-if="newVariableType === 'boolean'" v-model="newVariableValue" :disabled="!canEdit"><option value="false">false</option><option value="true">true</option></select><input v-else v-model="newVariableValue" :type="newVariableType === 'number' ? 'number' : 'text'" placeholder="Valor inicial" :disabled="!canEdit" /></label>
+                  <button class="player-primary-button" type="submit" :disabled="!canEdit || !newVariableName.trim()">＋ Criar variável</button>
+                </form>
+                <div v-if="Object.keys(playerLogicVariables).length" class="player-variable-list">
+                  <div v-for="(value, name) in playerLogicVariables" :key="name" class="player-variable-row">
+                    <div class="player-variable-name"><strong>{{ name }}</strong><small>{{ typeof value === 'boolean' ? 'Booleano' : typeof value === 'number' ? 'Número' : 'Texto' }}</small></div>
+                    <select v-if="typeof value === 'boolean'" :value="String(value)" :disabled="!canEdit" :aria-label="'Valor de ' + name" @change="updateVariable(String(name), ($event.target as HTMLSelectElement).value)"><option value="false">false</option><option value="true">true</option></select>
+                    <input v-else :type="typeof value === 'number' ? 'number' : 'text'" :value="String(value)" :disabled="!canEdit" :aria-label="'Valor de ' + name" @change="updateVariable(String(name), ($event.target as HTMLInputElement).value)" />
+                    <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir variável ' + name" title="Excluir variável" @click="emit('delete-player-variable', String(name))">×</button>
+                  </div>
+                </div>
+                <div v-else class="player-empty-state"><span>∅</span><strong>Nenhuma variável ainda</strong><p>Crie variáveis como health, stamina, score, has_key ou quests_completed para usar nos scripts do jogador.</p></div>
+              </section>
+
+              <section class="player-settings-card player-script-panel">
+                <div class="player-scripting-heading"><div><h3>Scripts do jogador</h3><p>{{ playerScripts.length }} scripts vinculados ao player</p></div><span class="player-scripting-badge">EVENTOS</span></div>
+                <form class="player-script-create" @submit.prevent="createScript">
+                  <label class="player-number-field"><span>Nome do script</span><input v-model="newScriptName" type="text" maxlength="100" placeholder="ex.: Inicializar jogador" :disabled="!canEdit" /></label>
+                  <label class="player-number-field"><span>Executar quando</span><select v-model="newScriptEvent" :disabled="!canEdit"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
+                  <button class="player-primary-button" type="submit" :disabled="!canEdit">＋ Criar script</button>
+                </form>
+                <div v-if="playerScripts.length" class="player-script-list">
+                  <article v-for="script in playerScripts" :key="script.id" class="player-script-card">
+                    <div class="player-script-card-header">
+                      <label class="player-script-enabled"><input type="checkbox" :checked="script.enabled" :disabled="!canEdit" @change="patchPlayerScript(script, { enabled: ($event.target as HTMLInputElement).checked })" /><span></span></label>
+                      <input class="player-script-name" :value="script.name" maxlength="100" :disabled="!canEdit" aria-label="Nome do script" @change="patchPlayerScript(script, { name: ($event.target as HTMLInputElement).value })" />
+                      <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir script ' + script.name" title="Excluir script" @click="emit('delete-player-script', script.id)">×</button>
+                    </div>
+                    <label class="player-number-field"><span>Evento</span><select :value="script.trigger.eventId" :disabled="!canEdit" @change="patchPlayerScript(script, { eventId: ($event.target as HTMLSelectElement).value as PlayerRuntimeEventId })"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
+                    <label class="player-number-field player-script-code-label"><span>Código JavaScript</span><textarea :value="scriptCode(script)" :disabled="!canEdit" spellcheck="false" rows="5" placeholder="api.set('score', (api.get('score') ?? 0) + 1);" @change="patchPlayerScript(script, { code: ($event.target as HTMLTextAreaElement).value })"></textarea></label>
+                    <small class="player-script-event-help">{{ PLAYER_RUNTIME_EVENTS.find(event => event.id === (script.trigger.type === 'player_event' ? script.trigger.eventId : '') )?.description ?? 'Evento de script do jogador.' }}</small>
+                  </article>
+                </div>
+                <div v-else class="player-empty-state"><span>⌘</span><strong>Nenhum script vinculado</strong><p>Crie um script para responder a eventos do jogador. Os scripts desativados continuam salvos, mas não executam.</p></div>
+              </section>
+            </div>
+            <div class="player-inline-banner player-script-api-help">
+              <div class="player-inline-symbol">JS</div>
+              <div><strong>API do script</strong><p><code>api.get('nome')</code> lê uma variável deste jogador; <code>api.set('nome', valor)</code> grava; <code>api.add('score', 1)</code> soma a uma variável numérica; <code>api.toggle('has_key')</code> alterna uma booleana; <code>api.event.get('key')</code> lê dados do evento. Use <code>api.global</code> apenas quando quiser mexer em uma variável realmente global.</p></div>
+            </div>
           </section>
 
           <section v-else class="player-page">
@@ -442,6 +556,44 @@ function commitModelHeight(): void {
 .player-status-dot.dirty{background:#e4a15c}
 .player-footer-status small{color:#927e64;font-size:9px}
 .player-footer-actions{display:flex;gap:7px;flex:none}
+.player-scripting-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start;gap:12px}
+.player-scripting-layout>section{min-width:0}
+.player-scripting-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;margin-bottom:13px}
+.player-scripting-heading h3{margin:0;color:#efe7da;font-size:12px}
+.player-scripting-heading p{margin:5px 0 0;color:#958d80;font-size:9px;line-height:1.4}
+.player-scripting-badge{flex:none;padding:4px 6px;border:1px solid #50402a;border-radius:4px;background:#241c12;color:#d9a05b;font:700 8px 'IBM Plex Mono',monospace;letter-spacing:.08em}
+.player-variable-create,.player-script-create{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);align-items:end;gap:9px;padding-bottom:13px;border-bottom:1px solid #302d26}
+.player-variable-create>.player-primary-button,.player-script-create>.player-primary-button{grid-column:1/-1;width:100%}
+.player-variable-create .player-number-field input,.player-variable-create .player-number-field select,.player-script-create .player-number-field input,.player-script-create .player-number-field select{width:100%}
+.player-variable-list,.player-script-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.player-variable-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(72px,.8fr) 30px;align-items:center;gap:7px;padding:8px;border:1px solid #302d26;border-radius:6px;background:#15140f}
+.player-variable-name{display:flex;min-width:0;flex-direction:column;gap:4px}
+.player-variable-name strong{overflow:hidden;color:#e8e0d3;font:600 10px 'IBM Plex Mono',monospace;text-overflow:ellipsis}
+.player-variable-name small{color:#867e70;font-size:9px}
+.player-variable-row>input,.player-variable-row>select{box-sizing:border-box;width:100%;min-width:0;height:30px;padding:0 6px;border:1px solid #3b352a;border-radius:4px;background:#0f0f0c;color:#f3efe6;font:10px 'IBM Plex Mono',monospace}
+.player-icon-button{display:grid;place-items:center;flex:none;width:29px;height:29px;padding:0;border:1px solid #3c332b;border-radius:5px;background:#211a14;color:#ba8b69;font-size:18px;cursor:pointer}
+.player-icon-button:hover:not(:disabled){border-color:#8d4f32;background:#332019;color:#fff}
+.player-icon-button:disabled{opacity:.38;cursor:not-allowed}
+.player-script-card{display:flex;flex-direction:column;gap:9px;min-width:0;padding:10px;border:1px solid #363026;border-radius:7px;background:#15140f}
+.player-script-card-header{display:flex;align-items:center;gap:7px;min-width:0}
+.player-script-name{box-sizing:border-box;flex:1;min-width:0;height:31px;padding:0 8px;border:1px solid #39332a;border-radius:5px;background:#0f0f0c;color:#f3efe6;font:600 10px 'IBM Plex Sans',sans-serif}
+.player-script-enabled{position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;width:28px;height:28px;cursor:pointer}
+.player-script-enabled input{position:absolute;opacity:0}
+.player-script-enabled span{display:block;width:24px;height:13px;border:1px solid #524638;border-radius:99px;background:#28251e}
+.player-script-enabled span:after{display:block;width:9px;height:9px;margin:1px;border-radius:50%;background:#8d8577;content:'';transition:transform .12s}
+.player-script-enabled input:checked+span{border-color:#8f602f;background:#48301c}
+.player-script-enabled input:checked+span:after{transform:translateX(11px);background:#f5a524}
+.player-script-enabled input:focus-visible+span{outline:2px solid #f5a524;outline-offset:2px}
+.player-script-code-label textarea{box-sizing:border-box;width:100%;min-width:0;resize:vertical;min-height:90px;padding:9px;border:1px solid #39332a;border-radius:5px;background:#0c0d0b;color:#d9e0d0;font:10px/1.6 'IBM Plex Mono',monospace;tab-size:2}
+.player-script-code-label textarea:focus{outline:1px solid #986338;border-color:#a16d3d}
+.player-script-event-help{color:#8e8678;font-size:9px;line-height:1.5}
+.player-empty-state{display:flex;align-items:center;flex-direction:column;gap:7px;padding:24px 12px;text-align:center;color:#8c8477}
+.player-empty-state>span{display:grid;place-items:center;width:34px;height:34px;border:1px solid #3b3227;border-radius:7px;background:#211b13;color:#d9a05b;font-size:19px}
+.player-empty-state strong{color:#d7cfc2;font-size:10px}
+.player-empty-state p{max-width:280px;margin:0;font-size:9px;line-height:1.6}
+.player-script-api-help code{padding:1px 4px;border:1px solid #43382b;border-radius:3px;background:#15130f;color:#efbd82;font:9px 'IBM Plex Mono',monospace}
+@media(max-width:860px){.player-scripting-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:620px){.player-variable-create,.player-script-create{grid-template-columns:minmax(0,1fr)}.player-variable-create>.player-primary-button,.player-script-create>.player-primary-button{grid-column:auto}.player-variable-row{grid-template-columns:minmax(0,1fr) minmax(72px,.8fr) 29px}.player-scripting-heading{align-items:center}}
 @media(max-width:860px){.player-workspace-summary{grid-template-columns:minmax(0,1fr) repeat(2,minmax(0,1fr))}.player-summary-chip:last-child{display:none}.player-workspace-nav{width:170px}.player-workspace-content{padding:16px}.player-setting-row{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:620px){.player-workspace-overlay{padding:6px}.player-workspace{width:calc(100vw - 12px);height:calc(100dvh - 12px);min-height:0}.player-workspace-header{padding:12px}.player-workspace-mark{width:34px;height:34px}.player-workspace-header h1{font-size:16px}.player-workspace-header p{display:none}.player-workspace-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:7px}.player-summary-model{grid-column:1/-1}.player-workspace-body{min-height:0}.player-workspace-nav{width:58px;padding:10px 5px}.player-nav-label,.player-nav-copy,.player-nav-note,.player-nav-active{display:none}.player-workspace-nav>button{justify-content:center;min-height:42px;padding:5px}.player-nav-icon{width:32px;height:32px}.player-workspace-content{padding:12px}.player-overview-grid,.player-camera-grid,.player-collider-layout{grid-template-columns:minmax(0,1fr)}.player-model-panel{flex-direction:column}.player-model-preview{width:100%;min-height:120px}.player-model-preview svg{height:90px}.player-height-controls{grid-template-columns:minmax(0,1fr)}.player-controls-profile{align-items:flex-start;flex-direction:column}.player-workspace-footer{align-items:flex-start;flex-direction:column}.player-footer-actions{width:100%;justify-content:flex-end}.player-preset-row{align-items:flex-start;flex-direction:column}.player-preset-buttons{width:100%;flex-wrap:wrap}.player-binding-grid{grid-template-columns:minmax(0,1fr)}.player-setting-inputs{grid-template-columns:minmax(0,1fr) 90px}.player-nav-icon{font-size:20px}}
 </style>
