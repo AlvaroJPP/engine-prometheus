@@ -1874,6 +1874,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     createPlayerLogicVariable,
     setPlayerLogicVariableValue,
     deletePlayerLogicVariable,
+    setRuntimePlayerLogicVariable,
     addPlayerScript,
     updatePlayerScript,
     deletePlayerScript,
