@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidPlayerScriptEventName } from '@engine'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidPlayerScriptEventName, isValidCustomPlayerEventName } from '@engine'
 import type { LogicRule, PlayerRuntimeEventId } from '@engine'
 
 type PlayerScalar = boolean | number | string
@@ -133,7 +133,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     if (!engine || dependencies.isRuntime()) return
     if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === eventId)) return
     const customEventName = rawCustomEventName.trim()
-    if (eventId === 'custom_event' && !isValidPlayerScriptEventName(customEventName)) {
+    if (eventId === 'custom_event' && !isValidCustomPlayerEventName(customEventName)) {
       dependencies.say('Informe um identificador de evento personalizado válido, como player.inventory.open.')
       return
     }
