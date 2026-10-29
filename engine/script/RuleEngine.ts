@@ -425,6 +425,7 @@ export class RuleEngine {
       )
       let executed = false
       for (const rule of matchingRules) executed = this.run(rule, PLAYER_LOGIC_SCOPE_ID, true) || executed
+      if (executed) this.world.events.emit('logicVariablesChanged', { scopeId: PLAYER_LOGIC_SCOPE_ID })
       return executed
     } finally {
       this.currentGlobalEventPayload = previousPayload
