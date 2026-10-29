@@ -66,6 +66,7 @@ export class HumanoidAvatar {
   private readonly pressed = new Set<string>()
   /** Salto por borda de tecla: segurar espaço não deve disparar saltos repetidos. */
   private jumpRequested = false
+  private jumpStartedThisFrame = false
   private playerControlBindings: ControlMapBindings = { ...DEFAULT_CONTROL_MAPS[0]!.bindings }
   private readonly activeCollisions = new Map<string, { a: string; b: string }>()
   private verticalVelocity = 0
@@ -450,7 +451,15 @@ export class HumanoidAvatar {
     window.addEventListener('blur', this.onBlur)
   }
 
+  /** Retorna true uma única vez quando um salto válido começa. */
+  consumeJumpStarted(): boolean {
+    const started = this.jumpStartedThisFrame
+    this.jumpStartedThisFrame = false
+    return started
+  }
+
   update(dt: number): void {
+    this.jumpStartedThisFrame = false
     if (!this.enabled) return
     const step = Math.min(dt, 0.05)
     if (this.actionLockRemaining > 0) {
@@ -495,6 +504,7 @@ export class HumanoidAvatar {
     if (requestedJump && this.grounded && this.playerSettings.jumpSpeed > 0) {
       this.verticalVelocity = this.playerSettings.jumpSpeed * Math.sqrt(this.getBodyScale())
       this.grounded = false
+      this.jumpStartedThisFrame = true
     }
     this.verticalVelocity -= this.playerSettings.gravity * step
     const oldY = this.mesh.position.y
