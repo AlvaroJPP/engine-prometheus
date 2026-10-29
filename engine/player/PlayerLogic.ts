@@ -5,7 +5,7 @@ export const PLAYER_LOGIC_SCOPE_ID = '__engine_player__'
 export const PLAYER_RUNTIME_EVENTS = [
   { id: 'started', label: 'Ao iniciar o jogo', description: 'Disparado uma vez ao entrar no modo Jogar.', requiresKey: false, requiresEventName: false },
   { id: 'interact', label: 'Ao interagir', description: 'Disparado quando a tecla ou o botão de interação configurado é acionado.', requiresKey: false, requiresEventName: false },
-  { id: 'jump', label: 'Ao pular', description: 'Disparado quando o personagem inicia um salto válido.', requiresKey: false },
+  { id: 'jump', label: 'Ao pular', description: 'Disparado quando o personagem inicia um salto válido.', requiresKey: false, requiresEventName: false },
   { id: 'key_pressed', label: 'Ao pressionar uma tecla', description: 'Disparado quando a tecla configurada é pressionada durante o jogo.', requiresKey: true, requiresEventName: false },
   { id: 'key_released', label: 'Ao soltar uma tecla', description: 'Disparado quando a tecla configurada é solta durante o jogo.', requiresKey: true, requiresEventName: false },
   { id: 'custom_event', label: 'Evento personalizado', description: 'Disparado quando um botão de HUD ou outro sistema emite o mesmo identificador.', requiresKey: false, requiresEventName: true },
