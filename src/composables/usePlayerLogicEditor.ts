@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS } from '@engine'
+import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidPlayerScriptEventName } from '@engine'
 import type { LogicRule, PlayerRuntimeEventId } from '@engine'
 
 type PlayerScalar = boolean | number | string
@@ -128,10 +128,16 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     dependencies.refresh()
   }
 
-  function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string, rawKey = 'KeyE'): void {
+  function addPlayerScript(name: string, eventId: PlayerRuntimeEventId, rawCode: string, rawKey = 'KeyE', rawCustomEventName = ''): void {
     const engine = dependencies.getEngine()
     if (!engine || dependencies.isRuntime()) return
     if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === eventId)) return
+    const customEventName = rawCustomEventName.trim()
+    if (eventId === 'custom_event' && !isValidPlayerScriptEventName(customEventName)) {
+      dependencies.say('Informe um identificador de evento personalizado válido, como player.inventory.open.')
+      return
+    }
+    const triggerEventId = eventId === 'custom_event' ? customEventName : eventId
     const existingPlayerScripts = engine.listRules().filter(rule =>
       rule.trigger.type === 'player_event' && rule.ownerObjectId === PLAYER_LOGIC_SCOPE_ID,
     )
@@ -141,7 +147,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
       ownerObjectId: PLAYER_LOGIC_SCOPE_ID,
       name: nextName,
       enabled: true,
-      trigger: { type: 'player_event', eventId, ...((eventId === 'key_pressed' || eventId === 'key_released') ? { key: rawKey.trim() || 'KeyE' } : {}) },
+      trigger: { type: 'player_event', eventId: triggerEventId, ...((eventId === 'key_pressed' || eventId === 'key_released') ? { key: rawKey.trim() || 'KeyE' } : {}) },
       conditions: [],
       actions: [{
         type: 'javascript',
@@ -157,7 +163,7 @@ export function usePlayerLogicEditor(dependencies: PlayerLogicEditorDependencies
     const engine = dependencies.getEngine()
     if (!engine || dependencies.isRuntime()) return
     if (rule.trigger.type !== 'player_event' || rule.ownerObjectId !== PLAYER_LOGIC_SCOPE_ID) return
-    if (!PLAYER_RUNTIME_EVENTS.some(event => event.id === rule.trigger.eventId)) return
+    if (!isValidPlayerScriptEventName(rule.trigger.eventId)) return
     const nextEventId = rule.trigger.eventId
     const nextKey = rule.trigger.key?.trim() || 'KeyE'
     const safeRule: LogicRule = {
