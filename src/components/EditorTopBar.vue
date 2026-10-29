@@ -146,6 +146,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         </div>
       </details>
 
+      <button class="topbar-open" title="Abrir projeto existente" @click="emit('open-project')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5h4l1.5 1.8H14v6.2H2z"/><path d="M2 4.5V3h4.5l1.2 1.5"/></svg>
+        <span>Abrir</span>
+      </button>
       <button class="topbar-save" title="Salvar projeto (Ctrl+S)" @click="emit('save-project', false)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h8l2 2v8H3z" /><path d="M5 3v4h5V3M5 13V9h6v4" /></svg>
         <span>Salvar</span>
