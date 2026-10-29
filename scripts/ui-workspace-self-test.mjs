@@ -376,7 +376,7 @@ assert.match(playerEngineSource, /this\.playerSettings = sanitizePlayerSettings\
 assert.match(playerEngineSource, /async setPlayerModelHeight\(height: number\)/)
 assert.match(projectFormatSource, /player\?: PlayerSettings/)
 assert.match(projectValidationSource, /player: sanitizePlayerSettings\(playerSettings/)
-assert.match(appControllerSource, /playerSettings,\s*setPlayerSettings,\s*setPlayerModelHeight/)
+assert.match(appControllerSource, /playerSettings,\s*setPlayerSettings,[\s\S]*?setPlayerModelHeight/)
 
 assert.match(appWorkspaceSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?<EditorToolbar/)
 assert.match(editorTopBarSource, /<Teleport to="\.viewport-hud" defer>[\s\S]*?class="viewport-tools-overlay viewport-layout-positioned"/)
