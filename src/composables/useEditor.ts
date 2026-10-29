@@ -118,6 +118,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const behaviorPackages = ref<BehaviorPackageInstance[]>([])
   const logicVariables = ref<Record<string, boolean | number | string>>({})
   const globalLogicVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
+  const runtimeHudVariables = ref<Record<string, boolean | number | string>>({ has_key: false })
   const ruleTrigger = ref<'object_clicked' | 'enter_area' | 'key_pressed' | 'package_event'>('object_clicked')
   const rulePackageId = ref('mount')
   const rulePackageEventId = ref('mounted')
@@ -711,6 +712,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     logicVariables.value = engine.logicVariables(selectedId.value)
     globalLogicVariables.value = engine.logicVariables()
     playerLogicEditor.refresh()
+    syncRuntimeHudVariables()
   }
 
   const playerLogicEditor = usePlayerLogicEditor({
@@ -731,6 +733,27 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     deletePlayerScript,
   } = playerLogicEditor
 
+  /** Exposes player variables to HUD bindings under the explicit player.* namespace. */
+  function syncRuntimeHudVariables(): void {
+    const playerEntries = Object.entries(playerLogicVariables.value).map(
+      ([name, value]): [string, boolean | number | string] => [`player.${name}`, value],
+    )
+    runtimeHudVariables.value = {
+      ...globalLogicVariables.value,
+      ...Object.fromEntries(playerEntries),
+    }
+  }
+
+  /** Refreshes reactive variable views after runtime script execution without rebuilding the world view. */
+  function refreshLogicVariableViews(): void {
+    if (!engine) return
+    logicRules.value = engine.listRules()
+    logicVariables.value = engine.logicVariables(selectedId.value)
+    globalLogicVariables.value = engine.logicVariables()
+    playerLogicEditor.refresh()
+    syncRuntimeHudVariables()
+  }
+
   // A seleção pode mudar por clique na cena ou pela hierarquia. Sincronize
   // explicitamente o inspetor lateral com o objeto atualmente selecionado.
   watch(selectedId, (id) => {
@@ -741,6 +764,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     logicVariables.value = engine.logicVariables(id)
     globalLogicVariables.value = engine.logicVariables()
     playerLogicEditor.refresh()
+    syncRuntimeHudVariables()
   }, { flush: 'sync' })
 
   let colliderInputActive = false
@@ -812,6 +836,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       e.events.on('objectRenamed', markDirty),
       e.events.on('objectChanged', markDirty),
       e.events.on('behaviorPackageChanged', () => { logicRules.value = e.listRules(); behaviorPackages.value = e.listBehaviorPackages() }),
+      e.events.on('logicVariablesChanged', () => refreshLogicVariableViews()),
       e.events.on('objectClicked', ({ id }) => e.logic.triggerObjectClicked(id)),
       e.events.on('terrainChanged', markDirty),
       e.events.on('worldReset', refresh),
@@ -819,6 +844,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         selectedId.value = ev.id
         logicVariables.value = e.logicVariables(ev.id)
         globalLogicVariables.value = e.logicVariables()
+        playerLogicEditor.refresh()
+        syncRuntimeHudVariables()
       }),
       e.events.on('toolChanged', (ev) => {
         tool.value = ev.tool
@@ -1851,7 +1878,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setPlayerModelFile,
     setPlayerModelAsset,
     resetPlayerModel,
-    logicRules, behaviorPackages, logicVariables, globalLogicVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
+    logicRules, behaviorPackages, logicVariables, globalLogicVariables, runtimeHudVariables, readRuntimeGlobalVariables, useGlobalVariableOnObject, ruleTrigger, rulePackageId, rulePackageEventId, rulePackageVariableName, rulePackageVariableValue, ruleAction, ruleConditionEnabled,
     installBehaviorPackage, updateBehaviorPackage, removeBehaviorPackage,
     toggleLogicVariable, createLogicVariable, setLogicVariableValue, setRuntimeGlobalVariable, triggerRuntimeGlobalEvent, deleteLogicVariable, addLogicRule, addGlobalLogicEvent, toggleLogicRule, deleteLogicRule, moveLogicRule, updateLogicRule, importLogicRule,
     markDirty,
