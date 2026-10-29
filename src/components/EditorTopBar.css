@@ -1025,3 +1025,70 @@ kbd { padding:2px 5px; border:1px solid #2c323d; border-radius:4px; color:#9aa1a
   .topbar-left .file-menu > summary { min-width:62px; padding-inline:5px; }
 }
 
+/* Keep Save and the Workspace buttons in separate, non-overlapping regions. */
+@media(max-width:1400px) {
+  .topbar {
+    gap:4px;
+    padding-inline:8px;
+  }
+  .topbar-left {
+    flex:0 1 auto;
+    gap:5px;
+  }
+  .topbar-left .project-shell {
+    flex:0 1 156px;
+    width:156px;
+    min-width:122px;
+  }
+  .topbar-left .file-menu > summary {
+    min-width:76px;
+    padding-inline:8px;
+  }
+  .topbar .topbar-open,
+  .topbar .topbar-save {
+    padding-inline:8px;
+    gap:5px;
+  }
+  .topbar .global-search-wrap {
+    flex:0 1 160px;
+    width:160px;
+    max-width:180px;
+    min-width:118px;
+  }
+  .topbar .topbar-controls {
+    padding-inline:8px;
+    gap:5px;
+  }
+  .topbar .mode-segment {
+    flex:0 0 auto;
+    gap:4px;
+  }
+  .topbar .mode-segment button {
+    padding-inline:10px;
+  }
+  .topbar-right {
+    flex:1 1 0;
+    min-width:0;
+    gap:4px;
+  }
+}
+@media(max-width:1320px) {
+  .topbar-left .project-shell {
+    flex:0 1 142px;
+    width:142px;
+    min-width:112px;
+  }
+  .topbar .global-search-wrap {
+    flex-basis:142px;
+    width:142px;
+    max-width:155px;
+    min-width:105px;
+  }
+  .topbar .mode-segment button {
+    padding-inline:8px;
+  }
+  .topbar .topbar-controls {
+    padding-inline:7px;
+  }
+}
+
