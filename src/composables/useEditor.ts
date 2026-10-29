@@ -1158,6 +1158,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function setRuntimeMode(enabled: boolean) {
     runtimeMode = enabled
     engine?.setRuntimeMode(enabled)
+    // Scripts de início podem modificar variáveis do jogador; atualize a interface
+    // depois que o motor disparar o evento e também ao sair de Jogar.
+    refresh()
   }
 
   // ---- hierarquia / inspetor ----
