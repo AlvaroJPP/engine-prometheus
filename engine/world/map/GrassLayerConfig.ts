@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import grassModelUrl from '../../../grass_pack_lowpoly_game-ready.glb?url'
+import grassModelUrl from '/assets/grass/grass_pack_lowpoly_game-ready.glb?url'
 
 export const WORLD_HALF = 50
 export const TERRAIN_SAMPLE = 0.5

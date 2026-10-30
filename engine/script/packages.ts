@@ -1,4 +1,8 @@
 import type { LogicRule } from './types'
+import * as THREE from 'three'
+// Novo sistema de montaria genérico
+import type { MountConfig, MountPoint, MountControlBindings } from '../mount'
+import { createMountAnimationMapping } from '../mount'
 
 export type PackageScalar = boolean | number | string
 export type PackageJsonValue =
@@ -141,22 +145,115 @@ export interface BehaviorPackageInstance {
   config: Record<string, PackageJsonValue>
 }
 
+/** Configuração de ponto de montagem (assento) para o pacote Montaria */
+export interface MountPointConfig {
+  id: string
+  label: string
+  localOffset: [number, number, number]
+  localRotation?: [number, number, number]
+  boneName?: string
+  capacityTags: string[]
+  priority: number
+  stateVariable?: string
+  playerUsable: boolean
+  requiresInteraction: boolean
+  cameraOffset?: [number, number, number]
+}
+
+/**
+ * @deprecated Use MountConfig from engine/mount instead.
+ * Mantido para compatibilidade com pacotes legados.
+ */
 export interface MountPackageSettings {
   interactionKey: string
   seatOffset: [number, number, number]
   speed: number
   runMultiplier: number
+  sprintMultiplier: number
+  jumpImpulse: number
+  gravity: number
+  maxSlopeAngle: number
+  maxStepHeight: number
+  turnSpeed: number
+  cameraSmoothing: number
+  canJump: boolean
+  canSprint: boolean
+  canAttack: boolean
+  useCharacterController: boolean
   interactionRadius: number
   modelStates: MountModelStateRule[]
   controlBindings: ModelControlBindings
+  mountPoints: MountPointConfig[]
+  animationMapping?: MountAnimationMapping
+}
+
+/**
+ * @deprecated Use MountAnimationMapping from engine/mount instead.
+ */
+export interface MountAnimationMapping {
+  mountClipNames: Record<string, string>
+  playerClipNames: Record<string, string>
+  mountTransitionRole: string
+  dismountTransitionRole: string
+  useGenericFallback: boolean
+}
+
+/**
+ * Converte configuração legada (MountPackageSettings) para o novo formato (MountConfig).
+ * Usado para migrar pacotes "Montaria" existentes.
+ */
+export function migrateLegacyMountSettings(legacy: MountPackageSettings): MountConfig {
+  const mountPoints: MountPoint[] = legacy.mountPoints.map((mp, index) => ({
+    id: mp.id,
+    label: mp.label,
+    localOffset: new THREE.Vector3(...mp.localOffset),
+    localRotation: mp.localRotation ? new THREE.Euler(...mp.localRotation) : undefined,
+    boneName: mp.boneName,
+    capacityTags: mp.stateVariable ? [mp.stateVariable.replace('_occupied', '')] : ['passenger'],
+    priority: 100 - index * 10,
+    stateVariable: mp.stateVariable,
+    playerUsable: mp.playerUsable,
+    requiresInteraction: mp.requiresInteraction,
+  }))
+
+  const animationMapping = legacy.animationMapping
+    ? createMountAnimationMapping({
+        mount: legacy.animationMapping.mountClipNames,
+        player: legacy.animationMapping.playerClipNames,
+      })
+    : undefined
+
+  const controlBindings: MountControlBindings = {
+    forward: legacy.controlBindings.forward,
+    backward: legacy.controlBindings.backward,
+    left: legacy.controlBindings.left,
+    right: legacy.controlBindings.right,
+    run: legacy.controlBindings.run,
+    jump: legacy.controlBindings.jump,
+    interact: legacy.controlBindings.interact,
+    action1: 'KeyQ',
+    action2: 'KeyR',
+    action3: 'KeyF',
+    action4: 'KeyC',
+  }
+
+  return {
+    mountPoints,
+    defaultSeatOffset: new THREE.Vector3(...legacy.seatOffset),
+    mountable: true,
+    interactionRadius: legacy.interactionRadius,
+    interactionKey: legacy.interactionKey,
+    controlBindings,
+    animationMapping,
+  }
 }
 
 export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
   {
     id: 'mount',
-    version: '1.0.0',
+    version: '2.0.0',
     name: 'Montaria',
-    description: 'Permite montar em um objeto próximo, controlar seus movimentos e mapear animações, transições e estados visuais do modelo.',
+    description: 'Sistema genérico de montaria/veículos com múltiplos assentos, animações mapeadas, controles configuráveis e integração completa com Visual Script.',
     variables: [
       {
         name: 'mounted',
@@ -171,14 +268,31 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
         label: 'Estado do movimento',
         type: 'string',
         defaultValue: 'idle',
-        description: 'Parado, andando, correndo ou deslocando-se na diagonal; pode ser usado como condição em regras deste pacote.',
+        description: 'Parado, andando, correndo, sprintando ou deslocando-se na diagonal; pode ser usado como condição em regras deste pacote.',
         readOnly: true,
       },
       {
+        name: 'currentMountPoint',
+        label: 'Assento atual',
+        type: 'string',
+        defaultValue: '',
+        description: 'ID do ponto de montagem (assento) atualmente ocupado.',
+        readOnly: true,
+      },
+      {
+        name: 'airborne',
+        label: 'No ar',
+        type: 'boolean',
+        defaultValue: false,
+        description: 'Se a montaria está no ar (pulando/caindo).',
+        readOnly: true,
+      },
+      // behaviorConfig - configurações de física/movimento
+      {
         name: 'speed',
-        label: 'Velocidade base',
+        label: 'Velocidade base (caminhada)',
         type: 'number',
-        defaultValue: 4.2,
+        defaultValue: 5.0,
         description: 'Velocidade de deslocamento enquanto caminha.',
         min: 0.2,
         max: 20,
@@ -188,17 +302,108 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
         name: 'runMultiplier',
         label: 'Multiplicador de corrida',
         type: 'number',
-        defaultValue: 1.7,
-        description: 'Multiplica a velocidade quando o jogador segura Shift.',
+        defaultValue: 1.8,
+        description: 'Multiplica a velocidade base quando o jogador segura a tecla de corrida.',
         min: 1,
         max: 3,
         step: 0.1,
       },
       {
+        name: 'sprintMultiplier',
+        label: 'Multiplicador de sprint',
+        type: 'number',
+        defaultValue: 2.5,
+        description: 'Multiplica a velocidade base quando o jogador segura a tecla de sprint.',
+        min: 1,
+        max: 5,
+        step: 0.1,
+      },
+      {
+        name: 'jumpImpulse',
+        label: 'Impulso de pulo',
+        type: 'number',
+        defaultValue: 8.0,
+        description: 'Força vertical aplicada ao pular.',
+        min: 0,
+        max: 50,
+        step: 0.5,
+      },
+      {
+        name: 'gravity',
+        label: 'Gravidade',
+        type: 'number',
+        defaultValue: 20.0,
+        description: 'Aceleração gravitacional aplicada à montaria.',
+        min: 0,
+        max: 50,
+        step: 0.5,
+      },
+      {
+        name: 'maxSlopeAngle',
+        label: 'Inclinação máxima (rad)',
+        type: 'number',
+        defaultValue: 1.047,
+        description: 'Ângulo máximo de rampa caminhável em radianos (padrão: 60°).',
+        min: 0,
+        max: 1.57,
+        step: 0.05,
+      },
+      {
+        name: 'maxStepHeight',
+        label: 'Altura máxima de degrau',
+        type: 'number',
+        defaultValue: 0.5,
+        description: 'Altura máxima de obstáculo que a montaria pode subir automaticamente.',
+        min: 0,
+        max: 2,
+        step: 0.05,
+      },
+      {
+        name: 'turnSpeed',
+        label: 'Velocidade de virada',
+        type: 'number',
+        defaultValue: 3.0,
+        description: 'Velocidade de rotação da montaria (rad/s).',
+        min: 0.5,
+        max: 20,
+        step: 0.1,
+      },
+      {
+        name: 'cameraSmoothing',
+        label: 'Suavização da câmera',
+        type: 'number',
+        defaultValue: 0.1,
+        description: 'Fator de interpolação da câmera (0-1).',
+        min: 0,
+        max: 1,
+        step: 0.01,
+      },
+      {
+        name: 'canJump',
+        label: 'Pode pular',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Se a montaria pode pular.',
+      },
+      {
+        name: 'canSprint',
+        label: 'Pode sprintar',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Se a montaria pode sprintar.',
+      },
+      {
+        name: 'useCharacterController',
+        label: 'Usar Character Controller (Rapier)',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Se usa controlador de personagem físico (Rapier) em vez de movimento cinemático simples.',
+      },
+      {
         name: 'interactionRadius',
         label: 'Distância para montar',
         type: 'number',
-        defaultValue: 2.5,
+        defaultValue: 3.0,
         description: 'Distância horizontal máxima para permitir a interação.',
         min: 0.5,
         max: 10,
@@ -209,24 +414,112 @@ export const BEHAVIOR_PACKAGE_DEFINITIONS: BehaviorPackageDefinition[] = [
       { id: 'interact', label: 'Interagir', description: 'Pressionar a tecla configurada próximo ao objeto.' },
       { id: 'mounted', label: 'Montou', description: 'Disparado quando o jogador começa a montar.' },
       { id: 'dismounted', label: 'Desmontou', description: 'Disparado quando o jogador sai da montaria.' },
-      { id: 'movement_changed', label: 'Movimento alterado', description: 'Parado, andando, correndo e movimentos diagonais.' },
+      { id: 'movement_changed', label: 'Movimento alterado', description: 'Parado, andando, correndo, sprintando e movimentos diagonais.' },
+      { id: 'mount_point_changed', label: 'Assento alterado', description: 'Disparado quando o jogador troca de assento.' },
+      { id: 'jump', label: 'Pulo', description: 'Disparado quando a montaria pula.' },
+      { id: 'land', label: 'Pouso', description: 'Disparado quando a montaria pousa após pulo/queda.' },
     ],
     conditions: [
       { id: 'in_range', label: 'Jogador ao alcance', description: 'Verifica a distância horizontal até o jogador.' },
       { id: 'not_mounted', label: 'Ainda não montado', description: 'Impede iniciar uma segunda montaria.' },
       { id: 'has_animation', label: 'Animação disponível', description: 'Confere se o modelo tem o clipe atribuído à função.' },
+      { id: 'is_mounted', label: 'Está montado', description: 'Verifica se o jogador está atualmente montado neste objeto.' },
+      { id: 'mount_point_occupied', label: 'Assento ocupado', description: 'Verifica se um assento específico está ocupado.' },
+      { id: 'mount_movement_state', label: 'Estado de movimento da montaria', description: 'Compara o estado de movimento atual com um valor esperado.' },
+      { id: 'mount_airborne', label: 'Montaria no ar', description: 'Verifica se a montaria está no ar.' },
+      { id: 'has_mount_point', label: 'Tem ponto de montagem', description: 'Verifica se existe um ponto de montagem com a tag de capacidade especificada.' },
     ],
     actions: [
       { id: 'mount', label: 'Montar', description: 'Vincula o jogador à montaria e transfere os controles.' },
       { id: 'dismount', label: 'Desmontar', description: 'Devolve o controle e posiciona o jogador ao lado do objeto.' },
+      { id: 'mount_at_point', label: 'Montar em assento específico', description: 'Monta o jogador em um assento específico pelo ID.' },
+      { id: 'switch_mount_point', label: 'Trocar de assento', description: 'Move o jogador para outro assento na mesma montaria.' },
       { id: 'play_animation', label: 'Reproduzir animação', description: 'Executa o clipe atribuído a cada movimento, diagonal e transição.' },
       { id: 'set_variable', label: 'Definir variável', description: 'Altera uma variável deste pacote.' },
+      { id: 'jump', label: 'Pular', description: 'Faz a montaria pular.' },
     ],
     defaultConfig: {
       interactionKey: 'KeyE',
+      interactionRadius: 3.0,
       controlBindings: { ...DEFAULT_MODEL_CONTROL_BINDINGS },
-      seatOffset: [0, 0.55, 0],
+      // behaviorConfig (novo formato)
+      speed: 5.0,
+      runMultiplier: 1.8,
+      sprintMultiplier: 2.5,
+      jumpImpulse: 8.0,
+      gravity: 20.0,
+      maxSlopeAngle: 1.047, // 60°
+      maxStepHeight: 0.5,
+      turnSpeed: 3.0,
+      cameraSmoothing: 0.1,
+      canJump: true,
+      canSprint: true,
+      useCharacterController: true,
+      // seatOffset (legado, para compatibilidade)
+      seatOffset: [0, 1.2, 0],
       modelStates: [],
+      mountPoints: [
+        {
+          id: 'driver',
+          label: 'Motorista',
+          localOffset: [0, 1.2, 0],
+          localRotation: [0, 0, 0],
+          boneName: '',
+          capacityTags: ['driver'],
+          priority: 100,
+          stateVariable: 'seat_driver_occupied',
+          playerUsable: true,
+          requiresInteraction: true,
+          cameraOffset: [0, 1.8, 3.5],
+        },
+        {
+          id: 'passenger',
+          label: 'Passageiro',
+          localOffset: [0.5, 1.2, -0.5],
+          localRotation: [0, 0, 0],
+          boneName: '',
+          capacityTags: ['passenger'],
+          priority: 50,
+          stateVariable: 'seat_passenger_occupied',
+          playerUsable: true,
+          requiresInteraction: true,
+          cameraOffset: [0, 1.8, 3.5],
+        },
+      ],
+      animationMapping: {
+        mount: {
+          idle: 'idle',
+          walk: 'walk',
+          run: 'run',
+          sprint: 'sprint',
+          jump: 'jump',
+          turnLeft: 'turn_left',
+          turnRight: 'turn_right',
+          jumpStart: 'jump_start',
+          jumpAir: 'jump_air',
+          jumpLand: 'jump_land',
+          dash: 'dash',
+          attack: 'attack',
+          special: 'special',
+          emote: 'emote',
+          death: 'death',
+          transitionMount: 'mount',
+          transitionDismount: 'dismount',
+        },
+        player: {
+          idle: 'sit_idle',
+          walk: 'sit_walk',
+          run: 'sit_run',
+          sprint: 'sit_sprint',
+          jump: 'sit_jump',
+          turnLeft: 'sit_turn_left',
+          turnRight: 'sit_turn_right',
+          action: 'sit_action',
+          transitionMount: 'mount',
+          transitionDismount: 'dismount',
+        },
+        useGenericFallback: true,
+      },
     },
   },
   {
@@ -427,17 +720,62 @@ function readMountModelStates(value: PackageJsonValue | undefined): MountModelSt
   return result
 }
 
+function readMountPoints(value: PackageJsonValue | undefined): MountPointConfig[] {
+  if (!Array.isArray(value)) return []
+  const result: MountPointConfig[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const mp = item as Record<string, PackageJsonValue>
+    if (typeof mp.id !== 'string' || typeof mp.label !== 'string' ||
+        !Array.isArray(mp.localOffset) || mp.localOffset.length !== 3) continue
+    result.push({
+      id: mp.id,
+      label: mp.label,
+      localOffset: [mp.localOffset[0] as number, mp.localOffset[1] as number, mp.localOffset[2] as number],
+      localRotation: Array.isArray(mp.localRotation) && mp.localRotation.length === 3
+        ? [mp.localRotation[0] as number, mp.localRotation[1] as number, mp.localRotation[2] as number]
+        : undefined,
+      boneName: typeof mp.boneName === 'string' ? mp.boneName : undefined,
+      capacityTags: Array.isArray(mp.capacityTags) ? mp.capacityTags.map(t => t as string) : ['passenger'],
+      priority: typeof mp.priority === 'number' ? mp.priority : 0,
+      stateVariable: typeof mp.stateVariable === 'string' ? mp.stateVariable : undefined,
+      playerUsable: mp.playerUsable !== false,
+      requiresInteraction: mp.requiresInteraction !== false,
+      cameraOffset: Array.isArray(mp.cameraOffset) && mp.cameraOffset.length === 3
+        ? [mp.cameraOffset[0] as number, mp.cameraOffset[1] as number, mp.cameraOffset[2] as number]
+        : undefined,
+    })
+  }
+  return result
+}
+
+function readAnimationMapping(value: PackageJsonValue | undefined): MountAnimationMapping | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const am = value as Record<string, PackageJsonValue>
+  return {
+    mountClipNames: (am.mountClipNames as Record<string, string>) ?? {},
+    playerClipNames: (am.playerClipNames as Record<string, string>) ?? {},
+    mountTransitionRole: typeof am.mountTransitionRole === 'string' ? am.mountTransitionRole : 'mount_transition_mount',
+    dismountTransitionRole: typeof am.dismountTransitionRole === 'string' ? am.dismountTransitionRole : 'mount_transition_dismount',
+    useGenericFallback: am.useGenericFallback !== false,
+  }
+}
+
 export function getMountPackageSettings(instance: BehaviorPackageInstance): MountPackageSettings {
   const seatOffset = instance.config.seatOffset
   const validSeatOffset: [number, number, number] = Array.isArray(seatOffset) && seatOffset.length === 3 &&
     seatOffset.every(value => typeof value === 'number' && Number.isFinite(value))
       ? [seatOffset[0] as number, seatOffset[1] as number, seatOffset[2] as number]
-      : [0, 0.55, 0]
+      : [0, 1.2, 0]
   const getNumber = (name: string, fallback: number, min: number, max: number): number => {
     const value = instance.variables[name]
     return typeof value === 'number' && Number.isFinite(value)
       ? Math.max(min, Math.min(max, value))
       : fallback
+  }
+  const getBoolean = (name: string, fallback: boolean): boolean => {
+    const value = instance.variables[name]
+    return typeof value === 'boolean' ? value : fallback
   }
   const rawBindings = instance.config.controlBindings
   const bindingsRecord = rawBindings && typeof rawBindings === 'object' && !Array.isArray(rawBindings)
@@ -471,9 +809,31 @@ export function getMountPackageSettings(instance: BehaviorPackageInstance): Moun
     interactionKey,
     controlBindings,
     seatOffset: validSeatOffset,
-    speed: getNumber('speed', 4.2, 0.2, 20),
-    runMultiplier: getNumber('runMultiplier', 1.7, 1, 3),
-    interactionRadius: getNumber('interactionRadius', 2.5, 0.5, 10),
+    speed: getNumber('speed', 5.0, 0.2, 20),
+    runMultiplier: getNumber('runMultiplier', 1.8, 1, 3),
+    sprintMultiplier: getNumber('sprintMultiplier', 2.5, 1, 5),
+    jumpImpulse: getNumber('jumpImpulse', 8.0, 0, 50),
+    gravity: getNumber('gravity', 20.0, 0, 50),
+    maxSlopeAngle: getNumber('maxSlopeAngle', Math.PI / 3, 0, Math.PI / 2),
+    maxStepHeight: getNumber('maxStepHeight', 0.5, 0, 2),
+    turnSpeed: getNumber('turnSpeed', 3.0, 0.5, 20),
+    cameraSmoothing: getNumber('cameraSmoothing', 0.1, 0, 1),
+    canJump: getBoolean('canJump', true),
+    canSprint: getBoolean('canSprint', true),
+    canAttack: false, // Legacy, not in new system
+    useCharacterController: getBoolean('useCharacterController', true),
+    interactionRadius: getNumber('interactionRadius', 3.0, 0.5, 10),
     modelStates: readMountModelStates(instance.config.modelStates),
+    mountPoints: readMountPoints(instance.config.mountPoints),
+    animationMapping: readAnimationMapping(instance.config.animationMapping),
   }
+}
+
+/**
+ * Obtém a configuração de montaria no novo formato (MountConfig) a partir da instância do pacote.
+ * Usa a função de migração para converter configurações legadas.
+ */
+export function getMountConfig(instance: BehaviorPackageInstance): MountConfig {
+  const legacySettings = getMountPackageSettings(instance)
+  return migrateLegacyMountSettings(legacySettings)
 }

@@ -127,20 +127,21 @@ function ownerOfRule(rule: LogicRule): string | undefined {
       ? rule.trigger.objectId
       : (rule.actions.find(action => 'objectId' in action) as Extract<LogicRule['actions'][number], { objectId: string }> | undefined)?.objectId)
 }
-const graphGlobalRules = computed(() => logicRules.value.filter(rule => rule.trigger.type === 'global_event'))
-const graphGlobalGroupHeight = computed(() => graphGlobalRules.value.length
-  ? Math.max(190, 125 + graphGlobalRules.value.length * 170)
+const graphGlobalRules = computed(() => (logicRules.value ?? []).filter(rule => rule.trigger.type === 'global_event'))
+const graphGlobalGroupHeight = computed(() => (graphGlobalRules.value ?? []).length
+  ? Math.max(190, 125 + (graphGlobalRules.value ?? []).length * 170)
   : 0)
 const graphVisibleRules = computed(() => {
-  if (graphObjectFilter.value === 'all' || !objects.value.some(object => object.id === selectedId.value)) return logicRules.value
-  return logicRules.value.filter(rule => ownerOfRule(rule) === selectedId.value || rule.trigger.type === 'global_event')
+  const rules = logicRules.value ?? []
+  if (graphObjectFilter.value === 'all' || !(objects.value ?? []).some(object => object.id === selectedId.value)) return rules
+  return rules.filter(rule => ownerOfRule(rule) === selectedId.value || rule.trigger.type === 'global_event')
 })
 // Global HUD/interface flows occupy their own section; object-owned flows remain grouped by owner.
 const graphObjectGroups = computed(() => {
   if (graphObjectFilter.value !== 'all') return []
-  const globalSectionOffset = graphGlobalGroupHeight.value + (graphGlobalGroupHeight.value ? 24 : 0)
-  return objects.value.map((object, index) => {
-    const rules = logicRules.value.filter(rule => ownerOfRule(rule) === object.id)
+  const globalSectionOffset = (graphGlobalGroupHeight.value ?? 0) + ((graphGlobalGroupHeight.value ?? 0) ? 24 : 0)
+  return (objects.value ?? []).map((object, index) => {
+    const rules = (logicRules.value ?? []).filter(rule => ownerOfRule(rule) === object.id)
     return {
       object,
       rules,
@@ -165,7 +166,7 @@ function layoutForGraph(rule: LogicRule, index: number) {
 }
 const graphNodes = computed(() => {
   if (graphObjectFilter.value === 'all') {
-    const globalNodes = graphGlobalRules.value.flatMap((rule, index) => {
+    const globalNodes = (graphGlobalRules.value ?? []).flatMap((rule, index) => {
       const top = 35 + 48 + index * 170
       const defaults = {
         trigger: { x: 70, y: top },
@@ -177,7 +178,7 @@ const graphNodes = computed(() => {
         rule, part, x: layout[part].x, y: layout[part].y,
       }))
     })
-    const objectNodes = graphObjectGroups.value.flatMap(group => group.rules.flatMap((rule, index) => {
+    const objectNodes = (graphObjectGroups.value ?? []).flatMap(group => (group.rules ?? []).flatMap((rule, index) => {
       const defaults = {
         trigger: { x: 70, y: group.top + 48 + index * 170 },
         condition: { x: 430, y: group.top + 48 + index * 170 },
@@ -190,12 +191,12 @@ const graphNodes = computed(() => {
     }))
     return [...globalNodes, ...objectNodes]
   }
-  return graphVisibleRules.value.flatMap((rule, index) => {
+  return (graphVisibleRules.value ?? []).flatMap((rule, index) => {
     const layout = layoutForGraph(rule, index)
     return (['condition', 'action'] as const).map(part => ({ rule, part, x: layout[part].x, y: layout[part].y }))
   })
 })
-const graphEdges = computed(() => graphVisibleRules.value.flatMap((rule) => {
+const graphEdges = computed(() => (graphVisibleRules.value ?? []).flatMap((rule) => {
   const eventPort = portPositions.value[`event:${rule.id}`]
   const conditionIn = portPositions.value[`condition-in:${rule.id}`]
   const conditionOut = portPositions.value[`condition-out:${rule.id}`]

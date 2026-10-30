@@ -1,7 +1,9 @@
 import * as THREE from 'three'
-import { ANIMATION_ROLE_FALLBACKS } from './AnimationController'
-import { getStaticMeshCollisionData } from './StaticMeshCollider'
-import type { AnimationRole } from '../script/packages'
+import { ANIMATION_ROLE_FALLBACKS } from './AnimationController.ts'
+import { getStaticMeshCollisionData } from './StaticMeshCollider.ts'
+import type { AnimationRole } from '../script/packages.ts'
+
+export type { AnimationRole }
 
 export const PLAYER_ID = 'player'
 export const WALK_SPEED = 4.2

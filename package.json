@@ -68,9 +68,17 @@
     "entity:batches:self-test": "node --experimental-strip-types scripts/entity-batch-processor-self-test.mjs",
     "entity:commands:self-test": "node --experimental-strip-types scripts/entity-command-buffer-self-test.mjs",
     "runtime:phases:self-test": "node --experimental-strip-types scripts/runtime-phase-pipeline-self-test.mjs",
-    "ui-workspace:self-test": "node --experimental-strip-types scripts/ui-workspace-self-test.mjs"
+    "ui-workspace:self-test": "node --experimental-strip-types scripts/ui-workspace-self-test.mjs",
+    "physics:world:self-test": "node --experimental-strip-types scripts/physics-world-self-test.mjs",
+    "physics:character-controller:self-test": "node --experimental-strip-types scripts/rapier-character-controller-self-test.mjs",
+    "physics:collision-system:self-test": "node --experimental-strip-types scripts/rapier-collision-system-self-test.mjs",
+    "physics:navmesh:self-test": "node --experimental-strip-types scripts/navmesh-self-test.mjs",
+    "physics:debug:self-test": "node --experimental-strip-types scripts/physics-debug-self-test.mjs",
+    "mount:system:self-test": "node --experimental-strip-types scripts/mount-system-self-test.mjs",
+    "mount:integration:self-test": "node --experimental-strip-types scripts/mount-integration-self-test.mjs"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "@tauri-apps/api": "^2.12.3",
     "@tauri-apps/plugin-dialog": "^2.8.2",
     "three": "^0.186.1",

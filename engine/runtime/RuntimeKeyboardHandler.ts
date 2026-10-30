@@ -20,7 +20,7 @@ export interface RuntimeKeyboardDependencies {
 }
 
 /** Handles runtime keyboard input, mount interactions and dispatch to generic game modules/scripts. */
-export function handleRuntimeKeyDown(event: KeyboardEvent, dependencies: RuntimeKeyboardDependencies): void {
+export async function handleRuntimeKeyDown(event: KeyboardEvent, dependencies: RuntimeKeyboardDependencies): Promise<void> {
   const {
     playerControlBindings, avatar, world, logic, gameModules,
   } = dependencies
@@ -53,13 +53,13 @@ export function handleRuntimeKeyDown(event: KeyboardEvent, dependencies: Runtime
       : undefined
     const interactionKey = packageInstance ? getMountPackageSettings(packageInstance).interactionKey : 'KeyE'
     if (event.code === playerControlBindings.interact || (interactionKey !== DEFAULT_MODEL_CONTROL_BINDINGS.interact && event.code === interactionKey)) {
-      const mountedObjectId = avatar.dismount()
+      const dismountResult = await avatar.dismount()
       if (packageInstance) {
         logic.setPackageVariable(packageInstance.id, 'mounted', false)
         logic.setPackageVariable(packageInstance.id, 'movementState', 'idle')
         dependencies.notifyBehaviorPackageChanged(packageInstance.ownerObjectId)
-        if (mountedObjectId) {
-          dependencies.triggerBehaviorPackageEvent(mountedObjectId, packageInstance.packageId, 'dismounted')
+        if (dismountResult.previousPosition) {
+          dependencies.triggerBehaviorPackageEvent(packageInstance.ownerObjectId, packageInstance.packageId, 'dismounted')
         }
         logic.triggerKeyPressed(event.code)
       }
@@ -92,8 +92,8 @@ export function handleRuntimeKeyDown(event: KeyboardEvent, dependencies: Runtime
       dependencies.triggerBehaviorPackageEvent(candidate.instance.ownerObjectId, candidate.instance.packageId, 'interact')
       const currentInstance = logic.listPackages().find(instance => instance.id === candidate.instance.id)
       if (!currentInstance?.enabled || !world.isObjectVisible(candidate.object)) continue
-      const currentSettings = getMountPackageSettings(currentInstance)
-      if (!avatar.mount(candidate.object.mesh, currentSettings)) continue
+      const mountResult = await avatar.mount(candidate.object.mesh)
+      if (!mountResult.success) continue
       dependencies.setActiveMountPackageId(currentInstance.id)
       const movementState = avatar.getMountedMovementState()
       dependencies.setLastMountMovementState(movementState)

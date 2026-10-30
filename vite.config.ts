@@ -15,26 +15,8 @@ function devPort(): number {
   }
 }
 
-// Disponibiliza o modelo do Sketchfab em desenvolvimento e no build desktop.
-function dummyModelAsset() {
-  const archiveUrl = new URL('./dummy (1).zip', import.meta.url)
-  return {
-    name: 'dummy-model-asset',
-    configureServer(server: { middlewares: { use: (path: string, handler: (req: unknown, res: { setHeader: (name: string, value: string) => void; end: (data: Buffer) => void }) => void) => void } }) {
-      server.middlewares.use('/models/dummy.zip', (_req, res) => {
-        res.setHeader('Content-Type', 'application/zip')
-        res.setHeader('Cache-Control', 'no-cache')
-        res.end(readFileSync(archiveUrl))
-      })
-    },
-    buildStart(this: { emitFile: (asset: { type: 'asset'; fileName: string; source: Buffer }) => void }) {
-      this.emitFile({ type: 'asset', fileName: 'models/dummy.zip', source: readFileSync(archiveUrl) })
-    },
-  }
-}
-
 export default defineConfig({
-  plugins: [vue(), dummyModelAsset()],
+  plugins: [vue()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

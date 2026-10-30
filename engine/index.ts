@@ -112,7 +112,138 @@ export { EntityBatchProcessor } from './runtime/EntityBatchProcessor'
 export type { EntityBatchOptions, EntityBatchFailure, EntityBatchReport, EntityBatchItem, EntityBatchView } from './runtime/EntityBatchProcessor'
 
 export { EntityCommandBuffer } from './runtime/EntityCommandBuffer'
+
+// Animation system
+export {
+  createAnimationProfileId,
+  createAnimationStateId,
+  createBoneId,
+  createAnimationParameterId,
+  createIKTargetId,
+  type AnimationProfileId,
+  type AnimationStateId,
+  type BoneId,
+  type AnimationParameterId,
+  type IKTargetId,
+  type ProfileVersion,
+  type SkeletonProfile,
+  type LocomotionProfile,
+  type StateProfile,
+  type TransitionRule,
+  type FallbackProfile,
+  type AnimationProfile,
+  type BoneMapping,
+  type RootBoneConfig,
+  type IKTargetProfile,
+  type AnimationParameter,
+  type AnimationParameterValue,
+  type AnimationParameterBag,
+  type BlendTreeNode,
+  type BlendTreeNodeRef,
+  type BlendTree1DConfig,
+  type BlendTree2DConfig,
+  type BlendTreeDirectConfig,
+  type BlendTreeAdditiveConfig,
+  type BlendTreeOverrideConfig,
+  type LocomotionType,
+  type SpeedRange,
+  type TransitionCondition,
+  type TransitionConditionType,
+  type AnimationLayer,
+  type AnimationEvent,
+  type AnimationProfileValidationResult,
+  type AnimationRuntimeState,
+  AnimationProfileBuilder,
+  createAnimationProfileBuilder,
+  validateAnimationProfile,
+  DEFAULT_ANIMATION_PARAMETERS,
+  LOCOMOTION_TYPE_PRESETS,
+  // Animation Registry
+  AnimationRegistry,
+  createHumanoidBoneMappings,
+  createQuadrupedBoneMappings,
+  createGenericBoneMappings,
+  createHumanoidIKTargets,
+  createQuadrupedIKTargets,
+  createGenericIKTargets,
+} from './animation'
 export type { EntityCommandKind, EntityCommandFailure, EntityCommandBufferReport, EntityCommandBufferOptions } from './runtime/EntityCommandBuffer'
 
 export { RuntimePhasePipeline } from './runtime/RuntimePhasePipeline'
 export type { RuntimePhaseDefinition, RuntimeTaskDefinition, RuntimePhaseSnapshot, RuntimeTaskSnapshot, RuntimeTaskFailure, RuntimePhaseResult, RuntimePipelineReport } from './runtime/RuntimePhasePipeline'
+
+// Physics system (Rapier-based)
+export {
+  PhysicsWorld,
+  RapierCharacterController,
+  RapierCollisionSystem,
+  NavMesh,
+  NavMeshBuilder,
+  PhysicsDebug,
+  SimplePhysicsDebugDrawer,
+  DEFAULT_PHYSICS_CONFIG,
+  DEFAULT_CHARACTER_CONFIG,
+  DEFAULT_PHYSICS_OBJECT_CONFIG,
+  DEFAULT_NAVMESH_CONFIG,
+  DEFAULT_DEBUG_CONFIG,
+} from './physics'
+export type {
+  PhysicsConfig,
+  CharacterControllerConfig,
+  CharacterInput,
+  CharacterState,
+  PhysicsObjectConfig,
+  PhysicsObject,
+  CollisionEvent,
+  NavMeshConfig,
+  NavMeshNode,
+  NavMeshQueryResult,
+  PhysicsDebugConfig,
+  DebugContact,
+  DebugNavMeshPath,
+} from './physics'
+
+// Mount system (generic seat/vehicle mounting)
+export {
+  // Animation
+  MountAnimationMapper,
+  createDefaultAnimationMapping,
+  createAnimationMappingFromConfig,
+  extractAnimationClips,
+  detectAvailableMountRoles,
+  // System
+  MountSystem,
+  createMountConfigFromLegacy,
+  // Controller
+  MountController,
+  createMountController,
+  registerMountScriptActions,
+  registerMountScriptConditions,
+  registerMountScriptTriggers,
+  // Editor
+  MountPointGizmo,
+  MountPointGizmoManager,
+  createDefaultMountConfig,
+  serializeMountConfig,
+  deserializeMountConfig,
+} from './mount'
+
+// Re-export key types for convenience
+export type {
+  MountPoint,
+  MountConfig,
+  MountAnimationMapping,
+  MountAnimationRole,
+  MountMovementState,
+  MountState,
+  MountBehaviorConfig,
+  MountControlBindings,
+  MountResult,
+  MountError,
+  DismountResult,
+  DismountError,
+  MountSystemContext,
+  MountInput,
+  MountPointPropertyPanel,
+  EngineMountControllerContext,
+} from './mount'

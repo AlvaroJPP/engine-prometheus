@@ -281,7 +281,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
       <!-- Inspetor -->
       <InspectorPanel :context="context" />
     </div>
-    <VisualScriptGraph :context="context" />
+    <VisualScriptGraph :context="ctx" />
     <div v-if="ctx.ioProgress.active" class="project-io-overlay" role="status" aria-live="polite">
       <section class="project-io-card">
         <div class="project-io-icon">{{ ctx.ioProgress.kind === 'save' ? '↓' : '↑' }}</div>

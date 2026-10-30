@@ -1,3 +1,32 @@
 {
-  "recommendations": ["Vue.volar"]
+  "recommendations": [
+    "Vue.volar",
+    "Vue.vscode-typescript-vue-plugin",
+    "rust-lang.rust-analyzer",
+    "tauri-apps.tauri-vscode",
+    "tamasfe.even-better-toml",
+    "threejs.threejs-snippets",
+    "shader-languages-support.glsl",
+    "xaver.clang-format",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "stylelint.vscode-stylelint",
+    "EditorConfig.EditorConfig",
+    "usernamehw.errorlens",
+    "gruntfuggly.todo-tree",
+    "streetsidesoftware.code-spell-checker",
+    "christian-kohler.path-intellisense",
+    "usernamehw.file-peek",
+    "ms-playwright.playwright",
+    "vitest.explorer",
+    "orta.vscode-jest",
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "ms-vscode.hexeditor",
+    "redhat.vscode-yaml",
+    "bierner.markdown-mermaid",
+    "bierner.markdown-preview-github-styles",
+    "davidanson.vscode-markdownlint"
+  ],
+  "unwantedRecommendations": []
 }

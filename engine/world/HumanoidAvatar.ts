@@ -1,14 +1,12 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import type { AnimationClip } from 'three'
 import type { World } from './World'
-import { AnimationController, createAnimationActionMap } from './AnimationController'
 import {
   getStaticMeshCollisionData,
   raycastStaticMesh,
   visitStaticMeshTriangles,
 } from './StaticMeshCollider'
-import { DEFAULT_MODEL_CONTROL_BINDINGS } from '../script/packages'
-import type { MountPackageSettings, AnimationRole, ModelControlBindings } from '../script/packages'
 import { DEFAULT_CONTROL_MAPS } from '../input/ControlMaps'
 import type { ControlMapBindings } from '../input/ControlMaps'
 import {
@@ -32,15 +30,24 @@ import {
   smoothTurnYaw,
   getColliderBounds,
 } from './HumanoidAvatarShared'
-import type { PlayerManeuver, PlayerPosture } from './HumanoidAvatarShared'
+import type { PlayerManeuver, PlayerPosture, AnimationRole } from './HumanoidAvatarShared'
 import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../player/PlayerSettings'
 import type { PlayerSettings } from '../player/PlayerSettings'
-import { createHumanoidAvatarMountMethods, createHumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
-import type { HumanoidAvatarMountState } from './HumanoidAvatarMountMethods'
-import type { HumanoidAvatarMountMethods } from './HumanoidAvatarMountMethods'
 
+// Novo sistema de montaria genérico
+import { MountController } from '../mount'
+import type { MountPackageSettings } from '../script/packages'
 
-export interface HumanoidAvatar extends HumanoidAvatarMountMethods, HumanoidAvatarMountState {}
+// New universal animation system
+import {
+  UniversalAnimationController,
+  autoMapAnimations,
+  matchAnimationProfile,
+  initializeBuiltinProfiles,
+  humanoidProfile,
+} from '../animation'
+import type { AnimationProfile } from '../animation'
+
 
 /** Avatar humanoide controlável por teclado, com gravidade e colisões com terreno/objetos. */
 export class HumanoidAvatar {
@@ -52,8 +59,8 @@ export class HumanoidAvatar {
   private playerSettings: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS }
   private modelLoadRevision = 0
   private animationActions = new Map<string, THREE.AnimationAction>()
-  private animationController: AnimationController | null = null
-  private activeAnimation = ''
+  private animationController: UniversalAnimationController | null = null
+  private animationProfile: AnimationProfile | null = humanoidProfile
   private animationTime = 0
   private proceduralLocomotionBlend = 0
   private proceduralRunBlend = 0
@@ -90,20 +97,16 @@ export class HumanoidAvatar {
   private enabled = true
   private firstPersonMode = false
   private readonly firstPersonHiddenBones = new Map<THREE.Bone, THREE.Vector3>()
-  private mountedRoot: THREE.Mesh | null = null
-  private mountSettings: MountPackageSettings | null = null
+
+  // Novo sistema de montaria
+  private mountController: MountController | null = null
+
   /** Evita executar nove raycasts de suporte em cada subpasso de movimento da montaria. */
   private controlBindings(): ControlMapBindings {
-    if (!this.mountedRoot || !this.mountSettings) return this.playerControlBindings
+    if (!this.mountController || !this.mountController.isMounted()) return this.playerControlBindings
 
-    // Um pacote que mantém os controles padrão herda o mapa selecionado pelo usuário.
-    // Se o pacote tiver teclas próprias, preserva-as e herda as manobras do perfil ativo.
-    const mountBindings = this.mountSettings.controlBindings
-    const keys: (keyof ModelControlBindings)[] = ['forward', 'backward', 'left', 'right', 'run', 'jump', 'interact']
-    const usesDefaults = keys.every(key => mountBindings[key] === DEFAULT_MODEL_CONTROL_BINDINGS[key])
-    return usesDefaults
-      ? this.playerControlBindings
-      : { ...this.playerControlBindings, ...mountBindings }
+    // O MountController gerencia seus próprios bindings internamente
+    return this.playerControlBindings
   }
 
   setControlBindings(bindings: ControlMapBindings): void {
@@ -140,7 +143,6 @@ export class HumanoidAvatar {
     this.actionLockRemaining = Math.max(0, Number.isFinite(durationSeconds) ? durationSeconds : 0)
     this.pressed.clear()
     this.jumpRequested = false
-    this.mountedJumpRequested = false
     this.dodgeRequested = false
     this.slideRequested = false
     this.rollRequested = false
@@ -149,7 +151,7 @@ export class HumanoidAvatar {
       this.maneuver = null
       this.maneuverRemaining = 0
       this.maneuverSpeed = 0
-      this.animationController?.setState('idle', true)
+      this.animationController?.setState('idle')
     }
   }
 
@@ -274,7 +276,7 @@ export class HumanoidAvatar {
     this.triggerPlayerAnimation(kind)
   }
 
-  private readonly onKeyDown = (event: KeyboardEvent): void => {
+  private readonly onKeyDown = async (event: KeyboardEvent): Promise<void> => {
     const bindings = this.controlBindings()
     const animationControls: Array<{ code: string; role: AnimationRole }> = [
       { code: bindings.interact, role: 'interact' },
@@ -321,7 +323,9 @@ export class HumanoidAvatar {
       }
     }
 
-    if (!event.repeat && !this.mountedRoot) {
+    const isMounted = this.mountController?.isMounted() ?? false
+
+    if (!event.repeat && !isMounted) {
       if (event.code === bindings.crouchToggle) {
         if (this.maneuver !== 'slide' && this.maneuver !== 'roll') this.setPosture(this.posture === 'crouching' ? 'standing' : 'crouching')
         return
@@ -353,18 +357,35 @@ export class HumanoidAvatar {
       }
     }
 
+    // Tecla de interação (E) - montar/desmontar
+    if (event.code === bindings.interact && !event.repeat) {
+      if (isMounted) {
+        // Desmontar
+        await this.dismount()
+        return
+      } else {
+        // Tentar montar - precisa de objetos próximos
+        // O jogo deve fornecer objetos próximos via algum mecanismo
+        // Por enquanto, apenas registra a intenção
+        this.mountController?.onKeyDown?.(bindings.interact)
+        return
+      }
+    }
+
     if (event.code === bindings.jump && !event.repeat) {
-      if (this.mountedRoot) this.mountedJumpRequested = true
-      else this.jumpRequested = true
+      if (isMounted) {
+        this.mountController?.requestJump()
+      } else {
+        this.jumpRequested = true
+      }
     }
 
     if (!event.repeat && mappedAnimation) {
-      if (this.mountedRoot) {
-        const actions = this.mountedRoot.userData.importAnimationActions as Partial<Record<AnimationRole, THREE.AnimationAction>> | undefined
-        // Interação em uma montaria já montada aciona a desmontagem pelo Engine;
-        // não deixe um clipe genérico de interação competir com a transição.
-        if (mappedAnimation.role !== 'interact' && actions?.[mappedAnimation.role]) {
-          this.playMountAnimation(this.mountedRoot, mappedAnimation.role, true)
+      if (isMounted) {
+        // Animações da montaria são gerenciadas pelo MountController
+        // Apenas ações não-interact podem ser disparadas
+        if (mappedAnimation.role !== 'interact') {
+          this.mountController?.onKeyDown?.(mappedAnimation.role as any)
         }
       } else if (!['dodge', 'slide', 'roll'].includes(mappedAnimation.role)) {
         this.triggerPlayerAnimation(mappedAnimation.role)
@@ -378,11 +399,9 @@ export class HumanoidAvatar {
   private readonly onBlur = (): void => {
     this.pressed.clear()
     this.jumpRequested = false
-    this.mountedJumpRequested = false
   }
 
   constructor(world: World, cameraTarget: THREE.Vector3, getCameraYaw: () => number) {
-    Object.assign(this, createHumanoidAvatarMountState())
     this.world = world
     this.cameraTarget = cameraTarget
     this.getCameraYaw = getCameraYaw
@@ -451,6 +470,75 @@ export class HumanoidAvatar {
     window.addEventListener('blur', this.onBlur)
   }
 
+  /**
+   * Define o MountController para este avatar.
+   * Deve ser chamado pelo jogo após criar o MountController com o PhysicsWorld e script system.
+   */
+  setMountController(controller: MountController): void {
+    this.mountController = controller
+  }
+
+  /**
+   * Verifica se o avatar está montado (via MountController).
+   */
+  isMounted(): boolean {
+    return this.mountController?.isMounted() ?? false
+  }
+
+  /**
+   * Obtém o estado atual da montaria.
+   */
+  getMountState() {
+    return this.mountController?.getState()
+  }
+
+  /**
+   * Tenta montar em um objeto próximo.
+   */
+  async tryMount(nearbyObjects: THREE.Mesh[]): Promise<{ success: boolean; mountPointId: string | null; error?: string }> {
+    if (!this.mountController) return { success: false, mountPointId: null, error: 'NO_MOUNT_CONTROLLER' }
+    return this.mountController.tryMount(nearbyObjects)
+  }
+
+  /**
+   * Desmonta da montaria atual.
+   */
+  async dismount(): Promise<{ success: boolean; previousPosition?: THREE.Vector3; error?: string }> {
+    if (!this.mountController) return { success: false, error: 'NO_MOUNT_CONTROLLER' }
+    return this.mountController.dismount()
+  }
+
+  /**
+   * Compatibilidade legada: Obtém ID do objeto montado.
+   */
+  getMountedObjectId(): string | null {
+    return this.mountController?.getMountedObjectId() ?? null
+  }
+
+  /**
+   * Compatibilidade legada: Obtém estado de movimento da montaria.
+   */
+  getMountedMovementState(): string | null {
+    return this.mountController?.getState().movementState ?? null
+  }
+
+  /**
+   * Compatibilidade legada: Monta em objeto específico.
+   */
+  async mount(targetObject: THREE.Mesh, mountPointId?: string): Promise<{ success: boolean; mountPointId: string | null; error?: string }> {
+    if (!this.mountController) return { success: false, mountPointId: null, error: 'NO_MOUNT_CONTROLLER' }
+    return this.mountController.mount(targetObject, mountPointId)
+  }
+
+  /**
+   * Compatibilidade legada: Atualiza configurações de montagem.
+   */
+  updateMountSettings(settings: MountPackageSettings): void {
+    if (this.mountController) {
+      this.mountController.setBehaviorConfig(settings as any)
+    }
+  }
+
   /** Retorna true uma única vez quando um salto válido começa. */
   consumeJumpStarted(): boolean {
     const started = this.jumpStartedThisFrame
@@ -466,7 +554,6 @@ export class HumanoidAvatar {
       this.actionLockRemaining = Math.max(0, this.actionLockRemaining - step)
       this.pressed.clear()
       this.jumpRequested = false
-      this.mountedJumpRequested = false
       this.dodgeRequested = false
       this.slideRequested = false
       this.rollRequested = false
@@ -482,12 +569,17 @@ export class HumanoidAvatar {
     if (this.posture === 'crouching') speed = this.playerSettings.walkSpeed * 0.54
     else if (this.posture === 'prone') speed = this.playerSettings.walkSpeed * 0.24
 
-    // Enquanto montado, os controles deslocam a entidade montável em vez do avatar.
-    if (this.mountedRoot && this.mountSettings) {
-      // Durante a transição de montar, o clipe do jogador e o da montaria avançam
-      // paralelamente. Ao terminar a animação do jogador, ele fica oculto no assento.
-      this.updateMountedMovement(step, forwardInput, sideInput, running, this.walkToggled && !running)
-      this.updateMountedPlayerTransition(step)
+    // Enquanto montado, o MountController gerencia o movimento e a câmera.
+    if (this.mountController && this.mountController.isMounted()) {
+      this.mountController.update(step)
+      // O MountController atualiza a posição do avatar e a câmera internamente
+      // Sincroniza a posição do mesh do avatar com a posição da montaria
+      const state = this.mountController.getState()
+      if (state.isMounted && state.mountedObjectId) {
+        // O avatar visual segue a montaria (o MountController já posiciona o visualRoot)
+        // Apenas garantimos que o mesh principal acompanhe para colisões/raycasts
+        this.mesh.position.copy(this.visualRoot.position)
+      }
       return
     }
 
@@ -745,7 +837,7 @@ export class HumanoidAvatar {
 
   setFirstPersonMode(enabled: boolean): void {
     this.firstPersonMode = enabled
-    this.visualRoot.visible = this.mountedRoot === null
+    this.visualRoot.visible = !this.mountController?.isMounted()
     const headPartPattern = /head|hair|face|neck|jaw|eye|teeth|tongue|cabe[cç]a|cabelo|rosto|pesco[cç]o|mand[ií]bula|olho|dente|l[ií]ngua/i
     this.visualRoot.traverse((child) => {
       const partName = child.name
@@ -780,10 +872,8 @@ export class HumanoidAvatar {
     this.enabled = enabled
     this.pressed.clear()
     this.jumpRequested = false
-    this.mountedJumpRequested = false
     if (!enabled) {
       this.animationController?.stop()
-      this.activeAnimation = ''
     }
   }
 
@@ -804,7 +894,6 @@ export class HumanoidAvatar {
 
   resetVerticalState(): void {
     this.jumpRequested = false
-    this.mountedJumpRequested = false
     this.verticalVelocity = 0
     this.grounded = true
     this.pressed.clear()
@@ -825,7 +914,6 @@ export class HumanoidAvatar {
 
   reset(): void {
     this.jumpRequested = false
-    this.mountedJumpRequested = false
     this.mesh.position.set(0, this.world.terrain.heightAt(0, 0), 0)
     this.verticalVelocity = 0
     this.grounded = true
@@ -899,21 +987,10 @@ export class HumanoidAvatar {
   }
 
   private async loadDefaultModel(revision: number): Promise<boolean> {
-    const response = await fetch(`${import.meta.env.BASE_URL}models/dummy.zip`)
+    const response = await fetch(`${import.meta.env.BASE_URL}assets/models/dummy.glb`)
     if (!response.ok) throw new Error(`Não foi possível carregar o modelo padrão (HTTP ${response.status}).`)
-    const archive = await response.arrayBuffer()
-    const view = new DataView(archive)
-    if (view.byteLength < 30 || view.getUint32(0, true) !== 0x04034b50) {
-      throw new Error('O arquivo do avatar padrão não é um ZIP válido.')
-    }
-    const compression = view.getUint16(8, true)
-    const compressedSize = view.getUint32(18, true)
-    const nameLength = view.getUint16(26, true)
-    const extraLength = view.getUint16(28, true)
-    if (compression !== 0) throw new Error('O ZIP do avatar usa uma compressão não suportada.')
-    const dataStart = 30 + nameLength + extraLength
-    if (dataStart + compressedSize > view.byteLength) throw new Error('O GLB dentro do ZIP está incompleto.')
-    return this.parseAndInstallModel(archive.slice(dataStart, dataStart + compressedSize), revision)
+    const glbData = await response.arrayBuffer()
+    return this.parseAndInstallModel(glbData, revision)
   }
 
   private async parseAndInstallModel(data: ArrayBuffer, revision: number, animationRoles?: Record<string, AnimationRole>, targetHeight = PLAYER_HEIGHT): Promise<boolean> {
@@ -949,8 +1026,26 @@ export class HumanoidAvatar {
     gltf.scene.position.y -= normalizedBounds.min.y
     gltf.scene.position.z -= center.z
 
+    // Initialize built-in profiles if not already done
+    await initializeBuiltinProfiles()
+
+    // Use universal animation system - auto-detect profile or use humanoid default
+    this.animationProfile = animationRoles ? humanoidProfile : matchAnimationProfile(gltf) ?? humanoidProfile
+
+    // TypeScript doesn't narrow class properties, so use a local const
+    const animationProfile = this.animationProfile!
+
+    // Create mapped animations using AutoMapper
+    const mappedAnimations = autoMapAnimations(gltf, animationProfile)
+
+    // Create universal animation controller
     const nextMixer = new THREE.AnimationMixer(gltf.scene)
-    const nextActions = createAnimationActionMap(nextMixer, gltf.animations, animationRoles)
+    // Extract clips from mapped animations for new API
+    const clips: AnimationClip[] = []
+    for (const action of mappedAnimations.actions.values()) {
+      clips.push(action.getClip())
+    }
+    const nextController = new UniversalAnimationController(nextMixer, animationProfile, clips)
 
     const nextBones: typeof this.animatedBones = []
     gltf.scene.updateMatrixWorld(true)
@@ -975,8 +1070,8 @@ export class HumanoidAvatar {
     // O novo modelo só substitui o antigo depois de ser carregado e validado.
     // Assim, um GLB inválido não deixa o jogador invisível nem remove o fallback.
     this.animationController?.dispose()
-    this.animationActions = nextActions
-    this.animationController = new AnimationController(nextMixer, nextActions)
+    this.animationActions = mappedAnimations.actions
+    this.animationController = nextController
     this.animatedBones = nextBones
     this.firstPersonHiddenBones.clear()
     for (const child of [...this.visualRoot.children]) this.disposeObject(child)
@@ -986,13 +1081,12 @@ export class HumanoidAvatar {
     this.standingPlayerHeight = normalizedTargetHeight
     this.setPosture(this.posture)
     this.setFirstPersonMode(this.firstPersonMode)
-    this.activeAnimation = ''
     this.playAnimation('idle')
     return true
   }
 
   private triggerPlayerAnimation(role: AnimationRole): void {
-    if (!this.animationController?.hasRole(role)) return
+    if (!this.animationController?.hasState(role)) return
     this.animationController.playOneShot(role, false)
   }
 
@@ -1001,7 +1095,6 @@ export class HumanoidAvatar {
     if (!controller) return
     if (oneShot) controller.playOneShot(state, false)
     else controller.setState(state)
-    this.activeAnimation = controller.currentState || state
   }
 
   private getLocomotionAnimationRole(forwardInput: number, sideInput: number, running: boolean): AnimationRole {
@@ -1034,8 +1127,8 @@ export class HumanoidAvatar {
     // momentâneas de grounded trocar a corrida pela pose idle. Nessa situação,
     // o ciclo de locomoção continua acompanhando o movimento horizontal.
     const controller = this.animationController
-    const hasJumpClip = controller?.hasRole('jump') ?? false
-    if (this.grounded && controller?.activeOneShotRole === 'jump') controller.cancelOneShot('jump')
+    const hasJumpClip = controller?.hasState('jump') ?? false
+    if (this.grounded && controller?.activeOneShot === 'jump') controller.cancelOneShot('jump')
 
     const movingNow = moving && (this.grounded || !hasJumpClip)
     const blendRate = 1 - Math.exp(-Math.max(0, dt) * (movingNow ? 8.5 : 5.5))
@@ -1056,7 +1149,7 @@ export class HumanoidAvatar {
       this.posture === 'standing' &&
       !(this.walkToggled && !running) &&
       this.maneuver === null &&
-      !controller?.isOneShotPlaying &&
+      controller?.activeOneShot === null &&
       this.animationActions.size > 0
     let usedDirectionalBlend = false
     if (controller && canBlendDirection) {
@@ -1069,17 +1162,14 @@ export class HumanoidAvatar {
         const dominantRole = controller.setBlendWeights(
           targetWeights,
           actualHorizontalSpeed / Math.max(0.1, nominalSpeed),
-          this.activeAnimation,
         )
         if (dominantRole) {
-          this.activeAnimation = dominantRole
           usedDirectionalBlend = true
         }
       }
     }
     if (controller && !usedDirectionalBlend) {
       controller.setState(state)
-      this.activeAnimation = controller.currentState || state
     }
     controller?.update(dt)
 
@@ -1095,8 +1185,8 @@ export class HumanoidAvatar {
     // Usa animação procedural quando não existe um clipe adequado para o estado atual.
     // Isso evita deixar o avatar deslizando caso o GLB tenha apenas um clipe genérico.
     const hasStateClip = usedDirectionalBlend || Boolean(controller?.hasState(state))
-    if (hasStateClip || controller?.isOneShotPlaying) {
-      if (!controller?.isOneShotPlaying) this.applyFallbackCrouchPose()
+    if (hasStateClip || controller?.activeOneShot !== null) {
+      if (controller?.activeOneShot === null) this.applyFallbackCrouchPose()
       return
     }
     // A oscilação das pernas é uma marcha, não uma animação de repouso.
@@ -1701,6 +1791,4 @@ export class HumanoidAvatar {
     for (const [id, pair] of next) this.activeCollisions.set(id, pair)
   }
 }
-
-Object.assign(HumanoidAvatar.prototype, createHumanoidAvatarMountMethods())
 

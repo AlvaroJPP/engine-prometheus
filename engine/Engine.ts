@@ -340,12 +340,13 @@ export class Engine {
   }
 
   /** Finaliza a montaria uma vez, sincronizando variáveis e o gatilho Desmontou. */
-  private dismountActiveMount(): void {
+  private async dismountActiveMount(): Promise<void> {
     const packageId = this.activeMountPackageId
     const packageInstance = packageId
       ? this.logic.listPackages().find(instance => instance.id === packageId)
       : undefined
-    const mountedObjectId = this.avatar.dismount()
+    const dismountResult = await this.avatar.dismount()
+    const mountedObjectId = dismountResult.previousPosition ? packageInstance?.ownerObjectId : null
 
     if (packageId) {
       this.logic.setPackageVariable(packageId, 'mounted', false)
@@ -382,19 +383,19 @@ export class Engine {
     this.notifyBehaviorPackageChanged(ownerObjectId)
     return installed
   }
-  updateBehaviorPackage(
+  async updateBehaviorPackage(
     id: string,
     patch: Partial<Pick<BehaviorPackageInstance, 'enabled' | 'variables' | 'config'>>,
-  ): void {
+  ): Promise<void> {
     this.logic.updatePackage(id, patch)
     const instance = this.logic.listPackages().find(item => item.id === id)
-    if (patch.enabled === false && this.activeMountPackageId === id) this.dismountActiveMount()
+    if (patch.enabled === false && this.activeMountPackageId === id) await this.dismountActiveMount()
     if (instance) this.notifyBehaviorPackageChanged(instance.ownerObjectId)
   }
-  removeBehaviorPackage(id: string): void {
+  async removeBehaviorPackage(id: string): Promise<void> {
     const instance = this.logic.listPackages().find(item => item.id === id)
     if (instance?.packageId === 'mount') this.applyMountModelStates(instance, true, false)
-    if (this.activeMountPackageId === id) this.dismountActiveMount()
+    if (this.activeMountPackageId === id) await this.dismountActiveMount()
     this.logic.removePackage(id)
     this.mountModelStateController.forget(id)
   }
@@ -784,8 +785,8 @@ export class Engine {
     return this.world.getSelectedId()
   }
 
-  removeObject(id: string): void {
-    if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) this.dismountActiveMount()
+  async removeObject(id: string): Promise<void> {
+    if (this.avatar.isMounted() && this.avatar.getMountedObjectId() === id) await this.dismountActiveMount()
     // Restaura geometrias originais antes de World.dispose inspecionar a hierarquia,
     // para liberar as geometrias originais e também os buffers temporários do LOD.
     this.modelLod.remove(id)
@@ -892,7 +893,7 @@ export class Engine {
   }
 
   // ---- projeto ----
-  newProject(name = 'Novo Mundo'): void {
+  async newProject(name = 'Novo Mundo'): Promise<void> {
     this.gameModules.stop()
     this.runtimeModeActive = false
     resetIds()
@@ -903,7 +904,7 @@ export class Engine {
     this.avatar.setFirstPersonMode(false)
     this.orbit.setPreset('free')
     this.events.emit('cameraChanged', { preset: 'free' })
-    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
+    if (this.avatar.isMounted() || this.activeMountPackageId) await this.dismountActiveMount()
     this.modelLod.clear()
     if (this.playerModelData) {
       this.playerModelData = null
@@ -949,7 +950,7 @@ export class Engine {
 
     this.orbit.setFirstPersonMode(false)
     this.avatar.setFirstPersonMode(false)
-    if (this.avatar.isMounted() || this.activeMountPackageId) this.dismountActiveMount()
+    if (this.avatar.isMounted() || this.activeMountPackageId) await this.dismountActiveMount()
     const firstPath = bundle.project.scenes[0] ?? MAIN_SCENE_PATH
     const scene = bundle.scenes[firstPath]
     if (!scene) throw new ProjectFormatError('O projeto não tem nenhuma cena para carregar.')
