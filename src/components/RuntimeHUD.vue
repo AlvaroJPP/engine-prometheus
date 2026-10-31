@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { deleteHudImage, readHudImage, storeHudImage } from '@/lib/hud/HudImageStorage'
+import { deleteHudImage, readHudImage, storeHudImage } from '@editor/hud/HudImageStorage'
 import { ALQUIMIA_HUD_MIGRATION_KEY, removeLegacyDefaultAlquimiaHudLayers } from '@/lib/hud/HudPresetMigration'
 
 const props = defineProps<{

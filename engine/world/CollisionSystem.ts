@@ -8,6 +8,7 @@ import {
   releaseStaticMeshColliderById,
   visitStaticMeshTriangles,
 } from './StaticMeshCollider'
+import { isPlatformPair, isPlatformSeamPiece } from '../gameplay/collision/CollisionUtils'
 
 export interface CollisionPair {
   a: string
@@ -117,7 +118,7 @@ export class CollisionSystem {
       object.id !== id
       && this.world.isObjectVisible(object)
       && this.colliderType(object) !== 'none'
-      && !this.isPlatformPair(moving, object)
+      && !isPlatformPair(moving, object)
       && sweptBounds.intersectsBox(this.getBroadphaseWorldBounds(object)),
     )
 
@@ -253,7 +254,7 @@ export class CollisionSystem {
 
         // Plataformas formam o cenário; os contatos são reconhecidos, mas as
         // peças não se empurram mutuamente e não abrem frestas nas emendas.
-        if (this.isPlatformPair(a, b)) continue
+        if (isPlatformPair(a, b)) continue
         if (a.mesh.userData.mountCollisionManaged === true || b.mesh.userData.mountCollisionManaged === true) continue
 
         const inverseA = this.inverseMass(a)
@@ -539,38 +540,6 @@ export class CollisionSystem {
     return geometry
   }
 
-  /**
-   * Identifica uma peça de piso/rampa para tratar sua emenda com outras peças
-   * de cenário como uma junção, não como dois corpos que se empurram.
-   *
-   * Rampas no editor também podem ser feitas esticando e inclinando um cubo.
-   * Esse caso precisa do mesmo tratamento de uma plataforma inclinada; caso
-   * contrário, a subida pode funcionar e a descida bater na borda física.
-   */
-  private isPlatformSeamPiece(object: GameObject): boolean {
-    if (object.type === 'platform') return true
-
-    const mesh = object.mesh
-    if (object.type !== 'cube' || mesh.userData.importedModel === true) return false
-    const inclined = Math.abs(mesh.rotation.x) > 0.02 || Math.abs(mesh.rotation.z) > 0.02
-    if (!inclined) return false
-
-    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
-    const localSize = mesh.geometry.boundingBox?.getSize(new THREE.Vector3())
-    if (!localSize) return false
-
-    // Cubos de tamanho comum continuam sendo obstáculos. Um cubo só conta como
-    // segmento de rampa quando foi alongado horizontalmente para formar o piso.
-    const horizontalLength = Math.max(
-      localSize.x * Math.abs(mesh.scale.x),
-      localSize.z * Math.abs(mesh.scale.z),
-    )
-    return horizontalLength >= 1.5
-  }
-
-  private isPlatformPair(a: GameObject, b: GameObject): boolean {
-    return this.isPlatformSeamPiece(a) && this.isPlatformSeamPiece(b)
-  }
 
   /** Liga/desliga a representação wireframe dos colisores no viewport. */
   setDebugVisible(visible: boolean): void {
@@ -690,7 +659,7 @@ export class CollisionSystem {
         if (obstacle.id === moving.id) continue
         // Plataformas formam o cenário. Deixá-las colidir com CCD entre si
         // impede sobreposição controlada e pode criar uma fresta na junção.
-        if (this.isPlatformPair(moving, obstacle)) continue
+        if (isPlatformPair(moving, obstacle)) continue
         // Teste espacial barato antes de construir a forma convexa do obstáculo.
         // Isso evita varrer vértices dos modelos distantes a cada corpo dinâmico.
         if (!sweptBounds.intersectsBox(this.getBroadphaseWorldBounds(obstacle))) continue

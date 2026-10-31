@@ -1,6 +1,7 @@
 import * as RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import { PhysicsWorld } from './PhysicsWorld.ts'
+import { GenericMovementController, MovementConfig } from '../gameplay/movement/GenericMovementController'
 
 export interface CharacterControllerConfig {
   /** Capsule radius */
@@ -85,6 +86,7 @@ export class RapierCharacterController {
   private collider: RAPIER.Collider | null = null
   private controller: RAPIER.KinematicCharacterController | null = null
   private initialized = false
+  private movementController: GenericMovementController
 
   // State
   private currentState: CharacterState = {
@@ -118,6 +120,18 @@ export class RapierCharacterController {
   ) {
     this.physicsWorld = physicsWorld
     this.config = { ...DEFAULT_CHARACTER_CONFIG, ...config }
+
+    const movementConfig: MovementConfig = {
+      maxSpeed: this.walkSpeed,
+      acceleration: 10,
+      deceleration: 10,
+      gravity: 9.8,
+      maxSlopeAngle: this.config.maxSlopeAngle,
+      maxStepHeight: this.config.maxStepHeight,
+      jumpImpulse: this.config.jumpImpulse,
+      canJump: this.config.allowJump,
+    }
+    this.movementController = new GenericMovementController(movementConfig)
   }
 
   /** Initialize the character controller (must be called after physics world is ready). */

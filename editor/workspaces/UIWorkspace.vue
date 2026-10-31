@@ -33,7 +33,7 @@ import {
   PLAYER_LOGIC_SCOPE_ID,
   isValidCustomPlayerEventName,
 } from '@engine'
-import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
+import { uiWorkspaceState } from '@editor/lib/ui/uiWorkspaceState'
 
 interface GlobalEventCreationResult {
   ruleId: string

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useAppController } from '@/composables/useAppController'
-import EditorTopBar from '@/components/EditorTopBar.vue'
+import EditorTopBar from '@editor/components/EditorTopBar.vue'
 import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
-import EditorToolbar from '@/components/EditorToolbar.vue'
-import SceneHierarchy from '@/components/SceneHierarchy.vue'
+import EditorToolbar from '@editor/components/EditorToolbar.vue'
+import SceneHierarchy from '@editor/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import InspectorPanel from '@/components/InspectorPanel.vue'
-import EditorViewport from '@/components/EditorViewport.vue'
+import EditorViewport from '@editor/viewport/EditorViewport.vue'
 import VisualScriptGraph from '@/components/VisualScriptGraph.vue'
 import FullscreenDiagnostics from '@/components/FullscreenDiagnostics.vue'
 import GameOverlayHost from '@/components/GameOverlayHost.vue'
-import UIWorkspace from '@/components/UIWorkspace.vue'
-import PlayerWorkspace from '@/components/PlayerWorkspace.vue'
+import UIWorkspace from '@editor/workspaces/UIWorkspace.vue'
+import PlayerWorkspace from '@editor/workspaces/PlayerWorkspace.vue'
 const context = useAppController() as Record<string, any>
 const ctx = reactive(context)
 function setExternalRef(name: string, element: unknown): void {

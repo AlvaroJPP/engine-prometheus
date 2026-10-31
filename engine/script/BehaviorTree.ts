@@ -1,3 +1,5 @@
+import { type IAgentBehavior, type AgentContext, type BehaviorStatus, type BehaviorConfigSchema, type BehaviorConfig } from './IAgentBehavior.ts';
+
 export type BehaviorTreeStatus = 'success' | 'failure' | 'running'
 
 export type BehaviorTreeParameters = Readonly<Record<string, unknown>>
@@ -134,7 +136,12 @@ export function validateBehaviorTree(tree: BehaviorTreeNode): void {
   visit(tree, 'root', 0)
 }
 
-export class BehaviorTreeRuntime<TContext = unknown> {
+export class BehaviorTreeRuntime<TContext = AgentContext> implements IAgentBehavior {
+  readonly id: string = 'behavior-tree';
+  readonly name: string = 'Behavior Tree';
+  readonly description: string = 'Behavior Tree Runtime';
+  readonly tags: string[] = ['behavior-tree'];
+
   private tree: BehaviorTreeNode | null = null
   private readonly sequenceCursors = new Map<string, number>()
   private readonly waitRemaining = new Map<string, number>()
@@ -143,6 +150,29 @@ export class BehaviorTreeRuntime<TContext = unknown> {
 
   constructor(handlers: BehaviorTreeHandlers<TContext> = {}) {
     this.handlers = handlers
+  }
+
+  async initialize(_agent: AgentContext): Promise<void> {
+    // Initialization logic if needed
+  }
+
+  update(agent: AgentContext, deltaTime: number): BehaviorStatus {
+    return this.tick(agent as unknown as TContext, deltaTime) as BehaviorStatus;
+  }
+
+  async terminate(_agent: AgentContext): Promise<void> {
+    this.reset();
+  }
+
+  getConfigSchema(): BehaviorConfigSchema {
+    return {
+      properties: {},
+      required: []
+    };
+  }
+
+  validateConfig(_config: unknown): _config is BehaviorConfig {
+    return true;
   }
 
   setTree(tree: BehaviorTreeNode): void {

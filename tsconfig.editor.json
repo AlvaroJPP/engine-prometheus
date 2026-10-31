@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "paths": {
+      "@editor/*": ["./editor/*"]
+    }
+  },
+  "include": ["editor/**/*.ts", "editor/**/*.tsx", "editor/**/*.vue"]
+}
