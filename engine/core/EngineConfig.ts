@@ -190,14 +190,14 @@ export interface InputSubsystemConfig extends BaseSubsystemConfig {
 }
 
 export interface MountSubsystemConfig extends BaseSubsystemConfig {
-  /** Enable mount system */
-  enabled: boolean;
-
   /** Auto-create mount controller on init */
-  autoCreateController: boolean;
+  autoCreateController?: boolean;
 
-  /** Default mount control bindings */
+  /** Default control bindings for mounting */
   defaultControlBindings?: Record<string, string>;
+
+  /** Enable mount system by default */
+  enabled?: boolean;
 }
 
 export interface ControlMapConfig {
@@ -297,17 +297,21 @@ export function createDefaultConfig(overrides: Partial<EngineConfig> = {}): Engi
       },
       mount: {
         name: 'mount',
-        enabled: true,
         autoCreateController: true,
+        enabled: true,
         defaultControlBindings: {
-          mount: 'KeyF',
-          dismount: 'KeyF',
-          jump: 'Space',
+          forward: 'KeyW',
+          backward: 'KeyS',
+          left: 'KeyA',
+          right: 'KeyD',
+          run: 'ShiftLeft',
           sprint: 'ShiftLeft',
-          moveForward: 'KeyW',
-          moveBackward: 'KeyS',
-          moveLeft: 'KeyA',
-          moveRight: 'KeyD',
+          jump: 'Space',
+          interact: 'KeyE',
+          action1: 'KeyQ',
+          action2: 'KeyR',
+          action3: 'KeyF',
+          action4: 'KeyC',
         },
       },
     },
@@ -426,11 +430,19 @@ export function validateConfig(config: EngineConfig): void {
   if (!config.subsystems.world || !config.subsystems.render || !config.subsystems.input || !config.subsystems.mount) {
     throw new Error('EngineConfig.subsystems must have world, render, input, and mount configs');
   }
-  if (typeof config.subsystems.mount.enabled !== 'boolean') {
-    throw new Error('EngineConfig.subsystems.mount.enabled must be a boolean');
-  }
-  if (typeof config.subsystems.mount.autoCreateController !== 'boolean') {
-    throw new Error('EngineConfig.subsystems.mount.autoCreateController must be a boolean');
+
+  // Validate mount subsystem config
+  const mountConfig = config.subsystems.mount;
+  if (mountConfig) {
+    if (typeof mountConfig.autoCreateController !== 'undefined' && typeof mountConfig.autoCreateController !== 'boolean') {
+      throw new Error('EngineConfig.subsystems.mount.autoCreateController must be a boolean');
+    }
+    if (typeof mountConfig.enabled !== 'undefined' && typeof mountConfig.enabled !== 'boolean') {
+      throw new Error('EngineConfig.subsystems.mount.enabled must be a boolean');
+    }
+    if (mountConfig.defaultControlBindings && typeof mountConfig.defaultControlBindings !== 'object') {
+      throw new Error('EngineConfig.subsystems.mount.defaultControlBindings must be an object');
+    }
   }
 
   // Validate debug

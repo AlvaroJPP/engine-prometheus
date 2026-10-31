@@ -42,6 +42,11 @@ export {
   deserializeMountConfig,
 } from './MountEditorIntegration.ts'
 
+// Subsystem
+export {
+  MountSubsystem,
+} from '../subsystems/MountSubsystem.ts'
+
 // TYPE EXPORTS (interfaces, types)
 export type {
   MountPoint,
@@ -64,3 +69,7 @@ export type {
 export type {
   EngineMountControllerContext,
 } from './MountController.ts'
+
+export type {
+  MountSubsystemConfig,
+} from '../subsystems/MountSubsystem.ts'

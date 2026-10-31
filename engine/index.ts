@@ -192,6 +192,8 @@ export {
   createDefaultMountConfig,
   serializeMountConfig,
   deserializeMountConfig,
+  // Subsystem
+  MountSubsystem,
 } from './mount'
 
 // Re-export key types for convenience
@@ -212,4 +214,5 @@ export type {
   MountInput,
   MountPointPropertyPanel,
   EngineMountControllerContext,
+  MountSubsystemConfig,
 } from './mount'

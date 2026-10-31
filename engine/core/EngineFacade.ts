@@ -12,6 +12,7 @@ import { EngineConfig, createDefaultConfig, RuntimeMode } from './EngineConfig.j
 import { WorldSubsystem } from '../subsystems/WorldSubsystem.js';
 import { RenderSubsystem } from '../subsystems/RenderSubsystem.js';
 import { InputSubsystem } from '../subsystems/InputSubsystem.js';
+import { MountSubsystem } from '../subsystems/MountSubsystem.js';
 import { EditorState, createEditorState, BrushSettings, ToolMode, TransformMode } from '../EditorState.js';
 import { RuleEngine } from '../script/RuleEngine.js';
 import { HumanoidAvatar } from '../world/HumanoidAvatar.js';
@@ -145,6 +146,7 @@ export class EngineFacade {
     this.core.registerSubsystem(new WorldSubsystem());
     this.core.registerSubsystem(new RenderSubsystem({ name: 'render', autoCreateViewport: false, defaultCamera: 'orbit', postProcessing: false, frustumCulling: true, layers: ['Default', 'UI', 'Debug', 'PostProcess'] }));
     this.core.registerSubsystem(new InputSubsystem());
+    this.core.registerSubsystem(new MountSubsystem());
 
     // ============================================================
     // SYNCHRONOUS INITIALIZATION (mirrors old Engine.ts constructor)
