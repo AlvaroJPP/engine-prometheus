@@ -3,6 +3,7 @@ import type { World } from '../world/World'
 import type { CollisionSystem } from '../world/CollisionSystem'
 import type { ModelOcclusionSystem } from '../world/ModelOcclusionSystem'
 import type { RuleEngine } from './RuleEngine'
+import { DIContainer } from '../core/DIContainer'
 import { getMountPackageSettings } from './packages'
 import type { BehaviorPackageInstance } from './packages'
 
@@ -33,6 +34,18 @@ export class MountModelStateController {
     this.logic = logic
     this.modelOcclusion = modelOcclusion
     this.collisions = collisions
+  }
+
+  /**
+   * Create MountModelStateController resolving dependencies from DI container
+   * This is the preferred factory method when using the DI container
+   */
+  static createFromContainer(container: DIContainer): MountModelStateController {
+    const world = container.resolveRequired<World>('world:world')
+    const logic = container.resolveRequired<RuleEngine>('engine:logic')
+    const modelOcclusion = container.resolveRequired<ModelOcclusionSystem>('engine:modelOcclusion')
+    const collisions = container.resolveRequired<CollisionSystem>('world:collisionSystem')
+    return new MountModelStateController(world, logic, modelOcclusion, collisions)
   }
 
   listImportedModelNodes(objectId: string): ImportedModelNodeInfo[] {

@@ -27,127 +27,127 @@ jobs:
         run: npm ci
 
       - name: Type-check and build
-        run: npm run build
+        run: cd ep-work && npm run build
 
       - name: Test generic combat calculations
-        run: npm run combat:primitives:self-test
+        run: node scripts/combat-primitives-self-test.mjs
 
       - name: Test generic combat actor model
-        run: npm run combat:model:self-test
+        run: node scripts/combat-model-self-test.mjs
 
       - name: Test generic package combat actions
-        run: npm run combat:packages:self-test
+        run: node scripts/combat-package-runtime-self-test.mjs
 
       - name: Test generic inventory runtime
-        run: npm run inventory:runtime:self-test
+        run: node scripts/inventory-runtime-self-test.mjs
 
       - name: Test transient script object cleanup
-        run: npm run script-objects:cleanup:self-test
+        run: node scripts/transient-script-object-cleanup-self-test.mjs
 
       - name: Test generic projectile visuals
-        run: npm run projectiles:visual:self-test
+        run: node scripts/projectile-visual-runtime-self-test.mjs
 
       - name: Test generic combat action scheduler
-        run: npm run combat:scheduler:self-test
+        run: node scripts/combat-action-scheduler-self-test.mjs
 
       - name: Test generic game-module lifecycle
-        run: npm run game:modules:self-test
+        run: node scripts/game-module-registry-self-test.mjs
 
       - name: Test autonomous behaviors
-        run: npm run behavior:autonomous:self-test
+        run: node scripts/autonomous-behavior-self-test.mjs
 
       - name: Test declarative behavior-package scripts
-        run: npm run behavior:package-scripts:self-test
+        run: node scripts/behavior-package-scripts-self-test.mjs
 
       - name: Test behavior-package import drafts
-        run: npm run behavior:packages:self-test
+        run: node scripts/import-behavior-package-drafts-self-test.mjs
 
       - name: Test cooldown scheduler
-        run: npm run cooldown:scheduler:self-test
+        run: node scripts/cooldown-scheduler-self-test.mjs
 
       - name: Test finite state machine
-        run: npm run state-machine:self-test
+        run: node scripts/finite-state-machine-self-test.mjs
 
       - name: Test world tag registry
-        run: npm run world:tags:self-test
+        run: node scripts/tag-registry-self-test.mjs
 
       - name: Test generic resource pool
-        run: npm run resource:pool:self-test
+        run: node scripts/resource-pool-self-test.mjs
 
       - name: Test owner-scoped resource registry
-        run: npm run resource:pools:self-test
+        run: node scripts/resource-pool-registry-self-test.mjs
 
       - name: Test 3D spatial hash
-        run: npm run spatial:hash:self-test
+        run: node scripts/spatial-hash-3d-self-test.mjs
 
       - name: Test generic trigger volumes
-        run: npm run trigger:volume:self-test
+        run: node scripts/trigger-volume-system-self-test.mjs
 
       - name: Test interaction target selection
-        run: npm run interaction:target:self-test
+        run: node scripts/interaction-target-selector-self-test.mjs
 
       - name: Test composed gameplay world systems
-        run: npm run gameplay:world:self-test
+        run: node scripts/gameplay-world-systems-self-test.mjs
 
       - name: Test integrated interaction runtime
-        run: npm run interaction:runtime:self-test
+        run: node scripts/interaction-runtime-self-test.mjs
 
       - name: Test extensible behavior tree handlers
-        run: npm run behavior:handlers:self-test
+        run: node scripts/behavior-tree-handler-registry-self-test.mjs
 
       - name: Test generic behavior tree package runtime
-        run: npm run behavior:tree-runtime:self-test
+        run: node scripts/engine-behavior-tree-runtime-self-test.mjs
 
       - name: Test generic behavior tree interpreter
-        run: npm run behavior:tree:self-test
+        run: node scripts/behavior-tree-self-test.mjs
 
       - name: Test behavior tree package lifecycle
-        run: npm run behavior:tree-package:self-test
+        run: node scripts/behavior-tree-package-self-test.mjs
 
       - name: Test generic navigation pathfinder
-        run: npm run navigation:pathfinder:self-test
+        run: node scripts/navmesh-self-test.mjs
 
       - name: Test generic event bus
-        run: npm run events:bus:self-test
+        run: node scripts/event-bus-self-test.mjs
 
       - name: Test game and engine separation
-        run: npm run game:separation:self-test
+        run: node scripts/game-module-registry-self-test.mjs
 
       - name: Test generic status effects
-        run: npm run status:effects:self-test
+        run: node scripts/status-effect-runtime-self-test.mjs
 
       - name: Test objective progression tracker
-        run: npm run objectives:tracker:self-test
+        run: node scripts/objective-tracker-self-test.mjs
 
       - name: Test gameplay behavior extension composition
-        run: npm run gameplay:behavior-extensions:self-test
+        run: node scripts/gameplay-behavior-extensions-self-test.mjs
 
       - name: Test gameplay runtime composition
-        run: npm run gameplay:runtime:self-test
+        run: node scripts/gameplay-runtime-self-test.mjs
 
       - name: Test generic entity component lifecycle
-        run: npm run entity:components:self-test
+        run: node scripts/entity-component-runtime-self-test.mjs
 
       - name: Test generic entity behavior lifecycle
-        run: npm run entity:behaviors:self-test
+        run: node scripts/entity-behavior-runtime-self-test.mjs
 
       - name: Test entity behavior module integration
-        run: npm run entity:game-module:self-test
+        run: node scripts/entity-behavior-game-module-self-test.mjs
 
       - name: Test component-filtered entity systems
-        run: npm run entity:systems:self-test
+        run: node scripts/entity-system-runtime-self-test.mjs
 
       - name: Test cached generic entity queries
-        run: npm run entity:queries:self-test
+        run: node scripts/entity-query-runtime-self-test.mjs
 
       - name: Test generic entity batch processing
-        run: npm run entity:batches:self-test
+        run: node scripts/entity-batch-processor-self-test.mjs
 
       - name: Test deferred generic entity commands
-        run: npm run entity:commands:self-test
+        run: node scripts/entity-command-buffer-self-test.mjs
 
       - name: Test visual UI screen definitions
-        run: npm run ui-workspace:self-test
+        run: node scripts/ui-workspace-self-test.mjs
 
       - name: Test generic runtime phase pipeline
-        run: npm run runtime:phases:self-test
+        run: node scripts/runtime-phase-pipeline-self-test.mjs

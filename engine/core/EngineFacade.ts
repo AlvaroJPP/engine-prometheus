@@ -200,14 +200,6 @@ export class EngineFacade {
     this.transformControls.addEventListener('objectChange', () => this.onTransformControlChange());
     this.transformControls.addEventListener('dragging-changed', (event: { value: unknown }) => this.onTransformControlDrag(event));
 
-    // Mount model state controller
-    this.mountModelStateController = new MountModelStateController(
-      this.world,
-      this.logic,
-      this.modelOcclusion,
-      this.collisions,
-    );
-
     // Input controller
     this.inputInstance = new PointerController(
       canvas,
@@ -227,6 +219,21 @@ export class EngineFacade {
     this.core.container.registerInstance('render:viewport', this.viewportInstance);
     this.core.container.registerInstance('render:orbitCamera', this.orbitInstance);
     this.core.container.registerInstance('input:pointerController', this.inputInstance);
+    this.core.container.registerInstance('engine:logic', this.logic);
+
+    // Register engine services (cross-cutting singletons)
+    this.core.registerEngineServices({
+      'engine:modelOcclusion': this.modelOcclusion,
+      'engine:modelLod': this.modelLod,
+      'engine:visualSettings': this.visualSettings,
+      'engine:autonomousBehaviorCoordinator': this.autonomousBehaviorCoordinator,
+      'engine:behaviorTreeRuntime': this.behaviorTreeRuntime,
+      'engine:buildComponentPlacement': this.buildComponentPlacement,
+      'engine:transformControls': this.transformControls,
+    });
+
+    // Create MountModelStateController via DI (after services registered)
+    this.mountModelStateController = MountModelStateController.createFromContainer(this.core.container);
 
     // Setup event listeners
     this.setupEventListeners();

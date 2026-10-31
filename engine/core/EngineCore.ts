@@ -61,6 +61,16 @@ export class EngineCore {
   }
 
   /**
+   * Register cross-cutting engine services (singletons)
+   * Called by EngineFacade after creating engine-specific services
+   */
+  registerEngineServices(services: Record<string, any>): void {
+    for (const [token, instance] of Object.entries(services)) {
+      this.container.registerInstance(token, instance);
+    }
+  }
+
+  /**
    * Get current engine state
    */
   getState(): typeof this.state {
