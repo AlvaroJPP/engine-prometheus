@@ -8,12 +8,50 @@
 import type { EngineGameModule } from '../runtime/GameModule'
 import type { World } from '../world/World'
 import type { Entity } from '../model/entity/Entity'
-import type { Subsystem } from './Subsystem'
-import type { Camera } from '../subsystems/RenderSubsystem'
-import type { RenderStats } from '../subsystems/RenderSubsystem'
 import type { RuntimeMode } from './EngineConfig'
 import type { EngineConfig } from './EngineConfig'
 import * as THREE from 'three'
+
+/**
+ * Minimal subsystem interface to avoid circular dependency with Subsystem
+ */
+export interface Subsystem {
+  name: string;
+  priority: number;
+  dependencies: string[];
+  autoStart: boolean;
+  debug: boolean;
+  getState(): string;
+  isReady(): boolean;
+  isRunning(): boolean;
+  hasError(): boolean;
+  getError(): Error | null;
+}
+
+/**
+ * Minimal camera interface to avoid circular dependency with RenderSubsystem
+ */
+export interface Camera {
+  camera: THREE.Camera;
+  update(): void;
+  resize(aspect: number): void;
+}
+
+/**
+ * Minimal render stats interface to avoid circular dependency with RenderSubsystem
+ */
+export interface RenderStats {
+  fps: number;
+  frameTime: number;
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+  memory: {
+    geometries: number;
+    textures: number;
+  };
+}
 
 /**
  * Mapa de eventos do núcleo da Engine.

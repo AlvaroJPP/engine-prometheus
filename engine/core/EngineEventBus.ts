@@ -145,20 +145,20 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    * Emit an event synchronously
    */
   emit<K extends keyof E>(event: K, data: E[K]): boolean {
-    return this.dispatch(event as EventName, data, false);
+    return this.dispatch(event as EventName, data);
   }
 
   /**
-   * Emit an event asynchronously
+   * Emit an event asynchronously - awaits all async handlers
    */
   async emitAsync<K extends keyof E>(event: K, data: E[K]): Promise<boolean> {
-    return this.dispatch(event as EventName, data, true);
+    return this.dispatchAsync(event as EventName, data);
   }
 
   /**
-   * Emit event to all listeners including wildcard
+   * Emit event to all listeners including wildcard (synchronous)
    */
-  private dispatch(event: EventName, data: any, forceAsync: boolean): boolean {
+  private dispatch(event: EventName, data: any): boolean {
     const specificListeners = this.listeners.get(event) || [];
     const wildcardListeners = this.listeners.get('*') || [];
     const allListeners = [...specificListeners, ...wildcardListeners];
@@ -179,22 +179,87 @@ export class EngineEventBus<E extends EventMap = EventMap> {
         // Check filter
         if (entry.options.filter && !entry.options.filter(data)) continue;
 
-        // Handle async
-        if (entry.options.async || forceAsync) {
-          handled = true;
-          const promise = Promise.resolve(entry.listener(data));
-          if (entry.options.once) {
-            this.off(event, entry.id);
-          }
-          // Don't await - fire and forget for async
-          promise.catch(err => console.error(`Async event handler error:`, err));
-        } else {
+        // Only handle sync listeners in sync dispatch
+        if (!entry.options.async) {
           handled = true;
           entry.listener(data);
           if (entry.options.once) {
             this.off(event, entry.id);
           }
         }
+        // Async listeners are ignored in sync emit (they should use emitAsync)
+      }
+    } finally {
+      this.isDispatching = false;
+      // Process pending removals
+      if (this.pendingRemovals.size > 0) {
+        for (const [eventName, listeners] of this.listeners) {
+          const filtered = listeners.filter(e => !this.pendingRemovals.has(e.id));
+          if (filtered.length !== listeners.length) {
+            if (filtered.length === 0) {
+              this.listeners.delete(eventName);
+            } else {
+              this.listeners.set(eventName, filtered);
+            }
+          }
+        }
+        this.pendingRemovals.clear();
+      }
+    }
+
+    this.recordHistory(event, data);
+    return handled;
+  }
+
+  /**
+   * Emit event asynchronously - awaits all async handlers
+   */
+  private async dispatchAsync(event: EventName, data: any): Promise<boolean> {
+    const specificListeners = this.listeners.get(event) || [];
+    const wildcardListeners = this.listeners.get('*') || [];
+    const allListeners = [...specificListeners, ...wildcardListeners];
+
+    if (allListeners.length === 0) {
+      this.recordHistory(event, data);
+      return false;
+    }
+
+    this.isDispatching = true;
+    let handled = false;
+    const errors: Error[] = [];
+
+    try {
+      const promises: Promise<void>[] = [];
+
+      for (const entry of allListeners) {
+        // Check if removed during dispatch
+        if (this.pendingRemovals.has(entry.id)) continue;
+
+        // Check filter
+        if (entry.options.filter && !entry.options.filter(data)) continue;
+
+        handled = true;
+
+        const listenerPromise = Promise.resolve(entry.listener(data))
+          .catch(err => {
+            errors.push(err instanceof Error ? err : new Error(String(err)));
+          });
+
+        if (entry.options.once) {
+          this.off(event, entry.id);
+        }
+
+        promises.push(listenerPromise);
+      }
+
+      // Wait for all async handlers to complete
+      await Promise.all(promises);
+
+      // Throw aggregated errors if any
+      if (errors.length > 0) {
+        const aggregateError = new Error(`Async event handlers failed: ${errors.map(e => e.message).join('; ')}`);
+        (aggregateError as any).errors = errors;
+        throw aggregateError;
       }
     } finally {
       this.isDispatching = false;
@@ -222,19 +287,30 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    * Wait for an event (Promise-based)
    */
   waitFor<K extends keyof E>(event: K, timeout = 5000, filter?: (data: E[K]) => boolean): Promise<E[K]> {
-    const eventName = typeof event === 'symbol' ? String(event) : String(event);
+    const eventName = event as EventName;
+    const eventNameStr = typeof event === 'symbol' ? String(event) : String(event);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.off(event as EventName, handlerId);
-        reject(new Error(`Timeout waiting for event: ${eventName}`));
+        reject(new Error(`Timeout waiting for event: ${eventNameStr}`));
       }, timeout);
 
-      const handlerId = this.once(event, (data) => {
-        if (!filter || filter(data)) {
-          clearTimeout(timer);
-          resolve(data);
-        }
-      });
+      // Use addListener directly to get the listener ID for cleanup
+      const entryId = ++this.listenerId;
+      const entry: ListenerEntry<E[K]> = {
+        listener: (data) => {
+          if (!filter || filter(data)) {
+            clearTimeout(timer);
+            this.off(eventName, entryId);
+            resolve(data);
+          }
+        },
+        options: { once: true, filter },
+        id: entryId,
+      };
+
+      const listeners = this.listeners.get(eventName) || [];
+      listeners.push(entry);
+      this.listeners.set(eventName, listeners);
     });
   }
 

@@ -161,16 +161,6 @@ export class WorldSubsystem extends Subsystem {
   }
 
   protected onUpdate(deltaTime: number, time: number): void {
-    // Update terrain
-    if (this.terrainMesh) {
-      // Terrain updates are event-driven, not per-frame
-    }
-
-    // Update grass
-    if (this.grassLayer) {
-      // GrassLayer has its own update cycle via updateVisibility
-    }
-
     // Update avatar
     if (this.avatar) {
       this.avatar.update(deltaTime);
@@ -182,14 +172,6 @@ export class WorldSubsystem extends Subsystem {
     if (this.collisionSystem && this.world) {
       this.collisionSystem.update(true);
     }
-  }
-
-  protected onLateUpdate(deltaTime: number, time: number): void {
-    // Late updates (e.g., avatar IK) - avatar already handles this internally
-  }
-
-  protected onResizeImpl(width: number, height: number): void {
-    // Update world bounds if needed
   }
 
   protected onRuntimeModeChangeImpl(from: string, to: string): void {
@@ -375,11 +357,9 @@ export class WorldSubsystem extends Subsystem {
   // === Collision Layers ===
 
   private registerCollisionLayers(layers: string[]): void {
-    // CollisionSystem doesn't have registerLayers method
-    // This is a placeholder for future implementation
-    if (this.collisionSystem && layers.length > 0) {
-      this.logWarn('CollisionSystem.registerLayers not implemented');
-    }
+    // Collision layers are configured via WorldConfig and CollisionSystem
+    // This method is a no-op as layers are handled at physics system level
+    // Override in subclass if custom layer registration is needed
   }
 
   // === Raycasting ===

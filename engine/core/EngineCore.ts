@@ -8,7 +8,7 @@
 import { DIContainer } from './DIContainer.js';
 import { EngineEventBus, EngineEventMap, EngineEvents } from './EngineEventBus.js';
 import { Subsystem, SubsystemState, SubsystemConfig, SubsystemContext } from './Subsystem.js';
-import { EngineConfig, createDefaultConfig, RuntimeMode } from './EngineConfig.js';
+import { EngineConfig, createDefaultConfig, RuntimeMode, deepMergeConfig, validateConfig } from './EngineConfig.js';
 
 export interface EngineCoreOptions {
   /** Configuration overrides */
@@ -25,7 +25,7 @@ export class EngineCore {
   public readonly container: DIContainer;
   public readonly events: EngineEventBus<EngineEventMap>;
   public readonly subsystems: Map<string, Subsystem> = new Map();
-  public readonly config: EngineConfig;
+  public config: EngineConfig;
 
   private state: 'uninitialized' | 'initializing' | 'ready' | 'running' | 'stopping' | 'disposed' | 'error' = 'uninitialized';
   private error: Error | null = null;
@@ -124,10 +124,18 @@ export class EngineCore {
   /**
    * Initialize engine and all subsystems
    */
-  async initialize(): Promise<void> {
+  async initialize(config?: Partial<EngineConfig>): Promise<void> {
     if (this.state !== 'uninitialized') {
       throw new Error(`Engine already initialized (state: ${this.state})`);
     }
+
+    // Merge passed config with existing config
+    if (config) {
+      this.config = deepMergeConfig(this.config, config);
+    }
+
+    // Validate config
+    validateConfig(this.config);
 
     this.state = 'initializing';
     this.error = null;

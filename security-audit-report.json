@@ -1,0 +1,258 @@
+{
+  "audit_metadata": {
+    "target": "engine-prometheus-1",
+    "audit_date": "2026-10-31",
+    "scope": [
+      "src-tauri/Cargo.toml",
+      "src-tauri/tauri.conf.json",
+      "src-tauri/capabilities/default.json",
+      "src-tauri/src/lib.rs"
+    ],
+    "tauri_version": "2.12.3"
+  },
+  "findings": [
+    {
+      "id": "SEC-001",
+      "severity": "CRITICAL",
+      "category": "CSP",
+      "title": "Content Security Policy disabled (set to null)",
+      "file": "src-tauri/tauri.conf.json",
+      "line": 23,
+      "description": "CSP is explicitly set to null, disabling all Content Security Policy protections. This allows inline scripts, eval(), and unrestricted resource loading, significantly increasing XSS attack surface.",
+      "cwe": "CWE-693",
+      "impact": "Full XSS exploitation possible if any frontend vulnerability exists. No protection against inline script injection, data: URIs, or external resource loading.",
+      "evidence": "\"security\": { \"csp\": null }",
+      "recommendation": "Set a strict CSP policy. Example: \"csp\": \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:;\"",
+      "fix": "Replace null with a restrictive CSP string in tauri.conf.json"
+    },
+    {
+      "id": "SEC-002",
+      "severity": "HIGH",
+      "category": "Path Traversal",
+      "title": "Symlink resolution not validated - path traversal via symlinks",
+      "file": "src-tauri/src/lib.rs",
+      "line": 7,
+      "function": "project_path",
+      "description": "The project_path function validates against '..' and absolute paths using Component::Normal check, but does NOT resolve symlinks. An attacker who can create symlinks inside the project directory (e.g., via compromised build process, supply chain, or social engineering) can escape the project root.",
+      "cwe": "CWE-59",
+      "impact": "Arbitrary file read/write outside project directory. On Linux/macOS, symlinks can be created by any user. On Windows, requires admin but possible via junction points.",
+      "evidence": "project_path uses Path::components() with Component::Normal only, no canonicalize() or symlink resolution",
+      "recommendation": "After path construction, canonicalize the result and verify it starts with the canonicalized project root. Use std::fs::canonicalize() on both base and target paths.",
+      "fix": "Add symlink resolution validation in project_path: let canonical_base = fs::canonicalize(&base)?; let canonical_target = fs::canonicalize(&target)?; if !canonical_target.starts_with(&canonical_base) { return Err(...); }"
+    },
+    {
+      "id": "SEC-003",
+      "severity": "HIGH",
+      "category": "Path Traversal",
+      "title": "write_project_asset validation bypassable via symlinks",
+      "file": "src-tauri/src/lib.rs",
+      "line": 86,
+      "function": "write_project_asset",
+      "description": "The command validates that rel starts with 'resources/' but then passes to project_path which doesn't resolve symlinks. A symlink at resources/evil -> /etc/passwd allows writing arbitrary files.",
+      "cwe": "CWE-59",
+      "impact": "Arbitrary file write outside project resources directory via symlink traversal",
+      "evidence": "Line 88: if !rel.starts_with(\"resources/\") - only string prefix check, no filesystem validation",
+      "recommendation": "After project_path returns, canonicalize the target and verify it's within the canonicalized project_root/resources directory",
+      "fix": "Add canonicalization check after project_path call in write_project_asset and read_project_asset"
+    },
+    {
+      "id": "SEC-004",
+      "severity": "HIGH",
+      "category": "Race Condition",
+      "title": "TOCTOU race condition in write_project_file and write_project_asset",
+      "file": "src-tauri/src/lib.rs",
+      "line": 42,
+      "function": "write_project_file, write_project_asset",
+      "description": "Both functions check if target exists (line 58, 102), then perform rename operations. Between the check and the rename, an attacker could replace the target with a symlink pointing to a sensitive file, causing the rename to overwrite that file.",
+      "cwe": "CWE-367",
+      "impact": "Arbitrary file overwrite via symlink race. On Linux/macOS where symlinks are easy to create, this is exploitable.",
+      "evidence": "Lines 58-75: had_target = target.exists() -> fs::rename(&target, &backup) -> fs::rename(&tmp, &target). Lines 102-105: similar pattern without backup.",
+      "recommendation": "Use atomic write with O_EXCL flag or verify target is not a symlink before each filesystem operation. On Unix, use open with O_CREAT | O_EXCL. Consider using tauri-plugin-fs with safe APIs.",
+      "fix": "Add symlink check before rename: if target.is_symlink() { return Err(...) } or use std::fs::OpenOptions with create_new(true) for atomic creation"
+    },
+    {
+      "id": "SEC-005",
+      "severity": "MEDIUM",
+      "category": "Symlink Attack",
+      "title": "No symlink validation before file writes in any command",
+      "file": "src-tauri/src/lib.rs",
+      "line": 42,
+      "functions": [
+        "write_project_file",
+        "write_project_asset",
+        "prune_project_assets"
+      ],
+      "description": "None of the file write commands check if the target path is a symlink before writing. An attacker with ability to create symlinks in the project directory can redirect writes to arbitrary locations.",
+      "cwe": "CWE-59",
+      "impact": "Arbitrary file write via symlink. Combined with SEC-004 race condition, high risk.",
+      "evidence": "No fs::read_link() or metadata().file_type().is_symlink() checks before writes",
+      "recommendation": "Add symlink check before any write operation: let meta = fs::metadata(&target)?; if meta.file_type().is_symlink() { return Err(\"Target is a symlink\".into()); }",
+      "fix": "Add symlink validation helper function and call it before all write operations"
+    },
+    {
+      "id": "SEC-006",
+      "severity": "MEDIUM",
+      "category": "ZIP Extraction",
+      "title": "ZIP extraction doesn't validate extracted symlinks",
+      "file": "src-tauri/src/lib.rs",
+      "line": 187,
+      "functions": [
+        "load_gltf_zip",
+        "load_model_zip"
+      ],
+      "description": "Both ZIP extraction functions use entry.enclosed_name() which prevents path traversal in ZIP entries, but don't validate if extracted entries are symlinks. A malicious ZIP could contain symlinks that, when extracted, point outside the temp directory.",
+      "cwe": "CWE-59",
+      "impact": "Symlink extraction could lead to arbitrary file write/read outside temp directory during subsequent operations",
+      "evidence": "Lines 203, 322: entry.enclosed_name() prevents traversal but entry.is_symlink() not checked. Lines 209-218, 330-339: symlinks would be extracted as-is.",
+      "recommendation": "Reject ZIP entries that are symlinks, or extract them safely by resolving and validating target is within temp directory",
+      "fix": "Add check: if entry.is_symlink() { return Err(\"Symlinks not allowed in ZIP\".into()); } before extracting each entry"
+    },
+    {
+      "id": "SEC-007",
+      "severity": "MEDIUM",
+      "category": "Input Validation",
+      "title": "Insufficient input validation on project_exists command",
+      "file": "src-tauri/src/lib.rs",
+      "line": 25,
+      "function": "project_exists",
+      "description": "The project_exists command takes a dir parameter and directly joins with 'project.json' without validating the dir parameter for path traversal or symlinks.",
+      "cwe": "CWE-20",
+      "impact": "Path traversal to check existence of arbitrary files on filesystem (information disclosure)",
+      "evidence": "Line 26: Path::new(&dir).join(\"project.json\").is_file() - no validation of dir",
+      "recommendation": "Apply project_path validation to dir parameter, or at minimum validate it's a valid directory path without traversal",
+      "fix": "Add validation: if Path::new(&dir).is_absolute() || dir.contains(\"..\") { return false; } or use project_path pattern"
+    },
+    {
+      "id": "SEC-008",
+      "severity": "LOW",
+      "category": "Capabilities",
+      "title": "Capabilities could be more restrictive",
+      "file": "src-tauri/capabilities/default.json",
+      "line": 8,
+      "description": "The default capability includes core:default which grants broad permissions. While dialog:default and window permissions are reasonable, core:default includes many permissions that may not be needed.",
+      "cwe": "CWE-250",
+      "impact": "Over-privileged frontend - if compromised, has access to more Tauri APIs than necessary",
+      "evidence": "permissions: [\"core:default\", \"dialog:default\", \"core:window:allow-set-fullscreen\", \"core:window:allow-is-fullscreen\"]",
+      "recommendation": "Replace core:default with explicit minimal permissions needed: core:app:allow-exit, core:window:allow-close, etc. Use principle of least privilege.",
+      "fix": "Audit which core APIs are actually used and grant only those specific permissions"
+    },
+    {
+      "id": "SEC-009",
+      "severity": "LOW",
+      "category": "Platform Compatibility",
+      "title": "Windows-specific rename handling incomplete for symlink protection",
+      "file": "src-tauri/src/lib.rs",
+      "line": 56,
+      "function": "write_project_file",
+      "description": "Code handles Windows rename differently (lines 56-75) but doesn't account for Windows junction points or symlinks. On Windows, symlinks require admin but junctions don't. The backup/rename logic could be exploited via junctions.",
+      "cwe": "CWE-59",
+      "impact": "Potential junction point attack on Windows to redirect file writes",
+      "evidence": "Windows-specific comment line 56-57, but no junction/symlink check",
+      "recommendation": "Add cross-platform symlink/junction detection using metadata().file_type().is_symlink() and on Windows also check for reparse points",
+      "fix": "Add platform-aware symlink/junction validation before rename operations"
+    },
+    {
+      "id": "SEC-010",
+      "severity": "MEDIUM",
+      "category": "Dependency Security",
+      "title": "Outdated dependencies with known vulnerabilities",
+      "file": "src-tauri/Cargo.toml",
+      "line": 24,
+      "description": "tauri 2.12.3 and tauri-plugin-dialog 2.8.2 may have known vulnerabilities. Should audit with cargo audit.",
+      "cwe": "CWE-1104",
+      "impact": "Supply chain vulnerabilities in dependencies",
+      "evidence": "tauri = \"2.12.3\", tauri-plugin-dialog = \"2.8.2\" - current latest may be higher",
+      "recommendation": "Run cargo audit regularly. Update to latest patched versions. Add cargo-audit to CI pipeline.",
+      "fix": "Update Cargo.toml dependencies to latest secure versions and run cargo audit"
+    }
+  ],
+  "proposed_fixes": [
+    {
+      "id": "FIX-001",
+      "finding_ids": ["SEC-001"],
+      "file": "src-tauri/tauri.conf.json",
+      "description": "Enable strict CSP policy",
+      "changes": [
+        "Replace \"csp\": null with restrictive CSP string"
+      ],
+      "code": "\"security\": { \"csp\": \"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:;\" }"
+    },
+    {
+      "id": "FIX-002",
+      "finding_ids": ["SEC-002", "SEC-003", "SEC-007"],
+      "file": "src-tauri/src/lib.rs",
+      "description": "Add canonicalization-based path validation to project_path function",
+      "changes": [
+        "Add canonicalize() call on base and constructed target paths",
+        "Verify canonical target starts with canonical base",
+        "Return error if symlink resolution escapes project root"
+      ],
+      "code": "fn project_path(dir: &str, rel: &str) -> Result<PathBuf, String> {\n    let base = PathBuf::from(dir);\n    if !base.is_dir() {\n        return Err(\"Pasta do projeto não encontrada.\".into());\n    }\n    let rel_path = Path::new(rel);\n    if rel.is_empty() || rel_path.is_absolute() || rel_path.components().any(|c| !matches!(c, Component::Normal(_))) {\n        return Err(format!(\"Caminho inválido: {rel}\"));\n    }\n    let target = base.join(rel_path);\n    \n    // CRITICAL: Resolve symlinks and verify containment\n    let canonical_base = fs::canonicalize(&base).map_err(|e| format!(\"Falha ao resolver caminho base: {e}\"))?;\n    let canonical_target = fs::canonicalize(&target).map_err(|e| format!(\"Falha ao resolver caminho alvo: {e}\"))?;\n    \n    if !canonical_target.starts_with(&canonical_base) {\n        return Err(format!(\"Caminho fora do projeto: {rel}\"));\n    }\n    \n    Ok(target)\n}"
+    },
+    {
+      "id": "FIX-003",
+      "finding_ids": ["SEC-004", "SEC-005", "SEC-009"],
+      "file": "src-tauri/src/lib.rs",
+      "description": "Add symlink/junction validation before all write operations",
+      "changes": [
+        "Create validate_not_symlink helper function",
+        "Call before write_project_file, write_project_asset, prune_project_assets",
+        "Add Windows junction point detection"
+      ],
+      "code": "fn validate_not_symlink(path: &Path) -> Result<(), String> {\n    let meta = fs::metadata(path).map_err(|e| format!(\"Falha ao verificar metadados: {e}\"))?;\n    if meta.file_type().is_symlink() {\n        return Err(\"Caminho é um link simbólico - operação negada\".into());\n    }\n    #[cfg(windows)]\n    {\n        // Check for junction points / reparse points on Windows\n        use std::os::windows::fs::MetadataExt;\n        if meta.file_attributes() & 0x400 != 0 { // FILE_ATTRIBUTE_REPARSE_POINT\n            return Err(\"Caminho é um ponto de reanálise (junction) - operação negada\".into());\n        }\n    }\n    Ok(())\n}"
+    },
+    {
+      "id": "FIX-004",
+      "finding_ids": ["SEC-006"],
+      "file": "src-tauri/src/lib.rs",
+      "description": "Reject symlinks in ZIP extraction",
+      "changes": [
+        "Add entry.is_symlink() check in load_gltf_zip and load_model_zip",
+        "Return error if symlink detected in ZIP"
+      ],
+      "code": "for index in 0..archive.len() {\n    let mut entry = archive.by_index(index).map_err(|e| format!(\"Não foi possível ler item do ZIP: {e}\"))?;\n    \n    // SECURITY: Reject symlinks in ZIP\n    if entry.is_symlink() {\n        return Err(format!(\"ZIP contém link simbólico não permitido: {}\", entry.name()));\n    }\n    \n    let relative = entry.enclosed_name().ok_or_else(|| format!(\"O ZIP contém um caminho inseguro: {}\", entry.name()))?.to_path_buf();\n    // ... rest of extraction\n}"
+    },
+    {
+      "id": "FIX-005",
+      "finding_ids": ["SEC-008"],
+      "file": "src-tauri/capabilities/default.json",
+      "description": "Reduce capabilities to minimum required",
+      "changes": [
+        "Replace core:default with explicit permissions",
+        "Audit actual API usage in frontend"
+      ],
+      "code": "{\n  \"$schema\": \"../gen/schemas/desktop-schema.json\",\n  \"identifier\": \"default\",\n  \"description\": \"enables the default permissions\",\n  \"windows\": [\"main\"],\n  \"permissions\": [\n    \"core:app:allow-exit\",\n    \"core:window:allow-close\",\n    \"core:window:allow-set-fullscreen\",\n    \"core:window:allow-is-fullscreen\",\n    \"dialog:default\"\n  ]\n}"
+    },
+    {
+      "id": "FIX-006",
+      "finding_ids": ["SEC-010"],
+      "file": "src-tauri/Cargo.toml",
+      "description": "Update dependencies and add cargo-audit to CI",
+      "changes": [
+        "Update tauri and plugins to latest versions",
+        "Add cargo-audit to CI pipeline"
+      ],
+      "code": "# Run: cargo audit\n# Update Cargo.toml dependencies to latest secure versions\ntauri = { version = \"2.x\", features = [] }\ntauri-plugin-dialog = { version = \"2.x\", features = [] }"
+    }
+  ],
+  "summary": {
+    "total_findings": 10,
+    "by_severity": {
+      "CRITICAL": 1,
+      "HIGH": 3,
+      "MEDIUM": 4,
+      "LOW": 2
+    },
+    "by_category": {
+      "CSP": 1,
+      "Path Traversal": 2,
+      "Race Condition": 1,
+      "Symlink Attack": 1,
+      "ZIP Extraction": 1,
+      "Input Validation": 1,
+      "Capabilities": 1,
+      "Platform Compatibility": 1,
+      "Dependency Security": 1
+    }
+  }
+}

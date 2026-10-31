@@ -42,6 +42,7 @@ export class DIContainer {
    * Register a service with singleton lifetime
    */
   registerSingleton<T>(token: ServiceToken<T>, factory: (container: DIContainer) => T): this {
+    this.singletons.delete(token);
     this.registrations.set(token, { token, factory, lifetime: 'singleton' });
     return this;
   }
@@ -50,6 +51,7 @@ export class DIContainer {
    * Register a service with transient lifetime (new instance each resolve)
    */
   registerTransient<T>(token: ServiceToken<T>, factory: (container: DIContainer) => T): this {
+    this.singletons.delete(token);
     this.registrations.set(token, { token, factory, lifetime: 'transient' });
     return this;
   }
@@ -58,6 +60,7 @@ export class DIContainer {
    * Register a service with scoped lifetime (one instance per scope)
    */
   registerScoped<T>(token: ServiceToken<T>, factory: (container: DIContainer) => T): this {
+    this.singletons.delete(token);
     this.registrations.set(token, { token, factory, lifetime: 'scoped' });
     return this;
   }

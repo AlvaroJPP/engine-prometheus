@@ -1,0 +1,135 @@
+{
+  "auditTimestamp": "2026-10-31T00:00:00.000Z",
+  "project": "engine-prometheus-1",
+  "summary": {
+    "gameEngineSeparation": "PASS - No game-specific code (Veilborne/Montaria) found in engine/ or editor/. 'Montaria' references are Portuguese for generic mount system.",
+    "genericGameplaySystems": "PASS - Comprehensive generic systems exist: entity/component, script/variables/events, behavior trees, navigation, physics, interactions, animation, inventory, mounts, NPCs, HUD, player.",
+    "testCoverage": "PARTIAL - 67 self-test scripts (real tests), Playwright E2E (2 test files), NO unit test framework (Vitest/Jest), NO coverage reporting, broken build prevents many tests from running.",
+    "regressions": "MIXED - Viewport black screen: FIXED (diagnostics + error handling). TransformControls init order: POTENTIAL ISSUE (created before avatar in EngineFacade). Multiple Engine instances: HANDLED (editor uses single instance, EngineCore supports multiple). Resource disposal: PARTIAL (editor disposes on unmount, but some listeners may leak)."
+  },
+  "findings": [
+    {
+      "category": "build",
+      "severity": "HIGH",
+      "title": "TypeScript build broken - noEmit conflict",
+      "description": "tsconfig.json has 'allowImportingTsExtensions: true' but 'noEmit: false'. Package.json build script uses 'tsc --noEmit'. Results in 'dist/' missing most engine modules (only core/gameplay/subsystems present). Self-tests fail with ERR_UNSUPPORTED_DIR_IMPORT for mount, animation, physics, etc.",
+      "file": "tsconfig.json",
+      "line": 15,
+      "proposedFix": "Either set 'noEmit: true' in tsconfig.json and add separate compile step, OR remove 'allowImportingTsExtensions' and use proper ESM imports without .ts extensions in source files."
+    },
+    {
+      "category": "test",
+      "severity": "HIGH",
+      "title": "Most self-tests cannot run due to broken build",
+      "description": "67 self-test scripts exist but import from '../dist/engine/...' which is incomplete. Only engine-core-self-test.mjs passes (92/92). Other tests fail with module resolution errors.",
+      "files": ["scripts/*.mjs"],
+      "proposedFix": "Fix TypeScript build to output all modules to dist/, then re-run test:all"
+    },
+    {
+      "category": "test",
+      "severity": "MEDIUM",
+      "title": "No unit test framework or coverage",
+      "description": "Project uses custom Node.js self-test scripts instead of Vitest/Jest. No code coverage reporting. No watch mode. No parallel execution. No snapshot testing.",
+      "proposedFix": "Add Vitest with coverage (v8 provider), configure test:unit and test:coverage scripts, migrate self-tests to Vitest"
+    },
+    {
+      "category": "architecture",
+      "severity": "MEDIUM",
+      "title": "TransformControls initialization order in EngineFacade",
+      "description": "TransformControls created at line 196 in EngineFacade, but avatarInstance created at line 170. Avatar is passed to BuildComponentPlacementController at line 185-193 which uses transformControls. TransformControls created AFTER buildComponentPlacement but BEFORE it's passed to controller - potential issue if controller accesses it during construction.",
+      "file": "engine/core/EngineFacade.ts",
+      "lines": [170, 185, 196],
+      "proposedFix": "Move TransformControls creation before BuildComponentPlacementController, or ensure controller doesn't access transformControls in constructor."
+    },
+    {
+      "category": "architecture",
+      "severity": "LOW",
+      "title": "Editor workspace references 'Montaria' in UI text",
+      "description": "PlayerWorkspace.vue line 378 contains Portuguese text 'pacote Montaria' in help text. While 'Montaria' is generic (means 'mount'), it's a game-specific term in UI rather than configurable label.",
+      "file": "editor/workspaces/PlayerWorkspace.vue",
+      "line": 378,
+      "proposedFix": "Replace with generic term like 'pacote de montaria' or make it configurable via behavior package config."
+    },
+    {
+      "category": "resource-management",
+      "severity": "MEDIUM",
+      "title": "Potential event listener leaks in editor on unmount",
+      "description": "useEditor.ts onBeforeUnmount cleans up 'offs' array and keydown listener, but doesn't explicitly clean up: environmentSyncTimer (setInterval), some engine event listeners may not be in 'offs', viewport invalidate listeners added in EngineFacade.startViewport() may not be cleaned up.",
+      "file": "editor/composables/useEditor.ts",
+      "lines": [142, 852, 859],
+      "proposedFix": "Track all timers/intervals in 'offs' array, ensure EngineFacade.dispose() cleans up all viewport invalidation listeners (already has viewportInvalidationOffs array)."
+    },
+    {
+      "category": "architecture",
+      "severity": "LOW",
+      "title": "EngineCore supports multiple instances but editor assumes single",
+      "description": "EngineCore designed for multiple instances (parentContainer, parentEvents options). Editor useEditor.ts creates single Engine instance. No issues found but worth documenting.",
+      "file": "engine/core/EngineCore.ts",
+      "lines": [38, 43, 46],
+      "proposedFix": "Document single-engine assumption in editor, or add support for multiple engines if needed for multi-viewport editing."
+    },
+    {
+      "category": "test",
+      "severity": "LOW",
+      "title": "Playwright E2E tests limited scope",
+      "description": "Only 2 test files: editor-runtime-hud.spec.ts (5 tests) and screenshots.spec.ts (1 test capturing 15 screenshots). No tests for: object manipulation, behavior packages, visual scripting, model import, terrain editing, project save/load.",
+      "files": ["tests/e2e/editor-runtime-hud.spec.ts", "tests/e2e/screenshots.spec.ts"],
+      "proposedFix": "Expand E2E test coverage to critical user flows: create object → add behavior → enter runtime → verify behavior → exit runtime → save project."
+    },
+    {
+      "category": "architecture",
+      "severity": "LOW",
+      "title": "Generic gameplay systems well-separated from game-specific code",
+      "description": "Verified: No 'Veilborne' references anywhere. 'Montaria' is Portuguese for 'mount' (generic system). EngineCore, EngineFacade, EngineConfig, EventBus, DIContainer all generic. Editor has no game-specific rules. Mount system, combat, behavior trees, inventory, navigation, physics are all generic frameworks.",
+      "proposedFix": "No action needed - separation is clean."
+    }
+  ],
+  "separationViolations": [],
+  "testGaps": [
+    "No unit test framework (Vitest/Jest)",
+    "No code coverage reporting",
+    "Build broken - 66/67 self-tests cannot run",
+    "Playwright E2E: missing critical user flow tests",
+    "No integration tests for EngineCore + subsystems together",
+    "No performance regression tests",
+    "No visual regression tests (screenshots.spec.ts only captures, doesn't compare)"
+  ],
+  "proposedFixes": [
+    {
+      "priority": "P0",
+      "title": "Fix TypeScript build configuration",
+      "description": "Resolve noEmit/allowImportingTsExtensions conflict to enable full compilation to dist/",
+      "files": ["tsconfig.json", "package.json"]
+    },
+    {
+      "priority": "P0",
+      "title": "Verify all self-tests pass after build fix",
+      "description": "Run npm run test:all after fixing build, address any remaining failures"
+    },
+    {
+      "priority": "P1",
+      "title": "Add Vitest for unit testing with coverage",
+      "description": "Install vitest, @vitest/coverage-v8, configure test:unit, test:coverage scripts, migrate self-tests"
+    },
+    {
+      "priority": "P1",
+      "title": "Fix TransformControls initialization order in EngineFacade",
+      "description": "Move TransformControls creation before BuildComponentPlacementController instantiation"
+    },
+    {
+      "priority": "P2",
+      "title": "Expand Playwright E2E test coverage",
+      "description": "Add tests for: object CRUD, behavior package install/trigger, visual script editing, model import, terrain editing, project save/load roundtrip"
+    },
+    {
+      "priority": "P2",
+      "title": "Audit and fix resource disposal in editor",
+      "description": "Track all timers/intervals in cleanup, verify EngineFacade.dispose() cleans all viewport listeners"
+    },
+    {
+      "priority": "P3",
+      "title": "Replace 'Montaria' UI text with generic term",
+      "description": "Update PlayerWorkspace.vue help text to use generic mount terminology"
+    }
+  ]
+}

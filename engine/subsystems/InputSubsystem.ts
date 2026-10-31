@@ -43,6 +43,7 @@ export class InputSubsystem extends Subsystem {
   // Input devices
   private pointerController: PointerController | null = null;
   private transformControls: TransformControls | null = null;
+  private canvasElement: HTMLCanvasElement | undefined;
 
   // Control mapping
   private controlMaps = new Map<string, ControlMapBindings>();
@@ -73,7 +74,7 @@ export class InputSubsystem extends Subsystem {
 
   constructor(config: InputSubsystemConfig = { name: 'input', defaultControlScheme: 'wasd', enableTransformControls: true, enableGamepad: false, controlMaps: {} }) {
     super({
-      priority: 90, // Before render
+      priority: 70, // After render (90) and world (100) - depends on both
       dependencies: ['render', 'world'],
       autoStart: true,
       debug: config.debug ?? false,
@@ -104,7 +105,10 @@ export class InputSubsystem extends Subsystem {
       this.logWarn('No canvas provided for input subsystem');
     }
 
-    // Create pointer controller
+    // Store canvas for later use in onStart
+    this.canvasElement = canvasElement;
+
+    // Create pointer controller (doesn't need transform controls yet)
     if (this.subsystemConfig.enableTransformControls ?? subsystemConfig.enableTransformControls) {
       await this.createPointerController(inputConfig, canvasElement);
     }
@@ -134,14 +138,8 @@ export class InputSubsystem extends Subsystem {
       }
     }
 
-    // Create transform controls (editor)
-    if (this.subsystemConfig.enableTransformControls ?? subsystemConfig.enableTransformControls) {
-      await this.createTransformControls(canvasElement);
-    }
-
-    // Register in DI
+    // Register in DI (transformControls will be registered in onStart after creation)
     this.container?.registerInstance('input:pointerController', this.pointerController);
-    this.container?.registerInstance('input:transformControls', this.transformControls);
     this.container?.registerInstance('input:activeControlMap', this.activeControlMap);
 
     this.log('InputSubsystem initialized');
@@ -149,6 +147,15 @@ export class InputSubsystem extends Subsystem {
 
   protected async onStart(): Promise<void> {
     this.log('Starting InputSubsystem...');
+
+    // Create transform controls (editor) - now after all subsystems are initialized
+    // This ensures renderer and camera are available in DI
+    const subsystemConfig = this.config?.subsystems.input;
+    if (this.subsystemConfig.enableTransformControls ?? subsystemConfig?.enableTransformControls) {
+      await this.createTransformControls(this.canvasElement);
+      // Register transform controls in DI after creation
+      this.container?.registerInstance('input:transformControls', this.transformControls);
+    }
 
     // Start listening for events (only in browser environment)
     if (typeof window !== 'undefined') {
@@ -181,6 +188,9 @@ export class InputSubsystem extends Subsystem {
       this.pointerController = null;
     }
 
+    // Clear canvas reference
+    this.canvasElement = undefined;
+
     // Clear control maps
     this.controlMaps.clear();
     this.controlMapProfiles.clear();
@@ -200,19 +210,12 @@ export class InputSubsystem extends Subsystem {
     this.processMappings();
   }
 
-  protected onFixedUpdate(deltaTime: number): void {
-    // Fixed timestep input processing
-  }
-
   protected onLateUpdate(deltaTime: number, time: number): void {
     // Reset pointer delta after frame
     this.inputState.pointerDelta = { x: 0, y: 0 };
   }
 
-  protected onResizeImpl(width: number, height: number): void {
-    // Viewport handles resize internally via ResizeObserver
-  }
-
+  
   protected onRuntimeModeChangeImpl(from: string, to: string): void {
     if (to === 'play') {
       // Disable transform controls, enable game controls
@@ -231,21 +234,19 @@ export class InputSubsystem extends Subsystem {
     this.log('Creating pointer controller...');
 
     if (!canvas) {
-      this.logWarn('Canvas not available, pointer controller will be created later');
-      return;
+      throw new Error('Canvas is required for pointer controller');
     }
 
-    // Get orbit camera from render subsystem
+    // Get orbit camera from render subsystem (should be available due to dependency)
     const orbitCamera = this.container?.resolve<{ camera: THREE.Camera }>('render:activeCamera')?.camera;
     if (!(orbitCamera instanceof THREE.PerspectiveCamera)) {
-      this.logWarn('Orbit camera not available yet, will be set later');
+      throw new Error('Orbit camera not available - render subsystem not properly initialized');
     }
 
-    // Get world from world subsystem
+    // Get world from world subsystem (should be available due to dependency)
     const world = this.container?.resolve<any>('world:world');
     if (!world) {
-      this.logWarn('World not available yet, pointer controller will be created later');
-      return;
+      throw new Error('World not available - world subsystem not properly initialized');
     }
 
     // Get editor state - this will be provided by the editor
@@ -260,7 +261,7 @@ export class InputSubsystem extends Subsystem {
 
     this.pointerController = new PointerController(
       canvas,
-      orbitCamera as any, // OrbitCamera has .camera property
+      orbitCamera as any,
       world,
       editorState,
       isGizmoDragging,
@@ -279,9 +280,39 @@ export class InputSubsystem extends Subsystem {
   setPointerControllerCanvas(canvas: HTMLCanvasElement): void {
     if (this.pointerController) {
       this.pointerController.dispose();
+      this.pointerController = null;
     }
-    // Recreate with new canvas - would need orbit camera and world
-    // This is a placeholder for dynamic canvas changes
+
+    // Get required dependencies
+    const orbitCamera = this.container?.resolve<{ camera: THREE.Camera }>('render:activeCamera')?.camera;
+    const world = this.container?.resolve<any>('world:world');
+
+    if (!orbitCamera || !(orbitCamera instanceof THREE.PerspectiveCamera)) {
+      throw new Error('Cannot create PointerController: orbit camera not available');
+    }
+    if (!world) {
+      throw new Error('Cannot create PointerController: world not available');
+    }
+
+    // Get editor state
+    const editorState: EditorState = {
+      tool: 'select' as ToolMode,
+      transform: 'translate' as TransformMode,
+      buildShape: 'cube' as any,
+      brush: { radius: 5, strength: 0.5 },
+    };
+
+    const isGizmoDragging = () => this.transformControls?.dragging ?? false;
+
+    this.pointerController = new PointerController(
+      canvas,
+      orbitCamera as any,
+      world,
+      editorState,
+      isGizmoDragging,
+      undefined,
+      undefined,
+    );
   }
 
   // === Control Maps ===
@@ -388,15 +419,13 @@ export class InputSubsystem extends Subsystem {
     this.log('Creating transform controls...');
 
     if (!canvas) {
-      this.logWarn('Canvas not available, transform controls will be created later');
-      return;
+      throw new Error('Canvas is required for transform controls');
     }
 
-    // Get active camera
+    // Get active camera (should be available due to render dependency)
     const activeCamera = this.container?.resolve<{ camera: THREE.Camera }>('render:activeCamera');
     if (!activeCamera?.camera) {
-      this.logWarn('Active camera not available, transform controls will be created later');
-      return;
+      throw new Error('Active camera not available - render subsystem not properly initialized');
     }
 
     this.transformControls = new TransformControls(activeCamera.camera, canvas);
@@ -566,7 +595,22 @@ export class InputSubsystem extends Subsystem {
   // === Vibration ===
 
   vibrate(pattern: number | number[]): void {
-    // TODO: Implement gamepad vibration when gamepad support is added
+    // Gamepad vibration - requires Gamepad API support
+    if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+      const gamepads = navigator.getGamepads();
+      for (const gamepad of gamepads) {
+        if (gamepad && gamepad.vibrationActuator) {
+          const patternArray = Array.isArray(pattern) ? pattern : [pattern];
+          gamepad.vibrationActuator.playEffect('dual-rumble', {
+            duration: patternArray.length * 100,
+            strongMagnitude: 0.5,
+            weakMagnitude: 0.5,
+          }).catch(() => {
+            // Vibration not supported or failed
+          });
+        }
+      }
+    }
   }
 
   private updateInputState(deltaTime: number): void {

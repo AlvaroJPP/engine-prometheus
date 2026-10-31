@@ -4,6 +4,10 @@
   "description": "Prometheus Engine - Modular Game Engine",
   "type": "module",
   "main": "engine/core/index.ts",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": ["ep-work"],
   "scripts": {
     "build": "tsc --noEmit",
     "test": "node scripts/engine-core-self-test.mjs",
@@ -74,10 +78,8 @@
     "test:trigger-volume-system": "node scripts/trigger-volume-system-self-test.mjs",
     "test:ui-workspace": "node scripts/ui-workspace-self-test.mjs",
     "test:world-transform-safety": "node scripts/world-transform-safety-self-test.mjs",
-    "test:events": "node scripts/event-bus-self-test.mjs 2>/dev/null || echo 'event-bus-self-test not found'",
-    "test:game-modules": "node scripts/game-module-registry-self-test.mjs 2>/dev/null || echo 'game-module-registry-self-test not found'",
-    "test:physics": "node scripts/physics-world-self-test.mjs 2>/dev/null || echo 'physics-world-self-test not found'",
-    "test:all": "npm run test && npm run test:animation-role-options && npm run test:autonomous-behavior && npm run test:behavior-package-registration && npm run test:behavior-package-scripts && npm run test:behavior-tree && npm run test:behavior-tree-handler-registry && npm run test:behavior-tree-package && npm run test:combat-action-scheduler && npm run test:combat-model && npm run test:combat-package-runtime && npm run test:combat-primitives && npm run test:cooldown-scheduler && npm run test:core && npm run test:engine-behavior-tree-runtime && npm run test:engine-core && npm run test:entity-batch-processor && npm run test:entity-behavior-game-module && npm run test:entity-behavior-runtime && npm run test:entity-command-buffer && npm run test:entity-component-runtime && npm run test:entity-query-runtime && npm run test:entity-system-runtime && npm run test:event-bus && npm run test:finite-state-machine && npm run test:game-module-registry && npm run test:gameplay-behavior-extensions && npm run test:gameplay-runtime && npm run test:gameplay-world-systems && npm run test:grid-pathfinder && npm run test:import-behavior-package-config && npm run test:import-behavior-package-drafts && npm run test:import-model-states && npm run test:interaction-runtime && npm run test:interaction-target-selector && npm run test:inventory-runtime && npm run test:model-collider-preview && npm run test:model-collider-sizing && npm run test:model-color-texture-repair && npm run test:model-import-normalization && npm run test:model-import-resource-cleanup && npm run test:model-owned-object-urls && npm run test:model-preview-animation-runtime && npm run test:model-preview-selection && npm run test:model-renderable-meshes && npm run test:model-spatial-measurements && npm run test:mount-integration && npm run test:mount-system && npm run test:navmesh && npm run test:objective-tracker && npm run test:physics-debug && npm run test:physics-world && npm run test:projectile-visual-runtime && npm run test:rapier-character-controller && npm run test:rapier-collision-system && npm run test:resource-pool && npm run test:resource-pool-registry && npm run test:retarget-rest-pose && npm run test:rigging && npm run test:rig-keyframe-timeline && npm run test:runtime-phase-pipeline && npm run test:spatial-hash-3d && npm run test:status-effect-runtime && npm run test:tag-registry && npm run test:transient-script-object-cleanup && npm run test:trigger-volume-system && npm run test:ui-workspace && npm run test:world-transform-safety"
+    "test:all": "npm run test && npm run test:animation-role-options && npm run test:autonomous-behavior && npm run test:behavior-package-registration && npm run test:behavior-package-scripts && npm run test:behavior-tree && npm run test:behavior-tree-handler-registry && npm run test:behavior-tree-package && npm run test:combat-action-scheduler && npm run test:combat-model && npm run test:combat-package-runtime && npm run test:combat-primitives && npm run test:cooldown-scheduler && npm run test:core && npm run test:engine-behavior-tree-runtime && npm run test:engine-core && npm run test:entity-batch-processor && npm run test:entity-behavior-game-module && npm run test:entity-behavior-runtime && npm run test:entity-command-buffer && npm run test:entity-component-runtime && npm run test:entity-query-runtime && npm run test:entity-system-runtime && npm run test:event-bus && npm run test:finite-state-machine && npm run test:game-module-registry && npm run test:gameplay-behavior-extensions && npm run test:gameplay-runtime && npm run test:gameplay-world-systems && npm run test:grid-pathfinder && npm run test:import-behavior-package-config && npm run test:import-behavior-package-drafts && npm run test:import-model-states && npm run test:interaction-runtime && npm run test:interaction-target-selector && npm run test:inventory-runtime && npm run test:model-collider-preview && npm run test:model-collider-sizing && npm run test:model-color-texture-repair && npm run test:model-import-normalization && npm run test:model-import-resource-cleanup && npm run test:model-owned-object-urls && npm run test:model-preview-animation-runtime && npm run test:model-preview-selection && npm run test:model-renderable-meshes && npm run test:model-spatial-measurements && npm run test:mount-integration && npm run test:mount-system && npm run test:navmesh && npm run test:objective-tracker && npm run test:physics-debug && npm run test:physics-world && npm run test:projectile-visual-runtime && npm run test:rapier-character-controller && npm run test:rapier-collision-system && npm run test:resource-pool && npm run test:resource-pool-registry && npm run test:retarget-rest-pose && npm run test:rigging && npm run test:rig-keyframe-timeline && npm run test:runtime-phase-pipeline && npm run test:spatial-hash-3d && npm run test:status-effect-runtime && npm run test:tag-registry && npm run test:transient-script-object-cleanup && npm run test:trigger-volume-system && npm run test:ui-workspace && npm run test:world-transform-safety",
+    "test:run": "node scripts/run-all-tests.mjs"
   },
   "keywords": [
     "engine",
@@ -89,9 +91,9 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^20.10.0",
+    "@types/node": "^22.x",
     "@vue/tsconfig": "^0.9.1",
-    "typescript": "^5.3.0",
+    "typescript": "^5.6.0",
     "vite": "^8.3.5"
   },
   "dependencies": {

@@ -789,7 +789,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (engine && !applyingProjectSettings) dirty.value = true
   }, { flush: 'sync' })
 
-  onMounted(() => {
+  onMounted(async () => {
     if (!canvas.value) return
     loadPerformanceSettings()
     let e: Engine
@@ -804,6 +804,28 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine = e
     engineInstance.value = e
     e.setControlBindings(playerControlBindings)
+
+    // Initialize EngineCore subsystems and start render loop
+    // Pass editor config: explicit runtime mode and debug settings
+    const engineConfig = {
+      runtimeMode: 'editor' as const,
+      debug: {
+        logging: true,
+        logLevel: 'info' as const,
+        showPerformance: false,
+        gpuTimers: false,
+        validateContracts: false,
+      },
+    }
+    try {
+      await e.init(engineConfig)
+      await e.start()
+    } catch (error) {
+      const message = errMsg(error)
+      console.error('[Editor] Falha ao iniciar o motor (init/start).', error)
+      status.value = `Falha ao iniciar o motor: ${message}`
+      return
+    }
     // Auto começa em qualidade e só reduz depois de medir uma carga contínua real.
     appliedPerformancePreset = performanceMode.value === 'auto' ? 'quality' : performanceMode.value
     e.setPerformancePreset(appliedPerformancePreset)

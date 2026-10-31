@@ -1,4 +1,20 @@
 import { defineConfig, devices } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, URL } from 'node:url'
+
+// Read dev port from tauri.conf.json to keep Vite, Tauri, and Playwright in sync
+function devUrl(): string {
+  try {
+    const conf = JSON.parse(
+      readFileSync(new URL('./src-tauri/tauri.conf.json', import.meta.url), 'utf-8'),
+    )
+    return conf?.build?.devUrl ?? 'http://localhost:5173'
+  } catch {
+    return 'http://localhost:5173'
+  }
+}
+
+const baseURL = devUrl()
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -8,7 +24,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -19,8 +35,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: 'cd ep-work && npm run dev',
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

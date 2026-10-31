@@ -266,16 +266,43 @@ export abstract class Subsystem {
   }
 
   // Protected lifecycle hooks (override in subclasses)
+  // Default implementations are no-ops to reduce boilerplate
 
-  protected abstract onInitialize(context: SubsystemContext): Promise<void>;
-  protected abstract onStart(): Promise<void>;
-  protected abstract onStop(): Promise<void>;
-  protected abstract onDispose(): Promise<void>;
-  protected abstract onUpdate(deltaTime: number, time: number): void;
-  protected abstract onFixedUpdate(deltaTime: number): void;
-  protected abstract onLateUpdate(deltaTime: number, time: number): void;
-  protected abstract onResizeImpl(width: number, height: number): void;
-  protected abstract onRuntimeModeChangeImpl(from: string, to: string): void;
+  protected async onInitialize(context: SubsystemContext): Promise<void> {
+    // Override to implement initialization logic
+  }
+
+  protected async onStart(): Promise<void> {
+    // Override to implement start logic
+  }
+
+  protected async onStop(): Promise<void> {
+    // Override to implement stop logic
+  }
+
+  protected async onDispose(): Promise<void> {
+    // Override to implement disposal logic
+  }
+
+  protected onUpdate(deltaTime: number, time: number): void {
+    // Override to implement per-frame update logic
+  }
+
+  protected onFixedUpdate(deltaTime: number): void {
+    // Override to implement fixed timestep update logic
+  }
+
+  protected onLateUpdate(deltaTime: number, time: number): void {
+    // Override to implement late update logic
+  }
+
+  protected onResizeImpl(width: number, height: number): void {
+    // Override to implement resize handling
+  }
+
+  protected onRuntimeModeChangeImpl(from: string, to: string): void {
+    // Override to implement runtime mode change handling
+  }
 
   // Helper methods
 

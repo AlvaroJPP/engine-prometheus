@@ -8,6 +8,7 @@
 import { Subsystem, SubsystemConfig, SubsystemContext } from '../core/Subsystem.js';
 import { EngineConfig, RenderingConfig, RenderSubsystemConfig } from '../core/EngineConfig.js';
 import { EngineEventMap, EngineEvents } from '../core/EngineEventBus.js';
+import { Camera, RenderStats } from '../core/EngineEvents.js';
 import { DIContainer } from '../core/DIContainer.js';
 
 import { Viewport, PerformancePreset, ViewportRenderStats } from '../view/Viewport.js';
@@ -15,13 +16,6 @@ import { OrbitCamera } from '../view/OrbitCamera.js';
 import { CameraPreset, CameraData } from '../project/format.js';
 import { ViewportDiagnostics } from '../view/ViewportDiagnostics.js';
 import * as THREE from 'three';
-
-/** Camera interface */
-export interface Camera {
-  camera: THREE.Camera;
-  update(): void;
-  resize(aspect: number): void;
-}
 
 /** Extended camera types */
 export interface OrbitCameraExtended extends Camera {
@@ -39,19 +33,6 @@ export interface OrbitCameraExtended extends Camera {
   pan(dx: number, dy: number): void;
   getState(): CameraData;
   restore(d: CameraData): void;
-}
-
-export interface RenderStats {
-  fps: number;
-  frameTime: number;
-  drawCalls: number;
-  triangles: number;
-  geometries: number;
-  textures: number;
-  memory: {
-    geometries: number;
-    textures: number;
-  };
 }
 
 export class RenderSubsystem extends Subsystem {

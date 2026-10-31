@@ -62,26 +62,35 @@ export class Viewport {
   private wasContinuouslyRendering = false
   private updateTimeAccumulated = 0
   private updateTimeSamples = 0
+  /** Whether the renderer is owned externally (by RenderSubsystem) and should not be disposed. */
+  private readonly externalRenderer: boolean
   private readonly invalidateFromInput = () => this.invalidate()
   private readonly handleWindowResize = () => this.resize()
 
-  constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void) {
+  constructor(canvas: HTMLCanvasElement, onResize: (aspect: number) => void, renderer?: THREE.WebGLRenderer) {
     this.canvas = canvas
     this.onResize = onResize
     this.diagnostics = new ViewportDiagnostics(canvas, () => this.invalidate())
-    try {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
+    this.externalRenderer = !!renderer
+
+    if (renderer) {
+      this.renderer = renderer
       this.diagnostics.markWebglReady()
-    } catch (error) {
-      this.diagnostics.markWebglInitializationError(error)
-      this.diagnostics.dispose()
-      throw error
+    } else {
+      try {
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
+        this.diagnostics.markWebglReady()
+        // Alinhe a saída do viewport com o espaço de cor sRGB esperado por glTF.
+        // Sem isso, materiais/texturas podem parecer diferentes da prévia de importação.
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace
+        this.renderer.toneMapping = THREE.NoToneMapping
+        this.renderer.toneMappingExposure = 1
+      } catch (error) {
+        this.diagnostics.markWebglInitializationError(error)
+        this.diagnostics.dispose()
+        throw error
+      }
     }
-    // Alinhe a saída do viewport com o espaço de cor sRGB esperado por glTF.
-    // Sem isso, materiais/texturas podem parecer diferentes da prévia de importação.
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.NoToneMapping
-    this.renderer.toneMappingExposure = 1
     this.applyPixelRatio()
     this.observer = new ResizeObserver(() => this.resize())
     this.observer.observe(canvas)
@@ -401,6 +410,8 @@ export class Viewport {
     this.fpsListener = null
     this.renderStatsListener = null
     this.diagnostics.dispose()
-    this.renderer.dispose()
+    if (!this.externalRenderer) {
+      this.renderer.dispose()
+    }
   }
 }
