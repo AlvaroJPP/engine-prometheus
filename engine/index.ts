@@ -26,9 +26,6 @@ export type { UIScreenDefinition, UIElementDefinition, UIElementKind, UIElementA
 export { TERRAIN_ID } from './world/map/TerrainMesh'
 export { LineOfSightSystem } from './world/LineOfSightSystem'
 export type { LineOfSightOptions, LineOfSightResult } from './world/LineOfSightSystem'
-export { WeaponHitboxSystem } from './runtime/WeaponHitboxSystem'
-export type { WeaponHitboxConfig, WeaponHitboxHit, WeaponHitboxResult } from './runtime/WeaponHitboxSystem'
-export { WEAPON_HITBOX_PRESETS } from './runtime/WeaponHitboxSystem'
 export type { ProjectBundle, ProjectFile, SceneFile, SceneObjectData, ObjectType, CameraPreset, TextureFace, FaceTextureData, FaceTextureMap } from './project/format'
 export type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 export { getEntity, isEntityRoot, markEntity } from './model/entity/Entity'
@@ -82,36 +79,8 @@ export type { InteractionPoint3, InteractionTarget, InteractionSelection, Intera
 
 export { ResourcePoolRegistry } from './runtime/ResourcePoolRegistry'
 export type { ResourcePoolDefinition, RegisteredResourceChange } from './runtime/ResourcePoolRegistry'
-export { GameplayWorldSystems } from './world/GameplayWorldSystems'
-export type { GameplayQueryOptions } from './world/GameplayWorldSystems'
-export { InteractionRuntime } from './script/InteractionRuntime'
-export type { InteractionResourceCost, InteractionAttemptOptions, InteractionAttemptResult } from './script/InteractionRuntime'
+
 export { BehaviorTreeHandlerRegistry } from './script/BehaviorTreeHandlerRegistry'
-
-export { StatusEffectRuntime } from './runtime/StatusEffectRuntime'
-export type { StatusStackPolicy, StatusEffectScalar, StatusEffectOptions, ActiveStatusEffect, StatusEffectEvent } from './runtime/StatusEffectRuntime'
-export { ObjectiveTracker } from './script/ObjectiveTracker'
-export type { ObjectiveState, ObjectiveDefinition, ObjectiveSnapshot, ObjectiveEvent } from './script/ObjectiveTracker'
-export { registerGameplayBehaviorNodes } from './script/GameplayBehaviorExtensions'
-export type { GameplayBehaviorServices } from './script/GameplayBehaviorExtensions'
-
-export { GameplayRuntime } from './runtime/GameplayRuntime'
-export type { GameplayRuntimeOptions, GameplayRuntimeUpdate, GameplayEntityCleanup, GameplayRuntimeAccessors } from './runtime/GameplayRuntime'
-
-export { EntityComponentRuntime } from './runtime/EntityComponentRuntime'
-export type { EntityComponentKey, EntitySnapshot, EntityComponentDefinition, EntityComponentEvent } from './runtime/EntityComponentRuntime'
-export { EntityBehaviorRuntime } from './runtime/EntityBehaviorRuntime'
-export type { EntityBehavior, EntityBehaviorSnapshot } from './runtime/EntityBehaviorRuntime'
-export { createEntityBehaviorGameModule } from './runtime/EntityBehaviorGameModule'
-export { EntitySystemRuntime } from './runtime/EntitySystemRuntime'
-export type { EntitySystemDefinition, EntitySystemSnapshot } from './runtime/EntitySystemRuntime'
-export { EntityQueryRuntime } from './runtime/EntityQueryRuntime'
-export type { EntityQueryFilter, EntityQueryEvent, EntityQuerySnapshot, EntityQueryHandle } from './runtime/EntityQueryRuntime'
-
-export { EntityBatchProcessor } from './runtime/EntityBatchProcessor'
-export type { EntityBatchOptions, EntityBatchFailure, EntityBatchReport, EntityBatchItem, EntityBatchView } from './runtime/EntityBatchProcessor'
-
-export { EntityCommandBuffer } from './runtime/EntityCommandBuffer'
 
 // Animation system
 export {
@@ -168,9 +137,6 @@ export {
   createGenericIKTargets,
 } from './animation'
 export type { EntityCommandKind, EntityCommandFailure, EntityCommandBufferReport, EntityCommandBufferOptions } from './runtime/EntityCommandBuffer'
-
-export { RuntimePhasePipeline } from './runtime/RuntimePhasePipeline'
-export type { RuntimePhaseDefinition, RuntimeTaskDefinition, RuntimePhaseSnapshot, RuntimeTaskSnapshot, RuntimeTaskFailure, RuntimePhaseResult, RuntimePipelineReport } from './runtime/RuntimePhasePipeline'
 
 // Physics system (Rapier-based)
 export {

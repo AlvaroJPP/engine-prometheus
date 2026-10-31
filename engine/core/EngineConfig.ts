@@ -117,6 +117,7 @@ export interface SubsystemConfigs {
   world: WorldSubsystemConfig;
   render: RenderSubsystemConfig;
   input: InputSubsystemConfig;
+  mount: MountSubsystemConfig;
 }
 
 /** Base config for all subsystems */
@@ -186,6 +187,17 @@ export interface InputSubsystemConfig extends BaseSubsystemConfig {
 
   /** Control map configurations */
   controlMaps: Record<string, ControlMapConfig>;
+}
+
+export interface MountSubsystemConfig extends BaseSubsystemConfig {
+  /** Enable mount system */
+  enabled: boolean;
+
+  /** Auto-create mount controller on init */
+  autoCreateController: boolean;
+
+  /** Default mount control bindings */
+  defaultControlBindings?: Record<string, string>;
 }
 
 export interface ControlMapConfig {
@@ -283,6 +295,21 @@ export function createDefaultConfig(overrides: Partial<EngineConfig> = {}): Engi
         enableGamepad: false,
         controlMaps: {},
       },
+      mount: {
+        name: 'mount',
+        enabled: true,
+        autoCreateController: true,
+        defaultControlBindings: {
+          mount: 'KeyF',
+          dismount: 'KeyF',
+          jump: 'Space',
+          sprint: 'ShiftLeft',
+          moveForward: 'KeyW',
+          moveBackward: 'KeyS',
+          moveLeft: 'KeyA',
+          moveRight: 'KeyD',
+        },
+      },
     },
     debug: {
       logging: true,
@@ -315,4 +342,123 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
 
 function isPlainObject(value: any): value is Record<string, any> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && value.constructor === Object;
+}
+
+/**
+ * Validates an EngineConfig object, throwing on invalid values.
+ * @param config - The config to validate
+ * @throws {Error} If config is invalid
+ */
+export function validateConfig(config: EngineConfig): void {
+  // Validate name
+  if (!config.name || typeof config.name !== 'string') {
+    throw new Error('EngineConfig.name must be a non-empty string');
+  }
+
+  // Validate version
+  if (!config.version || typeof config.version !== 'string') {
+    throw new Error('EngineConfig.version must be a non-empty string');
+  }
+
+  // Validate runtimeMode
+  if (!['editor', 'play', 'headless'].includes(config.runtimeMode)) {
+    throw new Error(`EngineConfig.runtimeMode must be 'editor', 'play', or 'headless', got: ${config.runtimeMode}`);
+  }
+
+  // Validate rendering
+  if (!config.rendering || typeof config.rendering !== 'object') {
+    throw new Error('EngineConfig.rendering must be an object');
+  }
+  if (typeof config.rendering.width !== 'number' || config.rendering.width <= 0) {
+    throw new Error('EngineConfig.rendering.width must be a positive number');
+  }
+  if (typeof config.rendering.height !== 'number' || config.rendering.height <= 0) {
+    throw new Error('EngineConfig.rendering.height must be a positive number');
+  }
+  if (typeof config.rendering.pixelRatio !== 'number' || config.rendering.pixelRatio <= 0) {
+    throw new Error('EngineConfig.rendering.pixelRatio must be a positive number');
+  }
+  if (!['webgl2', 'webgpu', 'auto'].includes(config.rendering.renderer)) {
+    throw new Error(`EngineConfig.rendering.renderer must be 'webgl2', 'webgpu', or 'auto', got: ${config.rendering.renderer}`);
+  }
+  if (!['none', 'aces', 'reinhard', 'cineon'].includes(config.rendering.toneMapping)) {
+    throw new Error(`EngineConfig.rendering.toneMapping must be 'none', 'aces', 'reinhard', or 'cineon', got: ${config.rendering.toneMapping}`);
+  }
+  if (!['srgb', 'linear'].includes(config.rendering.colorSpace)) {
+    throw new Error(`EngineConfig.rendering.colorSpace must be 'srgb' or 'linear', got: ${config.rendering.colorSpace}`);
+  }
+
+  // Validate input
+  if (!config.input || typeof config.input !== 'object') {
+    throw new Error('EngineConfig.input must be an object');
+  }
+  if (typeof config.input.pointerSensitivity !== 'number' || config.input.pointerSensitivity < 0) {
+    throw new Error('EngineConfig.input.pointerSensitivity must be a non-negative number');
+  }
+  if (typeof config.input.doubleClickThreshold !== 'number' || config.input.doubleClickThreshold < 0) {
+    throw new Error('EngineConfig.input.doubleClickThreshold must be a non-negative number');
+  }
+
+  // Validate world
+  if (!config.world || typeof config.world !== 'object') {
+    throw new Error('EngineConfig.world must be an object');
+  }
+  if (!config.world.gravity || typeof config.world.gravity !== 'object') {
+    throw new Error('EngineConfig.world.gravity must be an object with x, y, z');
+  }
+  if (typeof config.world.gravity.x !== 'number' || typeof config.world.gravity.y !== 'number' || typeof config.world.gravity.z !== 'number') {
+    throw new Error('EngineConfig.world.gravity.x, y, z must be numbers');
+  }
+  if (typeof config.world.fixedTimestep !== 'number' || config.world.fixedTimestep <= 0) {
+    throw new Error('EngineConfig.world.fixedTimestep must be a positive number');
+  }
+  if (typeof config.world.maxSubSteps !== 'number' || config.world.maxSubSteps < 1) {
+    throw new Error('EngineConfig.world.maxSubSteps must be a number >= 1');
+  }
+  if (!['sap', 'grid', 'dynamic'].includes(config.world.broadphase)) {
+    throw new Error(`EngineConfig.world.broadphase must be 'sap', 'grid', or 'dynamic', got: ${config.world.broadphase}`);
+  }
+
+  // Validate subsystems
+  if (!config.subsystems || typeof config.subsystems !== 'object') {
+    throw new Error('EngineConfig.subsystems must be an object');
+  }
+  if (!config.subsystems.world || !config.subsystems.render || !config.subsystems.input || !config.subsystems.mount) {
+    throw new Error('EngineConfig.subsystems must have world, render, input, and mount configs');
+  }
+  if (typeof config.subsystems.mount.enabled !== 'boolean') {
+    throw new Error('EngineConfig.subsystems.mount.enabled must be a boolean');
+  }
+  if (typeof config.subsystems.mount.autoCreateController !== 'boolean') {
+    throw new Error('EngineConfig.subsystems.mount.autoCreateController must be a boolean');
+  }
+
+  // Validate debug
+  if (!config.debug || typeof config.debug !== 'object') {
+    throw new Error('EngineConfig.debug must be an object');
+  }
+  if (!['trace', 'debug', 'info', 'warn', 'error'].includes(config.debug.logLevel)) {
+    throw new Error(`EngineConfig.debug.logLevel must be 'trace', 'debug', 'info', 'warn', or 'error', got: ${config.debug.logLevel}`);
+  }
+}
+
+/**
+ * Deep merges a partial config into a full config, returning a new config.
+ * Uses isPlainObject to properly handle nested objects.
+ */
+export function deepMergeConfig(target: EngineConfig, source: Partial<EngineConfig>): EngineConfig {
+  const result = { ...target } as unknown as Record<string, unknown>;
+
+  for (const key of Object.keys(source) as Array<keyof EngineConfig>) {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (sourceValue !== undefined && isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+      result[key] = deepMergeConfig(targetValue as unknown as EngineConfig, sourceValue as Partial<EngineConfig>);
+    } else if (sourceValue !== undefined) {
+      result[key] = sourceValue;
+    }
+  }
+
+  return result as unknown as EngineConfig;
 }

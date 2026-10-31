@@ -87,7 +87,7 @@ export class EngineFacade {
   // --- Runtime controllers ---
   private modelOcclusion!: ModelOcclusionSystem;
   private modelLod!: ModelLodSystem;
-  private visualSettings!: EngineVisualSettingsController;
+  private visualSettings: EngineVisualSettingsController | null = null;
   private behaviorTreeRuntime = new EngineBehaviorTreeRuntime();
   private autonomousBehaviorCoordinator!: AutonomousBehaviorCoordinator;
   private buildComponentPlacement!: BuildComponentPlacementController;
@@ -95,7 +95,7 @@ export class EngineFacade {
   private transformControls!: TransformControls;
 
   // --- Render components ---
-  private viewportInstance!: Viewport;
+  private viewportInstance: Viewport | null = null;
   private orbitInstance!: OrbitCamera;
   private inputInstance!: PointerController;
 
@@ -120,7 +120,7 @@ export class EngineFacade {
   private readonly viewportInvalidationOffs: Array<() => void> = [];
 
   // --- Public getters for render components (backward compatibility) ---
-  public get viewport(): Viewport { return this.viewportInstance; }
+  public get viewport(): Viewport | null { return this.viewportInstance; }
   public get orbit(): OrbitCamera { return this.orbitInstance; }
   public get input(): PointerController { return this.inputInstance; }
   public get terrain(): TerrainMesh { return this.world.terrain; }
@@ -143,7 +143,7 @@ export class EngineFacade {
 
     // Register subsystems (lightweight - they'll use DI container for components)
     this.core.registerSubsystem(new WorldSubsystem());
-    this.core.registerSubsystem(new RenderSubsystem());
+    this.core.registerSubsystem(new RenderSubsystem({ name: 'render', autoCreateViewport: false, defaultCamera: 'orbit', postProcessing: false, frustumCulling: true, layers: ['Default', 'UI', 'Debug', 'PostProcess'] }));
     this.core.registerSubsystem(new InputSubsystem());
 
     // ============================================================
@@ -157,14 +157,15 @@ export class EngineFacade {
 
     // Create render components
     this.orbitInstance = new OrbitCamera();
-    this.viewportInstance = new Viewport(canvas, (aspect) => this.orbitInstance.resize(aspect));
+    // Viewport will be created in init() after RenderSubsystem initializes its renderer
+    this.viewportInstance = null as any;
 
     // Runtime controllers
     this.modelOcclusion = new ModelOcclusionSystem();
-    this.modelLod = new ModelLodSystem(() => {
-      this.viewportInstance.invalidate();
-    });
-    this.visualSettings = new EngineVisualSettingsController(this.viewportInstance, this.world, this.modelLod);
+    // modelLod callback will be set after viewport is created in init()
+    this.modelLod = new ModelLodSystem(() => {});
+    // visualSettings will be created in init() after viewport is created
+    this.visualSettings = null as any;
 
     // Avatar
     this.avatarInstance = new HumanoidAvatar(this.world, this.orbitInstance.target, () => this.orbitInstance.yaw);
@@ -181,6 +182,14 @@ export class EngineFacade {
     this.avatarInstance.mesh.visible = false;
     this.avatarInstance.setEnabled(false);
 
+    // Transform controls (must be created before BuildComponentPlacementController)
+    this.transformControls = new TransformControls(this.orbitInstance.camera, canvas);
+    this.world.scene.add(this.transformControls.getHelper());
+    this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform);
+    this.transformControls.setSpace('world');
+    this.transformControls.addEventListener('objectChange', () => this.onTransformControlChange());
+    this.transformControls.addEventListener('dragging-changed', (event: { value: unknown }) => this.onTransformControlDrag(event));
+
     // Build component placement
     this.buildComponentPlacement = new BuildComponentPlacementController({
       world: this.world,
@@ -191,14 +200,6 @@ export class EngineFacade {
       updateBehaviorPackage: (id, patch) => this.updateBehaviorPackage(id, patch),
       emitTool: () => this.emitTool(),
     });
-
-    // Transform controls
-    this.transformControls = new TransformControls(this.orbitInstance.camera, canvas);
-    this.world.scene.add(this.transformControls.getHelper());
-    this.transformControls.setMode(this.state.transform === 'move' ? 'translate' : this.state.transform);
-    this.transformControls.setSpace('world');
-    this.transformControls.addEventListener('objectChange', () => this.onTransformControlChange());
-    this.transformControls.addEventListener('dragging-changed', (event: { value: unknown }) => this.onTransformControlDrag(event));
 
     // Input controller
     this.inputInstance = new PointerController(
@@ -216,7 +217,6 @@ export class EngineFacade {
     // Register core components in DI container for subsystems to use
     this.core.container.registerInstance('world:world', this.world);
     this.core.container.registerInstance('world:collisionSystem', this.collisions);
-    this.core.container.registerInstance('render:viewport', this.viewportInstance);
     this.core.container.registerInstance('render:orbitCamera', this.orbitInstance);
     this.core.container.registerInstance('input:pointerController', this.inputInstance);
     this.core.container.registerInstance('engine:logic', this.logic);
@@ -225,7 +225,6 @@ export class EngineFacade {
     this.core.registerEngineServices({
       'engine:modelOcclusion': this.modelOcclusion,
       'engine:modelLod': this.modelLod,
-      'engine:visualSettings': this.visualSettings,
       'engine:autonomousBehaviorCoordinator': this.autonomousBehaviorCoordinator,
       'engine:behaviorTreeRuntime': this.behaviorTreeRuntime,
       'engine:buildComponentPlacement': this.buildComponentPlacement,
@@ -235,43 +234,41 @@ export class EngineFacade {
     // Create MountModelStateController via DI (after services registered)
     this.mountModelStateController = MountModelStateController.createFromContainer(this.core.container);
 
-    // Setup event listeners
-    this.setupEventListeners();
-
-    // Start viewport with runtime frame handler
-    this.startViewport();
+    // NOTE: Viewport, visualSettings, event listeners, and viewport start are initialized in init()
+    // after RenderSubsystem creates the shared renderer
   }
 
   private setupEventListeners(): void {
     // Use world events (legacy event bus) for backward compatibility
     const worldEvents = this.events; // returns this.world.events
+    const viewport = this.viewport!; // Initialized in init() before this is called
 
     // Viewport invalidation events (from world events)
     this.viewportInvalidationOffs.push(
-      worldEvents.on('renderInvalidated', () => this.viewport.invalidate()),
-      worldEvents.on('objectAdded', () => this.viewport.invalidate()),
-      worldEvents.on('objectRemoved', () => this.viewport.invalidate()),
-      worldEvents.on('objectRenamed', () => this.viewport.invalidate()),
-      worldEvents.on('objectChanged', () => this.viewport.invalidate()),
+      worldEvents.on('renderInvalidated', () => viewport.invalidate()),
+      worldEvents.on('objectAdded', () => viewport.invalidate()),
+      worldEvents.on('objectRemoved', () => viewport.invalidate()),
+      worldEvents.on('objectRenamed', () => viewport.invalidate()),
+      worldEvents.on('objectChanged', () => viewport.invalidate()),
       worldEvents.on('objectAdded', () => this.modelOcclusion.invalidate()),
       worldEvents.on('objectRemoved', () => this.modelOcclusion.invalidate()),
       worldEvents.on('objectChanged', () => this.modelOcclusion.invalidate()),
       worldEvents.on('worldReset', () => {
         this.modelOcclusion.invalidate();
         this.modelLod.clear();
-        this.viewport.invalidate();
+        viewport.invalidate();
       }),
       worldEvents.on('objectRemoved', ({ id }) => this.modelLod.remove(id as string)),
       worldEvents.on('objectChanged', () => this.modelLod.invalidate()),
-      worldEvents.on('behaviorPackageChanged', () => this.viewport.invalidate()),
-      worldEvents.on('objectClicked', () => this.viewport.invalidate()),
-      worldEvents.on('collisionStarted', () => this.viewport.invalidate()),
-      worldEvents.on('collisionEnded', () => this.viewport.invalidate()),
-      worldEvents.on('selectionChanged', () => this.viewport.invalidate()),
-      worldEvents.on('terrainChanged', () => this.viewport.invalidate()),
-      worldEvents.on('worldReset', () => this.viewport.invalidate()),
-      worldEvents.on('toolChanged', () => this.viewport.invalidate()),
-      worldEvents.on('cameraChanged', () => this.viewport.invalidate()),
+      worldEvents.on('behaviorPackageChanged', () => viewport.invalidate()),
+      worldEvents.on('objectClicked', () => viewport.invalidate()),
+      worldEvents.on('collisionStarted', () => viewport.invalidate()),
+      worldEvents.on('collisionEnded', () => viewport.invalidate()),
+      worldEvents.on('selectionChanged', () => viewport.invalidate()),
+      worldEvents.on('terrainChanged', () => viewport.invalidate()),
+      worldEvents.on('worldReset', () => viewport.invalidate()),
+      worldEvents.on('toolChanged', () => viewport.invalidate()),
+      worldEvents.on('cameraChanged', () => viewport.invalidate()),
     );
 
     // Window events for runtime
@@ -301,6 +298,7 @@ export class EngineFacade {
   }
 
   private startViewport(): void {
+    const viewport = this.viewport!; // Initialized in init() before this is called
     const moduleContext: GameModuleContext = {
       world: this.world,
       logic: this.logic,
@@ -309,11 +307,11 @@ export class EngineFacade {
       getControlBindings: () => ({ ...this.playerControlBindings }),
       setCameraTarget: (x, y, z) => this.orbit.target.set(x, y, z),
       isRuntimeActive: () => this.runtimeModeActive,
-      invalidate: () => this.viewport.invalidate(),
+      invalidate: () => viewport.invalidate(),
     };
     this.gameModules.attach(moduleContext);
 
-    this.viewport.start(createRuntimeFrameUpdateHandler({
+    viewport.start(createRuntimeFrameUpdateHandler({
       input: this.input,
       world: this.world,
       collisions: this.collisions,
@@ -322,7 +320,7 @@ export class EngineFacade {
       orbit: this.orbit,
       modelOcclusion: this.modelOcclusion,
       modelLod: this.modelLod,
-      viewport: this.viewport,
+      viewport,
       gameModules: this.gameModules,
       isRuntimeModeActive: () => this.runtimeModeActive,
       getActiveMountPackageId: () => this.activeMountPackageId,
@@ -343,7 +341,56 @@ export class EngineFacade {
   // ========================================================================
 
   async init(config?: Partial<EngineConfig>): Promise<void> {
-    await this.core.initialize();
+    // Validate config before passing to core
+    // Use createDefaultConfig to properly merge partial config with defaults
+    // This ensures rendering.canvas is preserved from constructor if not overridden
+    const mergedConfig = config
+      ? createDefaultConfig({
+          ...config,
+          rendering: {
+            ...this.core.config.rendering,
+            ...config.rendering,
+          },
+        })
+      : undefined;
+
+    await this.core.initialize(mergedConfig);
+
+    // Initialize Viewport with shared renderer from RenderSubsystem
+    const renderSubsystem = this.core.getSubsystem<RenderSubsystem>('render');
+    const sharedRenderer = renderSubsystem?.getRenderer();
+    if (!sharedRenderer) {
+      throw new Error('RenderSubsystem renderer not available after initialization');
+    }
+
+    // Create Viewport using the shared renderer from RenderSubsystem
+    this.viewportInstance = new Viewport(
+      this.core.config.rendering.canvas as HTMLCanvasElement,
+      (aspect) => this.orbitInstance.resize(aspect),
+      sharedRenderer
+    );
+
+    // Update modelLod callback to use the viewport
+    this.modelLod = new ModelLodSystem(() => {
+      this.viewportInstance!.invalidate();
+    });
+
+    // Create visualSettings with the viewport
+    this.visualSettings = new EngineVisualSettingsController(this.viewportInstance, this.world, this.modelLod);
+
+    // Register viewport and visualSettings in DI container
+    this.core.container.registerInstance('render:viewport', this.viewportInstance);
+    this.core.registerEngineServices({
+      'engine:visualSettings': this.visualSettings,
+      'engine:modelLod': this.modelLod,
+    });
+
+    // Setup event listeners (now that viewport exists)
+    this.setupEventListeners();
+
+    // Start viewport with runtime frame handler
+    this.startViewport();
+
     this.initialized = true;
   }
 
@@ -372,7 +419,7 @@ export class EngineFacade {
     this.transformControls.dispose();
     for (const off of this.viewportInvalidationOffs) off();
     this.viewportInvalidationOffs.length = 0;
-    this.viewport.dispose();
+    this.viewportInstance?.dispose();
 
     // Then dispose core
     await this.core.dispose();
@@ -388,15 +435,15 @@ export class EngineFacade {
   // ========================================================================
 
   setFpsListener(listener: ((fps: number) => void) | null): void {
-    this.visualSettings.setFpsListener(listener);
+    this.visualSettings!.setFpsListener(listener);
   }
 
   setRenderStatsListener(listener: ((stats: ViewportRenderStats) => void) | null): void {
-    this.visualSettings.setRenderStatsListener(listener);
+    this.visualSettings!.setRenderStatsListener(listener);
   }
 
   setPerformancePreset(preset: 'quality' | 'balanced' | 'economy'): void {
-    this.visualSettings.setPerformancePreset(preset);
+    this.visualSettings!.setPerformancePreset(preset);
   }
 
   setRenderOptions(options: {
@@ -406,23 +453,23 @@ export class EngineFacade {
     dynamicResolutionTargetFps?: number;
     dynamicResolutionMinScale?: number;
   }): void {
-    this.visualSettings.setRenderOptions(options);
+    this.visualSettings!.setRenderOptions(options);
   }
 
   setGrassRenderOptions(options: GrassRenderOptions): void {
-    this.visualSettings.setGrassRenderOptions(options);
+    this.visualSettings!.setGrassRenderOptions(options);
   }
 
   setFogEnabled(enabled: boolean): void {
-    this.visualSettings.setFogEnabled(enabled);
+    this.visualSettings!.setFogEnabled(enabled);
   }
 
   setFogDistanceScale(scale: number): void {
-    this.visualSettings.setFogDistanceScale(scale);
+    this.visualSettings!.setFogDistanceScale(scale);
   }
 
   setPerformanceMode(enabled: boolean): void {
-    this.visualSettings.setPerformanceMode(enabled);
+    this.visualSettings!.setPerformanceMode(enabled);
   }
 
   // ========================================================================
@@ -598,7 +645,7 @@ export class EngineFacade {
   setPlayerSettings(settings: Partial<PlayerSettings>): void {
     this.playerSettings = sanitizePlayerSettings({ ...this.playerSettings, ...settings });
     this.avatarInstance!.setPlayerSettings(this.playerSettings);
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   async setPlayerModelHeight(height: number): Promise<void> {
@@ -611,7 +658,7 @@ export class EngineFacade {
       nextHeight,
     );
     this.playerModelData = { ...model, height: nextHeight };
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   async setPlayerModel(
@@ -621,13 +668,13 @@ export class EngineFacade {
     height = 1.8,
   ): Promise<void> {
     this.playerModelData = await prepareCustomPlayerModel(this.avatarInstance!, data, name, animationRoles, height);
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   async resetPlayerModel(): Promise<void> {
     await this.avatarInstance!.resetDefaultModel();
     this.playerModelData = null;
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   // ========================================================================
@@ -654,7 +701,7 @@ export class EngineFacade {
       gameModules: this.gameModules,
       transformControls: this.transformControls,
       state: this.state,
-      viewport: this.viewport,
+      viewport: this.viewport!,
       pressedMouseBindings: this.pressedMouseBindings,
       isRuntimeModeActive: () => this.runtimeModeActive,
       setRuntimeModeActive: active => { this.runtimeModeActive = active },
@@ -819,7 +866,7 @@ export class EngineFacade {
       throw new Error('Não foi possível calcular a altura do modelo importado.');
     }
 
-    const preferredAnisotropy = Math.min(4, this.viewport.renderer.capabilities.getMaxAnisotropy());
+    const preferredAnisotropy = Math.min(4, this.viewport!.renderer.capabilities.getMaxAnisotropy());
     const { meshCount, triangleCount, importedMeshes } = prepareImportedModelGeometry(
       model,
       name,
@@ -874,7 +921,7 @@ export class EngineFacade {
     this.world.add({ id: finalId, name: root.name, type: 'cube', mesh: root });
     void this.modelOcclusion.prepareRoot(root, importedAnimations.length > 0, this.world.scene)
       .then(() => this.modelLod.prepare(finalId, root, importedAnimations.length > 0))
-      .then(() => this.viewport.invalidate())
+      .then(() => this.viewport!.invalidate())
       .catch((error) => {
         console.warn('[Engine] Não foi possível preparar otimizações do modelo:', root.name, error);
       });
@@ -975,7 +1022,7 @@ export class EngineFacade {
 
   setRenderDistance(distance: number | null): void {
     this.world.setRenderDistance(distance);
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   setGridVisible(visible: boolean): void {
@@ -984,7 +1031,7 @@ export class EngineFacade {
 
   setColliderDebugVisible(visible: boolean): void {
     this.collisions.setDebugVisible(visible);
-    this.viewport.invalidate();
+    this.viewport!.invalidate();
   }
 
   isColliderDebugVisible(): boolean {
@@ -1132,7 +1179,7 @@ export class EngineFacade {
     }
 
     report('Preparando shaders e recursos gráficos…', 98);
-    await this.viewport.precompile(this.world.scene, this.orbit.camera);
+    await this.viewport!.precompile(this.world.scene, this.orbit.camera);
     report('Mundo carregado.', 100);
   }
 
