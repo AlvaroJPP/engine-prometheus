@@ -100,7 +100,7 @@ export class PhysicsWorld {
     direction: THREE.Vector3,
     maxDistance: number,
     groups?: RAPIER.InteractionGroups,
-  ): RAPIER.RayColliderHit | null {
+  ): RAPIER.RayColliderToi | null {
     if (!this.world) return null
     const ray = new RAPIER.Ray(
       new RAPIER.Vector3(origin.x, origin.y, origin.z),
@@ -118,13 +118,13 @@ export class PhysicsWorld {
     const result = this.raycast(origin, direction, maxDistance)
     if (!result) return null
 
-    const hitPoint = new THREE.Vector3().addScaledVector(direction, result.timeOfImpact)
+    const hitPoint = new THREE.Vector3().addScaledVector(direction, result.toi)
 
     return {
       hit: true,
       point: hitPoint,
-      normal: new THREE.Vector3(0, 1, 0), // Normal not available in RayColliderHit
-      distance: result.timeOfImpact,
+      normal: new THREE.Vector3(0, 1, 0), // Normal not available in RayColliderToi
+      distance: result.toi,
     }
   }
 

@@ -24,10 +24,11 @@
       "@core/*": ["engine/core/*"],
       "@subsystems/*": ["engine/subsystems/*"]
     },
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": [
     "engine/**/*.ts",
+    "engine/vite-env.d.ts",
     "scripts/**/*.mjs"
   ],
   "exclude": [

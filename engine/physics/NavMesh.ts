@@ -295,7 +295,7 @@ export class NavMesh {
       return { height: 0, walkable: false }
     }
 
-    const hitPoint = rayOrigin.clone().addScaledVector(rayDir, result.timeOfImpact)
+    const hitPoint = rayOrigin.clone().addScaledVector(rayDir, result.toi)
     const normalResult = this.physicsWorld.raycastWithNormal(rayOrigin, rayDir, maxDist)
     const normal = normalResult
       ? new THREE.Vector3(normalResult.normal.x, normalResult.normal.y, normalResult.normal.z)
@@ -317,7 +317,7 @@ export class NavMesh {
       this.config.collisionGroups
     )
 
-    if (headroomRay && headroomRay.timeOfImpact < this.config.agentHeight) {
+    if (headroomRay && headroomRay.toi < this.config.agentHeight) {
       return { height: hitPoint.y, walkable: false }
     }
 
@@ -353,7 +353,7 @@ export class NavMesh {
 
       if (!result) return false
 
-      const hitY = checkPos.y + 0.1 - result.timeOfImpact
+      const hitY = checkPos.y + 0.1 - result.toi
       if (Math.abs(hitY - point.y) > this.config.maxStepHeight) return false
     }
 
@@ -720,7 +720,7 @@ export class NavMeshBuilder {
           let height = 0
 
           if (result) {
-            const hitPoint = rayOrigin.clone().addScaledVector(rayDir, result.timeOfImpact)
+            const hitPoint = rayOrigin.clone().addScaledVector(rayDir, result.toi)
             const normalResult = this.physicsWorld.raycastWithNormal(rayOrigin, rayDir, maxDist)
             const normal = normalResult
               ? new THREE.Vector3(normalResult.normal.x, normalResult.normal.y, normalResult.normal.z)
@@ -823,7 +823,7 @@ export class NavMeshBuilder {
 
       if (!result) return false
 
-      const hitY = checkPos.y + 0.1 - result.timeOfImpact
+      const hitY = checkPos.y + 0.1 - result.toi
       if (Math.abs(hitY - point.y) > this.config.maxStepHeight) return false
     }
 

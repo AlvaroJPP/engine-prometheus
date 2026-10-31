@@ -374,13 +374,13 @@ export class RapierCollisionSystem {
     const objId = this.colliderToObjectId.get(result.collider.handle)
     if (!objId) return null
 
-    const hitPoint = new THREE.Vector3().addScaledVector(direction, result.timeOfImpact)
+    const hitPoint = new THREE.Vector3().addScaledVector(direction, result.toi)
 
     return {
       objectId: objId,
       point: hitPoint,
       normal: new THREE.Vector3(result.normal.x, result.normal.y, result.normal.z),
-      distance: result.timeOfImpact,
+      distance: result.toi,
     }
   }
 

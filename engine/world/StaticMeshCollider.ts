@@ -202,7 +202,7 @@ export function getStaticMeshCollisionData(root: THREE.Object3D): StaticMeshColl
     boundsMin: part.localBounds.min.toArray(),
     boundsMax: part.localBounds.max.toArray(),
   }))
-  const boundsTree = new MeshBVH(geometry, { targetLeafSize: 12, indirect: true })
+  const boundsTree = new MeshBVH(geometry, { maxLeafTris: 12 })
   const compiled: CachedStaticMesh = {
     signature,
     geometry,
@@ -242,8 +242,8 @@ export function visitStaticMeshTriangles(
   const c = new THREE.Vector3()
 
   return data.boundsTree.shapecast({
-    intersectsBounds: bounds => bounds.intersectsBox(localQueryBounds) ? INTERSECTED : NOT_INTERSECTED,
-    intersectsTriangle: (localTriangle) => {
+    intersectsBounds: (bounds: THREE.Box3) => bounds.intersectsBox(localQueryBounds) ? INTERSECTED : NOT_INTERSECTED,
+    intersectsTriangle: (localTriangle: THREE.Triangle) => {
       a.copy(localTriangle.a).applyMatrix4(rootToWorld)
       b.copy(localTriangle.b).applyMatrix4(rootToWorld)
       c.copy(localTriangle.c).applyMatrix4(rootToWorld)

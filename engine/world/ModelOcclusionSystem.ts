@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { CENTER, MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
-import { GenerateMeshBVHWorker } from 'three-mesh-bvh/worker'
+import { GenerateMeshBVHWorker } from 'three-mesh-bvh/src/workers/GenerateMeshBVHWorker.js'
 import type { GameObject } from '../model/object/GameObject'
 
 // A oclusão usa raycasts contra a geometria real; intervalos maiores evitam
@@ -481,8 +481,7 @@ export class ModelOcclusionSystem {
       this.bvhWorker ??= new GenerateMeshBVHWorker()
       const workerTree = await this.bvhWorker.generate(workerGeometry, {
         strategy: CENTER,
-        targetLeafSize: BVH_TARGET_LEAF_SIZE,
-        indirect: true,
+        maxLeafTris: BVH_TARGET_LEAF_SIZE,
       })
 
       if (this.disposed) return false
@@ -504,8 +503,7 @@ export class ModelOcclusionSystem {
       try {
         typedGeometry.boundsTree = new MeshBVH(geometry, {
           strategy: CENTER,
-          targetLeafSize: BVH_TARGET_LEAF_SIZE,
-          indirect: true,
+          maxLeafTris: BVH_TARGET_LEAF_SIZE,
         })
         return true
       } catch (fallbackError) {
@@ -966,7 +964,7 @@ export class ModelOcclusionSystem {
     // Se uma árvore estiver sendo calculada, deixe o job terminar antes de
     // encerrar o worker; isso evita uma Promise pendurada durante o teardown.
     void this.preparationQueue.finally(() => {
-      this.bvhWorker?.dispose()
+      this.bvhWorker?.terminate()
       this.bvhWorker = null
     })
   }
