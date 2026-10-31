@@ -9,6 +9,7 @@
   },
   "workspaces": ["ep-work"],
   "scripts": {
+    "dev": "npm run dev --workspace=ep-work",
     "build": "tsc --noEmit",
     "test": "node scripts/engine-core-self-test.mjs",
     "test:animation-role-options": "node scripts/animation-role-options-self-test.mjs",
