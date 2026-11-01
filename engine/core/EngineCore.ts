@@ -242,8 +242,10 @@ export class EngineCore {
       // Initialize all subsystems
       for (const subsystem of this.subsystemInitOrder) {
         if (subsystem.getState() === 'uninitialized') {
-          await subsystem.initialize(context);
+          // Include the subsystem before awaiting its hook so a partially
+          // initialized subsystem also receives dispose() during rollback.
           initializedSubsystems.push(subsystem);
+          await subsystem.initialize(context);
         }
       }
 
