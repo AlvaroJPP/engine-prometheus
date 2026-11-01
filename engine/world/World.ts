@@ -262,7 +262,6 @@ export class World {
     const angle = (this.timeOfDay / 24) * Math.PI * 2 - Math.PI / 2
     const daylight = Math.max(0, Math.sin(angle))
     if (this.editorAppearance) {
-      const sky = new THREE.Color(0x171c2d).lerp(new THREE.Color(0x20283c), daylight * 0.28)
       const horizon = new THREE.Color(0x30394d).lerp(new THREE.Color(0x3a4258), daylight * 0.32)
       this.sunLight.position.set(Math.cos(angle) * 60, Math.sin(angle) * 60, 20)
       this.sunLight.intensity = 0.5 + daylight * 0.16
