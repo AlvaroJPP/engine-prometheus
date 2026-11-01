@@ -230,7 +230,7 @@ found 0 vulnerabilities
 |-------|---------|----------|
 | CSP present | `grep -A5 '"csp"' src-tauri/tauri.conf.json` | Non-null string |
 | CSP meta in build | `grep -r "Content-Security-Policy" dist/` | Meta tag present |
-| Path validation | `cargo test --test path_traversal` | (add tests) |
+| Path validation | `cargo test --manifest-path src-tauri/Cargo.toml --lib` | Unit tests for missing targets, traversal, symlink escape, and allowed-root boundaries |
 | Rust deps clean | `cd src-tauri && cargo audit` | 0 vulnerabilities |
 | Node deps clean | `npm audit` | 0 vulnerabilities |
 | No `fs:allow-*` in capabilities | `cat src-tauri/capabilities/default.json` | Only `dialog:default` |
