@@ -25,7 +25,7 @@ This document records the Phase 1–14 implementation snapshot. It is not a prod
 
 **Key Outcomes:**
 - ✅ Zero TypeScript errors (strict mode)
-- ✅ 67 self-test scripts covering all major subsystems
+- ✅ 68 regression commands in `npm run test:all` (including EngineCore and Three.js resource ownership)
 - ✅ 100% backward compatibility via EngineFacade
 - ✅ Desktop installers: MSI (11.1 MB) / NSIS (9.97 MB)
 - ✅ Clean security audits: `npm audit` 0 vulnerabilities, `cargo audit` clean
@@ -142,9 +142,9 @@ This document records the Phase 1–14 implementation snapshot. It is not a prod
 
 ## 5. Test Results & Code Quality
 
-### 5.1 Self-Test Suite (67 Scripts)
+### 5.1 Self-Test Suite (68 Test Commands)
 ```
-scripts/*-self-test.mjs  →  67 test files covering:
+`npm run test:all`  →  68 test commands covering:
   • Core: DIContainer, EngineCore, EngineEventBus, Subsystem, EngineConfig
   • Runtime: FrameBudget, GameModuleRegistry, Entity* runtimes, BehaviorTree, FSM
   • Physics: PhysicsWorld, RapierCollisionSystem, RapierCharacterController
@@ -159,7 +159,8 @@ scripts/*-self-test.mjs  →  67 test files covering:
 ### 5.2 TypeScript Compilation
 ```bash
 $ npm run build
-> tsc --noEmit
+> npm run check:engine
+> tsc -p tsconfig.build.json
 # Exit code 0 — zero errors, strict mode enabled
 ```
 
@@ -226,7 +227,7 @@ $ npm run build
 - `EngineFacade` still holds ~1300 lines — candidate for further decomposition
 - Some subsystem DI registrations use string tokens — migrate to typed tokens
 - Grass layer config hardcoded in places — unify via `EngineConfig`
-- Test runner script (`run-all-tests.mjs`) missing — needs restoration for CI
+- The test runner is `npm run test:run` → `npm run test:all`; test commands use `tsx` for TypeScript source imports.
 
 ---
 
@@ -236,7 +237,7 @@ $ npm run build
 |--------|--------|
 | TypeScript Strict Mode | ✅ Enforced |
 | Compilation Errors | ✅ 0 |
-| Self-Test Coverage | 67 scripts (all subsystems) |
+| Self-Test Coverage | 68 commands in `npm run test:all` |
 | Architecture | Clean: Core → Facade → Subsystems → Modules |
 | DI Container | Singleton/Transient/Scoped + decorators |
 | Event Bus | Typed, prioritized, async, history, waitFor |
