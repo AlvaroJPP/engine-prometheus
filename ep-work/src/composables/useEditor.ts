@@ -265,38 +265,54 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine?.setBrush({ strength: brushStrength.value, radius: brushRadius.value })
   })
 
-  onMounted(() => {
+  onMounted(async () => {
     if (!canvas.value) return
     const e = new Engine(canvas.value)
     engine = e
 
-    // Set up render stats listener for FPS
-    e.setRenderStatsListener((stats) => {
-      fps.value = stats.continuousRendering ? stats.fps : 0
-    })
+    try {
+      // EngineFacade creates the world synchronously, but the renderer and
+      // visual-settings controller only exist after init(). Start the core
+      // before subscribing to render metrics or accepting editor input.
+      await e.init()
+      await e.start()
 
-    offs.push(
-      e.events.on('objectAdded', markDirty),
-      e.events.on('objectRemoved', markDirty),
-      e.events.on('objectRenamed', markDirty),
-      e.events.on('objectChanged', markDirty),
-      e.events.on('objectClicked', ({ id }) => e.logic.triggerObjectClicked(id)),
-      e.events.on('terrainChanged', markDirty),
-      e.events.on('worldReset', refresh),
-      e.events.on('selectionChanged', (ev) => {
-        selectedId.value = ev.id
-      }),
-      e.events.on('toolChanged', (ev) => {
-        tool.value = ev.tool
-        transform.value = ev.transform
-      }),
-      e.events.on('cameraChanged', (ev) => {
-        cameraPreset.value = ev.preset
-      }),
-    )
-    window.addEventListener('keydown', onKey)
-    refresh()
-    loadWorkspaceState()
+      e.setRenderStatsListener((stats) => {
+        fps.value = stats.continuousRendering ? stats.fps : 0
+      })
+
+      offs.push(
+        e.events.on('objectAdded', markDirty),
+        e.events.on('objectRemoved', markDirty),
+        e.events.on('objectRenamed', markDirty),
+        e.events.on('objectChanged', markDirty),
+        e.events.on('objectClicked', ({ id }) => e.logic.triggerObjectClicked(id)),
+        e.events.on('terrainChanged', markDirty),
+        e.events.on('worldReset', refresh),
+        e.events.on('selectionChanged', (ev) => {
+          selectedId.value = ev.id
+        }),
+        e.events.on('toolChanged', (ev) => {
+          tool.value = ev.tool
+          transform.value = ev.transform
+        }),
+        e.events.on('cameraChanged', (ev) => {
+          cameraPreset.value = ev.preset
+        }),
+      )
+      window.addEventListener('keydown', onKey)
+      refresh()
+      loadWorkspaceState()
+    } catch (error) {
+      console.error('[Engine] Não foi possível inicializar o motor 3D.', error)
+      if (engine === e) engine = null
+      say('Falha ao inicializar o motor 3D. Consulte o console para detalhes.')
+      try {
+        await e.dispose()
+      } catch (disposeError) {
+        console.error('[Engine] Falha ao liberar recursos após erro de inicialização.', disposeError)
+      }
+    }
   })
 
   onBeforeUnmount(() => {
