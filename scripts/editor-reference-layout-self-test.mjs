@@ -13,6 +13,7 @@ assert.ok(layout.includes('--editor-rail-width:84px'))
 assert.ok(layout.includes('--editor-hierarchy-width:268px'))
 assert.ok(layout.includes('--editor-inspector-width:320px'))
 assert.ok(layout.includes('height:60px!important'))
+assert.ok(layout.includes('top:-44px!important'))
 assert.ok(layout.includes('height:42px!important'))
 assert.ok(appStyles.includes('14-html-reference-fidelity.css'))
 
