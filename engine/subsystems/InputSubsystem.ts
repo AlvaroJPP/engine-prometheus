@@ -176,8 +176,11 @@ export class InputSubsystem extends Subsystem {
 
     this.detachEventListeners();
 
-    // Dispose transform controls
+    // Remove the actual scene helper before disposing TransformControls.
     if (this.transformControls) {
+      const helper = this.transformControls.getHelper();
+      helper.parent?.remove(helper);
+      this.transformControls.detach();
       this.transformControls.dispose();
       this.transformControls = null;
     }
@@ -433,10 +436,11 @@ export class InputSubsystem extends Subsystem {
     this.transformControls.addEventListener('change', () => this.onTransformChange());
     this.transformControls.addEventListener('objectChange', () => this.onTransformChange());
 
-    // Add to scene
-    const scene = this.container?.resolve<THREE.Scene>('render:scene');
+    // TransformControls is not itself an Object3D in current Three.js.
+    // Add its scene helper, matching the EngineFacade integration.
+    const scene = this.container?.resolve<THREE.Scene>('render:scene', { required: false });
     if (scene) {
-      scene.add(this.transformControls as unknown as THREE.Object3D);
+      scene.add(this.transformControls.getHelper());
     }
   }
 
@@ -447,7 +451,7 @@ export class InputSubsystem extends Subsystem {
   setTransformControlsEnabled(enabled: boolean): void {
     if (this.transformControls) {
       this.transformControls.enabled = enabled;
-      (this.transformControls as unknown as THREE.Object3D).visible = enabled;
+      this.transformControls.getHelper().visible = enabled;
     }
   }
 
