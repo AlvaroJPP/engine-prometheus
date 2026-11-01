@@ -38,16 +38,18 @@ const files = [
   '../src/components/EditorSideRail.vue',
   '../src/components/InspectorPanel.vue',
 ]
-const invalidUtf8Markers = [
-  String.fromCharCode(0x00c3),
-  String.fromCharCode(0x00c2, 0x00a0),
-  String.fromCharCode(0x00e2, 0x0080),
-]
-for (const path of files) {
-  const source = read(path)
-  for (const marker of invalidUtf8Markers) {
-    assert.equal(source.includes(marker), false, 'UTF-8 corrompido: ' + path)
+const hasMojibake = (source) => {
+  for (let index = 0; index < source.length - 1; index += 1) {
+    const first = source.charCodeAt(index)
+    const second = source.charCodeAt(index + 1)
+    if ((first === 0x00c2 || first === 0x00c3 || first === 0x00e2) && second >= 0x0080 && second <= 0x00bf) {
+      return true
+    }
   }
+  return false
+}
+for (const path of files) {
+  assert.equal(hasMojibake(read(path)), false, 'UTF-8 corrompido: ' + path)
 }
 
 const texture = createEditorBackgroundTexture()
