@@ -5,14 +5,14 @@
  * Tests EngineCore, DIContainer, EventBus, and all subsystems.
  */
 
-import { EngineCore } from '../dist/engine/core/EngineCore.js';
-import { DIContainer } from '../dist/engine/core/DIContainer.js';
-import { EngineEventBus, EngineEvents } from '../dist/engine/core/EngineEventBus.js';
-import { createDefaultConfig } from '../dist/engine/core/EngineConfig.js';
-import { WorldSubsystem } from '../dist/engine/subsystems/WorldSubsystem.js';
-import { RenderSubsystem } from '../dist/engine/subsystems/RenderSubsystem.js';
-import { InputSubsystem } from '../dist/engine/subsystems/InputSubsystem.js';
-import { Subsystem } from '../dist/engine/core/Subsystem.js';
+import { EngineCore } from '../engine/core/EngineCore.ts';
+import { DIContainer } from '../engine/core/DIContainer.ts';
+import { EngineEventBus, EngineEvents } from '../engine/core/EngineEventBus.ts';
+import { createDefaultConfig } from '../engine/core/EngineConfig.ts';
+import { WorldSubsystem } from '../engine/subsystems/WorldSubsystem.ts';
+import { RenderSubsystem } from '../engine/subsystems/RenderSubsystem.ts';
+import { InputSubsystem } from '../engine/subsystems/InputSubsystem.ts';
+import { Subsystem } from '../engine/core/Subsystem.ts';
 
 console.log('='.repeat(60));
 console.log('EngineCore Self-Test');
@@ -427,7 +427,7 @@ async function runTests() {
   // ============================================
   console.log('\n[7] Testing EngineFacade...');
 
-  const { EngineFacade } = await import('../dist/engine/core/EngineFacade.js');
+  const { EngineFacade } = await import('../engine/core/EngineFacade.ts');
 
   const facade = new EngineFacade({ debug: { logging: false } });
 
