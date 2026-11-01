@@ -8,6 +8,12 @@ import RuntimeHUD from '@/components/RuntimeHUD.vue'
 const canvas = ref<HTMLCanvasElement | null>(null)
 const activeRailItem = ref<'scene' | 'scripts'>('scene')
 const rootOpen = ref(true)
+const hierarchyQuery = ref('')
+const filteredObjects = computed(() => {
+  const query = hierarchyQuery.value.trim().toLocaleLowerCase('pt-BR')
+  if (!query) return objects.value
+  return objects.value.filter(object => `${object.name} ${object.type}`.toLocaleLowerCase('pt-BR').includes(query))
+})
 const {
   projectName,
   dirty,
@@ -171,24 +177,29 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       </div>
 
       <div class="project">
-        <input v-model="projectName" class="pname" spellcheck="false" @input="markDirty" />
+        <input v-model="projectName" class="pname" spellcheck="false" aria-label="Nome do projeto" @input="markDirty" />
         <i class="dot" :class="dirty ? 'warn' : 'ok'" :title="dirty ? 'Alterações não salvas' : 'Tudo salvo'" />
       </div>
+
+      <div class="filebtns">
+        <details class="file-menu">
+          <summary>Arquivo <span aria-hidden="true">▾</span></summary>
+          <div class="file-menu-panel">
+            <button type="button" @click="newProject">Novo projeto</button>
+            <button type="button" @click="openProject">Abrir projeto…</button>
+            <button type="button" @click="saveProject(true)">Salvar como…</button>
+          </div>
+        </details>
+        <button class="ghost save-main" type="button" @click="saveProject(false)">▣ <span>Salvar</span></button>
+      </div>
+
       <div class="mode-actions">
         <button type="button" :class="{ active: isEditMode }" @click="exitPlayMode">✎ Editar</button>
-        <button type="button" :class="{ active: isPlayMode }" @click="enterPlayMode">▶ Jogar</button>
+        <button type="button" :class="{ active: isPlayMode }" @click="enterPlayMode">▷ Jogar</button>
       </div>
 
       <div class="grow" />
-
-      <div class="filebtns">
-        <button class="ghost" @click="newProject">Novo</button>
-        <button class="ghost" @click="openProject">Abrir</button>
-        <button class="ghost" @click="saveProject(false)">Salvar</button>
-        <button class="ghost hide-narrow" @click="saveProject(true)">Salvar como…</button>
-      </div>
-
-      <button class="cam" @click="cycleCamera"><i class="cam-ring" />{{ cameraLabel }}</button>
+      <button class="cam" type="button" :title="`Alternar câmera · ${cameraLabel}`" @click="cycleCamera"><i class="cam-ring" />Perspectiva <span class="cam-chevron">▾</span></button>
     </header>
 
     <nav class="toolbar">
@@ -281,17 +292,23 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
             <button class="active" type="button">Hierarquia</button>
             <button type="button" disabled>Componentes (0)</button>
           </nav>
-          <span class="badge">{{ objects.length + 1 }}</span>
         </div>
+
+        <label class="hierarchy-search">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="8.7" cy="8.7" r="5.7"/><path d="m13 13 4 4"/></svg>
+          <input v-model="hierarchyQuery" type="search" placeholder="Buscar objetos..." aria-label="Buscar objetos na hierarquia" />
+        </label>
 
         <div class="tree">
           <div class="row root" @click="rootOpen = !rootOpen">
             <span class="chev" :class="{ open: rootOpen }">›</span>
             <span class="ico world" />
             <span class="name">Mundo principal</span>
+            <span class="root-count">{{ objects.length + 1 }}</span>
           </div>
           <template v-if="rootOpen">
             <div
+              v-if="!hierarchyQuery.trim() || 'terreno editável'.includes(hierarchyQuery.trim().toLocaleLowerCase('pt-BR')) || 'terreno'.includes(hierarchyQuery.trim().toLocaleLowerCase('pt-BR'))"
               class="row child terrain"
               :class="{ active: selectedId === TERRAIN_ID }"
               @click="selectItem(TERRAIN_ID)"
@@ -301,7 +318,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <button class="eye" :class="{ off: !terrain.visible }" title="Mostrar/ocultar" @click.stop="toggleTerrain" />
             </div>
             <div
-              v-for="o in objects"
+              v-for="o in filteredObjects"
               :key="o.id"
               class="row child"
               :class="{ active: o.id === selectedId, hidden: !o.visible }"
@@ -311,6 +328,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
               <span class="name">{{ o.name }}</span>
               <button class="eye" :class="{ off: !o.visible }" title="Mostrar/ocultar" @click.stop="toggleVisible(o.id)" />
             </div>
+            <p v-if="hierarchyQuery.trim() && filteredObjects.length === 0 && !'terreno editável'.includes(hierarchyQuery.trim().toLocaleLowerCase('pt-BR')) && !'terreno'.includes(hierarchyQuery.trim().toLocaleLowerCase('pt-BR'))" class="hierarchy-empty">Nenhum objeto encontrado.</p>
           </template>
         </div>
 
@@ -358,10 +376,10 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
           <span class="chip">ÓRBITA LIVRE</span>
         </div>
-        <div class="axes">
-          <span class="axis"><b class="ax-x">X</b> largura</span>
-          <span class="axis"><b class="ax-y">Y</b> altura</span>
-          <span class="axis"><b class="ax-z">Z</b> profundidade</span>
+        <div class="axes coordinate-hud" aria-label="Posição do objeto selecionado">
+          <span class="axis"><b class="ax-x">X</b> {{ selected?.x.toFixed(1) ?? '0.0' }}</span>
+          <span class="axis"><b class="ax-y">Y</b> {{ selected?.y.toFixed(1) ?? '0.0' }}</span>
+          <span class="axis"><b class="ax-z">Z</b> {{ selected?.z.toFixed(1) ?? '0.0' }}</span>
         </div>
         <div class="statusbar">
           <span class="seg"><i class="dot ok" /> Motor 3D ativo</span>
@@ -377,10 +395,14 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           <button type="button" disabled>Jogador</button>
           <button type="button" disabled>Céu</button>
         </nav>
-        <div class="panel-head">
-          <div>
-            <div class="eyebrow">CONFIGURAÇÃO</div>
-            <div class="h">Inspetor</div>
+        <div class="panel-head inspector-object-card">
+          <div class="inspector-object-icon" aria-hidden="true">
+            <svg v-if="!selected && selectedId !== TERRAIN_ID" viewBox="0 0 24 24" fill="currentColor"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10Z"/></svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 2 9 5v10l-9 5-9-5V7l9-5Z"/><path d="m3.5 7.5 8.5 5 8.5-5M12 12.5V22"/></svg>
+          </div>
+          <div class="inspector-object-copy">
+            <div class="h">{{ selected ? selected.name : selectedId === TERRAIN_ID ? 'Terreno editável' : 'Mundo principal' }}</div>
+            <div class="inspector-object-subtitle">{{ selected ? 'Objeto selecionado' : selectedId === TERRAIN_ID ? 'Terreno selecionado' : 'Nenhum objeto selecionado' }}</div>
           </div>
         </div>
 
@@ -739,5 +761,133 @@ html,body,#app{width:100%;height:100%;margin:0;overflow:hidden}body{background:v
   .viewport-actions-right button:nth-child(1),
   .viewport-actions-right button:nth-child(3){display:none}
   .viewport-actions-bar button{padding-inline:9px}
+}
+
+/* Refinamento fino do workspace — hierarquia, painel de propriedades e proporções. */
+:root{--rail-width:88px;--left-width:288px;--right-width:342px}
+.topbar{gap:10px;padding-inline:18px}
+.brand{min-width:220px}
+.project{display:flex;align-items:center;gap:8px;margin-left:0;padding-left:14px;border-left:1px solid var(--line);min-width:140px}
+.project .pname{width:145px;max-width:12vw}
+.filebtns{display:flex;align-items:center;gap:7px;flex:none}
+.file-menu{position:relative}
+.file-menu>summary{display:flex;align-items:center;gap:12px;height:38px;padding:0 14px;border:1px solid #303137;border-radius:9px;background:#1b1c20;color:#e9e9ec;list-style:none;cursor:pointer;font-size:12px;font-weight:600}
+.file-menu>summary::-webkit-details-marker{display:none}
+.file-menu>summary:hover,.file-menu[open]>summary{border-color:#56575d;background:#25262b;color:#fff}
+.file-menu-panel{position:absolute;z-index:100;top:calc(100% + 7px);left:0;display:grid;min-width:190px;padding:5px;border:1px solid #373940;border-radius:10px;background:#1b1c20;box-shadow:0 14px 32px #0008}
+.file-menu-panel button{min-height:36px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:#e6e6e9;text-align:left;font-size:12px;cursor:pointer}
+.file-menu-panel button:hover{background:#2a2b30;color:#fff}
+.filebtns .save-main{height:38px;min-height:38px;padding:0 14px;border:1px solid #303137;border-radius:9px;background:#1b1c20;color:#eeeef0;font-size:12px}
+.filebtns .save-main:hover{border-color:#56575d;background:#25262b}
+.mode-actions{margin-inline:auto;gap:8px}
+.mode-actions button{min-width:150px;height:42px}
+.cam{display:inline-flex;align-items:center;gap:10px;height:38px;padding:0 13px;border:1px solid #303137;border-radius:9px;background:#1b1c20;color:#e6e6e9}
+.cam:hover{border-color:#55565d;background:#25262b}
+.cam-ring{border-color:#c8c9ce;box-shadow:inset 0 0 0 2px #1b1c20,inset 0 0 0 6px #f0522a}
+.cam-chevron{margin-left:3px;color:#92939a}
+.hierarchy-head{height:52px;flex:0 0 52px;padding:0 8px}
+.hierarchy-head .badge{display:none}
+.library-tabs{grid-template-columns:1fr 1fr}
+.library-tabs button{white-space:nowrap}
+.hierarchy-search{display:flex;align-items:center;gap:11px;height:44px;flex:none;margin:12px 16px 10px;padding:0 12px;border:1px solid #303137;border-radius:10px;background:#111215;color:#9c9da5}
+.hierarchy-search svg{width:18px;height:18px;flex:none}
+.hierarchy-search input{width:100%;min-width:0;height:40px;padding:0;border:0!important;outline:0!important;background:transparent!important;color:#ededf0!important;font:13px Inter,'Segoe UI',sans-serif!important;box-shadow:none!important}
+.hierarchy-search input::placeholder{color:#85868e}
+.hierarchy-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px #f0522a24}
+.panel.left .tree{padding:2px 10px 12px}
+.panel.left .row{position:relative;min-height:35px;padding:5px 10px;border:0;border-radius:7px}
+.panel.left .row.root{min-height:36px;background:#2c1b16;color:#f3eeee}
+.panel.left .row.child{padding-left:26px}
+.panel.left .row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.root-count{margin-left:auto;color:#a9aab1;font:11px 'IBM Plex Mono',monospace}
+.hierarchy-empty{padding:10px 12px;color:#8e9098;font-size:11px;line-height:1.45}
+.panel.left .row:hover{background:#24252a}
+.panel.left .row.root:hover,.panel.left .row.active{background:#332018}
+.inspector-object-card{display:flex;align-items:center;gap:14px;min-height:82px;margin:14px 16px 8px;padding:14px;border:1px solid #27292f;border-radius:12px;background:#1c1d21}
+.inspector-object-icon{display:grid;place-items:center;flex:none;width:52px;height:52px;border:1px solid #64301f;border-radius:11px;background:#321d16;color:var(--accent)}
+.inspector-object-icon svg{width:24px;height:24px}
+.inspector-object-copy{display:flex;min-width:0;flex-direction:column;gap:5px}
+.inspector-object-copy .h{overflow:hidden;margin:0;color:#f1f1f3;font-size:15px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}
+.inspector-object-subtitle{color:#a3a4ab;font-size:12px}
+.panel.right .panel-head.inspector-object-card{border:1px solid #27292f}
+.panel.right .scroll{padding-bottom:10px}
+.panel.right .scroll section{padding:15px 17px}
+.panel.right .scroll h4{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.panel.right .scroll h4::before{content:"";display:inline-block;width:7px;height:7px;flex:none;transform:rotate(45deg);border:1px solid var(--accent)}
+.panel.right .scroll dl{grid-template-columns:1fr auto;gap:10px 14px}
+.panel.right .scroll dt,.panel.right .scroll dd{font-size:12px}
+.panel.right .panel-foot{flex:0 0 35px}
+.main{padding-bottom:34px!important}
+.viewport{background:#151d31}
+.canvas{position:absolute!important;top:56px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100% - 56px)!important;outline:none}
+.viewport-actions-bar{padding-inline:16px}
+.viewport-actions-bar .viewport-primary{min-width:156px}
+.viewport-actions-bar .viewport-secondary{background:#1b1c20}
+.viewport-tool-rail{top:72px}
+.coordinate-hud{left:16px!important;bottom:14px!important;gap:5px}
+.coordinate-hud .axis{min-width:64px;padding:6px 10px;border:1px solid #303137;border-radius:8px;background:#111215e8;color:#e4e4e7;font:11px 'IBM Plex Mono',monospace;text-align:left}
+.coordinate-hud .axis b{margin-right:7px}
+.statusbar{position:fixed!important;z-index:90;left:0!important;right:0!important;bottom:0!important;width:100%!important;height:34px!important;min-height:34px!important;padding:0 10px;border-top:1px solid var(--line);background:#111215f5}
+.statusbar .seg{height:33px;padding:0 10px;border-right:1px solid #24262b;font-size:11px}
+.statusbar .seg.grow-text{border-right:0}
+@media(max-width:1450px){
+  .brand{min-width:180px}
+  .project{min-width:0;max-width:160px}
+  .project .pname{width:112px;max-width:10vw}
+  .mode-actions button{min-width:104px}
+  .file-menu>summary,.filebtns .save-main{padding-inline:10px}
+  .cam{padding-inline:9px}
+  .viewport-actions-bar{gap:6px;padding-inline:8px}
+  .viewport-actions-left,.viewport-actions-right{gap:5px}
+  .viewport-actions-right button:nth-child(1),.viewport-actions-right button:nth-child(3){display:none}
+  .viewport-actions-bar button{padding-inline:9px}
+}
+@media(max-width:1180px){
+  :root{--rail-width:76px;--left-width:248px;--right-width:300px}
+  .brand{min-width:150px}
+  .brand-copy .title{font-size:13px}
+  .project{display:none}
+  .mode-actions button{min-width:96px}
+}
+@media(max-width:900px){
+  :root{--rail-width:64px;--left-width:210px;--right-width:270px}
+  .editor-side-rail{padding-inline:6px}
+  .editor-rail-item{min-height:58px;font-size:9px}
+  .editor-rail-item svg{width:21px;height:21px}
+  .brand-copy{display:none}
+  .file-menu>summary{font-size:11px}
+  .mode-actions button{min-width:76px;padding-inline:9px;font-size:11px}
+}
+@media(max-width:760px){
+  :root{--rail-width:56px;--left-width:clamp(138px,26vw,178px);--right-width:clamp(142px,26vw,180px)}
+  .topbar{gap:5px;padding-inline:7px}
+  .brand{min-width:38px}
+  .brand-copy,.project{display:none}
+  .file-menu>summary{height:34px;padding-inline:7px;font-size:10px}
+  .file-menu>summary span{display:none}
+  .filebtns .save-main{height:34px;min-height:34px;padding-inline:7px;font-size:10px}
+  .mode-actions{gap:4px}
+  .mode-actions button{min-width:54px;height:34px;padding-inline:5px;font-size:10px}
+  .cam{height:34px;max-width:78px;overflow:hidden;padding-inline:6px;font-size:0}
+  .cam-ring{flex:none}
+  .cam-chevron{display:none}
+  .editor-side-rail{padding:8px 4px}
+  .editor-rail-item{min-height:48px;font-size:0}
+  .editor-rail-item svg{width:22px;height:22px}
+  .hierarchy-search{margin:8px 6px;height:36px;padding-inline:7px}
+  .hierarchy-search input{font-size:10px!important}
+  .library-tabs button{font-size:10px}
+  .panel.left .row,.panel.left .row .name{font-size:10px}
+  .inspector-object-card{min-height:62px;margin:8px 6px;padding:7px;gap:7px}
+  .inspector-object-icon{width:36px;height:36px}
+  .inspector-object-copy .h{font-size:11px}
+  .inspector-object-subtitle{font-size:9px}
+  .panel.right .scroll{font-size:10px}
+  .inspector-workspace-tabs button{font-size:10px}
+  .viewport-actions-bar{padding-inline:5px}
+  .viewport-actions-bar button{min-height:32px;padding-inline:6px;font-size:9px}
+  .viewport-actions-bar .viewport-primary{min-width:unset}
+  .viewport-tool-rail{left:6px;top:64px;width:46px;padding:4px}
+  .viewport-tool-rail button{width:36px;height:38px;font-size:18px}
 }
 </style>
