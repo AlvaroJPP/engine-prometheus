@@ -108,7 +108,7 @@
   overflow-x: hidden !important;
   overflow-y: auto !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #494137 transparent !important;
+  scrollbar-color: #2c323d transparent !important;
   transform: scale(var(--viewport-layout-scale, 1)) !important;
   transform-origin: top left !important;
 }
@@ -119,7 +119,7 @@
 }
 .app.sidebar-collapsed .toolbar.viewport-layout-positioned::-webkit-scrollbar-thumb {
   border-radius: 4px !important;
-  background: #494137 !important;
+  background: #2c323d !important;
 }
 .app.sidebar-collapsed .toolbar.viewport-layout-positioned .toolbar-group {
   display: flex !important;
@@ -200,43 +200,43 @@
   text-shadow: none;
 }
 .viewport-layout-config-heading { display: flex; align-items: center; gap: 9px; padding-bottom: 10px; border-bottom: 1px solid #373027; }
-.viewport-layout-config-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 1px solid #59442f; border-radius: 7px; background: #30251b; color: #f0ba7c; font-size: 17px; }
+.viewport-layout-config-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 1px solid #765016; border-radius: 7px; background: #211c12; color: #f5c56b; font-size: 17px; }
 .viewport-layout-config-heading > div { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
-.viewport-layout-config-heading strong { color: #fff4e6; font-size: 13px; font-weight: 650; }
-.viewport-layout-config-heading small { color: #a79b8b; font-size: 10px; }
-.viewport-layout-close { display: grid; place-items: center; flex: none; width: 27px; height: 27px; border: 1px solid #39342d; border-radius: 5px; background: #211e19; color: #bdb2a3; font-size: 18px; cursor: pointer; }
+.viewport-layout-config-heading strong { color: #e6e8ec; font-size: 13px; font-weight: 650; }
+.viewport-layout-config-heading small { color: #9aa1ae; font-size: 10px; }
+.viewport-layout-close { display: grid; place-items: center; flex: none; width: 27px; height: 27px; border: 1px solid #252a33; border-radius: 5px; background: #14171c; color: #9aa1ae; font-size: 18px; cursor: pointer; }
 .viewport-layout-items { display: flex; flex-direction: column; gap: 4px; }
-.viewport-layout-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 6px 8px; border: 1px solid #302c26; border-radius: 6px; background: #201e1a; color: #e3ddd4; text-align: left; cursor: pointer; }
-.viewport-layout-item:hover { border-color: #65503b; background: #29251f; }
-.viewport-layout-item.active { border-color: #9a6439; background: #34271b; }
-.viewport-layout-item-icon { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 5px; background: #302a22; color: #edb579; font: 600 12px 'IBM Plex Mono', monospace; }
+.viewport-layout-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 48px; padding: 6px 8px; border: 1px solid #252a33; border-radius: 6px; background: #14171c; color: #e6e8ec; text-align: left; cursor: pointer; }
+.viewport-layout-item:hover { border-color: #765016; background: #181c23; }
+.viewport-layout-item.active { border-color: #8a641c; background: #34271b; }
+.viewport-layout-item-icon { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 5px; background: #302a22; color: #f5c56b; font: 600 12px 'IBM Plex Mono', monospace; }
 .viewport-layout-item-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
-.viewport-layout-item-copy strong { color: #f4eee4; font-size: 11px; font-weight: 650; }
-.viewport-layout-item-copy small { color: #9e9486; font-size: 9px; line-height: 1.3; }
-.viewport-layout-item-check { color: #e5a567; font-size: 11px; }
+.viewport-layout-item-copy strong { color: #e6e8ec; font-size: 11px; font-weight: 650; }
+.viewport-layout-item-copy small { color: #9aa1ae; font-size: 9px; line-height: 1.3; }
+.viewport-layout-item-check { color: #f5a524; font-size: 11px; }
 .viewport-layout-adjustments { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #373027; }
-.viewport-layout-section-title { color: #aa9f91; font: 700 9px 'IBM Plex Mono', monospace; letter-spacing: .08em; }
-.viewport-layout-range { display: flex; flex-direction: column; gap: 5px; color: #bfb5a7; font-size: 10px; }
+.viewport-layout-section-title { color: #9aa1ae; font: 700 9px 'IBM Plex Mono', monospace; letter-spacing: .08em; }
+.viewport-layout-range { display: flex; flex-direction: column; gap: 5px; color: #9aa1ae; font-size: 10px; }
 .viewport-layout-range > span { display: flex; justify-content: space-between; gap: 12px; }
 .viewport-layout-range strong { color: #f0bf87; font: 600 10px 'IBM Plex Mono', monospace; }
 .viewport-layout-range input { width: 100%; margin: 0; accent-color: #e3a05f; cursor: pointer; }
 .viewport-layout-actions { display: flex; gap: 6px; }
-.viewport-layout-secondary { flex: 1; min-height: 29px; padding: 5px 7px; border: 1px solid #39342c; border-radius: 5px; background: #211e19; color: #bfb4a4; font-size: 10px; cursor: pointer; }
-.viewport-layout-secondary:hover { border-color: #68503a; color: #fff0de; }
+.viewport-layout-secondary { flex: 1; min-height: 29px; padding: 5px 7px; border: 1px solid #39342c; border-radius: 5px; background: #14171c; color: #bfb4a4; font-size: 10px; cursor: pointer; }
+.viewport-layout-secondary:hover { border-color: #765016; color: #e6e8ec; }
 .viewport-layout-panel-footer { display: flex; flex-direction: column; gap: 7px; padding-top: 10px; border-top: 1px solid #373027; }
-.viewport-layout-drag-toggle,.viewport-layout-hud-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid #62503a; border-radius: 6px; background: #30261c; color: #efc18c; font-size: 10px; font-weight: 650; cursor: pointer; }
+.viewport-layout-drag-toggle,.viewport-layout-hud-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid #765016; border-radius: 6px; background: #30261c; color: #f5c56b; font-size: 10px; font-weight: 650; cursor: pointer; }
 .viewport-layout-drag-toggle svg,.viewport-layout-hud-button svg { flex: none; width: 15px; height: 15px; }
-.viewport-layout-drag-toggle.active { border-color: #e4a467; background: #493321; color: #ffe2bd; }
-.viewport-layout-hud-button { border-color: #3c454c; background: #23282d; color: #d0d8e0; }
-.viewport-layout-hud-button:hover { border-color: #797f85; background: #2c3339; }
-.viewport-layout-panel-footer p { margin: 1px 0 0; color: #8f8678; font-size: 9px; line-height: 1.45; }
+.viewport-layout-drag-toggle.active { border-color: #f5a524; background: #352710; color: #ffe0a3; }
+.viewport-layout-hud-button { border-color: #3c454c; background: #23282d; color: #cdd1d8; }
+.viewport-layout-hud-button:hover { border-color: #9aa1ae; background: #252a33; }
+.viewport-layout-panel-footer p { margin: 1px 0 0; color: #9aa1ae; font-size: 9px; line-height: 1.45; }
 .viewport-layout-handles { position: absolute; z-index: 130; inset: 0; overflow: hidden; pointer-events: none; }
-.viewport-layout-outline { position: absolute; box-sizing: border-box; min-width: 20px; min-height: 20px; border: 1px solid #efad65; border-radius: 3px; background: #ed9e4510; box-shadow: 0 0 0 1px #100d09a8, 0 0 0 1px #f1b7762b inset; pointer-events: none; }
-.viewport-layout-move-handle,.viewport-layout-resize-handle { position: absolute; z-index: 2; display: grid; place-items: center; width: 23px; height: 21px; padding: 0; border: 1px solid #7f5834; border-radius: 4px; background: #35261b; color: #ffd09a; font-size: 15px; line-height: 1; pointer-events: auto; cursor: grab; touch-action: none; }
+.viewport-layout-outline { position: absolute; box-sizing: border-box; min-width: 20px; min-height: 20px; border: 1px solid #f5c56b; border-radius: 3px; background: #ed9e4510; box-shadow: 0 0 0 1px #100d09a8, 0 0 0 1px #f1b7762b inset; pointer-events: none; }
+.viewport-layout-move-handle,.viewport-layout-resize-handle { position: absolute; z-index: 2; display: grid; place-items: center; width: 23px; height: 21px; padding: 0; border: 1px solid #765016; border-radius: 4px; background: #352710; color: #ffe0a3; font-size: 15px; line-height: 1; pointer-events: auto; cursor: grab; touch-action: none; }
 .viewport-layout-move-handle { top: 2px; left: 2px; }
 .viewport-layout-resize-handle { right: 2px; bottom: 2px; cursor: nwse-resize; }
 .viewport-layout-move-handle:active { cursor: grabbing; }
-.viewport-layout-outline-name { position: absolute; top: 3px; left: 29px; max-width: calc(100% - 58px); overflow: hidden; padding: 4px 6px; border-radius: 3px; background: #20170fef; color: #f7d5ad; font: 600 9px 'IBM Plex Sans', sans-serif; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+.viewport-layout-outline-name { position: absolute; top: 3px; left: 29px; max-width: calc(100% - 58px); overflow: hidden; padding: 4px 6px; border-radius: 3px; background: #181c23ef; color: #ffe0a3; font: 600 9px 'IBM Plex Sans', sans-serif; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
 @media(max-width:760px) {
   .viewport-layout-config-panel { right: 8px; top: 54px; width: min(350px, calc(100% - 16px)); max-height: calc(100% - 62px); padding: 10px; }
   .viewport-layout-item { min-height: 43px; }
