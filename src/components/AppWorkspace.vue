@@ -4,6 +4,7 @@ import { useAppController } from '@/composables/useAppController'
 import EditorTopBar from '@editor/components/EditorTopBar.vue'
 import ControlMapsDialog from '@/components/ControlMapsDialog.vue'
 import EditorToolbar from '@editor/components/EditorToolbar.vue'
+import EditorSideRail from '@/components/EditorSideRail.vue'
 import SceneHierarchy from '@editor/components/SceneHierarchy.vue'
 import ModelImportDialog from '@/components/ModelImportDialog.vue'
 import InspectorPanel from '@/components/InspectorPanel.vue'
@@ -237,6 +238,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleDiagnosticsSho
     </div>
 
     <div class="main">
+      <EditorSideRail
+        @open-interface="uiWorkspaceOpen = true"
+        @open-player="playerWorkspaceOpen = true"
+        @open-scripts="ctx.graphOpen = true"
+        @open-controls="ctx.controlMapsOpen = true"
+        @open-settings="ctx.toggleViewportLayoutConfig()"
+      />
       <SceneHierarchy
         v-model:root-open="ctx.rootOpen"
         :components="ctx.savedComponents"

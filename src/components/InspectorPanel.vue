@@ -1,10 +1,30 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { nextTick, reactive, ref } from 'vue'
 import FaceTextureEditor from '@/components/FaceTextureEditor.vue'
 import type { BehaviorPackageSlotDefinition } from '@engine'
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
 const ctx = reactive(context)
+const activeWorkspaceTab = ref<'scene' | 'player' | 'sky'>('scene')
+const emit = defineEmits<{ 'open-player': [] }>()
+
+function showSceneSettings(): void {
+  activeWorkspaceTab.value = 'scene'
+  ctx.inspectorMode = 'environment'
+  void nextTick(() => document.getElementById('inspector-environment-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+async function showSkySettings(): Promise<void> {
+  activeWorkspaceTab.value = 'sky'
+  ctx.inspectorMode = 'environment'
+  await nextTick()
+  document.getElementById('inspector-sky-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function showPlayerSettings(): void {
+  activeWorkspaceTab.value = 'player'
+  emit('open-player')
+}
 
 function setExternalRef(name: string, element: unknown): void {
   const externalRef = context[name]
@@ -21,6 +41,11 @@ function autonomousTargetObjects(ownerObjectId: string): Array<{ id: string; nam
 
 <template>
 <aside class="panel right" :class="{ 'has-selection': ctx.inspectorMode === 'object', 'terrain-selection': ctx.inspectorMode === 'terrain', 'no-selection': ctx.inspectorMode === 'environment' }">
+                <nav class="inspector-workspace-tabs" aria-label="Propriedades do projeto">
+          <button type="button" :class="{ active: activeWorkspaceTab === 'scene' }" @click="showSceneSettings">Cena</button>
+          <button type="button" :class="{ active: activeWorkspaceTab === 'player' }" @click="showPlayerSettings">Jogador</button>
+          <button type="button" :class="{ active: activeWorkspaceTab === 'sky' }" @click="showSkySettings">Céu</button>
+        </nav>
         <div class="inspector-heading">
           <div class="inspector-heading-top">
             <span class="eyebrow">PROPRIEDADES</span>
@@ -29,7 +54,7 @@ function autonomousTargetObjects(ownerObjectId: string): Array<{ id: string; nam
           <div class="inspector-title-row">
             <span class="inspector-object-icon" :class="{ selected: ctx.inspectorMode === 'object', terrain: ctx.inspectorMode === 'terrain' }">{{ ctx.inspectorMode === 'object' ? '◇' : ctx.inspectorMode === 'terrain' ? '▤' : '⌂' }}</span>
             <div class="inspector-title-copy">
-              <div class="h">{{ ctx.selected ? ctx.selected.name : ctx.inspectorMode === 'terrain' ? 'Terreno editável' : 'Mundo principal' }}</div>
+              <div class="h">{{ ctx.inspectorMode === 'environment' ? 'Mundo principal' : ctx.selected ? ctx.selected.name : ctx.inspectorMode === 'terrain' ? 'Terreno editável' : 'Mundo principal' }}</div>
               <div class="inspector-description">{{ ctx.selected ? (ctx.selected.type === 'cube' ? 'Cubo · GameObject' : 'Plataforma · GameObject') : ctx.inspectorMode === 'terrain' ? 'Superfície procedural' : 'Nenhum objeto selecionado' }}</div>
             </div>
             <span v-if="ctx.selected" class="selection-indicator" title="Objeto selecionado"></span>
@@ -46,7 +71,7 @@ function autonomousTargetObjects(ownerObjectId: string): Array<{ id: string; nam
 
         <div class="scroll">
           <section v-if="ctx.inspectorMode === 'environment'">
-            <h4>Ambiente</h4>
+            <h4 id="inspector-environment-settings">Ambiente</h4>
             <dl>
               <dt>Dimensão</dt><dd class="mono">3D · X/Y/Z</dd>
               <dt>Terreno</dt><dd class="mono">100 × 100 unidades</dd>
@@ -62,7 +87,7 @@ function autonomousTargetObjects(ownerObjectId: string): Array<{ id: string; nam
                 <button v-if="ctx.playerModelCustom" class="ghost" title="Remove o modelo personalizado e volta ao personagem padrão." @click="ctx.resetPlayerModel">Restaurar padrão</button>
               </div>
               <p class="component-note">Aceita arquivos GLB de até 30 MB. <span v-if="ctx.playerModelCustom">Altura atual: <strong>{{ ctx.playerModelHeight.toFixed(2) }} u</strong>. </span>Modelos com animações embutidas podem usar clipes nomeados idle, walk, run e jump; modelos estáticos serão exibidos sem animação de movimento.</p>
-              <h4>Céu</h4>
+              <h4 id="inspector-sky-settings">Céu</h4>
               <p class="muted">Use uma imagem panorâmica ou uma textura de céu para envolver a cena.</p>
               <input :ref="element => setExternalRef('skyFileInput', element)" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="ctx.onSkyTextureSelected" />
               <button class="primary environment-button" title="Carrega uma imagem para usar como textura do céu da cena." @click="ctx.skyFileInput?.click()">{{ ctx.skyTextureDataUrl ? 'Trocar textura do céu' : 'Importar textura do céu' }}</button>

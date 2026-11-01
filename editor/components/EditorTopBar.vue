@@ -122,9 +122,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <div class="brand-mark" role="img" aria-label="Prometheus Engine" title="Prometheus Engine">
-        <span class="logo" aria-hidden="true">P</span>
+      <div class="brand-mark" role="img" aria-label="Prometeu Engine" title="Prometeu Engine">
+        <svg class="brand-emblem" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path d="M20 3.5h8l1.2 4.1c1.2.3 2.3.8 3.4 1.4l3.8-2 5.6 5.6-2 3.8c.6 1.1 1.1 2.2 1.4 3.4l4.1 1.2v8l-4.1 1.2c-.3 1.2-.8 2.3-1.4 3.4l2 3.8-5.6 5.6-3.8-2c-1.1.6-2.2 1.1-3.4 1.4L28 45h-8l-1.2-4.1c-1.2-.3-2.3-.8-3.4-1.4l-3.8 2L6 35.9l2-3.8c-.6-1.1-1.1-2.2-1.4-3.4L2.5 27.5v-8l4.1-1.2c.3-1.2.8-2.3 1.4-3.4l-2-3.8 5.6-5.6 3.8 2c1.1-.6 2.2-1.1 3.4-1.4L20 3.5Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/>
+          <circle cx="24" cy="23.5" r="12.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M24.2 12.5c.9 4.2 5.3 6.1 5.7 10.8.4 4.1-2.1 7.5-5.9 8.2-3.8-.6-6-3.4-5.8-6.9.2-3.3 2.8-5.2 3.8-7.9.7-1.7 1-3 2.2-4.2Z" stroke="#f0522a" stroke-width="2.2" stroke-linejoin="round"/>
+        </svg>
       </div>
+      <div class="brand-copy" aria-hidden="true"><strong>PROMETEU</strong><span>ENGINE <small>v0.1.0</small></span></div>
       <span class="topbar-divider" aria-hidden="true"></span>
 
       <div class="project-shell" title="Nome do projeto atual">
