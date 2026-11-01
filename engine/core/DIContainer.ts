@@ -165,10 +165,11 @@ export class DIContainer {
       // If we have a currentScope, check if parent has a scoped registration
       // If so, we should create the instance ourselves and store in our scope
       if (this.currentScope) {
-        const parentRegistration = this.parentContainer.getRegistration(token);
-        if (parentRegistration && parentRegistration.lifetime === 'scoped') {
-          // Create instance with this container as context and store in our scope
-          const instance = parentRegistration.factory(this);
+        const inherited = this.findRegistration(token);
+        if (inherited?.registration.lifetime === 'scoped') {
+          // Resolve inherited scoped registrations against this scope, even when
+          // the provider lives several containers above this one.
+          const instance = inherited.registration.factory(this);
           this.currentScope.set(token, instance);
           return instance;
         }
