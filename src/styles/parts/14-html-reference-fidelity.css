@@ -429,3 +429,106 @@
     padding:0!important;
   }
 }
+
+
+/* Native desktop density: keep the viewport useful at 1280×720 and below. */
+@media(min-width:761px) and (max-width:1320px) {
+  :root {
+    --editor-rail-width:72px;
+    --editor-hierarchy-width:232px;
+    --editor-inspector-width:280px;
+  }
+  .app>.topbar { gap:8px!important; padding-inline:12px!important; }
+  .app>.topbar .brand-mark,.app>.topbar .brand-emblem { width:36px!important; height:36px!important; }
+  .app>.topbar .brand-copy { min-width:100px!important; margin-right:4px!important; }
+  .app>.topbar .brand-copy strong { font-size:15px!important; letter-spacing:.34em!important; }
+  .app>.topbar .brand-copy span { font-size:9px!important; letter-spacing:.3em!important; }
+  .app>.topbar .project-shell { min-width:90px!important; }
+  .app>.topbar .pname { width:90px!important; font-size:11px!important; }
+  .app>.topbar .file-menu>summary { height:36px!important; min-height:36px!important; padding-inline:9px!important; font-size:11px!important; }
+  .app>.topbar .mode-segment button {
+    width:112px!important; min-width:102px!important; height:38px!important; min-height:38px!important;
+    padding-inline:10px!important; gap:7px!important; font-size:12px!important;
+  }
+  .app>.topbar .global-search-wrap {
+    width:210px!important; max-width:210px!important; min-width:132px!important;
+    flex-basis:210px!important; margin-right:42px!important;
+  }
+  .app>.topbar .global-search { height:34px!important; min-height:34px!important; }
+  .app .editor-side-rail { padding:9px 6px 8px!important; }
+  .app .editor-side-rail-main,.app .editor-side-rail-footer { gap:5px!important; }
+  .app .editor-rail-item {
+    min-height:58px!important; gap:4px!important; padding:6px 1px!important;
+    font-size:10px!important; border-radius:9px!important;
+  }
+  .app .editor-rail-item svg { width:21px!important; height:21px!important; }
+  .app .panel.left .library-tabs,.app .panel.left .library-tabs button {
+    height:44px!important; min-height:44px!important;
+  }
+  .app .panel.left .library-tabs button { font-size:11px!important; }
+  .app .panel.left .hierarchy-search {
+    height:36px!important; min-height:36px!important; margin:9px 11px 8px!important;
+  }
+  .app .panel.left .hierarchy-search input { height:32px!important; min-height:32px!important; font-size:11px!important; }
+  .app .panel.left .row { min-height:30px!important; height:30px!important; font-size:11px!important; }
+  .app .panel.left .row .name { font-size:11px!important; }
+  .app .panel.left .hierarchy-actions { padding:7px 8px!important; }
+  .app .panel.left .hierarchy-actions button { min-height:32px!important; font-size:10px!important; }
+  .app .inspector-workspace-tabs,.app .inspector-workspace-tabs button {
+    height:44px!important; min-height:44px!important;
+  }
+  .app .inspector-heading {
+    min-height:68px!important; margin:9px 11px 6px!important; padding:9px!important;
+  }
+  .app .inspector-title-row { gap:9px!important; }
+  .app .inspector-object-icon { width:42px!important; height:42px!important; flex-basis:42px!important; font-size:19px!important; }
+  .app .inspector-title-copy .h { font-size:13px!important; }
+  .app .panel.right .scroll section { padding:10px 12px!important; }
+  .app .panel.right .scroll h4 { margin-bottom:8px!important; font-size:12px!important; }
+  .app .panel.right .scroll dt,.app .panel.right .scroll dd { font-size:10px!important; }
+  .app .panel.right .scroll input:not([type=checkbox]):not([type=range]),
+  .app .panel.right .scroll select,.app .panel.right .scroll textarea { min-height:32px!important; font-size:10px!important; }
+  .app .panel.right .scroll button.primary { min-height:32px!important; font-size:11px!important; }
+  .app .viewport-actions { top:10px!important; left:10px!important; gap:6px!important; }
+  .app .viewport-actions .quick-add-trigger,.app .viewport-actions .model-import-launch {
+    height:34px!important; min-height:34px!important; padding-inline:10px!important; font-size:11px!important;
+  }
+  .app .viewport-tools-overlay.viewport-layout-positioned { top:10px!important; right:10px!important; gap:6px!important; }
+  .app .viewport-tools-overlay .viewport-tool,.app .viewport-tools-overlay .render-settings-trigger,
+  .app .viewport-tools-overlay .topbar-fullscreen {
+    height:34px!important; min-height:34px!important; width:34px!important; min-width:34px!important; padding:0!important;
+  }
+  .app .toolbar.viewport-layout-positioned {
+    top:70px!important; left:10px!important; width:50px!important; min-width:50px!important; gap:4px!important; padding:4px!important;
+  }
+  .app .toolbar.viewport-layout-positioned .tool {
+    width:40px!important; min-width:40px!important; height:40px!important; min-height:40px!important;
+  }
+  .app .toolbar.viewport-layout-positioned .tool-ico { font-size:17px!important; }
+  .app .viewport-fps { right:10px!important; bottom:10px!important; min-height:28px!important; padding:4px 8px!important; gap:7px!important; }
+  .app .viewport-render-stats { gap:6px!important; padding-left:7px!important; font-size:8px!important; }
+  .app .statusbar { height:38px!important; min-height:38px!important; font-size:10px!important; }
+  .app .statusbar .seg { height:37px!important; min-height:37px!important; padding-inline:8px!important; font-size:10px!important; }
+  .app .main { margin-bottom:38px!important; }
+}
+@media(min-width:761px) and (max-width:1180px) {
+  :root {
+    --editor-rail-width:68px;
+    --editor-hierarchy-width:218px;
+    --editor-inspector-width:270px;
+  }
+  .app>.topbar .brand-copy { min-width:88px!important; }
+  .app>.topbar .mode-segment button { width:100px!important; min-width:92px!important; }
+  .app>.topbar .global-search-wrap { width:184px!important; max-width:184px!important; flex-basis:184px!important; }
+}
+@media(min-width:761px) and (max-width:900px) {
+  :root {
+    --editor-rail-width:58px;
+    --editor-hierarchy-width:190px;
+    --editor-inspector-width:220px;
+  }
+  .app>.topbar .brand-copy,.app>.topbar .project-shell { display:none!important; }
+  .app>.topbar .global-search-wrap { width:148px!important; max-width:148px!important; flex-basis:148px!important; }
+  .app>.topbar .mode-segment button { width:82px!important; min-width:76px!important; padding-inline:6px!important; }
+  .app .editor-rail-item { min-height:52px!important; font-size:9px!important; }
+}
