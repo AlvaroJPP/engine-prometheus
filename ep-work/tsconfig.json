@@ -10,7 +10,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*"
+        "../src/*"
+      ],
+      "@editor/*": [
+        "../editor/*"
       ],
       "@engine": [
         "../engine/index.ts"
@@ -24,6 +27,12 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
+    "../src/**/*.ts",
+    "../src/**/*.tsx",
+    "../src/**/*.vue",
+    "../editor/**/*.ts",
+    "../editor/**/*.tsx",
+    "../editor/**/*.vue",
     "../engine/**/*.ts"
   ],
   "exclude": [

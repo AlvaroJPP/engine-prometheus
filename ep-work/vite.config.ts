@@ -16,7 +16,8 @@ export default createViteConfig({
   plugins: [vue(), cspMetaPlugin],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@': fileURLToPath(new URL('../src', import.meta.url)),
+      '@editor': fileURLToPath(new URL('../editor', import.meta.url)),
       '@engine': fileURLToPath(new URL('../engine', import.meta.url)),
     },
   },

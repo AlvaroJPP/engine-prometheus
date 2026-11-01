@@ -21,18 +21,52 @@
     ],
     "security": {
       "csp": {
-        "default-src": ["'self'"],
-        "script-src": ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'"],
-        "style-src": ["'self'", "'unsafe-inline'"],
-        "img-src": ["'self'", "data:", "blob:"],
-        "font-src": ["'self'", "data:"],
-        "connect-src": ["'self'", "ws://localhost:5173", "wss:"],
-        "worker-src": ["'self'", "blob:"],
-        "frame-src": ["'self'"],
-        "object-src": ["'none'"],
-        "base-uri": ["'none'"],
-        "form-action": ["'none'"],
-        "frame-ancestors": ["'none'"]
+        "default-src": [
+          "'self'"
+        ],
+        "script-src": [
+          "'self'",
+          "'wasm-unsafe-eval'",
+          "'unsafe-eval'"
+        ],
+        "style-src": [
+          "'self'",
+          "'unsafe-inline'"
+        ],
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:"
+        ],
+        "font-src": [
+          "'self'",
+          "data:"
+        ],
+        "connect-src": [
+          "'self'",
+          "ws://localhost:5173",
+          "wss:",
+          "blob:"
+        ],
+        "worker-src": [
+          "'self'",
+          "blob:"
+        ],
+        "frame-src": [
+          "'self'"
+        ],
+        "object-src": [
+          "'none'"
+        ],
+        "base-uri": [
+          "'none'"
+        ],
+        "form-action": [
+          "'none'"
+        ],
+        "frame-ancestors": [
+          "'none'"
+        ]
       }
     }
   },
