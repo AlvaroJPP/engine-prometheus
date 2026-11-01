@@ -186,9 +186,7 @@ async function runTests() {
     await new Promise(r => setTimeout(r, 10));
     asyncCalled = true;
   }, { async: true });
-  eventBus.emit('test:async');
-  // Give async time to run
-  await new Promise(r => setTimeout(r, 20));
+  await eventBus.emitAsync('test:async');
   assert(asyncCalled, 'Async handler executed');
 
   // waitFor
