@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import * as THREE from 'three'
-import { createEditorBackgroundTexture, World } from '../engine/world/World.ts'
+import { createEditorBackgroundTexture } from '../engine/world/EditorBackgroundTexture.ts'
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const layout = read('../src/styles/parts/14-html-reference-fidelity.css')
 const appStyles = read('../src/styles/app.css')
 const workspace = read('../src/components/AppWorkspace.vue')
+const worldSource = read('../engine/world/World.ts')
 
 assert.ok(layout.includes('--editor-rail-width:84px'))
 assert.ok(layout.includes('--editor-hierarchy-width:268px'))
@@ -20,6 +21,11 @@ for (const component of structure) assert.ok(workspace.includes(component), 'Com
 for (let index = 1; index < structure.length; index += 1) {
   assert.ok(workspace.indexOf(structure[index - 1]) < workspace.indexOf(structure[index]), 'Ordem incorreta: ' + structure[index])
 }
+
+assert.ok(worldSource.includes("import { createEditorBackgroundTexture } from './EditorBackgroundTexture'"))
+assert.ok(worldSource.includes('private readonly editorBackgroundTexture = createEditorBackgroundTexture()'))
+assert.ok(worldSource.includes('this.skyTextureDataUrl && this.skyBackgroundTexture ? this.skyBackgroundTexture : this.editorBackgroundTexture'))
+assert.ok(worldSource.includes('this.scene.background = this.horizonColor'))
 
 const files = [
   '../editor/components/EditorTopBar.vue',
@@ -51,13 +57,16 @@ assert.equal(texture.image.width, 2)
 assert.equal(texture.image.height, 1024)
 assert.equal(texture.colorSpace, THREE.SRGBColorSpace)
 
-const world = new World()
-const editorBackground = world.scene.background
-assert.ok(editorBackground instanceof THREE.DataTexture, 'O editor deve iniciar com o gradiente de referência')
-world.setEditorAppearance(false)
-assert.ok(world.scene.background instanceof THREE.Color, 'O modo Jogar deve manter o fundo dinâmico')
-world.setEditorAppearance(true)
-assert.equal(world.scene.background, editorBackground, 'O retorno ao editor deve restaurar o gradiente')
+const pixels = texture.image.data
+const colorAt = (position) => {
+  const y = Math.round((1 - position) * (texture.image.height - 1))
+  const offset = y * texture.image.width * 4
+  return Array.from(pixels.slice(offset, offset + 4))
+}
+const matchesColor = (actual, expected) =>
+  actual.every((value, index) => Math.abs(value - expected[index]) <= 1)
+assert.ok(matchesColor(colorAt(0), [0x17, 0x1b, 0x2b, 255]), 'Cor superior do gradiente incorreta')
+assert.ok(matchesColor(colorAt(1), [0x10, 0x10, 0x13, 255]), 'Cor inferior do gradiente incorreta')
 
 texture.dispose()
 console.log('editor-reference-layout-self-test: PASS')
