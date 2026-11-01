@@ -5,10 +5,86 @@ use std::process::Command;
 
 use tauri_plugin_fs as _;
 
-/// Allowed root directories for project operations.
-const ALLOWED_ROOTS: &[&str] = &["$APPCONFIG", "$APPDATA", "$DOWNLOAD", "$DESKTOP", "$DOCUMENT"];
+/// Environment variables that may point to application-specific user folders.
+const ALLOWED_ROOT_ENV_VARS: &[&str] = &[
+    "APPCONFIG",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "DOWNLOAD",
+    "DESKTOP",
+    "DOCUMENT",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_DOWNLOAD_DIR",
+    "XDG_DESKTOP_DIR",
+    "XDG_DOCUMENTS_DIR",
+];
 
-/// Resolve and validate the selected project directory against the configured user folders.
+/// Build the allowed root list from environment variables and conventional
+/// user folders. Windows does not define DOWNLOAD/DESKTOP/DOCUMENT by default,
+/// so deriving these from USERPROFILE avoids rejecting normal folder-picker paths.
+fn allowed_project_roots() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    for variable in ALLOWED_ROOT_ENV_VARS {
+        if let Some(value) = std::env::var_os(variable) {
+            candidates.push(PathBuf::from(value));
+        }
+    }
+
+    let home = std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from);
+
+    if let Some(home) = home {
+        for folder in ["Downloads", "Desktop", "Documents"] {
+            candidates.push(home.join(folder));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            candidates.push(home.join("AppData").join("Roaming"));
+            candidates.push(home.join("AppData").join("Local"));
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            candidates.push(home.join("Library").join("Application Support"));
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            candidates.push(home.join(".config"));
+            candidates.push(home.join(".local").join("share"));
+        }
+    }
+
+    // OneDrive may relocate the standard Windows Desktop/Documents folders.
+    for variable in ["OneDrive", "OneDriveCommercial", "OneDriveConsumer"] {
+        if let Some(value) = std::env::var_os(variable) {
+            let root = PathBuf::from(value);
+            for folder in ["Downloads", "Desktop", "Documents"] {
+                candidates.push(root.join(folder));
+            }
+        }
+    }
+
+    let mut roots = Vec::new();
+    for candidate in candidates {
+        if let Ok(canonical) = fs::canonicalize(candidate) {
+            if canonical.is_dir() && !roots.contains(&canonical) {
+                roots.push(canonical);
+            }
+        }
+    }
+    roots
+}
+
+fn is_within_allowed_project_root(project: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|root| project.starts_with(root))
+}
+
+/// Resolve and validate the selected project directory against known user folders.
 fn validate_project_directory(dir: &str) -> Result<PathBuf, String> {
     let base = PathBuf::from(dir);
     if !base.is_dir() {
@@ -17,14 +93,7 @@ fn validate_project_directory(dir: &str) -> Result<PathBuf, String> {
 
     let canonical_base = fs::canonicalize(&base)
         .map_err(|e| format!("Não foi possível resolver a pasta do projeto: {e}"))?;
-    let base_allowed = ALLOWED_ROOTS.iter().any(|root| {
-        std::env::var(root.trim_start_matches('$'))
-            .ok()
-            .and_then(|value| fs::canonicalize(value).ok())
-            .is_some_and(|allowed_root| canonical_base.starts_with(allowed_root))
-    });
-
-    if !base_allowed {
+    if !is_within_allowed_project_root(&canonical_base, &allowed_project_roots()) {
         return Err("Pasta do projeto não está em um diretório permitido.".into());
     }
 
@@ -745,6 +814,37 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod allowed_project_root_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn accepts_children_of_allowed_roots() {
+        let temp = tempdir().unwrap();
+        let documents = temp.path().join("Documents");
+        let project = documents.join("MyProject");
+        fs::create_dir_all(&project).unwrap();
+
+        let canonical_root = fs::canonicalize(&documents).unwrap();
+        let canonical_project = fs::canonicalize(&project).unwrap();
+        assert!(is_within_allowed_project_root(&canonical_project, &[canonical_root]));
+    }
+
+    #[test]
+    fn rejects_sibling_paths_with_a_matching_string_prefix() {
+        let temp = tempdir().unwrap();
+        let allowed = temp.path().join("Documents");
+        let sibling = temp.path().join("Documents-backup");
+        fs::create_dir_all(&allowed).unwrap();
+        fs::create_dir_all(&sibling).unwrap();
+
+        let canonical_root = fs::canonicalize(&allowed).unwrap();
+        let canonical_sibling = fs::canonicalize(&sibling).unwrap();
+        assert!(!is_within_allowed_project_root(&canonical_sibling, &[canonical_root]));
+    }
 }
 
 #[cfg(test)]
