@@ -1,8 +1,26 @@
-# Vue 3 + TypeScript + Vite
+# Engine Prometheus
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Engine Prometheus is a modular 3D world editor and runtime built with TypeScript, Vue 3, Three.js, Rapier and Tauri 2. Its reusable engine systems cover rendering, physics, input, animation/rigging, project serialization, scripting, entities/components, behavior trees, navigation, combat, inventory, UI screens and mounting.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+The engine exposes a generic game-module contract. Game-specific rules and interfaces belong to the application that consumes the engine; no game-specific implementation is bundled in this repository.
+
+## Ambiente e validação
+
+Use Node.js 22 ou superior. Na raiz do repositório:
+
+```bash
+npm ci
+npm run build
+cd ep-work && npm run build
+```
+
+O primeiro build verifica os tipos da engine; o segundo gera a aplicação desktop/web do workspace. Para executar a suíte completa de regressão, volte à raiz e execute:
+
+```bash
+npm run test:all
+```
+
+`npm test` executa o self-test do núcleo. Os workflows do GitHub Actions também verificam o backend Tauri em Rust e executam os testes E2E..
 
 ## Teste de API de IA
 
@@ -12,17 +30,17 @@ Para testar requisições de texto com um endpoint compatível com chat completi
 
 O script `scripts/analyze-rig-similarity.mjs` compara os ossos de um modelo de origem com os do modelo que receberá a animação. Ele analisa nomes/sinônimos, lado do corpo, hierarquia, posição relativa, profundidade e proporção dos segmentos. O relatório traz o mapeamento automático e as três melhores alternativas por osso.
 
-Execute com Node.js 24 e as dependências instaladas:
+Execute com Node.js 22 ou superior e as dependências instaladas:
 
 ```bash
 npm ci
-npm run rig:similarity -- "./modelos/origem.glb" "./modelos/destino.glb" --clip 0 --report "./relatorio-rig.md"
+npx tsx scripts/analyze-rig-similarity.mjs "./modelos/origem.glb" "./modelos/destino.glb" --clip 0 --report "./relatorio-rig.md"
 ```
 
 - `--clip 0`: analisa o primeiro clipe (o índice começa em zero).
 - `--all-source-bones`: compara todos os ossos da origem, incluindo os que o clipe não anima.
 - `--report ./relatorio-rig.md`: grava o diagnóstico em Markdown.
-- `npm run rig:similarity:self-test`: testa o algoritmo com um rig sintético.
+- `npx tsx scripts/analyze-rig-similarity.mjs --self-test`: testa o algoritmo com rigs sintéticos.
 
 A análise funciona offline para arquivos `.glb` e `.gltf`; no `.gltf`, basta o arquivo JSON principal porque a ferramenta compara a hierarquia e os transforms dos nós. Os scores são heurísticos, não probabilidades. Revise os casos ambíguos e confirme o resultado no preview 3D antes de guardar a animação.
 
@@ -59,9 +77,10 @@ A transferência considera aliases anatômicos, lateralidade, hierarquia e geome
 Valide os testes locais:
 
 ```bash
-npm run rig:similarity:self-test
-npm run rigging:self-test
+npx tsx scripts/analyze-rig-similarity.mjs --self-test
+npm run test:rigging
 npm run build
+cd ep-work && npm run build
 ```
 
 **Limitação importante:** o SkinTokens é usado para gerar o rig e os pesos, enquanto o mapeamento origem→destino usa algoritmos locais de anatomia, nomes, hierarquia e geometria. O fluxo autônomo encadeia as etapas, mas não é um modelo neural treinado especificamente para retargeting. Nenhum algoritmo garante rig ou transferência perfeitos para qualquer malha. Confira especialmente anatomias diferentes, rigs genéricos, dedos, acessórios, animações com deslocamento de raiz e clipes que animam nós não esqueléticos.
