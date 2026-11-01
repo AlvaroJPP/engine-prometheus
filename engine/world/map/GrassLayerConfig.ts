@@ -111,6 +111,23 @@ export const GRASS_OCCLUSION_FINE_SAMPLE_POINTS = GRASS_OCCLUSION_SAMPLE_OFFSETS
 )
 export const GRASS_MODEL_URL = grassModelUrl
 
+// Improved LOD transition distances (with hysteresis)
+export const GRASS_LOD_NEAR_FADE_START = 0.85
+export const GRASS_LOD_NEAR_FADE_END = 1.0
+export const GRASS_LOD_MIDDLE_FADE_START = 0.8
+export const GRASS_LOD_MIDDLE_FADE_END = 1.0
+export const GRASS_LOD_FAR_FADE_START = 0.75
+export const GRASS_LOD_FAR_FADE_END = 1.0
+
+// Depth-based occlusion culling
+export const GRASS_DEPTH_OCCLUSION_ENABLED = true
+export const GRASS_DEPTH_OCCLUSION_SAMPLE_COUNT = 4
+export const GRASS_DEPTH_OCCLUSION_BIAS = 0.02
+
+// Rebuild optimization
+export const GRASS_REBUILD_MAX_BATCH_SIZE = 5000
+export const GRASS_REBUILD_YIELD_INTERVAL = 16
+
 export type PaintedGrassTuft = [x: number, z: number, scale: number, color: number]
 
 export interface GrassInstance {

@@ -233,6 +233,12 @@ export interface EngineEventMap {
   'debug:log': { level: 'info' | 'warn' | 'error'; message: string; context?: Record<string, unknown>; timestamp: number }
   /** Métrica de performance */
   'debug:metric': { name: string; value: number; unit: string; timestamp: number }
+
+  // --- Performance / Frame Budget ---
+  /** Emitido a cada frame com dados de budget */
+  'engine:frameBudget': { budget: { targetFrameTime: number; currentFrameTime: number; fixedUpdateTime: number; updateTime: number; lateUpdateTime: number; renderTime: number; overBudget: boolean; qualityLevel: number } }
+  /** Emitido quando o nível de qualidade adaptativa muda */
+  'engine:qualityChanged': { qualityLevel: number }
 }
 
 /**
@@ -383,4 +389,8 @@ export const EngineEvents = {
   // Debug
   DEBUG_LOG: 'debug:log' as const,
   DEBUG_METRIC: 'debug:metric' as const,
+
+  // Performance / Frame Budget
+  FRAME_BUDGET: 'engine:frameBudget' as const,
+  QUALITY_CHANGED: 'engine:qualityChanged' as const,
 } as const

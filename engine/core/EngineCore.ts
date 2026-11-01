@@ -9,6 +9,45 @@ import { DIContainer } from './DIContainer.js';
 import { EngineEventBus, EngineEventMap, EngineEvents } from './EngineEventBus.js';
 import { Subsystem, SubsystemState, SubsystemConfig, SubsystemContext } from './Subsystem.js';
 import { EngineConfig, createDefaultConfig, RuntimeMode, deepMergeConfig, validateConfig } from './EngineConfig.js';
+import { ThreeResourcePool } from './ThreeResourcePool.js';
+
+// Re-export EngineEvents for external use
+export { EngineEvents } from './EngineEventBus.js';
+
+/** Frame budget tracking for adaptive quality */
+export interface FrameBudget {
+  /** Target frame time in ms (e.g., 16.67 for 60fps) */
+  targetFrameTime: number;
+  /** Current frame time in ms */
+  currentFrameTime: number;
+  /** Fixed update time in ms */
+  fixedUpdateTime: number;
+  /** Variable update time in ms */
+  updateTime: number;
+  /** Late update time in ms */
+  lateUpdateTime: number;
+  /** Render time in ms */
+  renderTime: number;
+  /** Frame budget exceeded */
+  overBudget: boolean;
+  /** Quality level (0-1) */
+  qualityLevel: number;
+}
+
+export interface AdaptiveQualityConfig {
+  /** Enable adaptive quality */
+  enabled: boolean;
+  /** Target FPS */
+  targetFps: number;
+  /** Minimum quality level (0-1) */
+  minQuality: number;
+  /** Maximum quality level (0-1) */
+  maxQuality: number;
+  /** How fast to adapt (0-1) */
+  adaptationSpeed: number;
+  /** Frame budget threshold for quality reduction (ms) */
+  budgetThreshold: number;
+}
 
 export interface EngineCoreOptions {
   /** Configuration overrides */
@@ -19,6 +58,9 @@ export interface EngineCoreOptions {
 
   /** Parent event bus (for testing/embedding) */
   parentEvents?: EngineEventBus<EngineEventMap>;
+
+  /** Adaptive quality configuration */
+  adaptiveQuality?: Partial<AdaptiveQualityConfig>;
 }
 
 export class EngineCore {
@@ -35,6 +77,30 @@ export class EngineCore {
   private fixedTimestepAccumulator = 0;
   private subsystemInitOrder: Subsystem[] = [];
 
+  // Frame budget tracking
+  private frameBudget: FrameBudget = {
+    targetFrameTime: 16.67,
+    currentFrameTime: 0,
+    fixedUpdateTime: 0,
+    updateTime: 0,
+    lateUpdateTime: 0,
+    renderTime: 0,
+    overBudget: false,
+    qualityLevel: 1.0,
+  };
+  private adaptiveQuality: AdaptiveQualityConfig = {
+    enabled: true,
+    targetFps: 60,
+    minQuality: 0.3,
+    maxQuality: 1.0,
+    adaptationSpeed: 0.1,
+    budgetThreshold: 16.67,
+  };
+  private frameTimeHistory: number[] = [];
+  private readonly maxHistorySize = 60;
+  private lastQualityChangeTime = 0;
+  private qualityChangeCooldown = 1000; // ms
+
   constructor(options: EngineCoreOptions = {}) {
     // Create config
     this.config = createDefaultConfig(options.config);
@@ -44,6 +110,13 @@ export class EngineCore {
 
     // Create event bus
     this.events = options.parentEvents || new EngineEventBus<EngineEventMap>();
+
+    // Configure adaptive quality
+    if (options.adaptiveQuality) {
+      this.adaptiveQuality = { ...this.adaptiveQuality, ...options.adaptiveQuality };
+    }
+    this.frameBudget.targetFrameTime = 1000 / this.adaptiveQuality.targetFps;
+    this.adaptiveQuality.budgetThreshold = this.frameBudget.targetFrameTime;
 
     // Register core services
     this.registerCoreServices();
@@ -57,6 +130,12 @@ export class EngineCore {
     // The engine is available via SubsystemContext.engine
     this.container.registerInstance('engine:config', this.config);
     this.container.registerInstance('engine:events', this.events);
+
+    // Register ThreeResourcePool for automatic THREE.js resource management
+    const resourcePool = ThreeResourcePool.getInstance()
+    this.container.registerInstance('engine:resourcePool', resourcePool)
+    resourcePool.setEngine(this)
+
     // Note: Don't register container in itself to avoid circular disposal
   }
 
@@ -451,16 +530,19 @@ export class EngineCore {
   }
 
   /**
-   * Update a single frame
+   * Update a single frame with frame budget tracking
    */
   private async updateFrame(deltaTime: number, time: number): Promise<void> {
+    const frameStartTime = performance.now();
+
     // Clamp delta time to prevent spiral of death
     const clampedDelta = Math.min(deltaTime, 0.1);
 
     // Emit before render
     this.events.emit(EngineEvents.BEFORE_RENDER, { deltaTime: clampedDelta, time });
 
-    // Fixed timestep updates
+    // Fixed timestep updates (physics)
+    const fixedStartTime = performance.now();
     this.fixedTimestepAccumulator += clampedDelta;
     const fixedTimestep = this.config.world.fixedTimestep;
 
@@ -472,20 +554,47 @@ export class EngineCore {
       }
       this.fixedTimestepAccumulator -= fixedTimestep;
     }
+    this.frameBudget.fixedUpdateTime = performance.now() - fixedStartTime;
 
-    // Variable timestep updates
+    // Variable timestep updates (game logic)
+    const updateStartTime = performance.now();
     for (const subsystem of this.subsystemInitOrder) {
       if (subsystem.isRunning()) {
         subsystem.update(clampedDelta, time);
       }
     }
+    this.frameBudget.updateTime = performance.now() - updateStartTime;
 
-    // Late updates
+    // Late updates (camera, post-processing)
+    const lateStartTime = performance.now();
     for (const subsystem of this.subsystemInitOrder) {
       if (subsystem.isRunning()) {
         subsystem.lateUpdate(clampedDelta, time);
       }
     }
+    this.frameBudget.lateUpdateTime = performance.now() - lateStartTime;
+
+    // Calculate total frame time (excluding render which happens in Viewport)
+    const cpuFrameTime = performance.now() - frameStartTime;
+    this.frameBudget.currentFrameTime = cpuFrameTime;
+
+    // Update frame time history for adaptive quality
+    this.frameTimeHistory.push(cpuFrameTime);
+    if (this.frameTimeHistory.length > this.maxHistorySize) {
+      this.frameTimeHistory.shift();
+    }
+
+    // Adaptive quality adjustment
+    if (this.adaptiveQuality.enabled) {
+      this.updateAdaptiveQuality();
+    }
+
+    // Update frame budget
+    this.frameBudget.overBudget = cpuFrameTime > this.adaptiveQuality.budgetThreshold;
+    this.frameBudget.targetFrameTime = 1000 / this.adaptiveQuality.targetFps;
+
+    // Emit frame budget event for monitoring
+    this.events.emit(EngineEvents.FRAME_BUDGET, { budget: { ...this.frameBudget } });
 
     // Emit frame event
     this.events.emit(EngineEvents.FRAME, {
@@ -496,6 +605,80 @@ export class EngineCore {
 
     // Emit after render
     this.events.emit(EngineEvents.AFTER_RENDER, { deltaTime: clampedDelta, time });
+  }
+
+  /**
+   * Update adaptive quality based on frame time history
+   */
+  private updateAdaptiveQuality(): void {
+    const now = performance.now();
+    if (now - this.lastQualityChangeTime < this.qualityChangeCooldown) return;
+
+    // Calculate average frame time over recent history
+    const avgFrameTime = this.frameTimeHistory.reduce((a, b) => a + b, 0) / this.frameTimeHistory.length;
+    const targetFrameTime = this.adaptiveQuality.budgetThreshold;
+
+    // Determine if we need to adjust quality
+    let newQuality = this.frameBudget.qualityLevel;
+
+    if (avgFrameTime > targetFrameTime * 1.2) {
+      // Over budget - reduce quality
+      newQuality = Math.max(this.adaptiveQuality.minQuality, newQuality - this.adaptiveQuality.adaptationSpeed);
+    } else if (avgFrameTime < targetFrameTime * 0.8) {
+      // Under budget - increase quality
+      newQuality = Math.min(this.adaptiveQuality.maxQuality, newQuality + this.adaptiveQuality.adaptationSpeed * 0.5);
+    }
+
+    if (Math.abs(newQuality - this.frameBudget.qualityLevel) > 0.01) {
+      this.frameBudget.qualityLevel = newQuality;
+      this.lastQualityChangeTime = now;
+      this.events.emit(EngineEvents.QUALITY_CHANGED, { qualityLevel: newQuality });
+      this.applyQualityLevel(newQuality);
+    }
+  }
+
+  /**
+   * Apply quality level to subsystems
+   */
+  private applyQualityLevel(quality: number): void {
+    // Notify subsystems of quality change
+    for (const subsystem of this.subsystems.values()) {
+      if (subsystem.isRunning() && 'setQualityLevel' in subsystem) {
+        (subsystem as any).setQualityLevel(quality);
+      }
+    }
+  }
+
+  /**
+   * Get current frame budget
+   */
+  getFrameBudget(): FrameBudget {
+    return { ...this.frameBudget };
+  }
+
+  /**
+   * Get adaptive quality configuration
+   */
+  getAdaptiveQualityConfig(): AdaptiveQualityConfig {
+    return { ...this.adaptiveQuality };
+  }
+
+  /**
+   * Update adaptive quality configuration
+   */
+  setAdaptiveQualityConfig(config: Partial<AdaptiveQualityConfig>): void {
+    this.adaptiveQuality = { ...this.adaptiveQuality, ...config };
+    if (config.targetFps) {
+      this.frameBudget.targetFrameTime = 1000 / config.targetFps;
+      this.adaptiveQuality.budgetThreshold = this.frameBudget.targetFrameTime;
+    }
+  }
+
+  /**
+   * Enable/disable adaptive quality
+   */
+  setAdaptiveQualityEnabled(enabled: boolean): void {
+    this.adaptiveQuality.enabled = enabled;
   }
 
   /**

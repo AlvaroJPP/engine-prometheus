@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { EngineCore } from './EngineCore.js';
+import { EngineEvents } from './EngineEventBus.js';
 import { EngineConfig, createDefaultConfig, RuntimeMode } from './EngineConfig.js';
 import { WorldSubsystem } from '../subsystems/WorldSubsystem.js';
 import { RenderSubsystem } from '../subsystems/RenderSubsystem.js';
@@ -373,6 +374,11 @@ export class EngineFacade {
       sharedRenderer
     );
 
+    // Connect renderer to grass layer for depth occlusion
+    if (this.world?.terrain?.grass && 'setRenderer' in this.world.terrain.grass) {
+      (this.world.terrain.grass as any).setRenderer(sharedRenderer)
+    }
+
     // Update modelLod callback to use the viewport
     this.modelLod = new ModelLodSystem(() => {
       this.viewportInstance!.invalidate();
@@ -387,6 +393,25 @@ export class EngineFacade {
       'engine:visualSettings': this.visualSettings,
       'engine:modelLod': this.modelLod,
     });
+
+    // Listen for frame budget events to adapt grass rendering
+    this.core.events.on(EngineEvents.FRAME_BUDGET, ({ budget }) => {
+      if (this.world?.terrain?.grass) {
+        this.world.terrain.grass.setFrameBudget(
+          budget.qualityLevel,
+          budget.overBudget,
+          budget.currentFrameTime,
+          budget.targetFrameTime
+        )
+      }
+    })
+
+    // Listen for quality changes
+    this.core.events.on(EngineEvents.QUALITY_CHANGED, ({ qualityLevel }) => {
+      if (this.world?.terrain?.grass && 'setQualityLevel' in this.world.terrain.grass) {
+        (this.world.terrain.grass as any).setQualityLevel?.(qualityLevel)
+      }
+    })
 
     // Setup event listeners (now that viewport exists)
     this.setupEventListeners();

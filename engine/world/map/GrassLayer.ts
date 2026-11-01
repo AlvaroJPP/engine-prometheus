@@ -33,6 +33,17 @@ import {
   createGrassTexture,
   TERRAIN_SAMPLE,
   WORLD_HALF,
+  GRASS_LOD_NEAR_FADE_START,
+  GRASS_LOD_NEAR_FADE_END,
+  GRASS_LOD_MIDDLE_FADE_START,
+  GRASS_LOD_MIDDLE_FADE_END,
+  GRASS_LOD_FAR_FADE_START,
+  GRASS_LOD_FAR_FADE_END,
+  GRASS_DEPTH_OCCLUSION_ENABLED,
+  GRASS_DEPTH_OCCLUSION_SAMPLE_COUNT,
+  GRASS_DEPTH_OCCLUSION_BIAS,
+  GRASS_REBUILD_MAX_BATCH_SIZE,
+  GRASS_REBUILD_YIELD_INTERVAL,
 } from './GrassLayerConfig'
 import type {
   GrassBandName,
@@ -98,6 +109,18 @@ export class GrassLayer {
   private renderRebuildInProgress = false
   private pendingRingCenter: THREE.Vector3 | null = null
   private lastRingRebuildStartedAt = 0
+  // LOD fade state
+  private lastLodFadeValues = new Float32Array(3)
+  // Depth-based occlusion (uses renderer depth buffer)
+  private depthOcclusionEnabled = GRASS_DEPTH_OCCLUSION_ENABLED
+  private readonly depthOcclusionTarget = new THREE.Vector3()
+  // Depth render target for GPU occlusion queries
+  private depthRenderTarget: THREE.WebGLRenderTarget | null = null
+  private depthTexture: THREE.DepthTexture | null = null
+
+  // Rebuild batching optimization
+  private rebuildBatchCount = 0
+  private lastRebuildYieldTime = 0
   private renderRebuildRevision = 0
   private lastOcclusionCameraPosition: THREE.Vector3 | null = null
   private lastOcclusionRebuildCameraPosition: THREE.Vector3 | null = null
@@ -122,6 +145,12 @@ export class GrassLayer {
     uGrassPlayerPosition: { value: new THREE.Vector3(100000, 0, 100000) },
     uGrassInteractionRadius: { value: 1.8 },
   }
+
+  // Adaptive rebuild coalescing based on frame budget
+  private adaptiveRebuildCoalesceMs = GRASS_REBUILD_COALESCE_MS
+  private frameBudgetQuality = 1.0
+  private frameBudgetOverBudget = false
+
   private randomState = 0x12345678
 
   constructor(field: Heightfield) {
@@ -282,6 +311,8 @@ export class GrassLayer {
   private installWindShader(material: THREE.Material): void {
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.windUniforms)
+      // Add LOD fade uniform for smooth band transitions
+      shader.uniforms.uGrassLodFade = { value: 1.0 }
       shader.vertexShader = shader.vertexShader.replace(
         '#include <common>',
         [
@@ -290,6 +321,10 @@ export class GrassLayer {
           'uniform float uGrassWindStrength;',
           'uniform vec3 uGrassPlayerPosition;',
           'uniform float uGrassInteractionRadius;',
+          'uniform float uGrassLodFade;',
+          // Instance color stores LOD fade in alpha channel (4 components: RGBA)
+          'attribute vec4 instanceColor;',
+          'varying float vGrassLodFade;',
         ].join('\n'),
       )
       shader.vertexShader = shader.vertexShader.replace(
@@ -299,10 +334,14 @@ export class GrassLayer {
           '#ifdef USE_INSTANCING',
           '  float grassWorldX = instanceMatrix[3].x;',
           '  float grassWorldZ = instanceMatrix[3].z;',
+          '  // Extract LOD fade from instance color alpha channel (0-1)',
+          '  float grassLodFade = instanceColor.a;',
           '#else',
           '  float grassWorldX = 0.0;',
           '  float grassWorldZ = 0.0;',
+          '  float grassLodFade = uGrassLodFade;',
           '#endif',
+          '  vGrassLodFade = grassLodFade;',
           '  float grassTip = clamp(position.y / 0.92, 0.0, 1.0);',
           '  float grassBend = pow(grassTip, 1.7);',
           '  float grassWave = sin(uGrassTime * 1.15 + grassWorldX * 0.31 + grassWorldZ * 0.23)',
@@ -326,10 +365,32 @@ export class GrassLayer {
           '  transformed.x += grassPushX * grassPlayerInfluence * 0.62 * grassBend;',
           '  transformed.z += grassPushZ * grassPlayerInfluence * 0.62 * grassBend;',
           '  transformed.y -= grassPlayerInfluence * 0.16 * grassBend;',
+          // Apply LOD fade to alpha for smooth transitions
+          '  float grassAlpha = grassLodFade;',
         ].join('\n'),
       )
+      // Modify fragment shader to use LOD fade for alpha
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <alphatest_pars_fragment>',
+        [
+          '#include <alphatest_pars_fragment>',
+          'varying float vGrassLodFade;',
+        ].join('\n'),
+      )
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <alphatest_fragment>',
+        [
+          '#include <alphatest_fragment>',
+          '  // Apply LOD fade to alpha for smooth band transitions',
+          '  float lodAlpha = vGrassLodFade;',
+          '  if (lodAlpha < 1.0) {',
+          '    // Fade out geometry near band boundaries',
+          '    if (gl_FragCoord.a * lodAlpha < 0.5) discard;',
+          '  }',
+        ].join('\n'),
+      )
+      material.customProgramCacheKey = () => 'engine-prometheus-grass-wind-lod-v3'
     }
-    material.customProgramCacheKey = () => 'engine-prometheus-grass-wind-lod-v1'
   }
 
 
@@ -613,6 +674,10 @@ export class GrassLayer {
     mesh.receiveShadow = false
     mesh.frustumCulled = false
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    // Add instanceColor attribute with 4 components (RGBA) for LOD fade in alpha
+    const instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity) * 4), 4)
+    instanceColor.setUsage(THREE.DynamicDrawUsage)
+    mesh.geometry.setAttribute('instanceColor', instanceColor)
     mesh.onBeforeRender = () => {
       this.windUniforms.uGrassTime.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001
     }
@@ -822,6 +887,10 @@ export class GrassLayer {
     mesh.receiveShadow = false
     mesh.frustumCulled = false
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    // Add instanceColor attribute with 4 components (RGBA) for LOD fade in alpha
+    const instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity) * 4), 4)
+    instanceColor.setUsage(THREE.DynamicDrawUsage)
+    mesh.geometry.setAttribute('instanceColor', instanceColor)
     mesh.onBeforeRender = () => {
       this.windUniforms.uGrassTime.value = (typeof performance !== 'undefined' ? performance.now() : Date.now()) * 0.001
     }
@@ -845,6 +914,48 @@ export class GrassLayer {
       if (distanceSquared <= maxDistance * maxDistance) return index
     }
     return -1
+  }
+
+  /**
+   * Calcula o fator de fade LOD (0 a 1) para transição suave entre bandas.
+   * Retorna 1 para dentro da banda, valor interpolado nas bordas.
+   */
+  private calculateLodFade(distance: number, bandIndex: number): number {
+    if (bandIndex < 0) return 0
+    const band = this.renderBands[bandIndex]
+    if (!band) return 1
+    const maxDistance = band.maxDistance
+    if (!Number.isFinite(maxDistance)) return 1
+
+    let fadeStart: number
+    let fadeEnd: number
+
+    switch (bandIndex) {
+      case 0: // near
+        fadeStart = GRASS_LOD_NEAR_FADE_START
+        fadeEnd = GRASS_LOD_NEAR_FADE_END
+        break
+      case 1: // middle
+        fadeStart = GRASS_LOD_MIDDLE_FADE_START
+        fadeEnd = GRASS_LOD_MIDDLE_FADE_END
+        break
+      case 2: // far
+        fadeStart = GRASS_LOD_FAR_FADE_START
+        fadeEnd = GRASS_LOD_FAR_FADE_END
+        break
+      default:
+        return 1
+    }
+
+    const fadeStartDist = maxDistance * fadeStart
+    const fadeEndDist = maxDistance * fadeEnd
+
+    if (distance <= fadeStartDist) return 1
+    if (distance >= fadeEndDist) return 0
+
+    // Smoothstep interpolation for natural transition
+    const t = (distance - fadeStartDist) / (fadeEndDist - fadeStartDist)
+    return 1 - (t * t * (3 - 2 * t)) // smoothstep
   }
 
   private spatialHash(x: number, z: number): number {
@@ -1167,6 +1278,151 @@ export class GrassLayer {
     }
   }
 
+  /**
+   * Depth-based occlusion culling using GPU depth buffer.
+   * Returns a map of spatial hash -> isOccluded for the chunk.
+   * This is more efficient than raycasting for dense grass.
+   */
+  private async computeDepthOcclusion(
+    chunk: GrassChunk,
+    center: THREE.Vector3,
+    cameraPosition: THREE.Vector3,
+  ): Promise<Map<number, boolean> | null> {
+    // Depth-based occlusion culling using GPU depth buffer
+    // Returns a map of spatial hash -> isOccluded for the chunk
+
+    if (!this.depthOcclusionEnabled) return null
+    if (!this.depthTexture || !this.depthRenderTarget) return null
+
+    const occlusionMap = new Map<number, boolean>()
+    const renderer = this.getRenderer()
+    if (!renderer) return null
+
+    // We need to render the depth from the camera's perspective
+    // This is typically done in a separate render pass
+    // For now, we'll sample the depth texture on CPU for each grass instance
+    // In a full implementation, this would be done in the shader
+
+    const camera = this.getActiveCamera()
+    if (!camera) return null
+
+    // Update camera for depth render
+    camera.updateMatrixWorld(true)
+
+    // Render depth to our render target
+    const originalRenderTarget = renderer.getRenderTarget()
+    const originalAutoClear = renderer.autoClear
+
+    try {
+      renderer.setRenderTarget(this.depthRenderTarget)
+      renderer.autoClear = true
+      renderer.clear(true, true, false)
+      renderer.render(this.getScene()!, camera)
+
+      // Read depth pixels (this is slow on CPU, better to do in shader)
+      // For now, we'll use a simpler approach: project grass positions to screen space
+      // and check depth buffer
+      const width = this.depthRenderTarget.width
+      const height = this.depthRenderTarget.height
+      const pixelBuffer = new Float32Array(width * height)
+
+      // Note: readRenderTargetPixels is async and slow
+      // A better approach would be to do this in the shader
+      renderer.readRenderTargetPixels(this.depthRenderTarget, 0, 0, width, height, pixelBuffer)
+
+      // For each procedural grass instance in the chunk, check occlusion
+      for (const instance of chunk.procedural) {
+        const hash = this.spatialHash(instance.x, instance.z)
+        const screenPos = this.worldToScreen(instance.x, instance.y, instance.z, camera, width, height)
+
+        if (screenPos.x >= 0 && screenPos.x < width && screenPos.y >= 0 && screenPos.y < height) {
+          const depthIndex = Math.floor(screenPos.y) * width + Math.floor(screenPos.x)
+          const sceneDepth = pixelBuffer[depthIndex]
+
+          // Convert world position to view space depth
+          const viewDepth = this.worldToViewDepth(instance.x, instance.y, instance.z, camera)
+
+          // Check if grass is behind scene geometry (with bias)
+          const isOccluded = viewDepth > sceneDepth + GRASS_DEPTH_OCCLUSION_BIAS
+          occlusionMap.set(hash, isOccluded)
+        }
+      }
+    } finally {
+      renderer.setRenderTarget(originalRenderTarget)
+      renderer.autoClear = originalAutoClear
+    }
+
+    return occlusionMap
+  }
+
+  /**
+   * Initialize depth render target for occlusion queries
+   */
+  private initializeDepthRenderTarget(renderer: THREE.WebGLRenderer): void {
+    if (this.depthRenderTarget) return
+
+    const width = Math.min(512, renderer.domElement.width)
+    const height = Math.min(512, renderer.domElement.height)
+
+    this.depthTexture = new THREE.DepthTexture(width, height)
+    this.depthTexture.format = THREE.DepthFormat
+    this.depthTexture.type = THREE.UnsignedIntType
+
+    this.depthRenderTarget = new THREE.WebGLRenderTarget(width, height, {
+      depthTexture: this.depthTexture,
+      depthBuffer: true,
+      stencilBuffer: false,
+    })
+    this.depthRenderTarget.texture.format = THREE.DepthFormat
+    this.depthRenderTarget.texture.type = THREE.UnsignedIntType
+  }
+
+  /**
+   * Set renderer reference for depth occlusion
+   */
+  setRenderer(renderer: THREE.WebGLRenderer | null): void {
+    // We don't store the renderer directly, but initialize depth target when available
+    if (renderer && !this.depthRenderTarget) {
+      this.initializeDepthRenderTarget(renderer)
+    }
+  }
+
+  // Placeholder getters - these would need to be connected to the actual renderer/scene/camera
+  private getRenderer(): THREE.WebGLRenderer | null {
+    // This should be set via DI or from the render subsystem
+    return null
+  }
+
+  private getActiveCamera(): THREE.Camera | null {
+    return null
+  }
+
+  private getScene(): THREE.Scene | null {
+    return null
+  }
+
+  /**
+   * Convert world position to screen coordinates
+   */
+  private worldToScreen(x: number, y: number, z: number, camera: THREE.Camera, width: number, height: number): THREE.Vector2 {
+    const vector = new THREE.Vector3(x, y, z)
+    vector.project(camera)
+    return new THREE.Vector2(
+      (vector.x * 0.5 + 0.5) * width,
+      (-vector.y * 0.5 + 0.5) * height
+    )
+  }
+
+  /**
+   * Convert world position to view space depth
+   */
+  private worldToViewDepth(x: number, y: number, z: number, camera: THREE.Camera): number {
+    const vector = new THREE.Vector3(x, y, z)
+    const viewMatrix = camera.matrixWorldInverse
+    vector.applyMatrix4(viewMatrix)
+    return -vector.z // View space depth (positive in front of camera)
+  }
+
   /** Invalida a seleção de chunks ocultos após mover/adicionar/remover objetos. */
   invalidateOcclusion(): void {
     this.occlusionDataDirty = true
@@ -1198,7 +1454,7 @@ export class GrassLayer {
         // Consolida movimentos rápidos e limita a frequência de builds enquanto
         // o usuário orbita a câmera. O centro é lido depois da espera, portanto
         // usa sempre a posição mais recente, sem enfileirar cada evento do mouse.
-        await new Promise<void>((resolve) => window.setTimeout(resolve, GRASS_REBUILD_COALESCE_MS))
+        await new Promise<void>((resolve) => window.setTimeout(resolve, this.adaptiveRebuildCoalesceMs))
         if (this.disposed || this.loadingPainted) break
 
         const elapsed = performance.now() - this.lastRingRebuildStartedAt
@@ -1257,11 +1513,15 @@ export class GrassLayer {
     const modelBuckets = this.renderBands.map(() => this.useDetailedGrassModel && this.modelParts.length > 0
       ? this.modelParts.map(() => [] as GrassInstance[])
       : [] as GrassInstance[][])
+    // Store LOD fade values for shader
+    const lodFadeValues = new Float32Array(3)
     const maxRenderDistance = this.renderBands[2]?.maxDistance ?? Number.POSITIVE_INFINITY
     const paddedRenderDistance = Number.isFinite(maxRenderDistance) ? maxRenderDistance + 1.0 : Number.POSITIVE_INFINITY
     const paddedRenderDistanceSquared = paddedRenderDistance * paddedRenderDistance
     let processed = 0
     let processedChunks = 0
+    this.rebuildBatchCount = 0
+    this.lastRebuildYieldTime = performance.now()
 
     for (const chunk of this.chunks) {
       processedChunks += 1
@@ -1308,41 +1568,81 @@ export class GrassLayer {
         }
       }
 
+      // Depth-based occlusion culling (optional, uses renderer depth buffer)
+      let depthOcclusionMap: Map<number, boolean> | null = null
+      if (this.depthOcclusionEnabled && occlusionData) {
+        depthOcclusionMap = await this.computeDepthOcclusion(chunk, center, cameraOrigin)
+      }
+
       for (const instance of chunk.procedural) {
         processed += 1
-        if (processed % 3200 === 0) {
-          await this.yieldToUi()
-          if (this.shouldCancelRenderRebuild(revision)) return
+        this.rebuildBatchCount++
+
+        // Optimized yielding: yield after max batch size or yield interval
+        if (this.rebuildBatchCount >= GRASS_REBUILD_MAX_BATCH_SIZE) {
+          const now = performance.now()
+          if (now - this.lastRebuildYieldTime >= GRASS_REBUILD_YIELD_INTERVAL) {
+            await this.yieldToUi()
+            this.lastRebuildYieldTime = now
+            this.rebuildBatchCount = 0
+            if (this.shouldCancelRenderRebuild(revision)) return
+          }
         }
         if (occlusionData && this.isGrassCellOccluded(instance.x, instance.z)) continue
+        // Check depth occlusion
+        if (depthOcclusionMap && depthOcclusionMap.get(this.spatialHash(instance.x, instance.z))) continue
 
         const bandIndex = this.distanceBandIndex(instance.x, instance.z, center)
         if (bandIndex >= 0) {
           const band = this.renderBands[bandIndex]!
           if (this.spatialHash(instance.x, instance.z) % band.stride === 0) {
-            proceduralBuckets[bandIndex]!.push(instance)
+            // Calculate LOD fade for smooth transitions
+            const dx = instance.x - center.x
+            const dz = instance.z - center.z
+            const distance = Math.sqrt(dx * dx + dz * dz)
+            const fade = this.calculateLodFade(distance, bandIndex)
+            // Store fade in instance color alpha (repurposed for LOD)
+            const instanceWithFade: GrassInstance = { ...instance, color: (instance.color & 0x00ffffff) | (Math.round(fade * 255) << 24) }
+            proceduralBuckets[bandIndex]!.push(instanceWithFade)
+            lodFadeValues[bandIndex] = Math.max(lodFadeValues[bandIndex], fade)
           }
         }
       }
 
       for (const tuft of chunk.painted) {
         processed += 1
-        if (processed % 3200 === 0) {
-          await this.yieldToUi()
-          if (this.shouldCancelRenderRebuild(revision)) return
+        this.rebuildBatchCount++
+
+        if (this.rebuildBatchCount >= GRASS_REBUILD_MAX_BATCH_SIZE) {
+          const now = performance.now()
+          if (now - this.lastRebuildYieldTime >= GRASS_REBUILD_YIELD_INTERVAL) {
+            await this.yieldToUi()
+            this.lastRebuildYieldTime = now
+            this.rebuildBatchCount = 0
+            if (this.shouldCancelRenderRebuild(revision)) return
+          }
         }
         if (occlusionData && this.isGrassCellOccluded(tuft[0], tuft[1])) continue
+        if (depthOcclusionMap && depthOcclusionMap.get(this.paintedHash(tuft))) continue
 
         const bandIndex = this.distanceBandIndex(tuft[0], tuft[1], center)
         if (bandIndex >= 0) {
           const band = this.renderBands[bandIndex]!
           if (this.paintedHash(tuft) % band.stride === 0) {
+            // Calculate LOD fade
+            const dx = tuft[0] - center.x
+            const dz = tuft[1] - center.z
+            const distance = Math.sqrt(dx * dx + dz * dz)
+            const fade = this.calculateLodFade(distance, bandIndex)
+            lodFadeValues[bandIndex] = Math.max(lodFadeValues[bandIndex], fade)
+
             if (this.useDetailedGrassModel && this.modelParts.length > 0 && bandIndex < 2) {
               const variant = this.paintedVariant(tuft)
               const instance = this.paintedModelInstance(tuft)
+              const instanceWithFade: GrassInstance = { ...instance, color: (instance.color & 0x00ffffff) | (Math.round(fade * 255) << 24) }
               for (let partIndex = 0; partIndex < this.modelParts.length; partIndex += 1) {
                 if (this.modelParts[partIndex]!.variantIndex === variant) {
-                  modelBuckets[bandIndex]![partIndex]!.push(instance)
+                  modelBuckets[bandIndex]![partIndex]!.push(instanceWithFade)
                 }
               }
             } else {
@@ -1407,7 +1707,8 @@ export class GrassLayer {
       }
       staged.mesh.count = procedural.length
       staged.mesh.instanceMatrix.needsUpdate = true
-      if (staged.mesh.instanceColor) staged.mesh.instanceColor.needsUpdate = true
+      const bandColorAttr = staged.mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute | undefined
+      if (bandColorAttr) bandColorAttr.needsUpdate = true
       staged.mesh.visible = procedural.length > 0
 
       // O pacote GLB é usado nos anéis próximos; longe dele, usamos geometria simples.
@@ -1430,7 +1731,8 @@ export class GrassLayer {
         }
         mesh.count = records.length
         mesh.instanceMatrix.needsUpdate = true
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+        const modelColorAttr = mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute | undefined
+        if (modelColorAttr) modelColorAttr.needsUpdate = true
         mesh.visible = records.length > 0
       }
     }
@@ -1473,8 +1775,15 @@ export class GrassLayer {
     this.dummy.scale.set(instance.width, instance.height, instance.width)
     this.dummy.updateMatrix()
     mesh.setMatrixAt(index, this.dummy.matrix)
-    this.color.setHex(instance.color)
-    mesh.setColorAt(index, this.color)
+    // Extract LOD fade from alpha channel (bits 24-31) of instance.color
+    const lodFade = ((instance.color >>> 24) & 0xff) / 255
+    this.color.setHex(instance.color & 0x00ffffff)
+    // Set instanceColor with 4 components (RGBA) - alpha holds LOD fade
+    const colorAttr = mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute
+    if (colorAttr) {
+      colorAttr.setXYZW(index, this.color.r, this.color.g, this.color.b, lodFade)
+      colorAttr.needsUpdate = true
+    }
   }
 
   /** Não tinge os materiais do GLB: branco mantém as cores/texturas originais. */
@@ -1484,7 +1793,14 @@ export class GrassLayer {
     this.dummy.scale.set(instance.width, instance.height, instance.width)
     this.dummy.updateMatrix()
     mesh.setMatrixAt(index, this.dummy.matrix)
-    mesh.setColorAt(index, this.white)
+    // Extract LOD fade from alpha channel (bits 24-31) of instance.color
+    const lodFade = ((instance.color >>> 24) & 0xff) / 255
+    // Set instanceColor with 4 components (RGBA) - white with LOD fade in alpha
+    const colorAttr = mesh.geometry.getAttribute('instanceColor') as THREE.InstancedBufferAttribute
+    if (colorAttr) {
+      colorAttr.setXYZW(index, 1, 1, 1, lodFade)
+      colorAttr.needsUpdate = true
+    }
   }
 
   private paintedInstance(tuft: PaintedGrassTuft): GrassInstance {
@@ -1864,6 +2180,48 @@ export class GrassLayer {
     }
   }
 
+  /**
+   * Set quality level for adaptive quality system.
+   * Adjusts grass density, LOD distances, and render settings based on quality (0-1).
+   */
+  setQualityLevel(quality: number): void {
+    // Clamp quality
+    quality = THREE.MathUtils.clamp(quality, 0.1, 1.0)
+
+    // Adjust density based on quality
+    const baseDensity = this.grassDensityPercent
+    const adjustedDensity = Math.round(baseDensity * quality)
+    if (adjustedDensity !== this.grassDensityPercent) {
+      this.grassDensityPercent = adjustedDensity
+      this.applyRenderSettings()
+    }
+
+    // Adjust render distances based on quality
+    // Lower quality = shorter render distances
+    const settings = GRASS_PERFORMANCE_PRESETS[this.performancePreset]
+    const nearDistance = Math.max(5, Math.round(settings.nearDistance * quality))
+    const middleDistance = Math.max(10, Math.round(settings.middleDistance * quality))
+    const viewDistance = Math.max(20, Math.round(settings.viewDistance * quality))
+
+    // Apply overrides if they exist
+    if (this.nearDetailDistanceOverride !== null) {
+      this.nearDetailDistanceOverride = Math.max(5, Math.round(this.nearDetailDistanceOverride * quality))
+    }
+    if (this.middleDetailDistanceOverride !== null) {
+      this.middleDetailDistanceOverride = Math.max(10, Math.round(this.middleDetailDistanceOverride * quality))
+    }
+
+    // Update render bands with new distances
+    for (let i = 0; i < this.renderBands.length; i++) {
+      if (i === 0) this.renderBands[i]!.maxDistance = nearDistance
+      else if (i === 1) this.renderBands[i]!.maxDistance = middleDistance
+      else this.renderBands[i]!.maxDistance = viewDistance
+    }
+
+    // Request rebuild with new settings
+    this.requestRenderRebuild()
+  }
+
   private random(): number {
     this.randomState = (this.randomState + 0x6d2b79f5) >>> 0
     let value = this.randomState
@@ -1920,5 +2278,47 @@ export class GrassLayer {
     this.highMaterial.dispose()
     this.lowMaterial.dispose()
     this.mesh.clear()
+  }
+
+  /**
+   * Update frame budget for adaptive rebuild coalescing.
+   * Called from the engine when frame budget changes.
+   * @param quality Quality level (0-1) from adaptive quality system
+   * @param overBudget Whether the frame budget is exceeded
+   * @param currentFrameTime Current frame time in ms
+   * @param targetFrameTime Target frame time in ms
+   */
+  setFrameBudget(quality: number, overBudget: boolean, currentFrameTime: number, targetFrameTime: number): void {
+    this.frameBudgetQuality = quality
+    this.frameBudgetOverBudget = overBudget
+
+    // Adjust rebuild coalesce time based on frame budget
+    // When over budget or low quality, increase coalesce time to reduce CPU load
+    // When under budget and high quality, decrease coalesce time for more responsive updates
+    const baseCoalesce = GRASS_REBUILD_COALESCE_MS
+    const overBudgetMultiplier = overBudget ? 2.0 : 1.0
+    const qualityMultiplier = THREE.MathUtils.lerp(2.0, 0.5, quality)
+    const frameTimeRatio = Math.min(2.0, currentFrameTime / Math.max(1, targetFrameTime))
+
+    this.adaptiveRebuildCoalesceMs = Math.round(
+      baseCoalesce * overBudgetMultiplier * qualityMultiplier * frameTimeRatio
+    )
+
+    // Clamp to reasonable bounds
+    this.adaptiveRebuildCoalesceMs = THREE.MathUtils.clamp(this.adaptiveRebuildCoalesceMs, 16, 500)
+  }
+
+  /**
+   * Get current adaptive rebuild coalesce time
+   */
+  getAdaptiveRebuildCoalesceMs(): number {
+    return this.adaptiveRebuildCoalesceMs
+  }
+
+  /**
+   * Get frame budget quality level
+   */
+  getFrameBudgetQuality(): number {
+    return this.frameBudgetQuality
   }
 }
