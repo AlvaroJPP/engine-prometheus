@@ -2,16 +2,41 @@
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
-    "types": ["vite/client"],
+    "types": [
+      "vite/client"
+    ],
     "allowArbitraryExtensions": true,
     "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@engine": ["../engine/index.ts"],
-      "@engine/*": ["../engine/*"]
+      "@/*": [
+        "../src/*"
+      ],
+      "@editor/*": [
+        "../editor/*"
+      ],
+      "@engine": [
+        "../engine/index.ts"
+      ],
+      "@engine/*": [
+        "../engine/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "../engine/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "../src/**/*.ts",
+    "../src/**/*.tsx",
+    "../src/**/*.vue",
+    "../editor/**/*.ts",
+    "../editor/**/*.tsx",
+    "../editor/**/*.vue",
+    "../engine/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

@@ -385,4 +385,4 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
   </header>
 </template>
 
-<style scoped src="./EditorTopBar.css"></style>
+<style scoped src="@/components/EditorTopBar.css"></style>

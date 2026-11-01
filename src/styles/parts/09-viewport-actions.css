@@ -106,7 +106,7 @@
 .app .viewport-actions .model-import-launch:hover,
 .app .viewport-actions .model-import-launch .viewport-action-label {
   color:#e6e8ec !important;
-  -webkit-text-fill-color:#e6e8ec !important;
+  -webkit-text-fill-color:#f3efe6 !important;
 }
 .viewport-actions .model-import-launch > span:first-child {
   color:#f5a524 !important;
@@ -120,7 +120,7 @@
   font-weight:inherit !important;
   letter-spacing:normal !important;
   color:#e6e8ec !important;
-  -webkit-text-fill-color:#e6e8ec !important;
+  -webkit-text-fill-color:#f3efe6 !important;
 }
 .viewport-fps {
   top:auto !important;

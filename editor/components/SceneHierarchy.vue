@@ -361,4 +361,4 @@ const emit = defineEmits<{
   </aside>
 </template>
 
-<style scoped src="./SceneHierarchy.css"></style>
+<style scoped src="@/components/SceneHierarchy.css"></style>
