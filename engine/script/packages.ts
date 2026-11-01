@@ -1,8 +1,8 @@
 import type { LogicRule } from './types'
 import * as THREE from 'three'
 // Novo sistema de montaria genérico
-import type { MountConfig, MountPoint, MountControlBindings } from '../mount'
-import { createMountAnimationMapping } from '../mount'
+import type { MountConfig, MountPoint, MountControlBindings } from '../mount/MountPoint.ts'
+import { createMountAnimationMapping } from '../mount/MountPoint.ts'
 
 export type PackageScalar = boolean | number | string
 export type PackageJsonValue =

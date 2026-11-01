@@ -76,7 +76,7 @@ export class Engine {
   public get logic(): RuleEngine { return this.facade.logic; }
   public get events() { return this.facade.events; }
   public get viewport(): Viewport | null { return this.facade.viewport; }
-  public get orbit(): OrbitCamera | null { return this.facade.orbit; }
+  public get orbit(): OrbitCamera { return this.facade.orbit; }
   public get input(): PointerController | null { return this.facade.input; }
   public get terrain() { return this.facade.terrain; }
   public get grass() { return this.facade.grass; }

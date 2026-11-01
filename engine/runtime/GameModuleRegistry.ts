@@ -179,6 +179,21 @@ export class GameModuleRegistry {
     this.context = null
   }
 
+  /**
+   * Get a registered module by its ID
+   */
+  getModule<T extends EngineGameModule>(id: string): T | null {
+    const record = this.modules.get(id)
+    return (record?.module as T) ?? null
+  }
+
+  /**
+   * Get all registered modules
+   */
+  getAllModules(): EngineGameModule[] {
+    return [...this.modules.values()].map(record => record.module)
+  }
+
   private attachOne(record: RegisteredModule): void {
     if (record.attached || record.faulted || !this.context) return
 

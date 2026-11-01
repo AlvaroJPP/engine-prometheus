@@ -198,6 +198,16 @@ export class MountController {
   }
 
   /**
+   * Obtém o nome (label) do ponto de montagem atual
+   */
+  getMountName(): string {
+    const state = this.mountSystem.getState()
+    if (!state.isMounted || !state.mountPointId) return 'Montaria'
+    // Access the internal mountPoint from MountSystem
+    return (this.mountSystem as any).state?.mountPoint?.label ?? state.mountPointId
+  }
+
+  /**
    * Obtém mapeador de animações
    */
   getAnimationMapper() {

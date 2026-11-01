@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ENGINE_VERSION, TERRAIN_ID } from '@engine'
 import type { ToolMode, TransformMode, LogicRule } from '@engine'
 import { CAMERA_LABELS, useEditor } from '@/composables/useEditor'
+import RuntimeHUD from '@/components/RuntimeHUD.vue'
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rootOpen = ref(true)
@@ -40,9 +41,32 @@ const {
   newProject,
   openProject,
   saveProject,
+  // Workspace persistence
+  graphOpen,
+  inspectorMode,
+  leftPanelWidth,
+  rightPanelWidth,
+  // Runtime mode
+  runtimeMode,
+  isPlayMode,
+  isEditMode,
+  enterPlayMode,
+  exitPlayMode,
+  togglePlayMode,
+  // Runtime HUD
+  hudEntityCount,
+  hudPlayerHealth,
+  hudPlayerMaxHealth,
+  hudPlayerStamina,
+  hudPlayerMaxStamina,
+  hudPlayerMana,
+  hudPlayerMaxMana,
+  hudMountStatus,
+  hudMountName,
+  hudMemoryUsage,
+  fps,
 } = useEditor(canvas)
 
-const graphOpen = ref(false)
 const graphSelection = ref<{ ruleId: string; part: 'trigger' | 'condition' | 'action' } | null>(null)
 const dragNode = ref<{ ruleId: string; part: 'trigger' | 'condition' | 'action'; dx: number; dy: number } | null>(null)
 const graphViewport = ref<HTMLElement | null>(null)
@@ -110,7 +134,14 @@ function nodeTitle(rule: LogicRule, part: 'trigger' | 'condition' | 'action') {
   if (part === 'trigger') return rule.trigger.type === 'object_clicked' ? 'Quando clicar no objeto' : 'Ao entrar na área'
   if (part === 'condition') return rule.conditions.length ? `Condição: ${rule.conditions.map(c => `${c.name} = ${String(c.value)}`).join(', ')}` : 'Sem condição'
   const action = rule.actions[0]; if (!action) return 'Sem ação'
-  return action.type === 'rotate' ? `Girar ${action.degrees}°` : action.type === 'move' ? `Mover para X ${action.x ?? 0}` : action.type === 'set_visible' ? (action.visible ? 'Mostrar objeto' : 'Ocultar objeto') : `Definir ${action.name} = ${String(action.value)}`
+  if (action.type === 'rotate') return `Girar ${action.degrees}°`
+  if (action.type === 'move') return `Mover para X ${action.x ?? 0}`
+  if (action.type === 'set_visible') return action.visible ? 'Mostrar objeto' : 'Ocultar objeto'
+  if (action.type === 'set_variable') return `Definir ${action.name} = ${String(action.value)}`
+  if (action.type === 'set_package_variable') return `Definir pacote ${action.packageId}.${action.name} = ${String(action.value)}`
+  if (action.type === 'script') return `Script: ${action.code.slice(0, 30)}...`
+  if (action.type === 'javascript') return `JS: ${action.code.slice(0, 30)}...`
+  return 'Ação desconhecida'
 }
 
 const TOOLS: Array<{ id: ToolMode; icon: string; label: string }> = [
@@ -185,11 +216,42 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <button class="tool add" @click="addPrimitive('platform')">+ Plataforma</button>
       <span class="vsep" />
       <button class="tool grid-toggle" :class="{ active: gridVisible }" @click="toggleGrid" title="Mostrar ou ocultar a malha">▦ Malha</button>
+      <span class="vsep" />
+      <!-- Play/Stop/Edit Mode Toggle -->
+      <div class="toolbar-group runtime-controls">
+        <button
+          v-if="isEditMode"
+          class="tool play-btn"
+          @click="enterPlayMode"
+          title="Iniciar modo jogo (Play)"
+          aria-label="Iniciar modo jogo"
+        >
+          <span class="tool-ico" aria-hidden="true">▶</span><span class="tool-label">Play</span>
+        </button>
+        <button
+          v-if="isPlayMode"
+          class="tool stop-btn"
+          @click="exitPlayMode"
+          title="Parar modo jogo (Stop)"
+          aria-label="Parar modo jogo"
+        >
+          <span class="tool-ico" aria-hidden="true">■</span><span class="tool-label">Stop</span>
+        </button>
+        <button
+          v-if="isPlayMode"
+          class="tool edit-btn"
+          @click="exitPlayMode"
+          title="Voltar à edição (Edit)"
+          aria-label="Voltar à edição"
+        >
+          <span class="tool-ico" aria-hidden="true">⚙</span><span class="tool-label">Edit</span>
+        </button>
+      </div>
     </nav>
 
     <div class="main">
       <!-- Hierarquia -->
-      <aside class="panel left">
+      <aside class="panel left" :style="{ width: leftPanelWidth + 'px' }">
         <div class="panel-head">
           <div>
             <div class="eyebrow">CENA ATUAL</div>
@@ -237,6 +299,21 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       <!-- Viewport -->
       <main class="viewport">
         <canvas ref="canvas" class="canvas" :class="'tool-' + tool" />
+        <!-- Runtime HUD -->
+        <RuntimeHUD
+          :isPlayMode="isPlayMode"
+          :fps="fps"
+          :entityCount="hudEntityCount"
+          :memoryUsage="hudMemoryUsage"
+          :playerHealth="hudPlayerHealth"
+          :playerMaxHealth="hudPlayerMaxHealth"
+          :playerStamina="hudPlayerStamina"
+          :playerMaxStamina="hudPlayerMaxStamina"
+          :playerMana="hudPlayerMana"
+          :playerMaxMana="hudPlayerMaxMana"
+          :mountStatus="hudMountStatus"
+          :mountName="hudMountName"
+        />
         <div class="chips">
           <span class="chip grid-state">{{ gridVisible ? 'MALHA ATIVA' : 'MALHA OCULTA' }}</span>
           <span class="chip live"><i class="dot ok" /> MUNDO PRINCIPAL</span>
@@ -255,7 +332,7 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
       </main>
 
       <!-- Inspetor -->
-      <aside class="panel right">
+      <aside class="panel right" :style="{ width: rightPanelWidth + 'px' }">
         <div class="panel-head">
           <div>
             <div class="eyebrow">CONFIGURAÇÃO</div>
@@ -426,11 +503,47 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
 .tool.add { padding-left: 18px; padding-right: 18px; }
 .vsep { width: 1px; height: 24px; background: var(--line); margin: 0 8px; flex: none; }
 
+/* Runtime controls (Play/Stop/Edit) */
+.toolbar-group.runtime-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.tool.play-btn {
+  background: linear-gradient(135deg, #4a7c4a, #3d6b3d);
+  border: 1px solid #5bd08a;
+  color: #fff;
+}
+.tool.play-btn:hover {
+  background: linear-gradient(135deg, #5bd08a, #4a7c4a);
+  box-shadow: 0 0 12px rgba(91, 208, 138, 0.4);
+}
+
+.tool.stop-btn {
+  background: linear-gradient(135deg, #c5533f, #a4443a);
+  border: 1px solid #e0566f;
+  color: #fff;
+}
+.tool.stop-btn:hover {
+  background: linear-gradient(135deg, #e0566f, #c5533f);
+  box-shadow: 0 0 12px rgba(224, 86, 111, 0.4);
+}
+
+.tool.edit-btn {
+  background: linear-gradient(135deg, #3a5a8c, #2d4a7a);
+  border: 1px solid #6fb7f0;
+  color: #fff;
+}
+.tool.edit-btn:hover {
+  background: linear-gradient(135deg, #6fb7f0, #3a5a8c);
+  box-shadow: 0 0 12px rgba(111, 183, 240, 0.4);
+}
+
 /* layout central */
 .main { flex: 1; display: flex; min-height: 0; }
 .panel { display: flex; flex-direction: column; background: var(--panel); min-height: 0; }
-.panel.left { width: 210px; border-right: 1px solid var(--line); flex: none; }
-.panel.right { width: 270px; border-left: 1px solid var(--line); flex: none; }
+.panel.left { min-width: 150px; max-width: 500px; border-right: 1px solid var(--line); flex: none; }
+.panel.right { min-width: 200px; max-width: 600px; border-left: 1px solid var(--line); flex: none; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .eyebrow { font-size: 10px; letter-spacing: 0.16em; color: var(--muted); }
 .h { font-weight: 700; font-size: 16px; margin-top: 3px; }
@@ -513,8 +626,8 @@ input:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 1000px) {
   .pname { display: none; }
   .project { margin-left: 4px; }
-  .panel.left { width: 190px; }
-  .panel.right { width: 250px; }
+  .panel.left { max-width: 190px; }
+  .panel.right { max-width: 250px; }
   .tool { padding: 12px 10px; gap: 6px; }
   .full { width: 100%; }
 .checkline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin: 10px 0; }

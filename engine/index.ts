@@ -6,6 +6,7 @@ export type { PlayerRuntimeEventId } from './player/PlayerLogic'
 export type { EngineOptions } from './Engine'
 export type { EngineGameModule, GameModuleContext } from './runtime/GameModule'
 export { GameModuleRegistry } from './runtime/GameModuleRegistry'
+export { VeilborneGameModule, createVeilborneGameModule } from './runtime/VeilborneGameModule'
 export { DEFAULT_CONTROL_MAPS, createDefaultControlMapSettings } from './input/ControlMaps'
 export type { ControlMapBindings, ControlMapProfile, ControlMapSettings } from './input/ControlMaps'
 export { parseProject, parseScene, parseSceneObject, ProjectFormatError } from './project/validate'
@@ -33,6 +34,9 @@ export type { Entity, EntityMetadata } from './model/entity/Entity'
 export type { TerrainInfo } from './world/World'
 export type { ToolMode, TransformMode } from './EditorState'
 export type { EngineEvents } from './world/events/types'
+
+// View
+export { OrbitCamera } from './view/OrbitCamera'
 
 export { RuleEngine } from './script/RuleEngine'
 export type { LogicEventsFile, LogicRule, RuleTrigger, RuleCondition, RuleAction } from './script/types'

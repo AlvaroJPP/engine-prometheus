@@ -27,6 +27,7 @@ import { ProjectMeta } from '../project/serialize.js';
 import { uuid } from '../lib/id.js';
 import { EngineGameModule, GameModuleContext } from '../runtime/GameModule.js';
 import { GameModuleRegistry } from '../runtime/GameModuleRegistry.js';
+import { VeilborneGameModule } from '../runtime/VeilborneGameModule.js';
 import { EngineVisualSettingsController } from '../runtime/EngineVisualSettingsController.js';
 import { ModelOcclusionSystem } from '../world/ModelOcclusionSystem.js';
 import { ModelLodSystem } from '../world/ModelLodSystem.js';
@@ -1191,6 +1192,40 @@ export class EngineFacade {
 
   registerGameModule(module: EngineGameModule): () => void {
     return this.gameModules.register(module);
+  }
+
+  /**
+   * Get a registered game module by its ID
+   */
+  getGameModule<T extends EngineGameModule>(id: string): T | null {
+    return this.gameModules.getModule<T>(id);
+  }
+
+  /**
+   * Get the Veilborne game module if registered
+   */
+  getVeilborneGameModule(): VeilborneGameModule | null {
+    return this.gameModules.getModule<VeilborneGameModule>('veilborne');
+  }
+
+  /**
+   * Get the current entity count in the world
+   */
+  getEntityCount(): number {
+    return this.world.listEntities().length;
+  }
+
+  /**
+   * Get current JS heap memory usage in MB
+   */
+  getMemoryUsage(): number {
+    if (typeof performance !== 'undefined' && 'memory' in performance) {
+      const memory = (performance as any).memory;
+      if (memory && memory.usedJSHeapSize) {
+        return Math.round(memory.usedJSHeapSize / 1024 / 1024);
+      }
+    }
+    return 0;
   }
 
   // ========================================================================

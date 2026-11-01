@@ -28,6 +28,30 @@ import {
   saveProjectTo,
 } from '@/project/projectService'
 
+// Workspace persistence key
+const WORKSPACE_STORAGE_KEY = 'engine-prometheus.workspace'
+
+// Runtime mode type
+export type RuntimeMode = 'edit' | 'play'
+
+// Workspace state interface
+interface WorkspaceState {
+  // Panel layouts
+  leftPanelWidth: number
+  rightPanelWidth: number
+  // Open tabs/panels
+  graphOpen: boolean
+  inspectorMode: 'object' | 'terrain' | 'environment'
+  // Camera
+  cameraState: ReturnType<import('@engine').OrbitCamera['getState']> | null
+  // Viewport
+  gridVisible: boolean
+  polygonLinesVisible: boolean
+  performanceMode: 'quality' | 'balanced' | 'economy' | 'auto'
+  // Runtime
+  runtimeMode: RuntimeMode
+}
+
 type PerformancePreset = 'quality' | 'balanced' | 'economy' | 'auto'
 type AppliedPerformancePreset = Exclude<PerformancePreset, 'auto'>
 type RenderStats = {
@@ -126,6 +150,30 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable' | 'set_package_variable' | 'script' | 'javascript'>('rotate')
   // Regras novas executam por padrão; o usuário pode ativar uma condição no inspetor.
   const ruleConditionEnabled = ref(false)
+
+  // Workspace persistence state
+  const graphOpen = ref(false)
+  const inspectorMode = ref<'object' | 'terrain' | 'environment'>('object')
+  const leftPanelWidth = ref(210)
+  const rightPanelWidth = ref(270)
+
+  // Runtime mode state
+  const runtimeMode = ref<RuntimeMode>('edit')
+  const isPlayMode = computed(() => runtimeMode.value === 'play')
+  const isEditMode = computed(() => runtimeMode.value === 'edit')
+
+  // Runtime HUD state
+  const hudEntityCount = ref(0)
+  const hudPlayerHealth = ref(0)
+  const hudPlayerMaxHealth = ref(100)
+  const hudPlayerStamina = ref(0)
+  const hudPlayerMaxStamina = ref(100)
+  const hudPlayerMana = ref(0)
+  const hudPlayerMaxMana = ref(50)
+  const hudMountStatus = ref<'unmounted' | 'mounting' | 'mounted' | 'dismounting'>('unmounted')
+  const hudMountName = ref('')
+  const hudMemoryUsage = ref(0)
+  let veilborneModule: import('@engine').VeilborneGameModule | null = null
 
   const engineInstance = shallowRef<Engine | null>(null)
   let engine: Engine | null = null
@@ -369,6 +417,61 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       console.warn('[EditorSettings] Não foi possível salvar o modo de desempenho.', error)
     }
   }
+
+  // Workspace persistence functions
+  function loadWorkspaceState() {
+    try {
+      const saved = window.localStorage.getItem(WORKSPACE_STORAGE_KEY)
+      if (!saved) return
+      const state: Partial<WorkspaceState> = JSON.parse(saved)
+
+      if (typeof state.leftPanelWidth === 'number') leftPanelWidth.value = Math.max(150, Math.min(500, state.leftPanelWidth))
+      if (typeof state.rightPanelWidth === 'number') rightPanelWidth.value = Math.max(200, Math.min(600, state.rightPanelWidth))
+      if (typeof state.graphOpen === 'boolean') graphOpen.value = state.graphOpen
+      if (state.inspectorMode === 'object' || state.inspectorMode === 'terrain' || state.inspectorMode === 'environment') {
+        inspectorMode.value = state.inspectorMode
+      }
+      if (state.gridVisible !== undefined) gridVisible.value = state.gridVisible
+      if (state.polygonLinesVisible !== undefined) polygonLinesVisible.value = state.polygonLinesVisible
+      if (state.performanceMode) performanceMode.value = state.performanceMode
+      // Don't auto-restore runtime mode - always start in edit mode
+      // if (state.runtimeMode === 'edit' || state.runtimeMode === 'play') runtimeMode.value = state.runtimeMode
+
+      // Restore camera state if engine is available
+      if (state.cameraState && engine) {
+        engine.orbit.restore(state.cameraState)
+      }
+
+      console.log('[Workspace] Estado do workspace carregado')
+    } catch (error) {
+      console.warn('[Workspace] Não foi possível carregar o estado do workspace.', error)
+    }
+  }
+
+  function persistWorkspaceState() {
+    try {
+      const cameraState = engine?.orbit?.getState() ?? null
+      const state: WorkspaceState = {
+        leftPanelWidth: leftPanelWidth.value,
+        rightPanelWidth: rightPanelWidth.value,
+        graphOpen: graphOpen.value,
+        inspectorMode: inspectorMode.value,
+        cameraState,
+        gridVisible: gridVisible.value,
+        polygonLinesVisible: polygonLinesVisible.value,
+        performanceMode: performanceMode.value,
+        runtimeMode: runtimeMode.value,
+      }
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(state))
+    } catch (error) {
+      console.warn('[Workspace] Não foi possível salvar o estado do workspace.', error)
+    }
+  }
+
+  // Watch for workspace state changes to persist
+  watch([leftPanelWidth, rightPanelWidth, graphOpen, inspectorMode, gridVisible, polygonLinesVisible, performanceMode, runtimeMode], () => {
+    persistWorkspaceState()
+  }, { deep: true })
 
   function updateAutoPerformancePreset(stats: RenderStats) {
     if (performanceMode.value !== 'auto' || !engine) return
@@ -876,6 +979,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       timeOfDay.value = engine.world.getEnvironment().timeOfDay
     }, 250)
     refresh()
+    loadWorkspaceState()
   })
 
   onBeforeUnmount(() => {
@@ -888,6 +992,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     engine = null
     engineInstance.value = null
     fps.value = 0
+    persistWorkspaceState()
   })
 
   // ---- ferramentas ----
@@ -1103,12 +1208,158 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     say(enabled ? 'Modo primeira pessoa ativado. Clique na cena para capturar o mouse; use o mapa de controles ativo para se movimentar.' : 'Modo primeira pessoa desativado.')
   }
 
-  function setRuntimeMode(enabled: boolean) {
-    runtimeMode = enabled
-    engine?.setRuntimeMode(enabled)
-    // Scripts de início podem modificar variáveis do jogador; atualize a interface
-    // depois que o motor disparar o evento e também ao sair de Jogar.
+  // Runtime mode management
+  function enterPlayMode() {
+    if (!engine) return
+
+    // Save camera state before entering play mode
+    const cameraState = engine.orbit.getState()
+
+    // Switch to play mode
+    runtimeMode.value = 'play'
+    engine.setRuntimeMode(true)
+
+    // Initialize HUD
+    updateHUDFromEngine()
+
+    // Find Veilborne game module for player stats
+    findVeilborneModule()
+
+    // Start HUD update loop
+    startHUDUpdateLoop()
+
+    say('Modo JOGO iniciado. Pressione Stop para voltar à edição.')
+  }
+
+  function exitPlayMode() {
+    if (!engine) return
+
+    // Switch to edit mode
+    runtimeMode.value = 'edit'
+    engine.setRuntimeMode(false)
+
+    // Stop HUD update loop
+    stopHUDUpdateLoop()
+
+    // Reset HUD
+    resetHUD()
+
+    // Refresh editor state
     refresh()
+
+    say('Modo EDIÇÃO restaurado.')
+  }
+
+  function togglePlayMode() {
+    if (runtimeMode.value === 'play') {
+      exitPlayMode()
+    } else {
+      enterPlayMode()
+    }
+  }
+
+  function setRuntimeMode(enabled: boolean) {
+    if (enabled) {
+      enterPlayMode()
+    } else {
+      exitPlayMode()
+    }
+  }
+
+  // HUD update functions
+  function findVeilborneModule() {
+    if (!engine) return
+    // Access the game modules through the engine facade
+    try {
+      // The engine facade has a gameModules registry
+      const gameModules = (engine as any).facade?.gameModules
+      if (gameModules) {
+        // Try to find the Veilborne module
+        const modules = gameModules.getAll?.() ?? []
+        for (const module of modules) {
+          if (module.id === 'veilborne' || module.constructor.name === 'VeilborneGameModule') {
+            veilborneModule = module
+            break
+          }
+        }
+      }
+    } catch (e) {
+      // Module not found, HUD will show basic stats only
+      veilborneModule = null
+    }
+  }
+
+  function updateHUDFromEngine() {
+    if (!engine) return
+
+    // Update entity count
+    const objects = engine.listObjects()
+    hudEntityCount.value = objects.length
+
+    // Update render stats
+    const stats = renderStats.value
+    if (stats) {
+      // Memory usage approximation (in MB)
+      const geometries = stats.geometries || 0
+      const textures = stats.textures || 0
+      hudMemoryUsage.value = Math.round((geometries * 0.1 + textures * 0.5) * 10) / 10
+    }
+
+    // Update player stats from Veilborne module if available
+    if (veilborneModule) {
+      const stats = veilborneModule.getPlayerStats()
+      hudPlayerHealth.value = stats.health
+      hudPlayerMaxHealth.value = stats.maxHealth
+      hudPlayerStamina.value = stats.stamina
+      hudPlayerMaxStamina.value = stats.maxStamina
+      hudPlayerMana.value = stats.mana
+      hudPlayerMaxMana.value = stats.maxMana
+
+      // Mount status
+      if (veilborneModule.isMounted()) {
+        hudMountStatus.value = 'mounted'
+        // Try to get mount name
+        const mountController = veilborneModule.getMountController()
+        if (mountController) {
+          hudMountName.value = mountController.getMountName?.() ?? 'Montaria'
+        }
+      } else {
+        hudMountStatus.value = 'unmounted'
+        hudMountName.value = ''
+      }
+    }
+  }
+
+  function resetHUD() {
+    hudEntityCount.value = 0
+    hudPlayerHealth.value = 0
+    hudPlayerMaxHealth.value = 100
+    hudPlayerStamina.value = 0
+    hudPlayerMaxStamina.value = 100
+    hudPlayerMana.value = 0
+    hudPlayerMaxMana.value = 50
+    hudMountStatus.value = 'unmounted'
+    hudMountName.value = ''
+    hudMemoryUsage.value = 0
+    veilborneModule = null
+  }
+
+  // Periodic HUD update in play mode
+  let hudUpdateTimer: number | null = null
+  function startHUDUpdateLoop() {
+    if (hudUpdateTimer) return
+    hudUpdateTimer = window.setInterval(() => {
+      if (runtimeMode.value === 'play') {
+        updateHUDFromEngine()
+      }
+    }, 250) // Update 4 times per second
+  }
+
+  function stopHUDUpdateLoop() {
+    if (hudUpdateTimer) {
+      window.clearInterval(hudUpdateTimer)
+      hudUpdateTimer = null
+    }
   }
 
   // ---- hierarquia / inspetor ----
@@ -1844,7 +2095,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         removeSelected()
         break
     }
-  }
 
   return {
     engineInstance,
@@ -1921,6 +2171,34 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setControlBindings,
     setFirstPersonMode,
     setRuntimeMode,
+    // Workspace persistence
+    graphOpen,
+    inspectorMode,
+    leftPanelWidth,
+    rightPanelWidth,
+    loadWorkspaceState,
+    persistWorkspaceState,
+    // Runtime mode
+    runtimeMode,
+    isPlayMode,
+    isEditMode,
+    enterPlayMode,
+    exitPlayMode,
+    togglePlayMode,
+    // Runtime HUD
+    hudEntityCount,
+    hudPlayerHealth,
+    hudPlayerMaxHealth,
+    hudPlayerStamina,
+    hudPlayerMaxStamina,
+    hudPlayerMana,
+    hudPlayerMaxMana,
+    hudMountStatus,
+    hudMountName,
+    hudMemoryUsage,
+    updateHUDFromEngine,
+    startHUDUpdateLoop,
+    stopHUDUpdateLoop,
     selectItem,
     groupSelectedObjects,
     ungroupSelectedObjects,

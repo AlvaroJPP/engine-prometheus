@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, computed } from 'vue'
 import type { Ref } from 'vue'
 import { Engine, TERRAIN_ID } from '@engine'
 import type {
@@ -20,6 +20,24 @@ import {
   saveProjectTo,
 } from '@/project/projectService'
 
+// Workspace persistence key
+const WORKSPACE_STORAGE_KEY = 'engine-prometheus.workspace'
+
+// Runtime mode type
+export type RuntimeMode = 'edit' | 'play'
+
+// Workspace state interface
+interface WorkspaceState {
+  leftPanelWidth: number
+  rightPanelWidth: number
+  graphOpen: boolean
+  inspectorMode: 'object' | 'terrain' | 'environment'
+  cameraState: ReturnType<import('@engine').OrbitCamera['getState']> | null
+  gridVisible: boolean
+  performanceMode: 'quality' | 'balanced' | 'economy' | 'auto'
+  runtimeMode: RuntimeMode
+}
+
 export const CAMERA_LABELS: Record<CameraPreset, string> = {
   free: 'Câmera livre',
   isometric: 'Isométrica',
@@ -38,6 +56,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const projectDir = ref<string | null>(null)
   const dirty = ref(false)
   const status = ref('')
+  const fps = ref(0)
   const objects = ref<ObjectInfo[]>([])
   const terrain = ref<TerrainInfo>({ visible: true, seed: 0, edits: 0 })
   const selectedId = ref<string | null>(null)
@@ -52,6 +71,30 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const ruleTrigger = ref<'object_clicked' | 'enter_area'>('object_clicked')
   const ruleAction = ref<'move' | 'rotate' | 'set_visible' | 'set_variable'>('rotate')
   const ruleConditionEnabled = ref(true)
+
+  // Workspace persistence state
+  const graphOpen = ref(false)
+  const inspectorMode = ref<'object' | 'terrain' | 'environment'>('object')
+  const leftPanelWidth = ref(210)
+  const rightPanelWidth = ref(270)
+
+  // Runtime mode state
+  const runtimeMode = ref<RuntimeMode>('edit')
+  const isPlayMode = computed(() => runtimeMode.value === 'play')
+  const isEditMode = computed(() => runtimeMode.value === 'edit')
+
+  // Runtime HUD state
+  const hudEntityCount = ref(0)
+  const hudPlayerHealth = ref(0)
+  const hudPlayerMaxHealth = ref(100)
+  const hudPlayerStamina = ref(0)
+  const hudPlayerMaxStamina = ref(100)
+  const hudPlayerMana = ref(0)
+  const hudPlayerMaxMana = ref(50)
+  const hudMountStatus = ref<'unmounted' | 'mounting' | 'mounted' | 'dismounting'>('unmounted')
+  const hudMountName = ref('')
+  const hudMemoryUsage = ref(0)
+  let veilborneModule: import('@engine').VeilborneGameModule | null = null
 
   let engine: Engine | null = null
   let statusTimer = 0
@@ -79,6 +122,202 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     refresh()
   }
 
+  // Workspace persistence functions
+  function loadWorkspaceState() {
+    try {
+      const saved = window.localStorage.getItem(WORKSPACE_STORAGE_KEY)
+      if (!saved) return
+      const state: Partial<WorkspaceState> = JSON.parse(saved)
+
+      if (typeof state.leftPanelWidth === 'number') leftPanelWidth.value = Math.max(150, Math.min(500, state.leftPanelWidth))
+      if (typeof state.rightPanelWidth === 'number') rightPanelWidth.value = Math.max(200, Math.min(600, state.rightPanelWidth))
+      if (typeof state.graphOpen === 'boolean') graphOpen.value = state.graphOpen
+      if (state.inspectorMode === 'object' || state.inspectorMode === 'terrain' || state.inspectorMode === 'environment') {
+        inspectorMode.value = state.inspectorMode
+      }
+      if (state.gridVisible !== undefined) gridVisible.value = state.gridVisible
+      if (state.performanceMode) {
+        // Performance mode not implemented in this composable, but we can store it
+      }
+
+      // Restore camera state if engine is available
+      if (state.cameraState && engine) {
+        engine.orbit.restore(state.cameraState)
+      }
+
+      console.log('[Workspace] Estado do workspace carregado')
+    } catch (error) {
+      console.warn('[Workspace] Não foi possível carregar o estado do workspace.', error)
+    }
+  }
+
+  function persistWorkspaceState() {
+    try {
+      const cameraState = engine?.orbit?.getState() ?? null
+      const state: WorkspaceState = {
+        leftPanelWidth: leftPanelWidth.value,
+        rightPanelWidth: rightPanelWidth.value,
+        graphOpen: graphOpen.value,
+        inspectorMode: inspectorMode.value,
+        cameraState,
+        gridVisible: gridVisible.value,
+        performanceMode: 'quality', // Default for this composable
+        runtimeMode: runtimeMode.value,
+      }
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(state))
+    } catch (error) {
+      console.warn('[Workspace] Não foi possível salvar o estado do workspace.', error)
+    }
+  }
+
+  // Watch for workspace state changes to persist
+  watch([leftPanelWidth, rightPanelWidth, graphOpen, inspectorMode, gridVisible, runtimeMode], () => {
+    persistWorkspaceState()
+  }, { deep: true })
+
+  // Runtime mode management
+  function enterPlayMode() {
+    if (!engine) return
+
+    // Save camera state before entering play mode
+    const cameraState = engine.orbit.getState()
+
+    // Switch to play mode
+    runtimeMode.value = 'play'
+    engine.setRuntimeMode(true)
+
+    // Initialize HUD
+    updateHUDFromEngine()
+
+    // Find Veilborne game module for player stats
+    findVeilborneModule()
+
+    // Start HUD update loop
+    startHUDUpdateLoop()
+
+    say('Modo JOGO iniciado. Pressione Stop para voltar à edição.')
+  }
+
+  function exitPlayMode() {
+    if (!engine) return
+
+    // Switch to edit mode
+    runtimeMode.value = 'edit'
+    engine.setRuntimeMode(false)
+
+    // Stop HUD update loop
+    stopHUDUpdateLoop()
+
+    // Reset HUD
+    resetHUD()
+
+    // Refresh editor state
+    refresh()
+
+    say('Modo EDIÇÃO restaurado.')
+  }
+
+  function togglePlayMode() {
+    if (runtimeMode.value === 'play') {
+      exitPlayMode()
+    } else {
+      enterPlayMode()
+    }
+  }
+
+  function setRuntimeMode(enabled: boolean) {
+    if (enabled) {
+      enterPlayMode()
+    } else {
+      exitPlayMode()
+    }
+  }
+
+  // HUD update functions
+  function findVeilborneModule() {
+    if (!engine) return
+    try {
+      const gameModules = (engine as any).facade?.gameModules
+      if (gameModules) {
+        const modules = gameModules.getAll?.() ?? []
+        for (const module of modules) {
+          if (module.id === 'veilborne' || module.constructor.name === 'VeilborneGameModule') {
+            veilborneModule = module
+            break
+          }
+        }
+      }
+    } catch (e) {
+      veilborneModule = null
+    }
+  }
+
+  function updateHUDFromEngine() {
+    if (!engine) return
+
+    // Update entity count
+    const objects = engine.listObjects()
+    hudEntityCount.value = objects.length
+
+    // Update render stats (basic approximation)
+    hudMemoryUsage.value = Math.round((objects.length * 0.1) * 10) / 10
+
+    // Update player stats from Veilborne module if available
+    if (veilborneModule) {
+      const stats = veilborneModule.getPlayerStats()
+      hudPlayerHealth.value = stats.health
+      hudPlayerMaxHealth.value = stats.maxHealth
+      hudPlayerStamina.value = stats.stamina
+      hudPlayerMaxStamina.value = stats.maxStamina
+      hudPlayerMana.value = stats.mana
+      hudPlayerMaxMana.value = stats.maxMana
+
+      // Mount status
+      if (veilborneModule.isMounted()) {
+        hudMountStatus.value = 'mounted'
+        const mountController = veilborneModule.getMountController()
+        if (mountController) {
+          hudMountName.value = mountController.getMountName?.() ?? 'Montaria'
+        }
+      } else {
+        hudMountStatus.value = 'unmounted'
+        hudMountName.value = ''
+      }
+    }
+  }
+
+  function resetHUD() {
+    hudEntityCount.value = 0
+    hudPlayerHealth.value = 0
+    hudPlayerMaxHealth.value = 100
+    hudPlayerStamina.value = 0
+    hudPlayerMaxStamina.value = 100
+    hudPlayerMana.value = 0
+    hudPlayerMaxMana.value = 50
+    hudMountStatus.value = 'unmounted'
+    hudMountName.value = ''
+    hudMemoryUsage.value = 0
+    veilborneModule = null
+  }
+
+  // Periodic HUD update in play mode
+  let hudUpdateTimer: number | null = null
+  function startHUDUpdateLoop() {
+    if (hudUpdateTimer) return
+    hudUpdateTimer = window.setInterval(() => {
+      if (runtimeMode.value === 'play') {
+        updateHUDFromEngine()
+      }
+    }, 250)
+  }
+
+  function stopHUDUpdateLoop() {
+    if (hudUpdateTimer) {
+      window.clearInterval(hudUpdateTimer)
+      hudUpdateTimer = null
+    }
+  }
+
   watch([brushStrength, brushRadius], () => {
     engine?.setBrush({ strength: brushStrength.value, radius: brushRadius.value })
   })
@@ -87,6 +326,12 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!canvas.value) return
     const e = new Engine(canvas.value)
     engine = e
+
+    // Set up render stats listener for FPS
+    e.setRenderStatsListener((stats) => {
+      fps.value = stats.continuousRendering ? stats.fps : 0
+    })
+
     offs.push(
       e.events.on('objectAdded', markDirty),
       e.events.on('objectRemoved', markDirty),
@@ -108,14 +353,17 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     )
     window.addEventListener('keydown', onKey)
     refresh()
+    loadWorkspaceState()
   })
 
   onBeforeUnmount(() => {
     offs.forEach((off) => off())
     window.removeEventListener('keydown', onKey)
     window.clearTimeout(statusTimer)
+    stopHUDUpdateLoop()
     engine?.dispose()
     engine = null
+    persistWorkspaceState()
   })
 
   // ---- ferramentas ----
@@ -336,6 +584,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     projectName,
     dirty,
     status,
+    fps,
     objects,
     terrain,
     selectedId,
@@ -366,5 +615,34 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     newProject,
     openProject,
     saveProject,
+    // Workspace persistence
+    graphOpen,
+    inspectorMode,
+    leftPanelWidth,
+    rightPanelWidth,
+    loadWorkspaceState,
+    persistWorkspaceState,
+    // Runtime mode
+    runtimeMode,
+    isPlayMode,
+    isEditMode,
+    enterPlayMode,
+    exitPlayMode,
+    togglePlayMode,
+    setRuntimeMode,
+    // Runtime HUD
+    hudEntityCount,
+    hudPlayerHealth,
+    hudPlayerMaxHealth,
+    hudPlayerStamina,
+    hudPlayerMaxStamina,
+    hudPlayerMana,
+    hudPlayerMaxMana,
+    hudMountStatus,
+    hudMountName,
+    hudMemoryUsage,
+    updateHUDFromEngine,
+    startHUDUpdateLoop,
+    stopHUDUpdateLoop,
   }
 }
