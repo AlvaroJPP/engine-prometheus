@@ -25,6 +25,8 @@ export default defineConfig({
   reporter: 'html',
   use: {
     baseURL,
+    // The editor's full desktop toolbar and viewport require a desktop-sized canvas.
+    viewport: { width: 1600, height: 1000 },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
