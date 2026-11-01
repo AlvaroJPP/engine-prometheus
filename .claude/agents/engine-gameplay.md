@@ -16,7 +16,7 @@ model: sonnet
 
 ## Restrições
 - **NÃO modificar a interface do editor** (UI, workspaces, HUD, viewport)
-- **NÃO colocar código específico de VEILBORNE no núcleo da Engine**
+- **NÃO introduzir código específico de qualquer jogo no núcleo da Engine**
 - **NÃO duplicar funcionalidades existentes**
 - Inspecionar o código antes de implementar
 - Evitar modificar arquivos pertencentes a outro agente (engine-editor-ui, engine-architect)

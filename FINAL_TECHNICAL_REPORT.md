@@ -3,21 +3,21 @@
 
 **Version:** 1.0.0  
 **Date:** 2026-11-01  
-**Branch:** `main` (commit `88fa733d`)  
+**Branch:** `main` (historical Phase 1–14 snapshot; consult current CI for release readiness)  
 **Build Artifacts:** MSI (11.1 MB), NSIS (9.97 MB)
 
 ---
 
 ## 1. Executive Summary
 
-**Mission Accomplished.** Engine Prometheus has completed Phases 1 through 14, delivering a production-ready, modular 3D game engine built on TypeScript, Three.js, and Rapier physics, with a Tauri desktop application wrapper.
+This document records the Phase 1–14 implementation snapshot. It is not a production-readiness certification; the current build, regression suite, and GitHub Actions results are the source of truth for release readiness.
 
 **Phases Completed:**
 - **Phase 1–2:** Project foundation, core engine architecture
 - **Phase 3:** EngineCore integration — minimal engine nucleus with DI, EventBus, Subsystem lifecycle, Configuration
 - **Phase 4–7:** World systems, physics, rendering, input, scripting, editor migration
 - **Phase 8:** Universal Mount System with DI integration
-- **Phase 9:** Veilborne game module (example implementation)
+- **Phase 9:** Generic `EngineGameModule` extension API and registry
 - **Phase 10:** Editor UX — Workspaces, Play/Stop/Edit toggle, Runtime HUD
 - **Phase 11:** Performance — Grass frustum culling, FrameBudget, MemoryProfiler, ThreeResourcePool, Vite chunk optimization
 - **Phase 12:** Security — Strict CSP, symlink traversal protection, TOCTOU fixes
@@ -67,7 +67,7 @@
 
 - `EngineGameModule` interface: `id`, `name`, `version`, `initialize(context)`, `start()`, `stop()`, `dispose()`
 - Registry manages multiple modules, provides `GameModuleContext` (world, logic, avatar, collisions, input, camera, viewport)
-- **VeilborneGameModule** — example implementation (`engine/runtime/VeilborneGameModule.ts`)
+- Game-specific modules are supplied by host applications; the engine repository contains only the generic module contract and registry.
 
 ---
 
@@ -97,7 +97,7 @@
 |---------|----------------|
 | **Workspace Persistence** | `useWorkspacePersistence.ts` — saves panel state, camera, grid, runtime mode to `localStorage`; restores on load |
 | **Play/Stop/Edit Toggle** | `enterPlayMode()`, `exitPlayMode()`, `togglePlayMode()` in `useEditor`; hides editor panels in play mode; starts/stops `GameModuleRegistry` |
-| **Runtime HUD** | `RuntimeHUD.vue` — real-time FPS, entity count, JS heap memory (MB), player position/health/stamina, mount status, active mount package ID |
+| **Runtime HUD** | `RuntimeHUD.vue` — real-time FPS, entity count, and generic mount status; game-specific player statistics are owned by the host application |
 | **EngineFacade Integration** | `setRuntimeMode(enabled)` → `configureRuntimeMode()` → `GameModuleRegistry.start()/stop()`; emits `RUNTIME_MODE_CHANGED` |
 
 ### 3.3 Performance — Grass Frustum Culling, FrameBudget, MemoryProfiler, Vite Chunks
@@ -131,8 +131,8 @@
 | **1–2** | `f66db38f` | Foundation | Project structure, Vite + TypeScript + Three.js, Tauri setup, legacy Montaria removal |
 | **3** | `14f84745`, `c2dcc1a1` | EngineCore | `EngineCore`, `DIContainer`, `EngineEventBus`, `EngineEvents`, `Subsystem`, `EngineConfig`, `EngineFacade`; 92/92 self-tests pass; 9 TS errors fixed (Rapier 0.12, three-mesh-bvh 0.7) |
 | **4–7** | (multiple) | Core Systems | World/Terrain/Grass, Physics (Rapier), Rendering, Input, Scripting (RuleEngine, BehaviorTree), Editor migration |
-| **8** | `7a135d8b`, `22484d2c`, `73a23c83` | Mount System | `MountSubsystem` with DI, `MountSystem`/`MountController`/`MountAnimationMapper`, `VeilborneGameModule`, all TS errors fixed |
-| **9** | (part of 8) | Veilborne | Example `EngineGameModule` implementation demonstrating module API |
+| **8** | `7a135d8b`, `22484d2c`, `73a23c83` | Mount System | `MountSubsystem` with DI, `MountSystem`/`MountController`/`MountAnimationMapper`, generic mount extension points |
+| **9** | (part of 8) | Game module API | Generic `EngineGameModule` contract and registry; game-specific implementations belong to host projects |
 | **10** | `4abd3ce1` | Editor UX | Workspace persistence, Play/Stop/Edit toggle, `RuntimeHUD.vue`, `GameModuleRegistry.start/stop`, conditional panel hiding |
 | **11** | `5f71a8ad` | Performance | Grass frustum culling, `FrameBudget` + adaptive quality, `MemoryProfiler`, `ThreeResourcePool`, Vite manual chunks |
 | **12** | `88fa733d` | Security | Strict CSP (Tauri + Vite), `resolve_safe_path`/`validate_regular_file` (Rust), scoped FS capabilities, clean audits |
@@ -199,10 +199,10 @@ $ npm run build
 
 ## 7. Known Issues & Future Work
 
-### 7.1 Phase 9 — Veilborne Game Module (In Progress)
-- `VeilborneGameModule` registered as example but not fully integrated into default game flow
-- Combat system, inventory, status effects exist in runtime but need Veilborne-specific wiring
-- **Next:** Complete Veilborne feature parity (combat, progression, world systems)
+### 7.1 Runtime game module architecture
+- `GameModuleRegistry` provides a generic lifecycle for modules supplied by the host application.
+- Combat, inventory, status effects, navigation, and behavior systems remain reusable engine capabilities.
+- Game-specific rules, progression, and UI must live in the application that consumes the engine.
 
 ### 7.2 Phase 15 — Networking / Multiplayer
 - No network layer currently

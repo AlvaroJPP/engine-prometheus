@@ -81,7 +81,7 @@ VERIFICAÇÕES:
 - entity:components:self-test:              PASS
 - entity:systems:self-test:                 PASS
 - Nenhuma modificação em arquivos de implementação existentes
-- Nenhum código VEILBORNE no núcleo
+- Nenhum código específico de jogo no núcleo
 - Segue convenções do projeto (ESLint, TypeScript strict, comentários em PT)
 
 ================================================================================
@@ -228,7 +228,7 @@ CONFLITOS E VIOLAÇÕES — ZERO
 |-------------------------------------------------|-----------|
 | Nenhum agente modificou arquivos de outro       | ✅        |
 | Arquivos de propriedade claramente definidos    | ✅        |
-| Nenhum código VEILBORNE introduzido no núcleo   | ✅        |
+| Nenhum código específico de jogo introduzido no núcleo   | ✅        |
 | Git status limpo                                | ✅        |
 | Build funcional (Vite + vue-tsc sem erros)      | ✅        |
 

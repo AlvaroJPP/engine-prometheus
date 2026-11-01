@@ -16,7 +16,7 @@ model: opus
 
 ## Restrições
 - **NÃO editar arquivos de implementação** (código funcional)
-- **NÃO colocar código específico de VEILBORNE no núcleo da Engine**
+- **NÃO introduzir código específico de qualquer jogo no núcleo da Engine**
 - **NÃO duplicar funcionalidades existentes**
 - Inspecionar o código antes de propor mudanças
 - Preservar funcionalidades existentes

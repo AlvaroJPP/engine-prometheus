@@ -18,7 +18,7 @@ model: haiku
 
 ## Restrições
 - **NÃO modificar módulos de gameplay** (movement, combat, physics, AI)
-- **NÃO colocar código específico de VEILBORNE no núcleo da Engine**
+- **NÃO introduzir código específico de qualquer jogo no núcleo da Engine**
 - **NÃO duplicar funcionalidades existentes**
 - Inspecionar o código antes de implementar
 - Evitar modificar arquivos pertencentes a outro agente (engine-gameplay, engine-architect)
