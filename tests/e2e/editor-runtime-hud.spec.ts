@@ -26,7 +26,7 @@ test.describe('Editor → Runtime → HUD Integration', () => {
 
   test('should open UI Workspace', async ({ page }) => {
     // Click the UI Workspace button in top bar (text: "Workspace UI")
-    await page.click('button:has-text("Workspace UI")')
+    await page.click('button[aria-label="Abrir Workspace de UI"]')
 
     // Wait for UI Workspace modal to open - look for "Workspace de UI" header
     await expect(page.locator('text=Workspace de UI').first()).toBeVisible({ timeout: 10000 })
@@ -37,7 +37,7 @@ test.describe('Editor → Runtime → HUD Integration', () => {
 
   test('should open Player Workspace and verify player logic variables', async ({ page }) => {
     // Click the Player Workspace button in top bar (text: "Player")
-    await page.click('button:has-text("Player")')
+    await page.click('button[aria-label="Abrir Workspace do Player"]')
 
     // Wait for Player Workspace modal to open - look for "Configurar jogador"
     await expect(page.locator('text=Configurar jogador').first()).toBeVisible({ timeout: 10000 })
@@ -119,7 +119,7 @@ test.describe('Model Import', () => {
 
   test('should open model import dialog', async ({ page }) => {
     // Click the Model Import button in the toolbar (text: "Modelo 3D")
-    const importButton = page.locator('button:has-text("Modelo 3D")').first()
+    const importButton = page.locator('button[aria-label="Importar modelo 3D"]').first()
     await expect(importButton).toBeVisible({ timeout: 10000 })
     await importButton.click()
 
