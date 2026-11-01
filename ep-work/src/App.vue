@@ -55,15 +55,8 @@ const {
   togglePlayMode,
   // Runtime HUD
   hudEntityCount,
-  hudPlayerHealth,
-  hudPlayerMaxHealth,
-  hudPlayerStamina,
-  hudPlayerMaxStamina,
-  hudPlayerMana,
-  hudPlayerMaxMana,
   hudMountStatus,
   hudMountName,
-  hudMemoryUsage,
   fps,
 } = useEditor(canvas)
 
@@ -304,13 +297,6 @@ const hint = 'Arraste para orbitar · Botão direito move · Roda para zoom · W
           :isPlayMode="isPlayMode"
           :fps="fps"
           :entityCount="hudEntityCount"
-          :memoryUsage="hudMemoryUsage"
-          :playerHealth="hudPlayerHealth"
-          :playerMaxHealth="hudPlayerMaxHealth"
-          :playerStamina="hudPlayerStamina"
-          :playerMaxStamina="hudPlayerMaxStamina"
-          :playerMana="hudPlayerMana"
-          :playerMaxMana="hudPlayerMaxMana"
           :mountStatus="hudMountStatus"
           :mountName="hudMountName"
         />
