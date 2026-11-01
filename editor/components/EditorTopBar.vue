@@ -142,7 +142,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
         </summary>
         <div class="file-menu-popover">
           <button title="Cria um projeto vazio em uma nova cena." @click="emit('new-project')">Novo projeto</button>
-          <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projetoâ€¦</button>
+          <button title="Abre um projeto salvo no formato do Engine Prometheus." @click="emit('open-project')">Abrir projeto…</button>
           <button @click="emit('save-project', false)">Salvar <kbd>Ctrl S</kbd></button>
           <button title="Salva o projeto com outro nome ou em outro arquivo." @click="emit('save-project', true)">Salvar comoâ€¦</button>
         </div>

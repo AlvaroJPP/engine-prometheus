@@ -2,7 +2,7 @@
 import { reactive } from 'vue'
 import RuntimeHUD from '@/components/RuntimeHUD.vue'
 import GameUIRuntime from '@/components/GameUIRuntime.vue'
-import { uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
+import { uiWorkspaceState } from '@editor/lib/ui/uiWorkspaceState'
 
 const props = defineProps<{ context: Record<string, any> }>()
 const context = props.context
