@@ -10,16 +10,16 @@
   height:36px;
   min-height:36px;
   padding:0;
-  border:1px solid #3b3730;
+  border:1px solid #2c323d;
   border-radius:8px;
   background:rgba(29,27,23,.97);
-  color:#f3efe6;
+  color:#e6e8ec;
   box-shadow:0 5px 16px #0004;
   cursor:pointer;
 }
 .sidebar-hamburger svg { display:block; width:19px; height:19px; }
-.sidebar-hamburger:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
-.sidebar-hamburger:focus-visible,.sidebar-collapse-button:focus-visible { outline:2px solid #e8572b; outline-offset:2px; }
+.sidebar-hamburger:hover { border-color:#765016; background:#292314; color:#f5c56b; }
+.sidebar-hamburger:focus-visible,.sidebar-collapse-button:focus-visible { outline:2px solid #f5a524; outline-offset:2px; }
 
 .panel.left .panel-head {
   display:flex !important;
@@ -29,8 +29,8 @@
   min-height:46px;
   height:46px;
   padding:5px 10px;
-  border-bottom:1px solid #2e2b25 !important;
-  background:#191713 !important;
+  border-bottom:1px solid #252a33 !important;
+  background:#14171c !important;
 }
 .panel.left .panel-head-title { display:flex; flex:1; flex-direction:column; gap:1px; min-width:0; }
 .panel.left .panel-head .eyebrow { font-size:9px; letter-spacing:.1em; }
@@ -43,14 +43,14 @@
   height:32px;
   min-height:32px;
   padding:0;
-  border:1px solid #3b3730;
+  border:1px solid #2c323d;
   border-radius:7px;
-  background:#1d1b17;
-  color:#b5afa2;
+  background:#181c23;
+  color:#9aa1ae;
   cursor:pointer;
 }
 .sidebar-collapse-button svg { display:block; width:18px; height:18px; }
-.sidebar-collapse-button:hover { border-color:#75412e; background:#34241c; color:#ff997d; }
+.sidebar-collapse-button:hover { border-color:#765016; background:#292314; color:#f5c56b; }
 .app.sidebar-collapsed .panel.left { display:none !important; }
 
 /* Collapsed workspace: compact rail docked directly below the top bar. */
@@ -76,12 +76,12 @@
   overflow-x:hidden !important;
   overflow-y:auto !important;
   border:0 !important;
-  border-right:1px solid #363129 !important;
+  border-right:1px solid #181c23 !important;
   border-radius:0 !important;
-  background:#191713 !important;
+  background:#14171c !important;
   box-shadow:4px 0 18px #0003 !important;
   scrollbar-width:thin;
-  scrollbar-color:#494137 transparent;
+  scrollbar-color:#2c323d transparent;
 }
 .app.sidebar-collapsed .toolbar .toolbar-group {
   display:flex !important;
@@ -95,7 +95,7 @@
 .app.sidebar-collapsed .toolbar .toolbar-group::before {
   display:block;
   padding:5px 7px 4px;
-  color:#8f877a;
+  color:#9aa1ae;
   font-size:9px;
   font-weight:700;
   line-height:1.2;
@@ -112,7 +112,7 @@
   width:auto;
   height:1px;
   margin:1px 4px 2px;
-  background:#2e2b25;
+  background:#252a33;
 }
 .app.sidebar-collapsed .toolbar .tool {
   display:flex !important;
@@ -128,20 +128,20 @@
   border:1px solid transparent !important;
   border-radius:6px !important;
   background:transparent !important;
-  color:#b5afa2 !important;
+  color:#9aa1ae !important;
   box-sizing:border-box;
   text-align:left;
   transition:background-color .12s ease,border-color .12s ease,color .12s ease;
 }
 .app.sidebar-collapsed .toolbar .tool:hover {
-  border-color:#3b3730 !important;
-  background:#26231e !important;
-  color:#f3efe6 !important;
+  border-color:#2c323d !important;
+  background:#181c23 !important;
+  color:#e6e8ec !important;
 }
 .app.sidebar-collapsed .toolbar .tool.active {
-  border-color:#75412e !important;
-  background:#34241c !important;
-  color:#ff997d !important;
+  border-color:#765016 !important;
+  background:#292314 !important;
+  color:#f5c56b !important;
 }
 .app.sidebar-collapsed .toolbar .tool-ico {
   display:grid;
@@ -174,7 +174,7 @@
   white-space:nowrap !important;
 }
 .app.sidebar-collapsed .toolbar .tool:focus-visible {
-  outline:2px solid #e8572b;
+  outline:2px solid #f5a524;
   outline-offset:1px;
 }
 /* Add/Import return to the collapsed hierarchy rail, not the scene canvas. */
@@ -194,9 +194,9 @@
   width:172px;
   box-sizing:border-box;
   padding:6px 7px 9px;
-  border-right:1px solid #363129;
-  border-bottom:1px solid #2e2b25;
-  background:#191713;
+  border-right:1px solid #181c23;
+  border-bottom:1px solid #252a33;
+  background:#14171c;
 }
 .app.sidebar-collapsed .collapsed-sidebar-add-wrap {
   position:relative !important;
@@ -216,9 +216,9 @@
   height:34px;
   min-height:34px;
   padding:0 8px;
-  border:1px solid #3b3730;
+  border:1px solid #2c323d;
   border-radius:6px;
-  background:#211e19;
+  background:#14171c;
   color:#e4ded3;
   font:500 11px/1 'IBM Plex Sans',sans-serif;
   text-align:left;
@@ -228,22 +228,22 @@
 }
 .app.sidebar-collapsed .collapsed-sidebar-action:hover,
 .app.sidebar-collapsed .collapsed-sidebar-add-trigger[aria-expanded="true"] {
-  border-color:#75412e;
-  background:#34241c;
-  color:#f3efe6;
+  border-color:#765016;
+  background:#292314;
+  color:#e6e8ec;
 }
 .app.sidebar-collapsed .collapsed-sidebar-action-icon {
   display:grid;
   place-items:center;
   flex:none;
   width:20px;
-  color:#e8572b;
+  color:#f5a524;
   font-size:17px;
   line-height:1;
 }
 .app.sidebar-collapsed .collapsed-sidebar-add-trigger .quick-add-chevron {
   margin-left:auto;
-  color:#b5afa2;
+  color:#9aa1ae;
   font-size:10px;
 }
 .app.sidebar-collapsed .collapsed-sidebar-add-popover {
@@ -273,18 +273,18 @@
   min-height:42px;
   padding:0 12px;
   border:0;
-  border-right:1px solid #363129;
-  border-bottom:1px solid #2e2b25;
+  border-right:1px solid #181c23;
+  border-bottom:1px solid #252a33;
   border-radius:0;
-  background:#191713;
-  color:#b5afa2;
+  background:#14171c;
+  color:#9aa1ae;
   box-shadow:none;
   font:500 12px/1 'IBM Plex Sans',sans-serif;
   text-align:left;
 }
 .app.sidebar-collapsed .sidebar-hamburger svg { flex:none; width:18px; height:18px; }
 .app.sidebar-collapsed .sidebar-hamburger span { display:block; }
-.app.sidebar-collapsed .sidebar-hamburger:hover { border-color:#363129; background:#26231e; color:#ff997d; }
+.app.sidebar-collapsed .sidebar-hamburger:hover { border-color:#181c23; background:#181c23; color:#f5c56b; }
 .app.world-fullscreen .sidebar-hamburger { display:none !important; }
 @media(max-width:760px) {
   .app.sidebar-collapsed:not(.world-fullscreen) .collapsed-sidebar-actions {
