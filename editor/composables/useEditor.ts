@@ -2025,6 +2025,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         removeSelected()
         break
     }
+  }
 
   return {
     engineInstance,
