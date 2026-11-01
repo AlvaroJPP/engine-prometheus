@@ -36,6 +36,7 @@ export class ThreeResourcePool {
   private subsystemResources = new Map<string, Set<string>>()
   private idCounter = 0
   private engine: EngineCore | null = null
+  private unsubscribeFromEngine: (() => void) | null = null
 
   setEngine(engine: EngineCore): void {
     if (this.engine === engine) return
@@ -305,7 +306,7 @@ export function withResourceTracking<T extends new (...args: any[]) => Subsystem
 
     protected async onInitialize(context: any): Promise<void> {
       await super.onInitialize(context)
-      this.resourcePool = context.container.resolve<ThreeResourcePool>('engine:resourcePool', { required: false }) ?? null
+      this.resourcePool = (context.container.resolve('engine:resourcePool', { required: false }) as ThreeResourcePool | undefined) ?? null
     }
 
     protected async onDispose(): Promise<void> {

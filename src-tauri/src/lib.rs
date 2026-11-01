@@ -5,168 +5,220 @@ use std::process::Command;
 
 use tauri_plugin_fs as _;
 
-/// Allowed root directories for project operations
+/// Allowed root directories for project operations.
 const ALLOWED_ROOTS: &[&str] = &["$APPCONFIG", "$APPDATA", "$DOWNLOAD", "$DESKTOP", "$DOCUMENT"];
 
-/// Resolves a path safely by:
-/// 1. Resolving symlinks to their final target
-/// 2. Validating the resolved path is within allowed project roots
-/// 3. Checking for path traversal attempts
-/// 4. Verifying the base directory itself is not a symlink escaping allowed roots
-fn resolve_safe_path(dir: &str, rel: &str) -> Result<PathBuf, String> {
+/// Resolve and validate the selected project directory against the configured user folders.
+fn validate_project_directory(dir: &str) -> Result<PathBuf, String> {
     let base = PathBuf::from(dir);
     if !base.is_dir() {
         return Err("Pasta do projeto não encontrada.".into());
     }
-    let rel_path = Path::new(rel);
-    if rel.is_empty()
-        || rel_path.is_absolute()
-        || rel_path
-            .components()
-            .any(|c| !matches!(c, Component::Normal(_)))
+
+    let canonical_base = fs::canonicalize(&base)
+        .map_err(|e| format!("Não foi possível resolver a pasta do projeto: {e}"))?;
+    let base_allowed = ALLOWED_ROOTS.iter().any(|root| {
+        std::env::var(root.trim_start_matches('$'))
+            .ok()
+            .and_then(|value| fs::canonicalize(value).ok())
+            .is_some_and(|allowed_root| canonical_base.starts_with(allowed_root))
+    });
+
+    if !base_allowed {
+        return Err("Pasta do projeto não está em um diretório permitido.".into());
+    }
+
+    Ok(canonical_base)
+}
+
+/// Resolve an in-project path while permitting the final file or intermediate
+/// directories to be created later. Every existing component is canonicalized
+/// before continuing, so an existing symlink cannot escape the project root.
+fn resolve_relative_path(canonical_base: &Path, rel: &str) -> Result<PathBuf, String> {
+    let relative = Path::new(rel);
+    if rel.trim().is_empty()
+        || relative.is_absolute()
+        || relative.components().any(|part| !matches!(part, Component::Normal(_)))
     {
         return Err(format!("Caminho inválido: {rel}"));
     }
 
-    // Get canonical base path (resolves symlinks in the project directory itself)
-    let canonical_base = fs::canonicalize(&base)
-        .map_err(|e| format!("Não foi possível resolver a pasta base: {e}"))?;
+    let components: Vec<_> = relative.components().collect();
+    let mut candidate = canonical_base.to_path_buf();
 
-    // Verify the canonical base is within allowed roots (APPCONFIG, APPDATA, etc.)
-    // This prevents attacks where the project directory itself is a symlink to a sensitive location
-    let canonical_base_str = canonical_base.to_string_lossy();
-    let base_allowed = ALLOWED_ROOTS.iter().any(|root| {
-        if let Ok(expanded) = std::env::var(root.trim_start_matches('$')) {
-            canonical_base_str.starts_with(&expanded)
-        } else {
-            false
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(name) = component else {
+            return Err(format!("Caminho inválido: {rel}"));
+        };
+        candidate.push(name);
+
+        match fs::symlink_metadata(&candidate) {
+            Ok(_) => {
+                let canonical = fs::canonicalize(&candidate)
+                    .map_err(|e| format!("Não foi possível resolver o caminho {rel}: {e}"))?;
+                if !canonical.starts_with(canonical_base) {
+                    return Err(format!("Caminho fora da pasta do projeto: {rel}"));
+                }
+                candidate = canonical;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // The remainder does not exist yet. It is safe to append because
+                // all relative components were validated above.
+                for remaining in components.iter().skip(index + 1) {
+                    let Component::Normal(name) = remaining else {
+                        return Err(format!("Caminho inválido: {rel}"));
+                    };
+                    candidate.push(name);
+                }
+                break;
+            }
+            Err(error) => {
+                return Err(format!("Não foi possível acessar o caminho {rel}: {error}"));
+            }
         }
-    });
-
-    if !base_allowed {
-        return Err("Pasta do projeto não está em um diretório permitido.".into());
     }
 
-    // Join and get canonical path (resolves symlinks)
-    let joined = canonical_base.join(rel_path);
-    let canonical = fs::canonicalize(&joined)
-        .map_err(|e| format!("Não foi possível resolver o caminho {rel}: {e}"))?;
-
-    // Verify the canonical path is still within the project directory
-    if !canonical.starts_with(&canonical_base) {
+    if !candidate.starts_with(canonical_base) {
         return Err(format!("Caminho fora da pasta do projeto: {rel}"));
     }
 
-    Ok(canonical)
+    Ok(candidate)
 }
 
-/// Validates that a path exists and is a regular file (not a symlink, directory, or special file)
+/// Resolve a project-relative path, including targets that do not exist yet.
+fn resolve_safe_path(dir: &str, rel: &str) -> Result<PathBuf, String> {
+    let canonical_base = validate_project_directory(dir)?;
+    resolve_relative_path(&canonical_base, rel)
+}
+
+/// Validates that a path exists and is a regular file, not a symlink or special file.
 fn validate_regular_file(path: &Path) -> Result<(), String> {
-    let metadata = fs::metadata(path)
+    let metadata = fs::symlink_metadata(path)
         .map_err(|e| format!("Não foi possível acessar o arquivo: {e}"))?;
 
-    if !metadata.is_file() {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err("O caminho não é um arquivo regular.".into());
     }
-
-    // On Windows, we can't easily check for symlinks without additional crates,
-    // but we verified the canonical path is within project root in resolve_safe_path
-    // On Unix, we could check file_type().is_symlink() but we use canonicalize which resolves symlinks
 
     Ok(())
 }
 
-/// Junta a pasta do projeto com um caminho relativo, recusando "..", caminhos absolutos etc.
-/// Uses resolve_safe_path for symlink protection and path traversal prevention.
+/// Joins the project folder with a relative path after validating all existing components.
 fn project_path(dir: &str, rel: &str) -> Result<PathBuf, String> {
     resolve_safe_path(dir, rel)
 }
 
-#[tauri::command]
-fn project_exists(dir: String) -> Result<bool, String> {
-    // Validate project directory is within allowed roots
-    let base = PathBuf::from(&dir);
-    let canonical_base = fs::canonicalize(&base)
-        .map_err(|e| format!("Não foi possível resolver a pasta do projeto: {e}"))?;
+/// Generate a unique sibling path for a temporary file or backup.
+fn unique_sibling_path(target: &Path, suffix: &str) -> Result<PathBuf, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-    let canonical_base_str = canonical_base.to_string_lossy();
-    let base_allowed = ALLOWED_ROOTS.iter().any(|root| {
-        if let Ok(expanded) = std::env::var(root.trim_start_matches('$')) {
-            canonical_base_str.starts_with(&expanded)
-        } else {
-            false
+    let parent = target.parent().ok_or_else(|| "O destino não possui uma pasta pai.".to_string())?;
+    let file_name = target.file_name().ok_or_else(|| "O destino não possui um nome de arquivo.".to_string())?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let mut name = file_name.to_os_string();
+    name.push(format!(".{suffix}.{}.{}", std::process::id(), nonce));
+    Ok(parent.join(name))
+}
+
+/// Atomically replace a project file while preserving the previous version if the rename fails.
+fn write_project_bytes(target: &Path, contents: &[u8], rel: &str) -> Result<(), String> {
+    let temp = unique_sibling_path(target, "tmp")?;
+    let mut temp_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|e| format!("Não foi possível criar arquivo temporário para {rel}: {e}"))?;
+
+    if let Err(error) = temp_file.write_all(contents).and_then(|_| temp_file.sync_all()) {
+        drop(temp_file);
+        let _ = fs::remove_file(&temp);
+        return Err(format!("Não foi possível gravar {rel}: {error}"));
+    }
+    drop(temp_file);
+
+    let had_target = match fs::symlink_metadata(target) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                let _ = fs::remove_file(&temp);
+                return Err("O destino existente não é um arquivo regular.".into());
+            }
+            true
         }
-    });
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => {
+            let _ = fs::remove_file(&temp);
+            return Err(format!("Não foi possível verificar o destino {rel}: {error}"));
+        }
+    };
 
-    if !base_allowed {
-        return Err("Pasta do projeto não está em um diretório permitido.".into());
+    let backup = if had_target {
+        let backup = unique_sibling_path(target, "bak")?;
+        if let Err(error) = fs::rename(target, &backup) {
+            let _ = fs::remove_file(&temp);
+            return Err(format!("Não foi possível preparar a substituição de {rel}: {error}"));
+        }
+        Some(backup)
+    } else {
+        None
+    };
+
+    if let Err(error) = fs::rename(&temp, target) {
+        let _ = fs::remove_file(&temp);
+        if let Some(backup_path) = backup {
+            if let Err(restore_error) = fs::rename(&backup_path, target) {
+                return Err(format!(
+                    "Falha ao salvar {rel}: {error}. Também não foi possível restaurar o arquivo anterior: {restore_error}. O backup está em {}",
+                    backup_path.display()
+                ));
+            }
+        }
+        return Err(format!("Não foi possível finalizar {rel}: {error}"));
     }
 
-    let project_file = canonical_base.join("project.json");
-    Ok(project_file.is_file())
+    if let Some(backup_path) = backup {
+        let _ = fs::remove_file(backup_path);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn project_exists(dir: String) -> Result<bool, String> {
+    let project_root = validate_project_directory(&dir)?;
+    Ok(project_root.join("project.json").is_file())
 }
 
 #[tauri::command]
 fn project_file_exists(dir: String, rel: String) -> Result<bool, String> {
     let path = project_path(&dir, &rel)?;
-    // Check if it's a regular file (not a symlink)
-    let metadata = fs::symlink_metadata(&path)
-        .map_err(|e| format!("Não foi possível acessar metadados: {e}"))?;
-    Ok(metadata.is_file() && !metadata.file_type().is_symlink())
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("Não foi possível acessar metadados: {error}")),
+    }
 }
 
 #[tauri::command]
 fn read_project_file(dir: String, rel: String) -> Result<String, String> {
     let path = project_path(&dir, &rel)?;
-    // TOCTOU protection: validate it's a regular file after canonicalization
     validate_regular_file(&path)?;
     fs::read_to_string(&path).map_err(|e| format!("Não foi possível ler {rel}: {e}"))
 }
 
 #[tauri::command]
 fn write_project_file(dir: String, rel: String, contents: String) -> Result<(), String> {
-    let target = project_path(&dir, &rel)?;
-    if let Some(parent) = target.parent() {
+    let initial_target = project_path(&dir, &rel)?;
+    if let Some(parent) = initial_target.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Não foi possível criar a pasta: {e}"))?;
     }
-    // Escreve em arquivo temporário antes de substituir o destino (atomic write).
-    let mut tmp_name = target.as_os_str().to_owned();
-    tmp_name.push(".tmp");
-    let tmp = PathBuf::from(tmp_name);
-    let mut backup_name = target.as_os_str().to_owned();
-    backup_name.push(".bak");
-    let backup = PathBuf::from(backup_name);
-    fs::write(&tmp, contents).map_err(|e| format!("Não foi possível gravar {rel}: {e}"))?;
 
-    // O Windows não substitui um destino existente com fs::rename. Preservamos
-    // o arquivo anterior como backup e restauramos se a troca não for concluída.
-    let had_target = target.exists();
-    if had_target {
-        // Validate existing target is a regular file before replacing
-        validate_regular_file(&target)?;
-        let _ = fs::remove_file(&backup);
-        if let Err(e) = fs::rename(&target, &backup) {
-            let _ = fs::remove_file(&tmp);
-            return Err(format!("Não foi possível preparar a substituição de {rel}: {e}"));
-        }
-    }
-
-    if let Err(e) = fs::rename(&tmp, &target) {
-        let _ = fs::remove_file(&tmp);
-        if had_target {
-            if let Err(restore_error) = fs::rename(&backup, &target) {
-                return Err(format!("Falha ao salvar {rel}: {e}. Também não foi possível restaurar o arquivo anterior: {restore_error}. O backup está em {}", backup.display()));
-            }
-        }
-        return Err(format!("Não foi possível finalizar {rel}: {e}"));
-    }
-
-    if had_target {
-        let _ = fs::remove_file(&backup);
-    }
-    Ok(())
+    // Re-resolve after creating directories to catch symlinks or path changes.
+    let target = project_path(&dir, &rel)?;
+    write_project_bytes(&target, contents.as_bytes(), &rel)
 }
-
 
 /// Grava um recurso binário (GLB/textura) dentro da pasta resources do projeto.
 #[tauri::command]
@@ -175,50 +227,44 @@ fn write_project_asset(dir: String, rel: String, base64: String) -> Result<(), S
     if !rel.starts_with("resources/") {
         return Err("Recursos do projeto devem ficar dentro de resources/.".into());
     }
-    let target = project_path(&dir, &rel)?;
-    if let Some(parent) = target.parent() {
+
+    let initial_target = project_path(&dir, &rel)?;
+    if let Some(parent) = initial_target.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Não foi possível criar a pasta do recurso: {e}"))?;
     }
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64.as_bytes())
         .map_err(|e| format!("Base64 inválido para o recurso {rel}: {e}"))?;
-    let mut tmp_name = target.as_os_str().to_owned();
-    tmp_name.push(".tmp");
-    let tmp = PathBuf::from(tmp_name);
-    fs::write(&tmp, bytes).map_err(|e| format!("Não foi possível gravar o recurso {rel}: {e}"))?;
-    if target.exists() {
-        validate_regular_file(&target)?;
-        fs::remove_file(&target).map_err(|e| format!("Não foi possível substituir o recurso {rel}: {e}"))?;
-    }
-    fs::rename(&tmp, &target).map_err(|e| format!("Não foi possível finalizar o recurso {rel}: {e}"))?;
-    Ok(())
-}
 
+    let target = project_path(&dir, &rel)?;
+    write_project_bytes(&target, &bytes, &rel)
+}
 
 /// Remove arquivos de resources/ que não são mais referenciados pelas cenas salvas.
 #[tauri::command]
 fn prune_project_assets(dir: String, keep: Vec<String>) -> Result<(), String> {
     use std::collections::HashSet;
 
-    let project_root = PathBuf::from(&dir);
-    if !project_root.is_dir() {
-        return Err("Pasta do projeto não encontrada.".into());
-    }
-
+    let project_root = validate_project_directory(&dir)?;
     let mut retained = HashSet::new();
     for rel in keep {
         if !rel.starts_with("resources/") {
             return Err(format!("Caminho de recurso inválido: {rel}"));
         }
-        // Reutiliza a validação de caminhos para bloquear caminhos absolutos e traversal.
         project_path(&dir, &rel)?;
         retained.insert(rel.replace('\\', "/"));
     }
 
-    let resources = project_root.join("resources");
-    if !resources.exists() {
-        return Ok(());
+    let resources = project_path(&dir, "resources")?;
+    match fs::symlink_metadata(&resources) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("Não foi possível acessar recursos do projeto: {error}")),
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err("A pasta resources precisa ser um diretório comum do projeto.".into());
+        }
+        Ok(_) => {}
     }
+
     prune_resource_directory(&resources, &project_root, &retained)?;
     Ok(())
 }
@@ -228,45 +274,59 @@ fn prune_resource_directory(
     project_root: &Path,
     retained: &std::collections::HashSet<String>,
 ) -> Result<bool, String> {
-    let entries = fs::read_dir(current)
+    let canonical_current = fs::canonicalize(current)
+        .map_err(|e| format!("Não foi possível resolver a pasta de recursos: {e}"))?;
+    if !canonical_current.starts_with(project_root) {
+        return Err("Caminho de recurso fora da pasta do projeto.".into());
+    }
+
+    let entries = fs::read_dir(&canonical_current)
         .map_err(|e| format!("Não foi possível verificar recursos antigos: {e}"))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Não foi possível listar recursos: {e}"))?;
         let path = entry.path();
-        if path.is_dir() {
-            if prune_resource_directory(&path, project_root, retained)? {
-                fs::remove_dir(&path)
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|e| format!("Não foi possível acessar metadados de recursos: {e}"))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!("Recusa a seguir symlink dentro de resources: {}", path.display()));
+        }
+
+        if metadata.is_dir() {
+            let canonical = fs::canonicalize(&path)
+                .map_err(|e| format!("Não foi possível resolver pasta de recurso: {e}"))?;
+            if !canonical.starts_with(project_root) {
+                return Err("Pasta de recurso fora da pasta do projeto.".into());
+            }
+            if prune_resource_directory(&canonical, project_root, retained)? {
+                fs::remove_dir(&canonical)
                     .map_err(|e| format!("Não foi possível remover pasta vazia de recursos: {e}"))?;
             }
-        } else if path.is_file() {
+        } else if metadata.is_file() {
             let relative = path.strip_prefix(project_root)
                 .map_err(|_| "Caminho de recurso fora da pasta do projeto.".to_string())?
                 .to_string_lossy()
                 .replace('\\', "/");
             if !retained.contains(&relative) {
-                // TOCTOU fix: re-validate path before deletion to prevent symlink swap attacks
-                // Use symlink_metadata to detect symlinks without following them
-                let metadata = fs::symlink_metadata(&path)
-                    .map_err(|e| format!("Não foi possível acessar metadados do arquivo {relative}: {e}"))?;
-                if metadata.file_type().is_symlink() {
-                    return Err(format!("Recusa a excluir symlink suspeito: {relative}"));
+                let latest = fs::symlink_metadata(&path)
+                    .map_err(|e| format!("Não foi possível verificar {relative}: {e}"))?;
+                if latest.file_type().is_symlink() || !latest.is_file() {
+                    return Err(format!("Recusa a excluir um recurso não regular: {relative}"));
                 }
-                // Re-validate the path is still within project root
                 let canonical = fs::canonicalize(&path)
-                    .map_err(|e| format!("Não foi resolver caminho canônico para {relative}: {e}"))?;
-                let canonical_root = fs::canonicalize(project_root)
-                    .map_err(|e| format!("Não foi resolver raiz do projeto: {e}"))?;
-                if !canonical.starts_with(&canonical_root) {
+                    .map_err(|e| format!("Não foi possível resolver {relative}: {e}"))?;
+                if !canonical.starts_with(project_root) {
                     return Err(format!("Caminho fora da pasta do projeto ao excluir: {relative}"));
                 }
                 fs::remove_file(&path)
                     .map_err(|e| format!("Não foi possível excluir recurso sem referência ({relative}): {e}"))?;
             }
+        } else {
+            return Err(format!("Tipo de arquivo não suportado dentro de resources: {}", path.display()));
         }
     }
 
-    let mut remaining = fs::read_dir(current)
+    let mut remaining = fs::read_dir(&canonical_current)
         .map_err(|e| format!("Não foi possível verificar pasta de recursos: {e}"))?;
     Ok(remaining.next().is_none())
 }
@@ -685,4 +745,48 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod project_path_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn allows_missing_file_and_nested_directories() {
+        let temp = tempdir().unwrap();
+        let project = temp.path().join("project");
+        fs::create_dir_all(&project).unwrap();
+        let canonical = fs::canonicalize(&project).unwrap();
+
+        let target = resolve_relative_path(&canonical, "scenes/main.json").unwrap();
+        assert_eq!(target, canonical.join("scenes").join("main.json"));
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn rejects_absolute_and_traversal_paths() {
+        let temp = tempdir().unwrap();
+        let project = fs::canonicalize(temp.path()).unwrap();
+
+        assert!(resolve_relative_path(&project, "../outside.json").is_err());
+        assert!(resolve_relative_path(&project, "").is_err());
+        assert!(resolve_relative_path(&project, "/etc/passwd").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinks_that_escape_the_project() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let project = temp.path().join("project");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, project.join("external")).unwrap();
+
+        let canonical = fs::canonicalize(&project).unwrap();
+        assert!(resolve_relative_path(&canonical, "external/secret.txt").is_err());
+    }
 }

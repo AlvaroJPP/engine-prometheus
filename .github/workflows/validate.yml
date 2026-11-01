@@ -24,39 +24,39 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Test rig similarity diagnostic
-        run: node scripts/analyze-rig-similarity.mjs
+        run: npx tsx scripts/analyze-rig-similarity.mjs --self-test
       - name: Test adaptive rigging
-        run: node scripts/rigging-self-test.mjs
+        run: npx tsx scripts/rigging-self-test.mjs
       - name: Test model import visual states
-        run: node scripts/import-model-states-self-test.mjs
+        run: npx tsx scripts/import-model-states-self-test.mjs
       - name: Test animation role options and bindings
-        run: node scripts/animation-role-options-self-test.mjs
+        run: npx tsx scripts/animation-role-options-self-test.mjs
       - name: Test retarget rest pose cache
-        run: node scripts/retarget-rest-pose-self-test.mjs
+        run: npx tsx scripts/retarget-rest-pose-self-test.mjs
       - name: Test model renderable mesh restoration
-        run: node scripts/model-renderable-meshes-self-test.mjs
+        run: npx tsx scripts/model-renderable-meshes-self-test.mjs
       - name: Test model collider sizing
-        run: node scripts/model-collider-sizing-self-test.mjs
+        run: npx tsx scripts/model-collider-sizing-self-test.mjs
       - name: Test model preview animation runtime
-        run: node scripts/model-preview-animation-runtime-self-test.mjs
+        run: npx tsx scripts/model-preview-animation-runtime-self-test.mjs
       - name: Test model base-color texture repair
-        run: node scripts/model-color-texture-repair-self-test.mjs
+        run: npx tsx scripts/model-color-texture-repair-self-test.mjs
       - name: Test model spatial measurements
-        run: node scripts/model-spatial-measurements-self-test.mjs
+        run: npx tsx scripts/model-spatial-measurements-self-test.mjs
       - name: Test model import normalization
-        run: node scripts/model-import-normalization-self-test.mjs
+        run: npx tsx scripts/model-import-normalization-self-test.mjs
       - name: Test model preview selection and visibility
-        run: node scripts/model-preview-selection-self-test.mjs
+        run: npx tsx scripts/model-preview-selection-self-test.mjs
       - name: Test model-owned Object URLs
-        run: node scripts/model-owned-object-urls-self-test.mjs
+        run: npx tsx scripts/model-owned-object-urls-self-test.mjs
       - name: Test model collider preview
-        run: node scripts/model-collider-preview-self-test.mjs
+        run: npx tsx scripts/model-collider-preview-self-test.mjs
       - name: Test imported model resource cleanup
-        run: node scripts/model-import-resource-cleanup-self-test.mjs
+        run: npx tsx scripts/model-import-resource-cleanup-self-test.mjs
       - name: Test import behavior package config
-        run: node scripts/import-behavior-package-config-self-test.mjs
+        run: npx tsx scripts/import-behavior-package-config-self-test.mjs
       - name: Test rig keyframe timeline
-        run: node scripts/rig-keyframe-timeline-self-test.mjs
+        run: npx tsx scripts/rig-keyframe-timeline-self-test.mjs
       - name: Type-check and build
         run: cd ep-work && npm run build
       - name: Install Tauri Linux dependencies
@@ -66,4 +66,4 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
       - name: Check Tauri Rust backend
-        run: cargo check --manifest-path ep-work/src-tauri/Cargo.toml
+        run: cargo check --manifest-path src-tauri/Cargo.toml

@@ -26,128 +26,137 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type-check and build
+      - name: Build engine TypeScript modules
+        run: npm run build
+
+      - name: Test EngineCore lifecycle
+        run: npx tsx scripts/engine-core-self-test.mjs
+
+      - name: Test core lifecycle regressions
+        run: npx tsx scripts/core-lifecycle-regression-self-test.mjs
+
+      - name: Type-check and build editor
         run: cd ep-work && npm run build
 
       - name: Test generic combat calculations
-        run: node scripts/combat-primitives-self-test.mjs
+        run: npx tsx scripts/combat-primitives-self-test.mjs
 
       - name: Test generic combat actor model
-        run: node scripts/combat-model-self-test.mjs
+        run: npx tsx scripts/combat-model-self-test.mjs
 
       - name: Test generic package combat actions
-        run: node scripts/combat-package-runtime-self-test.mjs
+        run: npx tsx scripts/combat-package-runtime-self-test.mjs
 
       - name: Test generic inventory runtime
-        run: node scripts/inventory-runtime-self-test.mjs
+        run: npx tsx scripts/inventory-runtime-self-test.mjs
 
       - name: Test transient script object cleanup
-        run: node scripts/transient-script-object-cleanup-self-test.mjs
+        run: npx tsx scripts/transient-script-object-cleanup-self-test.mjs
 
       - name: Test generic projectile visuals
-        run: node scripts/projectile-visual-runtime-self-test.mjs
+        run: npx tsx scripts/projectile-visual-runtime-self-test.mjs
 
       - name: Test generic combat action scheduler
-        run: node scripts/combat-action-scheduler-self-test.mjs
+        run: npx tsx scripts/combat-action-scheduler-self-test.mjs
 
       - name: Test generic game-module lifecycle
-        run: node scripts/game-module-registry-self-test.mjs
+        run: npx tsx scripts/game-module-registry-self-test.mjs
 
       - name: Test autonomous behaviors
-        run: node scripts/autonomous-behavior-self-test.mjs
+        run: npx tsx scripts/autonomous-behavior-self-test.mjs
 
       - name: Test declarative behavior-package scripts
-        run: node scripts/behavior-package-scripts-self-test.mjs
+        run: npx tsx scripts/behavior-package-scripts-self-test.mjs
 
       - name: Test behavior-package import drafts
-        run: node scripts/import-behavior-package-drafts-self-test.mjs
+        run: npx tsx scripts/import-behavior-package-drafts-self-test.mjs
 
       - name: Test cooldown scheduler
-        run: node scripts/cooldown-scheduler-self-test.mjs
+        run: npx tsx scripts/cooldown-scheduler-self-test.mjs
 
       - name: Test finite state machine
-        run: node scripts/finite-state-machine-self-test.mjs
+        run: npx tsx scripts/finite-state-machine-self-test.mjs
 
       - name: Test world tag registry
-        run: node scripts/tag-registry-self-test.mjs
+        run: npx tsx scripts/tag-registry-self-test.mjs
 
       - name: Test generic resource pool
-        run: node scripts/resource-pool-self-test.mjs
+        run: npx tsx scripts/resource-pool-self-test.mjs
 
       - name: Test owner-scoped resource registry
-        run: node scripts/resource-pool-registry-self-test.mjs
+        run: npx tsx scripts/resource-pool-registry-self-test.mjs
 
       - name: Test 3D spatial hash
-        run: node scripts/spatial-hash-3d-self-test.mjs
+        run: npx tsx scripts/spatial-hash-3d-self-test.mjs
 
       - name: Test generic trigger volumes
-        run: node scripts/trigger-volume-system-self-test.mjs
+        run: npx tsx scripts/trigger-volume-system-self-test.mjs
 
       - name: Test interaction target selection
-        run: node scripts/interaction-target-selector-self-test.mjs
+        run: npx tsx scripts/interaction-target-selector-self-test.mjs
 
       - name: Test composed gameplay world systems
-        run: node scripts/gameplay-world-systems-self-test.mjs
+        run: npx tsx scripts/gameplay-world-systems-self-test.mjs
 
       - name: Test integrated interaction runtime
-        run: node scripts/interaction-runtime-self-test.mjs
+        run: npx tsx scripts/interaction-runtime-self-test.mjs
 
       - name: Test extensible behavior tree handlers
-        run: node scripts/behavior-tree-handler-registry-self-test.mjs
+        run: npx tsx scripts/behavior-tree-handler-registry-self-test.mjs
 
       - name: Test generic behavior tree package runtime
-        run: node scripts/engine-behavior-tree-runtime-self-test.mjs
+        run: npx tsx scripts/engine-behavior-tree-runtime-self-test.mjs
 
       - name: Test generic behavior tree interpreter
-        run: node scripts/behavior-tree-self-test.mjs
+        run: npx tsx scripts/behavior-tree-self-test.mjs
 
       - name: Test behavior tree package lifecycle
-        run: node scripts/behavior-tree-package-self-test.mjs
+        run: npx tsx scripts/behavior-tree-package-self-test.mjs
 
       - name: Test generic navigation pathfinder
-        run: node scripts/navmesh-self-test.mjs
+        run: npx tsx scripts/navmesh-self-test.mjs
 
       - name: Test generic event bus
-        run: node scripts/event-bus-self-test.mjs
+        run: npx tsx scripts/event-bus-self-test.mjs
 
       - name: Test game and engine separation
-        run: node scripts/game-module-registry-self-test.mjs
+        run: npx tsx scripts/game-module-registry-self-test.mjs
 
       - name: Test generic status effects
-        run: node scripts/status-effect-runtime-self-test.mjs
+        run: npx tsx scripts/status-effect-runtime-self-test.mjs
 
       - name: Test objective progression tracker
-        run: node scripts/objective-tracker-self-test.mjs
+        run: npx tsx scripts/objective-tracker-self-test.mjs
 
       - name: Test gameplay behavior extension composition
-        run: node scripts/gameplay-behavior-extensions-self-test.mjs
+        run: npx tsx scripts/gameplay-behavior-extensions-self-test.mjs
 
       - name: Test gameplay runtime composition
-        run: node scripts/gameplay-runtime-self-test.mjs
+        run: npx tsx scripts/gameplay-runtime-self-test.mjs
 
       - name: Test generic entity component lifecycle
-        run: node scripts/entity-component-runtime-self-test.mjs
+        run: npx tsx scripts/entity-component-runtime-self-test.mjs
 
       - name: Test generic entity behavior lifecycle
-        run: node scripts/entity-behavior-runtime-self-test.mjs
+        run: npx tsx scripts/entity-behavior-runtime-self-test.mjs
 
       - name: Test entity behavior module integration
-        run: node scripts/entity-behavior-game-module-self-test.mjs
+        run: npx tsx scripts/entity-behavior-game-module-self-test.mjs
 
       - name: Test component-filtered entity systems
-        run: node scripts/entity-system-runtime-self-test.mjs
+        run: npx tsx scripts/entity-system-runtime-self-test.mjs
 
       - name: Test cached generic entity queries
-        run: node scripts/entity-query-runtime-self-test.mjs
+        run: npx tsx scripts/entity-query-runtime-self-test.mjs
 
       - name: Test generic entity batch processing
-        run: node scripts/entity-batch-processor-self-test.mjs
+        run: npx tsx scripts/entity-batch-processor-self-test.mjs
 
       - name: Test deferred generic entity commands
-        run: node scripts/entity-command-buffer-self-test.mjs
+        run: npx tsx scripts/entity-command-buffer-self-test.mjs
 
       - name: Test visual UI screen definitions
-        run: node scripts/ui-workspace-self-test.mjs
+        run: npx tsx scripts/ui-workspace-self-test.mjs
 
       - name: Test generic runtime phase pipeline
-        run: node scripts/runtime-phase-pipeline-self-test.mjs
+        run: npx tsx scripts/runtime-phase-pipeline-self-test.mjs
