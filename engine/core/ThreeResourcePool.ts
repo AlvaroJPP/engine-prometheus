@@ -34,6 +34,7 @@ export interface ResourcePoolStats {
 export class ThreeResourcePool {
   private resources = new Map<string, TrackedResource>()
   private subsystemResources = new Map<string, Set<string>>()
+  private resourceIds = new WeakMap<object, Set<string>>()
   private idCounter = 0
   private engine: EngineCore | null = null
   private unsubscribeFromEngine: (() => void) | null = null
@@ -85,6 +86,14 @@ export class ThreeResourcePool {
     subsystem: string,
     label?: string
   ): string {
+    const existingIds = this.resourceIds.get(resource)
+    if (existingIds) {
+      for (const existingId of existingIds) {
+        const existing = this.resources.get(existingId)
+        if (existing?.subsystem === subsystem && existing.type === type) return existingId
+      }
+    }
+
     const id = `${type}_${subsystem}_${++this.idCounter}`
     const tracked: TrackedResource = {
       resource,
@@ -95,6 +104,10 @@ export class ThreeResourcePool {
     }
 
     this.resources.set(id, tracked)
+
+    const resourceIds = this.resourceIds.get(resource) ?? new Set<string>()
+    resourceIds.add(id)
+    this.resourceIds.set(resource, resourceIds)
 
     if (!this.subsystemResources.has(subsystem)) {
       this.subsystemResources.set(subsystem, new Set())
@@ -112,6 +125,7 @@ export class ThreeResourcePool {
     if (!tracked) return false
 
     this.resources.delete(id)
+    this.removeResourceId(tracked.resource, id)
     const ids = this.subsystemResources.get(tracked.subsystem)
     ids?.delete(id)
     if (ids?.size === 0) this.subsystemResources.delete(tracked.subsystem)
@@ -155,84 +169,79 @@ export class ThreeResourcePool {
   /**
    * Dispose a single resource
    */
+  private removeResourceId(resource: object, id: string): boolean {
+    const ids = this.resourceIds.get(resource)
+    if (!ids) return false
+    ids.delete(id)
+    if (ids.size === 0) {
+      this.resourceIds.delete(resource)
+      return false
+    }
+    return true
+  }
+
   private disposeResource(id: string, tracked: TrackedResource): void {
     const { resource, type } = tracked
+    const hasOtherOwners = this.removeResourceId(resource, id)
+    if (hasOtherOwners) return
 
     switch (type) {
       case 'geometry':
-        if (resource instanceof THREE.BufferGeometry) {
-          resource.dispose()
-        }
+        if (resource instanceof THREE.BufferGeometry) resource.dispose()
         break
       case 'material':
-        if (resource instanceof THREE.Material) {
-          // Dispose textures referenced by material
-          const mat = resource as any
-          if (mat.map) mat.map.dispose()
-          if (resource instanceof THREE.MeshStandardMaterial) {
-            if (resource.normalMap) resource.normalMap.dispose()
-            if (resource.roughnessMap) resource.roughnessMap.dispose()
-            if (resource.metalnessMap) resource.metalnessMap.dispose()
-            if (resource.aoMap) resource.aoMap.dispose()
-            if (resource.emissiveMap) resource.emissiveMap.dispose()
-            if (resource.lightMap) resource.lightMap.dispose()
-            if (resource.envMap) resource.envMap.dispose()
-          }
-          resource.dispose()
-        }
+        if (resource instanceof THREE.Material) this.disposeMaterial(resource)
         break
       case 'texture':
-        if (resource instanceof THREE.Texture) {
-          resource.dispose()
-        }
+        if (resource instanceof THREE.Texture) resource.dispose()
         break
       case 'object3d':
-        if (resource instanceof THREE.Object3D) {
-          this.disposeObject3D(resource)
-        }
+        if (resource instanceof THREE.Object3D) this.disposeObject3D(resource)
         break
     }
 
     this.resources.delete(id)
   }
 
+  private disposeMaterial(material: THREE.Material): void {
+    const textureProps = [
+      'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap',
+      'lightMap', 'envMap', 'alphaMap', 'displacementMap', 'gradientMap', 'specularMap',
+      'clearcoatMap', 'clearcoatNormalMap', 'clearcoatRoughnessMap', 'transmissionMap',
+      'thicknessMap', 'sheenColorMap', 'sheenRoughnessMap', 'iridescenceMap',
+      'iridescenceThicknessMap', 'anisotropyMap',
+    ]
+    const values = material as unknown as Record<string, unknown>
+    for (const property of textureProps) {
+      const texture = values[property]
+      if (texture instanceof THREE.Texture && !this.resourceIds.has(texture)) texture.dispose()
+    }
+    material.dispose()
+  }
+
   /**
    * Recursively dispose an Object3D and its resources
    */
   private disposeObject3D(object: THREE.Object3D): void {
-    // Traverse children first
-    for (const child of object.children) {
+    for (const child of [...object.children]) {
       this.disposeObject3D(child)
     }
 
-    // Dispose geometry
     if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
       const geometry = object.geometry
-      if (geometry instanceof THREE.BufferGeometry) {
+      if (geometry instanceof THREE.BufferGeometry && !this.resourceIds.has(geometry)) {
         geometry.dispose()
       }
     }
 
-    // Dispose materials
-    const materials = Array.isArray((object as any).material)
-      ? (object as any).material
-      : [(object as any).material]
-
+    const materialValue = (object as THREE.Object3D & { material?: THREE.Material | THREE.Material[] }).material
+    const materials = Array.isArray(materialValue) ? materialValue : [materialValue]
     for (const material of materials) {
-      if (material instanceof THREE.Material) {
-        // Dispose textures - check known texture properties
-        const mat = material as any
-        const textureProps = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'lightMap', 'envMap', 'alphaMap', 'displacementMap', 'gradientMap', 'specularMap', 'clearcoatMap', 'clearcoatNormalMap', 'clearcoatRoughnessMap', 'transmissionMap', 'thicknessMap', 'sheenColorMap', 'sheenRoughnessMap', 'iridescenceMap', 'iridescenceThicknessMap', 'anisotropyMap']
-        for (const prop of textureProps) {
-          if (mat[prop] instanceof THREE.Texture) {
-            mat[prop].dispose()
-          }
-        }
-        material.dispose()
+      if (material instanceof THREE.Material && !this.resourceIds.has(material)) {
+        this.disposeMaterial(material)
       }
     }
 
-    // Remove from parent
     object.removeFromParent()
   }
 
