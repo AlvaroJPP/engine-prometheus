@@ -134,8 +134,22 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    * Remove all listeners for an event
    */
   offAll(event?: EventName): void {
-    if (event) {
-      this.listeners.delete(event);
+    if (event !== undefined) {
+      const listeners = this.listeners.get(event);
+      if (!listeners) return;
+
+      if (this.dispatchDepth > 0) {
+        for (const entry of listeners) this.pendingRemovals.add(entry.id);
+      } else {
+        this.listeners.delete(event);
+      }
+      return;
+    }
+
+    if (this.dispatchDepth > 0) {
+      for (const listeners of this.listeners.values()) {
+        for (const entry of listeners) this.pendingRemovals.add(entry.id);
+      }
     } else {
       this.listeners.clear();
     }
@@ -179,13 +193,15 @@ export class EngineEventBus<E extends EventMap = EventMap> {
         // Check if removed during dispatch
         if (this.pendingRemovals.has(entry.id)) continue;
 
-        // Check filter
-        if (entry.options.filter && !entry.options.filter(data)) continue;
+        const listenerData = sourceEvent === '*' ? { name: event, data } : data;
+
+        // Check filter against the same data shape delivered to the listener.
+        if (entry.options.filter && !entry.options.filter(listenerData)) continue;
 
         // Only handle sync listeners in sync dispatch
         if (!entry.options.async) {
           handled = true;
-          entry.listener(data);
+          entry.listener(listenerData);
           if (entry.options.once) {
             this.off(sourceEvent, entry.id);
           }
@@ -227,12 +243,14 @@ export class EngineEventBus<E extends EventMap = EventMap> {
         // Check if removed during dispatch
         if (this.pendingRemovals.has(entry.id)) continue;
 
-        // Check filter
-        if (entry.options.filter && !entry.options.filter(data)) continue;
+        const listenerData = sourceEvent === '*' ? { name: event, data } : data;
+
+        // Check filter against the same data shape delivered to the listener.
+        if (entry.options.filter && !entry.options.filter(listenerData)) continue;
 
         handled = true;
 
-        const listenerPromise = Promise.resolve(entry.listener(data))
+        const listenerPromise = Promise.resolve(entry.listener(listenerData))
           .catch(err => {
             errors.push(err instanceof Error ? err : new Error(String(err)));
           });
@@ -340,6 +358,7 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    */
   listenerCount(event: EventName): number {
     const specific = this.listeners.get(event)?.length || 0;
+    if (event === '*') return specific;
     const wildcard = this.listeners.get('*')?.length || 0;
     return specific + wildcard;
   }
