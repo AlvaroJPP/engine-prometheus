@@ -58,23 +58,10 @@ jobs:
           echo "Preview server did not start."
           exit 1
 
-      - name: Capture interface screenshots
+      - name: Capture interface screenshots and WebGL diagnostics
         run: |
           mkdir -p artifacts
-
-          npx --yes playwright screenshot \
-            --browser chromium \
-            --viewport-size="1280,720" \
-            --wait-for-timeout=7000 \
-            http://127.0.0.1:4173 \
-            artifacts/engine-prometheus-1280x720.png
-
-          npx --yes playwright screenshot \
-            --browser chromium \
-            --viewport-size="1920,1080" \
-            --wait-for-timeout=7000 \
-            http://127.0.0.1:4173 \
-            artifacts/engine-prometheus-1920x1080.png
+          node scripts/visual-preview-capture.mjs
 
       - name: Save preview metadata and logs
         if: always()
