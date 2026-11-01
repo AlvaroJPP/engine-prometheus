@@ -28,7 +28,6 @@ import { ProjectMeta } from '../project/serialize.js';
 import { uuid } from '../lib/id.js';
 import { EngineGameModule, GameModuleContext } from '../runtime/GameModule.js';
 import { GameModuleRegistry } from '../runtime/GameModuleRegistry.js';
-import { VeilborneGameModule } from '../runtime/VeilborneGameModule.js';
 import { EngineVisualSettingsController } from '../runtime/EngineVisualSettingsController.js';
 import { ModelOcclusionSystem } from '../world/ModelOcclusionSystem.js';
 import { ModelLodSystem } from '../world/ModelLodSystem.js';
@@ -1224,13 +1223,6 @@ export class EngineFacade {
    */
   getGameModule<T extends EngineGameModule>(id: string): T | null {
     return this.gameModules.getModule<T>(id);
-  }
-
-  /**
-   * Get the Veilborne game module if registered
-   */
-  getVeilborneGameModule(): VeilborneGameModule | null {
-    return this.gameModules.getModule<VeilborneGameModule>('veilborne');
   }
 
   /**
