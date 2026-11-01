@@ -27,7 +27,7 @@ import { UIWorkspaceHistory } from '../engine/ui/UIWorkspaceHistory.ts'
 import { RuleEngine } from '../engine/script/RuleEngine.ts'
 import { adjustUINumericValue, isUIVisibilityConditionMet, nextUIToggleValue, resolveUIValueBindings } from '../engine/ui/UIValueBinding.ts'
 import { appendUIScreenHistory, takePreviousUIScreen } from '../engine/ui/UINavigationHistory.ts'
-import { removeLegacyDefaultAlquimiaHudLayers } from '../src/lib/hud/HudPresetMigration.ts'
+import { removeLegacyDefaultAlquimiaHudLayers } from '../ep-work/src/lib/hud/HudPresetMigration.ts'
 import { DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '../engine/player/PlayerSettings.ts'
 import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidCustomPlayerEventName } from '../engine/player/PlayerLogic.ts'
 import { resolveUIVariableReference } from '../engine/ui/UIVariableScope.ts'
@@ -325,30 +325,30 @@ assert.equal(runtimeScriptEngine.triggerPlayerEvent('player.inventory.open', {
 assert.equal(runtimeScriptEngine.variables(PLAYER_LOGIC_SCOPE_ID).custom_hud_triggered, 'Abrir inventário')
 
 
-const visualScriptGraphSource = readFileSync(new URL('../src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
-const editorControllerSource = readFileSync(new URL('../src/composables/useEditor.ts', import.meta.url), 'utf8')
-const uiWorkspaceSource = readFileSync(new URL('../src/components/UIWorkspace.vue', import.meta.url), 'utf8')
-const appWorkspaceSource = readFileSync(new URL('../src/components/AppWorkspace.vue', import.meta.url), 'utf8')
-const gameUIRuntimeSource = readFileSync(new URL('../src/components/GameUIRuntime.vue', import.meta.url), 'utf8')
-const runtimeHudSource = readFileSync(new URL('../src/components/RuntimeHUD.vue', import.meta.url), 'utf8')
-const editorTopBarSource = readFileSync(new URL('../src/components/EditorTopBar.vue', import.meta.url), 'utf8')
-const editorTopBarCssSource = readFileSync(new URL('../src/components/EditorTopBar.css', import.meta.url), 'utf8')
-const editorViewportSource = readFileSync(new URL('../src/components/EditorViewport.vue', import.meta.url), 'utf8')
-const viewportLayoutSource = readFileSync(new URL('../src/composables/useViewportLayout.ts', import.meta.url), 'utf8')
+const visualScriptGraphSource = readFileSync(new URL('../ep-work/src/components/VisualScriptGraph.vue', import.meta.url), 'utf8')
+const editorControllerSource = readFileSync(new URL('../ep-work/src/composables/useEditor.ts', import.meta.url), 'utf8')
+const uiWorkspaceSource = readFileSync(new URL('../ep-work/src/components/UIWorkspace.vue', import.meta.url), 'utf8')
+const appWorkspaceSource = readFileSync(new URL('../ep-work/src/components/AppWorkspace.vue', import.meta.url), 'utf8')
+const gameUIRuntimeSource = readFileSync(new URL('../ep-work/src/components/GameUIRuntime.vue', import.meta.url), 'utf8')
+const runtimeHudSource = readFileSync(new URL('../ep-work/src/components/RuntimeHUD.vue', import.meta.url), 'utf8')
+const editorTopBarSource = readFileSync(new URL('../ep-work/src/components/EditorTopBar.vue', import.meta.url), 'utf8')
+const editorTopBarCssSource = readFileSync(new URL('../ep-work/src/components/EditorTopBar.css', import.meta.url), 'utf8')
+const editorViewportSource = readFileSync(new URL('../ep-work/src/components/EditorViewport.vue', import.meta.url), 'utf8')
+const viewportLayoutSource = readFileSync(new URL('../ep-work/src/composables/useViewportLayout.ts', import.meta.url), 'utf8')
 const viewportEngineSource = readFileSync(new URL('../engine/view/Viewport.ts', import.meta.url), 'utf8')
-const viewportRootCssSource = readFileSync(new URL('../src/styles/base/02-viewport-and-status.css', import.meta.url), 'utf8')
-const viewportActionsCssSource = readFileSync(new URL('../src/styles/parts/09-viewport-actions.css', import.meta.url), 'utf8')
-const sidebarHudCssSource = readFileSync(new URL('../src/styles/parts/10-sidebar-hud.css', import.meta.url), 'utf8')
-const viewportRuntimeCssSource = readFileSync(new URL('../src/styles/parts/03-visual-script-runtime.css', import.meta.url), 'utf8')
-const viewportPositioningCssSource = readFileSync(new URL('../src/styles/parts/11-viewport-positioning.css', import.meta.url), 'utf8')
-const responsiveWorkspaceCssSource = readFileSync(new URL('../src/styles/parts/12-responsive-workspace.css', import.meta.url), 'utf8')
-const appStylesAggregatorSource = readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
-const playerWorkspaceSource = readFileSync(new URL('../src/components/PlayerWorkspace.vue', import.meta.url), 'utf8')
-const playerLogicEditorSource = readFileSync(new URL('../src/composables/usePlayerLogicEditor.ts', import.meta.url), 'utf8')
+const viewportRootCssSource = readFileSync(new URL('../ep-work/src/styles/base/02-viewport-and-status.css', import.meta.url), 'utf8')
+const viewportActionsCssSource = readFileSync(new URL('../ep-work/src/styles/parts/09-viewport-actions.css', import.meta.url), 'utf8')
+const sidebarHudCssSource = readFileSync(new URL('../ep-work/src/styles/parts/10-sidebar-hud.css', import.meta.url), 'utf8')
+const viewportRuntimeCssSource = readFileSync(new URL('../ep-work/src/styles/parts/03-visual-script-runtime.css', import.meta.url), 'utf8')
+const viewportPositioningCssSource = readFileSync(new URL('../ep-work/src/styles/parts/11-viewport-positioning.css', import.meta.url), 'utf8')
+const responsiveWorkspaceCssSource = readFileSync(new URL('../ep-work/src/styles/parts/12-responsive-workspace.css', import.meta.url), 'utf8')
+const appStylesAggregatorSource = readFileSync(new URL('../ep-work/src/styles/app.css', import.meta.url), 'utf8')
+const playerWorkspaceSource = readFileSync(new URL('../ep-work/src/components/PlayerWorkspace.vue', import.meta.url), 'utf8')
+const playerLogicEditorSource = readFileSync(new URL('../ep-work/src/composables/usePlayerLogicEditor.ts', import.meta.url), 'utf8')
 const playerSettingsSource = readFileSync(new URL('../engine/player/PlayerSettings.ts', import.meta.url), 'utf8')
 const playerLogicSource = readFileSync(new URL('../engine/player/PlayerLogic.ts', import.meta.url), 'utf8')
 const engineEventTypesSource = readFileSync(new URL('../engine/world/events/types.ts', import.meta.url), 'utf8')
-const gameOverlayHostSource = readFileSync(new URL('../src/components/GameOverlayHost.vue', import.meta.url), 'utf8')
+const gameOverlayHostSource = readFileSync(new URL('../ep-work/src/components/GameOverlayHost.vue', import.meta.url), 'utf8')
 const enginePublicIndexSource = readFileSync(new URL('../engine/index.ts', import.meta.url), 'utf8')
 const playerRuleEngineSource = readFileSync(new URL('../engine/script/RuleEngine.ts', import.meta.url), 'utf8')
 const runtimeFrameSource = readFileSync(new URL('../engine/runtime/RuntimeFrameCoordinator.ts', import.meta.url), 'utf8')
@@ -356,7 +356,7 @@ const playerAvatarSource = readFileSync(new URL('../engine/world/HumanoidAvatar.
 const playerEngineSource = readFileSync(new URL('../engine/Engine.ts', import.meta.url), 'utf8')
 const projectFormatSource = readFileSync(new URL('../engine/project/format.ts', import.meta.url), 'utf8')
 const projectValidationSource = readFileSync(new URL('../engine/project/validate.ts', import.meta.url), 'utf8')
-const appControllerSource = readFileSync(new URL('../src/composables/useAppController.ts', import.meta.url), 'utf8')
+const appControllerSource = readFileSync(new URL('../ep-work/src/composables/useAppController.ts', import.meta.url), 'utf8')
 assert.match(visualScriptGraphSource, /@click="createGlobalEvent"/)
 assert.match(visualScriptGraphSource, /graphGlobalRules/)
 assert.match(visualScriptGraphSource, /Eventos globais · HUD \/ interface/)
