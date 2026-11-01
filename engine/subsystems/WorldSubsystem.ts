@@ -12,6 +12,7 @@ import { DIContainer } from '../core/DIContainer.js';
 
 import { World } from '../world/World.js';
 import { CollisionSystem } from '../world/CollisionSystem.js';
+import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { TerrainMesh } from '../world/map/TerrainMesh.js';
 import { GrassLayer } from '../world/map/GrassLayer.js';
 import { HumanoidAvatar } from '../world/HumanoidAvatar.js';
@@ -36,6 +37,7 @@ export class WorldSubsystem extends Subsystem {
   // World management
   private world: World | null = null;
   private collisionSystem: CollisionSystem | null = null;
+  private physicsWorld: PhysicsWorld | null = null;
   private terrainMesh: TerrainMesh | null = null;
   private grassLayer: GrassLayer | null = null;
   private avatar: HumanoidAvatar | null = null;
@@ -72,8 +74,8 @@ export class WorldSubsystem extends Subsystem {
       await this.createWorld(worldConfig);
     }
 
-    // Initialize physics
-    await this.initializePhysics(worldConfig);
+    // Initialize physics services and register them before dependent subsystems start.
+    await this.initializePhysics(subsystemConfig.enablePhysics ?? this.subsystemConfig.enablePhysics ?? true);
 
     // Initialize terrain if enabled
     if (this.subsystemConfig.enableTerrain ?? subsystemConfig.enableTerrain) {
@@ -144,6 +146,12 @@ export class WorldSubsystem extends Subsystem {
     if (this.collisionSystem) {
       this.collisionSystem.dispose();
       this.collisionSystem = null;
+    }
+
+    // Dispose the Rapier world owned by this subsystem.
+    if (this.physicsWorld) {
+      this.physicsWorld.dispose();
+      this.physicsWorld = null;
     }
 
     // Dispose world - we need to clean up objects manually
@@ -227,7 +235,7 @@ export class WorldSubsystem extends Subsystem {
 
   // === Physics ===
 
-  private async initializePhysics(config: WorldConfig): Promise<void> {
+  private async initializePhysics(enabled: boolean): Promise<void> {
     this.log('Initializing physics...');
 
     if (!this.world) {
@@ -235,9 +243,16 @@ export class WorldSubsystem extends Subsystem {
     }
 
     this.collisionSystem = new CollisionSystem(this.world);
-
-    // Register in DI container
     this.container?.registerInstance('world:collisionSystem', this.collisionSystem);
+
+    if (!enabled) {
+      this.log('Rapier physics disabled by world subsystem configuration');
+      return;
+    }
+
+    this.physicsWorld = new PhysicsWorld();
+    await this.physicsWorld.initialize();
+    this.container?.registerInstance('world:physicsWorld', this.physicsWorld);
   }
 
   getCollisionSystem(): CollisionSystem | null {

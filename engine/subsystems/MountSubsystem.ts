@@ -192,31 +192,31 @@ export class MountSubsystem extends Subsystem {
 
   private async resolveDependencies(): Promise<void> {
     // Get World from WorldSubsystem
-    this.world = this.container?.resolve<World>('world:world') ?? null;
+    this.world = this.container?.resolve<World>('world:world', { required: false }) ?? null;
     if (!this.world) {
       this.logWarn('World not available in DI container');
     }
 
     // Get PhysicsWorld from WorldSubsystem
-    this.physicsWorld = this.container?.resolve<PhysicsWorld>('world:physicsWorld') ?? null;
+    this.physicsWorld = this.container?.resolve<PhysicsWorld>('world:physicsWorld', { required: false }) ?? null;
     if (!this.physicsWorld) {
       this.logWarn('PhysicsWorld not available in DI container');
     }
 
     // Get CollisionSystem from WorldSubsystem
-    this.collisionSystem = this.container?.resolve<CollisionSystem>('world:collisionSystem') ?? null;
+    this.collisionSystem = this.container?.resolve<CollisionSystem>('world:collisionSystem', { required: false }) ?? null;
     if (!this.collisionSystem) {
       this.logWarn('CollisionSystem not available in DI container');
     }
 
     // Get Avatar from WorldSubsystem
-    this.avatar = this.container?.resolve<HumanoidAvatar>('world:avatar') ?? null;
+    this.avatar = this.container?.resolve<HumanoidAvatar>('world:avatar', { required: false }) ?? null;
     if (!this.avatar) {
       this.logWarn('HumanoidAvatar not available in DI container');
     }
 
     // Get camera yaw getter from RenderSubsystem
-    const orbitCamera = this.container?.resolve<any>('render:orbitCamera');
+    const orbitCamera = this.container?.resolve<any>('render:orbitCamera', { required: false });
     if (orbitCamera && typeof orbitCamera.getYaw === 'function') {
       this.cameraYawGetter = () => orbitCamera.getYaw();
     } else {
@@ -243,7 +243,7 @@ export class MountSubsystem extends Subsystem {
 
     // Create camera target updater
     const updateCameraTarget = (position: THREE.Vector3): void => {
-      const orbitCam = this.container?.resolve<any>('render:orbitCamera');
+      const orbitCam = this.container?.resolve<any>('render:orbitCamera', { required: false });
       if (orbitCam && typeof orbitCam.setTarget === 'function') {
         orbitCam.setTarget(position);
       }
@@ -331,7 +331,7 @@ export class MountSubsystem extends Subsystem {
         return false;
       },
       updateCameraTarget: (position: THREE.Vector3) => {
-        const orbitCam = this.container?.resolve<any>('render:orbitCamera');
+        const orbitCam = this.container?.resolve<any>('render:orbitCamera', { required: false });
         if (orbitCam && typeof orbitCam.setTarget === 'function') {
           orbitCam.setTarget(position);
         }
