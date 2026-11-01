@@ -731,4 +731,13 @@ html,body,#app{width:100%;height:100%;margin:0;overflow:hidden}body{background:v
 @media(max-width:1180px){:root{--rail-width:76px;--left-width:248px;--right-width:300px}.brand{min-width:170px}.project{display:none}.mode-actions button{min-width:100px}.viewport-actions-bar button{padding-inline:9px;font-size:11px}}
 @media(max-width:900px){:root{--rail-width:64px;--left-width:210px;--right-width:270px}.editor-side-rail{padding-inline:6px}.editor-rail-item{min-height:58px;font-size:9px}.editor-rail-item svg{width:21px;height:21px}.brand-copy{display:none}.mode-actions button{min-width:80px}.viewport-actions-right button:nth-child(3){display:none}}
 @media(max-width:760px){:root{--rail-width:56px;--left-width:clamp(138px,26vw,178px);--right-width:clamp(142px,26vw,180px)}.topbar{gap:6px;padding:0 8px}.brand{min-width:44px}.project{display:none}.filebtns .hide-narrow{display:none}.mode-actions{gap:4px}.mode-actions button{min-width:60px;height:34px;padding:0 7px;font-size:10px}.cam{max-width:92px;overflow:hidden;padding:0 6px;font-size:10px}.editor-side-rail{padding:8px 4px}.editor-rail-item{min-height:48px;font-size:0}.editor-rail-item svg{width:22px;height:22px}.viewport-actions-bar{padding-inline:7px}.viewport-actions-right{gap:4px}.viewport-actions-bar button{min-height:34px;padding:0 7px;font-size:10px}.viewport-actions-right button:nth-child(3){display:none}.viewport-tool-rail{left:7px;top:64px;width:46px;padding:4px}.viewport-tool-rail button{width:36px;height:38px;font-size:18px}.panel.left .row,.panel.left .row .name{font-size:10px}.panel.right .scroll{font-size:10px}.inspector-workspace-tabs button{font-size:10px}}
+
+/* Keep the viewport action groups clear on compact desktop widths. */
+@media(max-width:1450px){
+  .viewport-actions-bar{gap:6px;padding-inline:8px}
+  .viewport-actions-left,.viewport-actions-right{gap:5px}
+  .viewport-actions-right button:nth-child(1),
+  .viewport-actions-right button:nth-child(3){display:none}
+  .viewport-actions-bar button{padding-inline:9px}
+}
 </style>
