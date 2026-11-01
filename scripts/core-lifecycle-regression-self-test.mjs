@@ -77,5 +77,29 @@ missingDependencyCore.registerSubsystem(new DependentSubsystem())
 await assert.rejects(missingDependencyCore.initialize(), /Missing required dependency/)
 await missingDependencyCore.dispose()
 
+const rollbackCore = new EngineCore({ config: { debug: { logging: false } } })
+const rollbackEvents = []
+class InitializingSubsystem extends (await import('../engine/core/Subsystem.ts')).Subsystem {
+  constructor(name, shouldFail = false) {
+    super({ name })
+    this.shouldFail = shouldFail
+  }
+  async onInitialize() {
+    rollbackEvents.push(`initialize:${this.name}`)
+    if (this.shouldFail) throw new Error('intentional initialization failure')
+  }
+  async onDispose() { rollbackEvents.push(`dispose:${this.name}`) }
+}
+rollbackCore.registerSubsystem(new InitializingSubsystem('ready-first'))
+rollbackCore.registerSubsystem(new InitializingSubsystem('fails-second', true))
+await assert.rejects(rollbackCore.initialize(), /intentional initialization failure/)
+assert.deepEqual(rollbackEvents, [
+  'initialize:ready-first',
+  'initialize:fails-second',
+  'dispose:fails-second',
+  'dispose:ready-first',
+], 'initialization rollback disposes the failing subsystem and previously initialized subsystems')
+await rollbackCore.dispose()
+
 bus.dispose()
 console.log('Core lifecycle regression self-test passed.')
