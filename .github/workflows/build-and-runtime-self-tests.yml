@@ -83,6 +83,9 @@ jobs:
       - name: Test generic resource pool
         run: npx tsx scripts/resource-pool-self-test.mjs
 
+      - name: Test Three.js resource ownership
+        run: npx tsx scripts/three-resource-pool-self-test.mjs
+
       - name: Test owner-scoped resource registry
         run: npx tsx scripts/resource-pool-registry-self-test.mjs
 
