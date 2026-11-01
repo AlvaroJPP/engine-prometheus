@@ -2,6 +2,21 @@ import { defineConfig, UserConfig } from 'vite'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 
+// CSP meta tag for defense-in-depth (renderer process)
+const CSP_META_TAG = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">`
+
+const CSP_DEV_META_TAG = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:5173 wss:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">`
+
+function cspMetaPlugin(dev: boolean): { name: string; transformIndexHtml: (html: string) => string } {
+  return {
+    name: 'csp-meta',
+    transformIndexHtml(html: string) {
+      const tag = dev ? CSP_DEV_META_TAG : CSP_META_TAG
+      return html.replace('<head>', `<head>\n  ${tag}`)
+    },
+  }
+}
+
 // Reads dev port from tauri.conf.json so Vite, Tauri, and Playwright stay in sync
 export function getDevPort(tauriConfigPath: string): number {
   try {
@@ -13,8 +28,9 @@ export function getDevPort(tauriConfigPath: string): number {
 }
 
 export function createViteConfig(overrides: Partial<UserConfig> = {}): UserConfig {
+  const isDev = process.env.NODE_ENV !== 'production'
   return defineConfig({
-    plugins: [],
+    plugins: [cspMetaPlugin(isDev), ...(overrides.plugins || [])],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
