@@ -409,3 +409,23 @@
     top:-44px!important;
   }
 }
+
+/* Compact the topbar and viewport controls while the fixed side panels
+   leave less horizontal room (for example, a 1280px window). */
+@media(min-width:761px) and (max-width:1320px) {
+  .app>.topbar .topbar-save {
+    display:none!important;
+  }
+  .app .viewport-tools-overlay .viewport-tool span,
+  .app .viewport-tools-overlay .render-settings-label,
+  .app .viewport-tools-overlay .topbar-fullscreen span {
+    display:none!important;
+  }
+  .app .viewport-tools-overlay .viewport-tool,
+  .app .viewport-tools-overlay .render-settings-trigger,
+  .app .viewport-tools-overlay .topbar-fullscreen {
+    width:38px!important;
+    min-width:38px!important;
+    padding:0!important;
+  }
+}
