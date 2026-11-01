@@ -22,6 +22,7 @@ export class TerrainMesh {
   private posAttr: THREE.BufferAttribute
   private colAttr: THREE.BufferAttribute
   private disposed = false
+  private editorAppearance = true
   // Raycast direto na grade de alturas: não depende do BVH assíncrono.
   private raycastRay = new THREE.Ray()
   private raycastInverseMatrix = new THREE.Matrix4()
@@ -183,6 +184,21 @@ export class TerrainMesh {
   }
 
   /** Recalcula a malha inteira apenas ao criar ou carregar um terreno. */
+  /** Switches between the graphite editor floor and the natural game terrain. */
+  setEditorAppearance(enabled: boolean): void {
+    if (this.editorAppearance === enabled) return
+    this.editorAppearance = enabled
+    this.refresh()
+  }
+
+  private vertexColor(height: number, x: number, z: number): [number, number, number] {
+    if (!this.editorAppearance) return colorForHeight(height, x, z)
+    const relief = THREE.MathUtils.clamp((height + 2.5) / 12, 0, 1)
+    const variation = (Math.sin(x * 0.17 + z * 0.11) + 1) * 0.0012
+    const value = 0.025 + relief * 0.006 + variation
+    return [value, value * 1.035, value * 1.12]
+  }
+
   refresh(): void {
     const n = TERRAIN_VERTS_PER_SIDE
     for (let iy = 0; iy < n; iy += 1) {
@@ -194,7 +210,7 @@ export class TerrainMesh {
         this.positions[i * 3] = x
         this.positions[i * 3 + 1] = h
         this.positions[i * 3 + 2] = z
-        const [r, g, b] = colorForHeight(h, x, z)
+        const [r, g, b] = this.vertexColor(h, x, z)
         this.colors[i * 3] = r
         this.colors[i * 3 + 1] = g
         this.colors[i * 3 + 2] = b
@@ -241,7 +257,7 @@ export class TerrainMesh {
         const h = this.field.height(ix, iz)
         const positionOffset = index * 3
         this.positions[positionOffset + 1] = h
-        const [r, g, b] = colorForHeight(h, x, z)
+        const [r, g, b] = this.vertexColor(h, x, z)
         this.colors[positionOffset] = r
         this.colors[positionOffset + 1] = g
         this.colors[positionOffset + 2] = b
