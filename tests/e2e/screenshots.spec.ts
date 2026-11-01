@@ -44,7 +44,7 @@ test.describe('Screenshot Capture - All Screens', () => {
     // 2. UI WORKSPACE
     // =============================================
     console.log('\n📸 2. UI Workspace');
-    await page.click('button:has-text("Workspace UI")');
+    await page.click('button[aria-label="Abrir Workspace de UI"]');
     await page.waitForSelector('text=Workspace de UI', { state: 'visible', timeout: 10000 });
     await wait(1500);
     await takeScreenshot(page, '02-ui-workspace');
@@ -57,7 +57,7 @@ test.describe('Screenshot Capture - All Screens', () => {
     // 3. PLAYER WORKSPACE - Main tab
     // =============================================
     console.log('\n📸 3. Player Workspace (main tab)');
-    await page.click('button:has-text("Player")');
+    await page.click('button[aria-label="Abrir Workspace do Player"]');
     await page.waitForSelector('text=Configurar jogador', { state: 'visible', timeout: 10000 });
     await wait(1500);
     await takeScreenshot(page, '03-player-workspace-main');
@@ -94,7 +94,7 @@ test.describe('Screenshot Capture - All Screens', () => {
     // 6. MODEL IMPORT DIALOG
     // =============================================
     console.log('\n📸 6. Model Import Dialog');
-    const importButton = page.locator('button:has-text("Modelo 3D")').first();
+    const importButton = page.locator('button[aria-label="Importar modelo 3D"]').first();
     await expect(importButton).toBeVisible({ timeout: 10000 });
     await importButton.click();
     await page.waitForSelector('text=Configurar modelo 3D', { state: 'visible', timeout: 10000 });
