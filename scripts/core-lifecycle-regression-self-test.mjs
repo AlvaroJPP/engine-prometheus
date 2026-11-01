@@ -4,14 +4,26 @@ import { EngineCore } from '../engine/core/EngineCore.ts'
 import { EngineEventBus } from '../engine/core/EngineEventBus.ts'
 
 const bus = new EngineEventBus()
-let wildcardCalls = 0
-bus.onAny(() => { wildcardCalls += 1 }, { once: true })
-bus.emit('first', {})
-bus.emit('second', {})
-assert.equal(wildcardCalls, 1, 'wildcard once-listener is removed from the wildcard channel')
+const wildcardEvents = []
+bus.onAny(event => wildcardEvents.push(event), { once: true })
+bus.emit('first', { value: 1 })
+bus.emit('second', { value: 2 })
+assert.deepEqual(wildcardEvents, [{ name: 'first', data: { value: 1 } }], 'wildcard listener receives event name and payload and is removed once')
+assert.equal(bus.listenerCount('*'), 0, 'wildcard listener count is accurate')
 
 await assert.rejects(bus.waitFor('never', 5), /Timeout waiting for event/)
 assert.equal(bus.listenerCount('never'), 0, 'waitFor removes its listener after timeout')
+
+const removalBus = new EngineEventBus()
+const removalCalls = []
+removalBus.on('remove-all', () => {
+  removalCalls.push('first')
+  removalBus.offAll('remove-all')
+})
+removalBus.on('remove-all', () => removalCalls.push('second'))
+removalBus.emit('remove-all', {})
+removalBus.emit('remove-all', {})
+assert.deepEqual(removalCalls, ['first'], 'offAll called during dispatch prevents remaining listeners from firing')
 
 const parent = new DIContainer()
 let scopedDisposals = 0
@@ -24,6 +36,16 @@ assert.equal(scope.resolve('scoped-service'), scopedA, 'scoped services are stab
 await scope.dispose()
 assert.equal(scopedDisposals, 1, 'disposing a scope disposes its scoped services')
 assert.equal(parent.resolve('scoped-service') === scopedA, false, 'scope disposal does not pollute the parent')
+
+const root = new DIContainer()
+let inheritedFactoryCalls = 0
+root.registerScoped('deep-scoped', () => ({ id: ++inheritedFactoryCalls }))
+const middle = root.createChild()
+const leaf = middle.createScope()
+const deepOne = leaf.resolve('deep-scoped')
+assert.equal(leaf.resolve('deep-scoped'), deepOne, 'nested scopes reuse scoped services inherited from an ancestor')
+await leaf.dispose()
+assert.equal(inheritedFactoryCalls, 1, 'nested inherited scope factory runs once')
 
 let borrowedDisposed = false
 const borrowed = { dispose() { borrowedDisposed = true } }
