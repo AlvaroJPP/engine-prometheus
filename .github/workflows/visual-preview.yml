@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Only one run may publish to the shared visual-preview branch at a time.
+concurrency:
+  group: engine-prometheus-visual-preview
+  cancel-in-progress: false
+
 jobs:
   visual-preview:
     name: Build, capture and publish preview
@@ -104,6 +109,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          latest_main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          if [ "$latest_main_sha" != "$GITHUB_SHA" ]; then
+            echo "Skipping stale preview for $GITHUB_SHA; main is now $latest_main_sha."
+            exit 0
+          fi
 
           if git ls-remote --exit-code --heads origin visual-preview >/dev/null 2>&1; then
             git fetch origin visual-preview
