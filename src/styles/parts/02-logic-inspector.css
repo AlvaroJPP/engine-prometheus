@@ -11,7 +11,7 @@
 .graph-canvas { background-color:#252525; background-image:linear-gradient(#303030 1px,transparent 1px),linear-gradient(90deg,#303030 1px,transparent 1px); background-size:20px 20px; }
 .graph-wires path { stroke:#a4a4a4; stroke-width:2; }
 .graph-node { width:232px; min-height:122px; border-radius:4px; background:#383838; border-color:#1d1d1d; box-shadow:0 3px 8px #0005; }
-.graph-node.chosen { outline:2px solid #e98524; outline-offset:0; }
+.graph-node.chosen { outline:2px solid #e8572a; outline-offset:0; }
 .graph-node.trigger { border-top:3px solid #b98b48; }
 .graph-node.condition { border-top:3px solid #6b9ecb; }
 .graph-node.action { border-top:3px solid #70a878; }
@@ -39,7 +39,7 @@
 .unity-component { margin:10px 0; border:1px solid #1d1d1d; border-radius:3px; overflow:hidden; background:#292929; }
 .unity-component-head { min-height:31px; display:flex; align-items:center; gap:8px; padding:0 8px; background:#383838; border-bottom:1px solid #202020; font-size:11px; }
 .unity-component-head strong { font-size:11px; font-weight:600; flex:1; color:#e2e2e2; }
-.component-icon { width:18px; height:18px; display:grid; place-items:center; border-radius:3px; font-size:13px; background:#242424; color:#e98524; }
+.component-icon { width:18px; height:18px; display:grid; place-items:center; border-radius:3px; font-size:13px; background:#242424; color:#e8572a; }
 .renderer-icon { color:#85b4d9; }
 .script-icon { color:#83bb8b; }
 .component-menu { color:#aaa; font-size:17px; line-height:1; }
@@ -111,9 +111,9 @@
   font-size: 20px;
 }
 .inspector-object-icon.selected {
-  color: #f0a04c;
-  border-color: #76502e;
-  background: #3b3025;
+  color: #e8572a;
+  border-color: #763f2e;
+  background: #3b2a25;
 }
 .inspector-object-icon.terrain {
   color: #9ecb91;
@@ -140,8 +140,8 @@
   height: 7px;
   flex: none;
   border-radius: 50%;
-  background: #e98524;
-  box-shadow: 0 0 0 3px #e985241c;
+  background: #e8572a;
+  box-shadow: 0 0 0 3px #e8572a1c;
 }
 .selection-empty-hint {
   margin-top: 11px;
@@ -179,7 +179,7 @@
   content: "";
 }
 .panel.right.has-selection .scroll > section.object-components > h4::before {
-  background: #e98524;
+  background: #e8572a;
 }
 .panel.right .component-caption {
   margin-top: 12px;
@@ -205,7 +205,7 @@
   background: #202020;
 }
 .panel.right .field input:focus,
-.panel.right .field select:focus { border-color: #a66a32; }
+.panel.right .field select:focus { border-color: #a64d32; }
 .panel.right .variable-row { gap: 5px; }
 .panel.right .variable-row .ghost { min-width: 28px; padding: 4px 7px; }
 .panel.right .variable-create { gap: 6px; }
@@ -238,7 +238,7 @@
 .inspector-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;padding:5px 7px 0;gap:3px;background:#2b2b2b;border-bottom:1px solid #1a1a1a}
 .inspector-tabs button{min-width:0;min-height:47px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid transparent;border-bottom:2px solid transparent;border-radius:3px 3px 0 0;background:transparent;color:#a5a5a5;cursor:pointer}
 .inspector-tabs button>span{font-size:16px;line-height:17px}.inspector-tabs button small{font-size:9px;white-space:nowrap}
-.inspector-tabs button:hover{background:#383838;color:#eee}.inspector-tabs button.active{border-color:#3b3b3b;border-bottom-color:#e98524;background:#353535;color:#f1f1f1}
+.inspector-tabs button:hover{background:#383838;color:#eee}.inspector-tabs button.active{border-color:#3b3b3b;border-bottom-color:#e8572a;background:#353535;color:#f1f1f1}
 .behavior-package-card{margin:10px 0;padding:10px;border:1px solid #414141;border-radius:4px;background:#292929}
 .behavior-package-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .behavior-package-header strong{font-size:12px;color:#f0f0f0}
@@ -321,7 +321,7 @@
   color: #f0f0f0;
   font-size: 10px;
 }
-.variable-row .variable-value:focus { border-color: #a66a32; outline: none; }
+.variable-row .variable-value:focus { border-color: #a64d32; outline: none; }
 .global-variable-head,
 .global-variable-row {
   grid-template-columns: minmax(0, 1fr) minmax(48px, .65fr) minmax(0, 1fr) 27px 27px;

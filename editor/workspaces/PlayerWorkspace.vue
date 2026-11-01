@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { PLAYER_LOGIC_SCOPE_ID, PLAYER_RUNTIME_EVENTS, isValidCustomPlayerEventName } from '@engine'
 import type { ControlMapProfile, LogicRule, PlayerRuntimeEventId, PlayerSettings } from '@engine'
@@ -67,17 +67,17 @@ const actualColliderRadius = computed(() =>
 const actualColliderDiameter = computed(() => actualColliderRadius.value * 2)
 const estimatedRunSpeed = computed(() => props.playerSettings.walkSpeed * props.playerSettings.runMultiplier)
 const tabs: Array<{ id: PlayerWorkspaceTab; title: string; description: string; icon: string }> = [
-  { id: 'overview', title: 'Visão geral', description: 'Resumo do jogador', icon: '◫' },
-  { id: 'appearance', title: 'Aparência', description: 'Modelo e escala', icon: '♟' },
-  { id: 'movement', title: 'Movimento', description: 'Velocidade e salto', icon: '↗' },
-  { id: 'collision', title: 'Colisão', description: 'Corpo físico', icon: '⬡' },
-  { id: 'camera', title: 'Câmera', description: 'Perspectiva do jogador', icon: '◎' },
-  { id: 'controls', title: 'Controles', description: 'Teclas e ações', icon: '⌘' },
-  { id: 'scripts', title: 'Scripts e variáveis', description: 'Lógica exclusiva do jogador', icon: '⌘' },
+  { id: 'overview', title: 'VisÃ£o geral', description: 'Resumo do jogador', icon: 'â—«' },
+  { id: 'appearance', title: 'AparÃªncia', description: 'Modelo e escala', icon: 'â™Ÿ' },
+  { id: 'movement', title: 'Movimento', description: 'Velocidade e salto', icon: 'â†—' },
+  { id: 'collision', title: 'ColisÃ£o', description: 'Corpo fÃ­sico', icon: 'â¬¡' },
+  { id: 'camera', title: 'CÃ¢mera', description: 'Perspectiva do jogador', icon: 'â—Ž' },
+  { id: 'controls', title: 'Controles', description: 'Teclas e aÃ§Ãµes', icon: 'âŒ˜' },
+  { id: 'scripts', title: 'Scripts e variÃ¡veis', description: 'LÃ³gica exclusiva do jogador', icon: 'âŒ˜' },
 ]
 const controlSummary: Array<{ key: keyof ControlMapProfile['bindings']; label: string }> = [
   { key: 'forward', label: 'Frente' },
-  { key: 'backward', label: 'Trás' },
+  { key: 'backward', label: 'TrÃ¡s' },
   { key: 'left', label: 'Esquerda' },
   { key: 'right', label: 'Direita' },
   { key: 'run', label: 'Correr' },
@@ -88,20 +88,20 @@ const controlSummary: Array<{ key: keyof ControlMapProfile['bindings']; label: s
 watch(() => props.playerModelHeight, value => { modelHeightDraft.value = value })
 
 function keyLabel(code: string | undefined): string {
-  if (!code) return '—'
+  if (!code) return 'â€”'
   const labels: Record<string, string> = {
     MouseLeft: 'Mouse Esq.',
     MouseRight: 'Mouse Dir.',
     MouseMiddle: 'Mouse Meio',
-    Space: 'Espaço',
+    Space: 'EspaÃ§o',
     ShiftLeft: 'Shift',
     ShiftRight: 'Shift',
     ControlLeft: 'Ctrl',
     ControlRight: 'Ctrl',
-    ArrowUp: '↑',
-    ArrowDown: '↓',
-    ArrowLeft: '←',
-    ArrowRight: '→',
+    ArrowUp: 'â†‘',
+    ArrowDown: 'â†“',
+    ArrowLeft: 'â†',
+    ArrowRight: 'â†’',
   }
   if (labels[code]) return labels[code]
   if (/^Key[A-Z]$/.test(code)) return code.slice(3)
@@ -128,27 +128,27 @@ function createVariable(): void {
   if (!canEdit.value) return
   const name = newVariableName.value.trim()
   if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) {
-    variableFeedback.value = 'Use um nome começando com letra ou _, com até 64 caracteres.'
+    variableFeedback.value = 'Use um nome comeÃ§ando com letra ou _, com atÃ© 64 caracteres.'
     return
   }
   if (Object.prototype.hasOwnProperty.call(props.playerLogicVariables, name)) {
-    variableFeedback.value = `A variável "${name}" já existe neste jogador.`
+    variableFeedback.value = `A variÃ¡vel "${name}" jÃ¡ existe neste jogador.`
     return
   }
   if (newVariableType.value === 'number' && (!newVariableValue.value.trim() || !Number.isFinite(Number(newVariableValue.value)))) {
-    variableFeedback.value = 'Informe um número finito como valor inicial.'
+    variableFeedback.value = 'Informe um nÃºmero finito como valor inicial.'
     return
   }
   variableFeedback.value = ''
   emit('create-player-variable', name, newVariableType.value, newVariableValue.value)
   newVariableName.value = ''
-  variableFeedback.value = `Variável "${name}" criada no escopo do jogador.`
+  variableFeedback.value = `VariÃ¡vel "${name}" criada no escopo do jogador.`
 }
 function updateVariable(name: string, value: string): void {
   if (!canEdit.value) return
   const current = props.playerLogicVariables[name]
   if (typeof current === 'number' && (!value.trim() || !Number.isFinite(Number(value)))) {
-    variableFeedback.value = `Informe um número válido para "${name}".`
+    variableFeedback.value = `Informe um nÃºmero vÃ¡lido para "${name}".`
     return
   }
   if (typeof current === 'boolean' && value !== 'true' && value !== 'false') {
@@ -162,12 +162,12 @@ function createScript(): void {
   if (!canEdit.value) return
   const name = newScriptName.value.trim()
   if (newScriptEvent.value === 'custom_event' && !isValidCustomPlayerEventName(newScriptCustomEventName.value)) {
-    scriptFeedback.value = 'Informe um evento válido, como player.inventory.open.'
+    scriptFeedback.value = 'Informe um evento vÃ¡lido, como player.inventory.open.'
     return
   }
   emit('create-player-script', name, newScriptEvent.value, newScriptCode.value, newScriptKey.value, newScriptCustomEventName.value)
   newScriptName.value = ''
-  scriptFeedback.value = `Script "${name || 'do jogador'}" criado; será executado no evento selecionado.`
+  scriptFeedback.value = `Script "${name || 'do jogador'}" criado; serÃ¡ executado no evento selecionado.`
 }
 function patchPlayerScript(
   rule: PlayerScriptRule,
@@ -183,7 +183,7 @@ function patchPlayerScript(
     playerEventSelection(rule.trigger.eventId) === 'custom_event' ? rule.trigger.eventId : 'player.custom'
   )
   if (selectedEvent === 'custom_event' && !isValidCustomPlayerEventName(customEventName)) {
-    scriptFeedback.value = 'Identificador inválido. Use letras, números, _, ponto, hífen ou dois-pontos; não reutilize eventos predefinidos.'
+    scriptFeedback.value = 'Identificador invÃ¡lido. Use letras, nÃºmeros, _, ponto, hÃ­fen ou dois-pontos; nÃ£o reutilize eventos predefinidos.'
     return
   }
   scriptFeedback.value = ''
@@ -230,12 +230,12 @@ function commitModelHeight(): void {
         <div class="player-workspace-brand">
           <div class="player-workspace-mark" aria-hidden="true">P</div>
           <div>
-            <div class="player-workspace-eyebrow">ENGINE PROMETHEUS · PLAYER WORKSPACE</div>
+            <div class="player-workspace-eyebrow">ENGINE PROMETHEUS Â· PLAYER WORKSPACE</div>
             <h1 id="player-workspace-title">Configurar jogador</h1>
-            <p>Aparência, movimento, colisor, câmera, controles, scripts e variáveis por jogador.</p>
+            <p>AparÃªncia, movimento, colisor, cÃ¢mera, controles, scripts e variÃ¡veis por jogador.</p>
           </div>
         </div>
-        <button class="player-workspace-close" type="button" aria-label="Fechar Workspace do Player" title="Fechar Workspace do Player" @click="emit('close')">×</button>
+        <button class="player-workspace-close" type="button" aria-label="Fechar Workspace do Player" title="Fechar Workspace do Player" @click="emit('close')">Ã—</button>
       </header>
 
       <div class="player-workspace-summary">
@@ -246,7 +246,7 @@ function commitModelHeight(): void {
           <div class="player-summary-copy">
             <span>JOGADOR ATUAL</span>
             <strong>{{ playerModelName }}</strong>
-            <small>{{ playerModelCustom ? `Modelo personalizado · ${playerModelHeight.toFixed(2)} u` : 'Modelo padrão · 1,80 u' }}</small>
+            <small>{{ playerModelCustom ? `Modelo personalizado Â· ${playerModelHeight.toFixed(2)} u` : 'Modelo padrÃ£o Â· 1,80 u' }}</small>
           </div>
         </div>
         <div class="player-summary-chip">
@@ -254,18 +254,18 @@ function commitModelHeight(): void {
           <strong>{{ activeControlMap.name }}</strong>
         </div>
         <div class="player-summary-chip">
-          <span>CÂMERA</span>
+          <span>CÃ‚MERA</span>
           <strong>{{ firstPersonMode ? 'Primeira pessoa' : cameraLabel }}</strong>
         </div>
         <div class="player-summary-chip">
           <span>ESTADO</span>
-          <strong :class="{ 'player-workspace-warning': !canEdit }">{{ canEdit ? 'Pronto para configurar' : 'Execução ativa' }}</strong>
+          <strong :class="{ 'player-workspace-warning': !canEdit }">{{ canEdit ? 'Pronto para configurar' : 'ExecuÃ§Ã£o ativa' }}</strong>
         </div>
       </div>
 
       <div class="player-workspace-body">
-        <nav class="player-workspace-nav" aria-label="Seções de configuração do jogador">
-          <div class="player-nav-label">CONFIGURAÇÃO</div>
+        <nav class="player-workspace-nav" aria-label="SeÃ§Ãµes de configuraÃ§Ã£o do jogador">
+          <div class="player-nav-label">CONFIGURAÃ‡ÃƒO</div>
           <button v-for="tab in tabs" :key="tab.id" type="button" :class="{ active: activeTab === tab.id }" :aria-current="activeTab === tab.id ? 'page' : undefined" @click="activeTab = tab.id">
             <span class="player-nav-icon" aria-hidden="true">{{ tab.icon }}</span>
             <span class="player-nav-copy"><strong>{{ tab.title }}</strong><small>{{ tab.description }}</small></span>
@@ -273,57 +273,57 @@ function commitModelHeight(): void {
           </button>
           <div class="player-nav-note">
             <span class="player-nav-note-dot"></span>
-            <span>As configurações físicas são aplicadas ao personagem controlado em Jogar.</span>
+            <span>As configuraÃ§Ãµes fÃ­sicas sÃ£o aplicadas ao personagem controlado em Jogar.</span>
           </div>
         </nav>
 
         <main class="player-workspace-content">
           <section v-if="activeTab === 'overview'" class="player-page">
             <div class="player-page-heading">
-              <div><div class="player-section-eyebrow">RESUMO</div><h2>Seu personagem</h2><p>Configurações atuais que serão usadas durante a execução do jogo.</p></div>
+              <div><div class="player-section-eyebrow">RESUMO</div><h2>Seu personagem</h2><p>ConfiguraÃ§Ãµes atuais que serÃ£o usadas durante a execuÃ§Ã£o do jogo.</p></div>
             </div>
             <div class="player-overview-grid">
               <article class="player-card player-card-model">
-                <div class="player-card-head"><span>APARÊNCIA</span><span class="player-card-icon">♟</span></div>
-                <strong class="player-card-value">{{ playerModelCustom ? 'Modelo personalizado' : 'Personagem padrão' }}</strong>
+                <div class="player-card-head"><span>APARÃŠNCIA</span><span class="player-card-icon">â™Ÿ</span></div>
+                <strong class="player-card-value">{{ playerModelCustom ? 'Modelo personalizado' : 'Personagem padrÃ£o' }}</strong>
                 <p>{{ playerModelName }}</p>
                 <div class="player-card-meta"><span>Altura</span><strong>{{ playerModelHeight.toFixed(2) }} unidades</strong></div>
-                <button class="player-primary-button" :disabled="!canEdit" @click="activeTab = 'appearance'">Configurar aparência <span>→</span></button>
+                <button class="player-primary-button" :disabled="!canEdit" @click="activeTab = 'appearance'">Configurar aparÃªncia <span>â†’</span></button>
               </article>
               <article class="player-card">
-                <div class="player-card-head"><span>MOVIMENTO</span><span class="player-card-icon">↗</span></div>
+                <div class="player-card-head"><span>MOVIMENTO</span><span class="player-card-icon">â†—</span></div>
                 <div class="player-stat-pair"><div><span>Caminhada</span><strong>{{ playerSettings.walkSpeed.toFixed(1) }} <small>u/s</small></strong></div><div><span>Corrida</span><strong>{{ estimatedRunSpeed.toFixed(1) }} <small>u/s</small></strong></div></div>
-                <p>Salto {{ playerSettings.jumpSpeed.toFixed(1) }} · Gravidade {{ playerSettings.gravity.toFixed(1) }}</p>
-                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'movement'">Configurar movimento <span>→</span></button>
+                <p>Salto {{ playerSettings.jumpSpeed.toFixed(1) }} Â· Gravidade {{ playerSettings.gravity.toFixed(1) }}</p>
+                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'movement'">Configurar movimento <span>â†’</span></button>
               </article>
               <article class="player-card">
-                <div class="player-card-head"><span>COLISÃO</span><span class="player-card-icon">⬡</span></div>
-                <strong class="player-card-value">Cápsula do jogador</strong>
-                <p>Altura acompanha o modelo; raio ajustável independente da aparência.</p>
+                <div class="player-card-head"><span>COLISÃƒO</span><span class="player-card-icon">â¬¡</span></div>
+                <strong class="player-card-value">CÃ¡psula do jogador</strong>
+                <p>Altura acompanha o modelo; raio ajustÃ¡vel independente da aparÃªncia.</p>
                 <div class="player-card-meta"><span>Raio estimado</span><strong>{{ actualColliderRadius.toFixed(2) }} u</strong></div>
-                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'collision'">Configurar colisor <span>→</span></button>
+                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'collision'">Configurar colisor <span>â†’</span></button>
               </article>
               <article class="player-card">
-                <div class="player-card-head"><span>CONTROLES</span><span class="player-card-icon">⌘</span></div>
+                <div class="player-card-head"><span>CONTROLES</span><span class="player-card-icon">âŒ˜</span></div>
                 <strong class="player-card-value">{{ activeControlMap.name }}</strong>
-                <p>Movimento, salto, corrida, interação e ações de gameplay.</p>
-                <button class="player-secondary-button" @click="emit('open-controls')">Editar mapa de controles <span>→</span></button>
+                <p>Movimento, salto, corrida, interaÃ§Ã£o e aÃ§Ãµes de gameplay.</p>
+                <button class="player-secondary-button" @click="emit('open-controls')">Editar mapa de controles <span>â†’</span></button>
               </article>
               <article class="player-card">
-                <div class="player-card-head"><span>SCRIPTS E VARIÁVEIS</span><span class="player-card-icon">⌘</span></div>
-                <strong class="player-card-value">{{ playerScripts.length }} scripts · {{ Object.keys(playerLogicVariables).length }} variáveis</strong>
-                <p>Eventos, valores e lógica exclusivos do personagem controlado.</p>
-                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'scripts'">Configurar scripts <span>→</span></button>
+                <div class="player-card-head"><span>SCRIPTS E VARIÃVEIS</span><span class="player-card-icon">âŒ˜</span></div>
+                <strong class="player-card-value">{{ playerScripts.length }} scripts Â· {{ Object.keys(playerLogicVariables).length }} variÃ¡veis</strong>
+                <p>Eventos, valores e lÃ³gica exclusivos do personagem controlado.</p>
+                <button class="player-secondary-button" :disabled="!canEdit" @click="activeTab = 'scripts'">Configurar scripts <span>â†’</span></button>
               </article>
             </div>
             <div class="player-inline-banner">
               <div class="player-inline-symbol">i</div>
-              <div><strong>Alterações do jogador fazem parte do projeto</strong><p>Salve o projeto para manter modelo, altura, movimento e colisor. Os mapas de teclas continuam salvos nas preferências deste computador.</p></div>
+              <div><strong>AlteraÃ§Ãµes do jogador fazem parte do projeto</strong><p>Salve o projeto para manter modelo, altura, movimento e colisor. Os mapas de teclas continuam salvos nas preferÃªncias deste computador.</p></div>
             </div>
           </section>
 
           <section v-else-if="activeTab === 'appearance'" class="player-page">
-            <div class="player-page-heading"><div><div class="player-section-eyebrow">VISUAL DO PERSONAGEM</div><h2>Aparência e escala</h2><p>Defina qual modelo será controlado e o tamanho final no mundo 3D.</p></div></div>
+            <div class="player-page-heading"><div><div class="player-section-eyebrow">VISUAL DO PERSONAGEM</div><h2>AparÃªncia e escala</h2><p>Defina qual modelo serÃ¡ controlado e o tamanho final no mundo 3D.</p></div></div>
             <div class="player-model-panel">
               <div class="player-model-preview" aria-hidden="true">
                 <svg viewBox="0 0 96 132" fill="none"><circle cx="48" cy="24" r="15" /><path d="M29 47Q48 37 67 47L75 82H64L67 122H52L48 88L44 122H29L32 82H21L29 47Z" /></svg>
@@ -332,103 +332,103 @@ function commitModelHeight(): void {
               <div class="player-model-details">
                 <div class="player-section-eyebrow">MODELO ATIVO</div>
                 <h3>{{ playerModelName }}</h3>
-                <p>{{ playerModelCustom ? 'Modelo GLB personalizado, armazenado junto do projeto.' : 'Personagem padrão da Engine. Importe um GLB para personalizar a aparência.' }}</p>
+                <p>{{ playerModelCustom ? 'Modelo GLB personalizado, armazenado junto do projeto.' : 'Personagem padrÃ£o da Engine. Importe um GLB para personalizar a aparÃªncia.' }}</p>
                 <div class="player-model-actions">
-                  <button class="player-primary-button" :disabled="!canEdit" @click="emit('open-model-import')">＋ Importar / escolher modelo</button>
-                  <button v-if="playerModelCustom" class="player-secondary-button" :disabled="!canEdit" @click="emit('reset-player-model')">Restaurar personagem padrão</button>
+                  <button class="player-primary-button" :disabled="!canEdit" @click="emit('open-model-import')">ï¼‹ Importar / escolher modelo</button>
+                  <button v-if="playerModelCustom" class="player-secondary-button" :disabled="!canEdit" @click="emit('reset-player-model')">Restaurar personagem padrÃ£o</button>
                 </div>
-                <small class="player-field-help">No Importador 3D, ajuste a altura final e clique em “Usar como jogador”. Aceita GLB de até 30 MB.</small>
+                <small class="player-field-help">No Importador 3D, ajuste a altura final e clique em â€œUsar como jogadorâ€. Aceita GLB de atÃ© 30 MB.</small>
               </div>
             </div>
             <div class="player-settings-card">
-              <div class="player-setting-heading"><div><h3>Altura final</h3><p>A escala visual e o corpo físico acompanham este valor.</p></div><strong>{{ playerModelHeight.toFixed(2) }} <small>un.</small></strong></div>
+              <div class="player-setting-heading"><div><h3>Altura final</h3><p>A escala visual e o corpo fÃ­sico acompanham este valor.</p></div><strong>{{ playerModelHeight.toFixed(2) }} <small>un.</small></strong></div>
               <div class="player-height-controls">
                 <input class="player-range" type="range" min="0.5" max="4" step="0.05" :value="modelHeightDraft" :disabled="!canEdit || !playerModelCustom" aria-label="Altura do modelo do jogador" @input="modelHeightDraft = Number(($event.target as HTMLInputElement).value)" @change="commitModelHeight" />
                 <label class="player-number-field"><span>Altura (unidades)</span><input v-model.number="modelHeightDraft" type="number" min="0.1" max="10000" step="0.05" :disabled="!canEdit || !playerModelCustom" @change="commitModelHeight" /></label>
               </div>
               <div class="player-presets"><button v-for="height in [1, 1.5, 1.8, 2, 2.5, 3]" :key="height" type="button" :class="{ active: Math.abs(modelHeightDraft - height) < 0.025 }" :disabled="!canEdit || !playerModelCustom" @click="modelHeightDraft = height; commitModelHeight()">{{ height.toFixed(1) }} u</button></div>
-              <p v-if="!playerModelCustom" class="player-field-help">A altura do personagem padrão é fixa. Importe um modelo personalizado para ajustar a escala.</p>
+              <p v-if="!playerModelCustom" class="player-field-help">A altura do personagem padrÃ£o Ã© fixa. Importe um modelo personalizado para ajustar a escala.</p>
             </div>
           </section>
 
           <section v-else-if="activeTab === 'movement'" class="player-page">
-            <div class="player-page-heading"><div><div class="player-section-eyebrow">LOCOMOÇÃO</div><h2>Movimento e salto</h2><p>Ajuste os parâmetros usados pela simulação física do jogador.</p></div></div>
+            <div class="player-page-heading"><div><div class="player-section-eyebrow">LOCOMOÃ‡ÃƒO</div><h2>Movimento e salto</h2><p>Ajuste os parÃ¢metros usados pela simulaÃ§Ã£o fÃ­sica do jogador.</p></div></div>
             <div class="player-preset-row">
-              <div><strong>Perfis rápidos</strong><small>Use um ponto de partida e depois personalize os valores.</small></div>
-              <div class="player-preset-buttons"><button type="button" :disabled="!canEdit" @click="applyPreset('default')">Padrão</button><button type="button" :disabled="!canEdit" @click="applyPreset('action')">Ação</button><button type="button" :disabled="!canEdit" @click="applyPreset('heavy')">Pesado</button></div>
+              <div><strong>Perfis rÃ¡pidos</strong><small>Use um ponto de partida e depois personalize os valores.</small></div>
+              <div class="player-preset-buttons"><button type="button" :disabled="!canEdit" @click="applyPreset('default')">PadrÃ£o</button><button type="button" :disabled="!canEdit" @click="applyPreset('action')">AÃ§Ã£o</button><button type="button" :disabled="!canEdit" @click="applyPreset('heavy')">Pesado</button></div>
             </div>
             <div class="player-settings-list">
               <div class="player-setting-row">
-                <div class="player-setting-copy"><strong>Velocidade de caminhada</strong><p>Deslocamento básico do personagem.</p><small>Limites: 0,5–15 unidades por segundo.</small></div>
+                <div class="player-setting-copy"><strong>Velocidade de caminhada</strong><p>Deslocamento bÃ¡sico do personagem.</p><small>Limites: 0,5â€“15 unidades por segundo.</small></div>
                 <div class="player-setting-inputs"><input class="player-range" type="range" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @input="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>u/s</span><input type="number" min="0.5" max="15" step="0.1" :value="playerSettings.walkSpeed" :disabled="!canEdit" @change="updateSetting('walkSpeed', Number(($event.target as HTMLInputElement).value))" /></label></div>
               </div>
               <div class="player-setting-row">
-                <div class="player-setting-copy"><strong>Multiplicador de corrida</strong><p>Define quantas vezes a corrida é mais rápida que a caminhada.</p><small>Velocidade atual da corrida: {{ estimatedRunSpeed.toFixed(1) }} u/s.</small></div>
-                <div class="player-setting-inputs"><input class="player-range" type="range" min="1" max="3" step="0.05" :value="playerSettings.runMultiplier" :disabled="!canEdit" @input="updateSetting('runMultiplier', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>×</span><input type="number" min="1" max="3" step="0.05" :value="playerSettings.runMultiplier" :disabled="!canEdit" @change="updateSetting('runMultiplier', Number(($event.target as HTMLInputElement).value))" /></label></div>
+                <div class="player-setting-copy"><strong>Multiplicador de corrida</strong><p>Define quantas vezes a corrida Ã© mais rÃ¡pida que a caminhada.</p><small>Velocidade atual da corrida: {{ estimatedRunSpeed.toFixed(1) }} u/s.</small></div>
+                <div class="player-setting-inputs"><input class="player-range" type="range" min="1" max="3" step="0.05" :value="playerSettings.runMultiplier" :disabled="!canEdit" @input="updateSetting('runMultiplier', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>Ã—</span><input type="number" min="1" max="3" step="0.05" :value="playerSettings.runMultiplier" :disabled="!canEdit" @change="updateSetting('runMultiplier', Number(($event.target as HTMLInputElement).value))" /></label></div>
               </div>
               <div class="player-setting-row">
-                <div class="player-setting-copy"><strong>Impulso do salto</strong><p>Controla a força inicial do pulo. Use 0 para desativar o impulso de salto.</p><small>Limites: 0–14 unidades.</small></div>
-                <div class="player-setting-inputs"><input class="player-range" type="range" min="0" max="14" step="0.1" :value="playerSettings.jumpSpeed" :disabled="!canEdit" @input="updateSetting('jumpSpeed', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>força</span><input type="number" min="0" max="14" step="0.1" :value="playerSettings.jumpSpeed" :disabled="!canEdit" @change="updateSetting('jumpSpeed', Number(($event.target as HTMLInputElement).value))" /></label></div>
+                <div class="player-setting-copy"><strong>Impulso do salto</strong><p>Controla a forÃ§a inicial do pulo. Use 0 para desativar o impulso de salto.</p><small>Limites: 0â€“14 unidades.</small></div>
+                <div class="player-setting-inputs"><input class="player-range" type="range" min="0" max="14" step="0.1" :value="playerSettings.jumpSpeed" :disabled="!canEdit" @input="updateSetting('jumpSpeed', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>forÃ§a</span><input type="number" min="0" max="14" step="0.1" :value="playerSettings.jumpSpeed" :disabled="!canEdit" @change="updateSetting('jumpSpeed', Number(($event.target as HTMLInputElement).value))" /></label></div>
               </div>
               <div class="player-setting-row">
-                <div class="player-setting-copy"><strong>Gravidade</strong><p>Aceleração que puxa o jogador de volta ao chão.</p><small>Valores maiores produzem quedas mais rápidas.</small></div>
-                <div class="player-setting-inputs"><input class="player-range" type="range" min="2" max="40" step="0.5" :value="playerSettings.gravity" :disabled="!canEdit" @input="updateSetting('gravity', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>u/s²</span><input type="number" min="2" max="40" step="0.5" :value="playerSettings.gravity" :disabled="!canEdit" @change="updateSetting('gravity', Number(($event.target as HTMLInputElement).value))" /></label></div>
+                <div class="player-setting-copy"><strong>Gravidade</strong><p>AceleraÃ§Ã£o que puxa o jogador de volta ao chÃ£o.</p><small>Valores maiores produzem quedas mais rÃ¡pidas.</small></div>
+                <div class="player-setting-inputs"><input class="player-range" type="range" min="2" max="40" step="0.5" :value="playerSettings.gravity" :disabled="!canEdit" @input="updateSetting('gravity', Number(($event.target as HTMLInputElement).value))" /><label class="player-number-field"><span>u/sÂ²</span><input type="number" min="2" max="40" step="0.5" :value="playerSettings.gravity" :disabled="!canEdit" @change="updateSetting('gravity', Number(($event.target as HTMLInputElement).value))" /></label></div>
               </div>
             </div>
-            <p class="player-field-help">As alterações são aplicadas imediatamente. O movimento de montarias permanece configurado pelo pacote Montaria do objeto montável.</p>
+            <p class="player-field-help">As alteraÃ§Ãµes sÃ£o aplicadas imediatamente. O movimento de montarias permanece configurado pelo pacote Montaria do objeto montÃ¡vel.</p>
           </section>
 
           <section v-else-if="activeTab === 'collision'" class="player-page">
-            <div class="player-page-heading"><div><div class="player-section-eyebrow">FÍSICA DO PERSONAGEM</div><h2>Colisor do jogador</h2><p>Configure o contato físico com o terreno e os objetos sólidos.</p></div></div>
+            <div class="player-page-heading"><div><div class="player-section-eyebrow">FÃSICA DO PERSONAGEM</div><h2>Colisor do jogador</h2><p>Configure o contato fÃ­sico com o terreno e os objetos sÃ³lidos.</p></div></div>
             <div class="player-collider-layout">
               <div class="player-capsule-card">
                 <div class="player-capsule-art" aria-hidden="true"><div class="player-capsule-top"></div><div class="player-capsule-middle"></div><div class="player-capsule-bottom"></div></div>
-                <strong>Colisor em cápsula</strong><p>Formato vertical recomendado para personagens controláveis.</p>
+                <strong>Colisor em cÃ¡psula</strong><p>Formato vertical recomendado para personagens controlÃ¡veis.</p>
                 <div class="player-capsule-dim"><span>Altura</span><strong>{{ playerModelHeight.toFixed(2) }} u</strong></div>
                 <div class="player-capsule-dim"><span>Raio calculado</span><strong>{{ actualColliderRadius.toFixed(2) }} u</strong></div>
-                <div class="player-capsule-dim"><span>Diâmetro</span><strong>{{ actualColliderDiameter.toFixed(2) }} u</strong></div>
+                <div class="player-capsule-dim"><span>DiÃ¢metro</span><strong>{{ actualColliderDiameter.toFixed(2) }} u</strong></div>
               </div>
               <div class="player-settings-card player-collider-settings">
-                <div class="player-setting-heading"><div><h3>Raio base</h3><p>O raio é escalado proporcionalmente à altura do modelo.</p></div><strong>{{ playerSettings.colliderRadius.toFixed(2) }} <small>u</small></strong></div>
+                <div class="player-setting-heading"><div><h3>Raio base</h3><p>O raio Ã© escalado proporcionalmente Ã  altura do modelo.</p></div><strong>{{ playerSettings.colliderRadius.toFixed(2) }} <small>u</small></strong></div>
                 <input class="player-range" type="range" min="0.1" max="0.8" step="0.01" :value="playerSettings.colliderRadius" :disabled="!canEdit" aria-label="Raio base do colisor" @input="updateSetting('colliderRadius', Number(($event.target as HTMLInputElement).value))" />
                 <label class="player-number-field"><span>Raio base (unidades a 1,8 u de altura)</span><input type="number" min="0.1" max="0.8" step="0.01" :value="playerSettings.colliderRadius" :disabled="!canEdit" @change="updateSetting('colliderRadius', Number(($event.target as HTMLInputElement).value))" /></label>
-                <div class="player-collider-hint"><strong>O que muda?</strong><p>Aumentar o raio evita que o jogador passe por frestas estreitas; diminuir permite passar por espaços menores. O terreno continua usando as mesmas regras de apoio, degraus e rampas.</p></div>
+                <div class="player-collider-hint"><strong>O que muda?</strong><p>Aumentar o raio evita que o jogador passe por frestas estreitas; diminuir permite passar por espaÃ§os menores. O terreno continua usando as mesmas regras de apoio, degraus e rampas.</p></div>
               </div>
             </div>
           </section>
 
           <section v-else-if="activeTab === 'camera'" class="player-page">
-            <div class="player-page-heading"><div><div class="player-section-eyebrow">VISÃO DO JOGO</div><h2>Câmera</h2><p>Defina como o jogador vê o mundo durante a execução.</p></div></div>
+            <div class="player-page-heading"><div><div class="player-section-eyebrow">VISÃƒO DO JOGO</div><h2>CÃ¢mera</h2><p>Defina como o jogador vÃª o mundo durante a execuÃ§Ã£o.</p></div></div>
             <div class="player-camera-grid">
-              <button class="player-camera-card" :class="{ active: firstPersonMode }" type="button" :disabled="!canEdit" @click="emit('toggle-first-person')"><span class="player-camera-glyph" aria-hidden="true">◎</span><strong>Primeira pessoa</strong><small>Visão a partir do personagem, com captura do mouse durante o jogo.</small><b>{{ firstPersonMode ? 'ATIVA' : 'ATIVAR' }}</b></button>
-              <button class="player-camera-card" :class="{ active: !firstPersonMode }" type="button" :disabled="!canEdit" @click="emit('cycle-camera')"><span class="player-camera-glyph" aria-hidden="true">◉</span><strong>{{ firstPersonMode ? 'Câmera externa' : cameraLabel }}</strong><small>Alterna os enquadramentos externos disponíveis no editor.</small><b>ALTERNAR CÂMERA</b></button>
+              <button class="player-camera-card" :class="{ active: firstPersonMode }" type="button" :disabled="!canEdit" @click="emit('toggle-first-person')"><span class="player-camera-glyph" aria-hidden="true">â—Ž</span><strong>Primeira pessoa</strong><small>VisÃ£o a partir do personagem, com captura do mouse durante o jogo.</small><b>{{ firstPersonMode ? 'ATIVA' : 'ATIVAR' }}</b></button>
+              <button class="player-camera-card" :class="{ active: !firstPersonMode }" type="button" :disabled="!canEdit" @click="emit('cycle-camera')"><span class="player-camera-glyph" aria-hidden="true">â—‰</span><strong>{{ firstPersonMode ? 'CÃ¢mera externa' : cameraLabel }}</strong><small>Alterna os enquadramentos externos disponÃ­veis no editor.</small><b>ALTERNAR CÃ‚MERA</b></button>
             </div>
-            <div class="player-inline-banner"><div class="player-inline-symbol">i</div><div><strong>Mapeamento de câmera</strong><p>Os atalhos para alternar câmera e primeira pessoa podem ser ajustados na seção Controles.</p></div></div>
+            <div class="player-inline-banner"><div class="player-inline-symbol">i</div><div><strong>Mapeamento de cÃ¢mera</strong><p>Os atalhos para alternar cÃ¢mera e primeira pessoa podem ser ajustados na seÃ§Ã£o Controles.</p></div></div>
           </section>
 
           <section v-else-if="activeTab === 'scripts'" class="player-page player-scripts-page">
             <div class="player-page-heading">
-              <div><div class="player-section-eyebrow">LÓGICA DO JOGADOR</div><h2>Scripts e variáveis</h2><p>Variáveis e scripts separados dos objetos da cena e das variáveis globais.</p></div>
+              <div><div class="player-section-eyebrow">LÃ“GICA DO JOGADOR</div><h2>Scripts e variÃ¡veis</h2><p>VariÃ¡veis e scripts separados dos objetos da cena e das variÃ¡veis globais.</p></div>
             </div>
             <div class="player-scripting-layout">
               <section class="player-settings-card player-variable-panel">
-                <div class="player-scripting-heading"><div><h3>Variáveis do jogador</h3><p>{{ Object.keys(playerLogicVariables).length }} variáveis no escopo do player</p></div><span class="player-scripting-badge">PLAYER</span></div>
+                <div class="player-scripting-heading"><div><h3>VariÃ¡veis do jogador</h3><p>{{ Object.keys(playerLogicVariables).length }} variÃ¡veis no escopo do player</p></div><span class="player-scripting-badge">PLAYER</span></div>
                 <form class="player-variable-create" @submit.prevent="createVariable">
                   <span v-if="variableFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ variableFeedback }}</span>
                   <label class="player-number-field"><span>Nome</span><input v-model="newVariableName" type="text" maxlength="64" placeholder="ex.: health" :disabled="!canEdit" /></label>
-                  <label class="player-number-field"><span>Tipo</span><select v-model="newVariableType" :disabled="!canEdit" @change="newVariableValue = newVariableType === 'boolean' ? 'false' : newVariableType === 'number' ? '0' : ''"><option value="number">Número</option><option value="boolean">Booleano</option><option value="string">Texto</option></select></label>
+                  <label class="player-number-field"><span>Tipo</span><select v-model="newVariableType" :disabled="!canEdit" @change="newVariableValue = newVariableType === 'boolean' ? 'false' : newVariableType === 'number' ? '0' : ''"><option value="number">NÃºmero</option><option value="boolean">Booleano</option><option value="string">Texto</option></select></label>
                   <label class="player-number-field"><span>Valor inicial</span><select v-if="newVariableType === 'boolean'" v-model="newVariableValue" :disabled="!canEdit"><option value="false">false</option><option value="true">true</option></select><input v-else v-model="newVariableValue" :type="newVariableType === 'number' ? 'number' : 'text'" placeholder="Valor inicial" :disabled="!canEdit" /></label>
-                  <button class="player-primary-button" type="submit" :disabled="!canEdit || !newVariableName.trim()">＋ Criar variável</button>
+                  <button class="player-primary-button" type="submit" :disabled="!canEdit || !newVariableName.trim()">ï¼‹ Criar variÃ¡vel</button>
                 </form>
                 <div v-if="Object.keys(playerLogicVariables).length" class="player-variable-list">
                   <div v-for="(value, name) in playerLogicVariables" :key="name" class="player-variable-row">
-                    <div class="player-variable-name"><strong>{{ name }}</strong><small>{{ typeof value === 'boolean' ? 'Booleano' : typeof value === 'number' ? 'Número' : 'Texto' }}</small></div>
+                    <div class="player-variable-name"><strong>{{ name }}</strong><small>{{ typeof value === 'boolean' ? 'Booleano' : typeof value === 'number' ? 'NÃºmero' : 'Texto' }}</small></div>
                     <select v-if="typeof value === 'boolean'" :value="String(value)" :disabled="!canEdit" :aria-label="'Valor de ' + name" @change="updateVariable(String(name), ($event.target as HTMLSelectElement).value)"><option value="false">false</option><option value="true">true</option></select>
                     <input v-else :type="typeof value === 'number' ? 'number' : 'text'" :value="String(value)" :disabled="!canEdit" :aria-label="'Valor de ' + name" @change="updateVariable(String(name), ($event.target as HTMLInputElement).value)" />
-                    <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir variável ' + name" title="Excluir variável" @click="emit('delete-player-variable', String(name))">×</button>
+                    <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir variÃ¡vel ' + name" title="Excluir variÃ¡vel" @click="emit('delete-player-variable', String(name))">Ã—</button>
                   </div>
                 </div>
-                <div v-else class="player-empty-state"><span>∅</span><strong>Nenhuma variável ainda</strong><p>Crie variáveis como health, stamina, score, has_key ou quests_completed para usar nos scripts do jogador.</p></div>
+                <div v-else class="player-empty-state"><span>âˆ…</span><strong>Nenhuma variÃ¡vel ainda</strong><p>Crie variÃ¡veis como health, stamina, score, has_key ou quests_completed para usar nos scripts do jogador.</p></div>
               </section>
 
               <section class="player-settings-card player-script-panel">
@@ -437,49 +437,49 @@ function commitModelHeight(): void {
                   <span v-if="scriptFeedback" class="player-script-event-help player-scripting-feedback" role="status">{{ scriptFeedback }}</span>
                   <label class="player-number-field"><span>Nome do script</span><input v-model="newScriptName" type="text" maxlength="100" placeholder="ex.: Inicializar jogador" :disabled="!canEdit" /></label>
                   <label class="player-number-field"><span>Executar quando</span><select v-model="newScriptEvent" :disabled="!canEdit"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
-                  <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresKey" class="player-number-field"><span>Código da tecla</span><input v-model="newScriptKey" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" /><small>Use KeyboardEvent.code, por exemplo KeyE, KeyF, Space ou Digit1.</small></label>
-                  <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresEventName" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input v-model="newScriptCustomEventName" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" /><small>O botão HUD ou outro sistema deve emitir exatamente esse nome.</small></label>
-                  <button class="player-primary-button" type="submit" :disabled="!canEdit">＋ Criar script</button>
+                  <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresKey" class="player-number-field"><span>CÃ³digo da tecla</span><input v-model="newScriptKey" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" /><small>Use KeyboardEvent.code, por exemplo KeyE, KeyF, Space ou Digit1.</small></label>
+                  <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === newScriptEvent)?.requiresEventName" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input v-model="newScriptCustomEventName" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" /><small>O botÃ£o HUD ou outro sistema deve emitir exatamente esse nome.</small></label>
+                  <button class="player-primary-button" type="submit" :disabled="!canEdit">ï¼‹ Criar script</button>
                 </form>
                 <div v-if="playerScripts.length" class="player-script-list">
                   <article v-for="script in playerScripts" :key="script.id" class="player-script-card">
                     <div class="player-script-card-header">
                       <label class="player-script-enabled"><input type="checkbox" :checked="script.enabled" :disabled="!canEdit" @change="patchPlayerScript(script, { enabled: ($event.target as HTMLInputElement).checked })" /><span></span></label>
                       <input class="player-script-name" :value="script.name" maxlength="100" :disabled="!canEdit" aria-label="Nome do script" @change="patchPlayerScript(script, { name: ($event.target as HTMLInputElement).value })" />
-                      <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir script ' + script.name" title="Excluir script" @click="emit('delete-player-script', script.id)">×</button>
+                      <button class="player-icon-button" type="button" :disabled="!canEdit" :aria-label="'Excluir script ' + script.name" title="Excluir script" @click="emit('delete-player-script', script.id)">Ã—</button>
                     </div>
                     <label class="player-number-field"><span>Evento</span><select :value="playerEventSelection(script.trigger.eventId)" :disabled="!canEdit" @change="patchPlayerScript(script, { eventId: ($event.target as HTMLSelectElement).value as PlayerRuntimeEventId })"><option v-for="event in PLAYER_RUNTIME_EVENTS" :key="event.id" :value="event.id">{{ event.label }}</option></select></label>
-                    <label v-if="playerEventSelection(script.trigger.eventId) === 'custom_event'" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input :value="script.trigger.eventId" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" @change="patchPlayerScript(script, { customEventName: ($event.target as HTMLInputElement).value })" /><small>Use o mesmo identificador configurado no botão do HUD.</small></label>
-                    <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.requiresKey" class="player-number-field"><span>Código da tecla</span><input :value="script.trigger.key ?? 'KeyE'" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" @change="patchPlayerScript(script, { key: ($event.target as HTMLInputElement).value })" /><small>KeyE = tecla E; Space = Espaço; Digit1 = 1.</small></label>
-                    <label class="player-number-field player-script-code-label"><span>Código JavaScript</span><textarea :value="scriptCode(script)" :disabled="!canEdit" spellcheck="false" rows="5" placeholder="api.set('score', (api.get('score') ?? 0) + 1);" @change="patchPlayerScript(script, { code: ($event.target as HTMLTextAreaElement).value })"></textarea></label>
-                    <small class="player-script-event-help">{{ PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.description ?? 'Evento personalizado: disparado pelo mesmo identificador configurado em um botão de HUD.' }}</small>
+                    <label v-if="playerEventSelection(script.trigger.eventId) === 'custom_event'" class="player-number-field player-custom-event-field"><span>Identificador do evento</span><input :value="script.trigger.eventId" type="text" maxlength="100" placeholder="player.inventory.open" :disabled="!canEdit" @change="patchPlayerScript(script, { customEventName: ($event.target as HTMLInputElement).value })" /><small>Use o mesmo identificador configurado no botÃ£o do HUD.</small></label>
+                    <label v-if="PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.requiresKey" class="player-number-field"><span>CÃ³digo da tecla</span><input :value="script.trigger.key ?? 'KeyE'" type="text" maxlength="32" placeholder="KeyE" :disabled="!canEdit" @change="patchPlayerScript(script, { key: ($event.target as HTMLInputElement).value })" /><small>KeyE = tecla E; Space = EspaÃ§o; Digit1 = 1.</small></label>
+                    <label class="player-number-field player-script-code-label"><span>CÃ³digo JavaScript</span><textarea :value="scriptCode(script)" :disabled="!canEdit" spellcheck="false" rows="5" placeholder="api.set('score', (api.get('score') ?? 0) + 1);" @change="patchPlayerScript(script, { code: ($event.target as HTMLTextAreaElement).value })"></textarea></label>
+                    <small class="player-script-event-help">{{ PLAYER_RUNTIME_EVENTS.find(event => event.id === playerEventSelection(script.trigger.eventId))?.description ?? 'Evento personalizado: disparado pelo mesmo identificador configurado em um botÃ£o de HUD.' }}</small>
                   </article>
                 </div>
-                <div v-else class="player-empty-state"><span>⌘</span><strong>Nenhum script vinculado</strong><p>Crie um script para responder a eventos do jogador. Os scripts desativados continuam salvos, mas não executam.</p></div>
+                <div v-else class="player-empty-state"><span>âŒ˜</span><strong>Nenhum script vinculado</strong><p>Crie um script para responder a eventos do jogador. Os scripts desativados continuam salvos, mas nÃ£o executam.</p></div>
               </section>
             </div>
             <div class="player-inline-banner player-script-api-help">
               <div class="player-inline-symbol">JS</div>
-              <div><strong>API do script</strong><p><code>api.get('nome')</code> lê uma variável deste jogador; <code>api.set('nome', valor)</code> grava; <code>api.add('score', 1)</code> soma a uma variável numérica; <code>api.toggle('has_key')</code> alterna uma booleana; <code>api.event.get('key')</code> lê dados do evento. Os eventos de tecla oferecem <code>api.event.get('key')</code> com o código pressionado/solto. Use <code>api.global</code> apenas quando quiser mexer em uma variável realmente global.</p></div>
+              <div><strong>API do script</strong><p><code>api.get('nome')</code> lÃª uma variÃ¡vel deste jogador; <code>api.set('nome', valor)</code> grava; <code>api.add('score', 1)</code> soma a uma variÃ¡vel numÃ©rica; <code>api.toggle('has_key')</code> alterna uma booleana; <code>api.event.get('key')</code> lÃª dados do evento. Os eventos de tecla oferecem <code>api.event.get('key')</code> com o cÃ³digo pressionado/solto. Use <code>api.global</code> apenas quando quiser mexer em uma variÃ¡vel realmente global.</p></div>
             </div>
           </section>
 
           <section v-else class="player-page">
-            <div class="player-page-heading"><div><div class="player-section-eyebrow">ENTRADA DO JOGADOR</div><h2>Mapas de controles</h2><p>Veja o perfil ativo e configure todas as teclas, botões do mouse e ações.</p></div></div>
+            <div class="player-page-heading"><div><div class="player-section-eyebrow">ENTRADA DO JOGADOR</div><h2>Mapas de controles</h2><p>Veja o perfil ativo e configure todas as teclas, botÃµes do mouse e aÃ§Ãµes.</p></div></div>
             <div class="player-controls-profile">
-              <div><div class="player-section-eyebrow">PERFIL ATIVO</div><h3>{{ activeControlMap.name }}</h3><p>Os mapas de controle são aplicados imediatamente e salvos nas preferências deste computador.</p></div>
-              <button class="player-primary-button" @click="emit('open-controls')">Abrir editor de controles <span>→</span></button>
+              <div><div class="player-section-eyebrow">PERFIL ATIVO</div><h3>{{ activeControlMap.name }}</h3><p>Os mapas de controle sÃ£o aplicados imediatamente e salvos nas preferÃªncias deste computador.</p></div>
+              <button class="player-primary-button" @click="emit('open-controls')">Abrir editor de controles <span>â†’</span></button>
             </div>
             <div class="player-binding-grid">
               <div v-for="binding in controlSummary" :key="binding.key" class="player-binding-card"><span>{{ binding.label }}</span><kbd>{{ keyLabel(activeControlMap.bindings[binding.key]) }}</kbd></div>
             </div>
-            <div class="player-inline-banner"><div class="player-inline-symbol">i</div><div><strong>Controles específicos de gameplay</strong><p>Ações como inventário, usar item e habilidades também podem disparar eventos globais e fluxos do Workspace de UI.</p></div></div>
+            <div class="player-inline-banner"><div class="player-inline-symbol">i</div><div><strong>Controles especÃ­ficos de gameplay</strong><p>AÃ§Ãµes como inventÃ¡rio, usar item e habilidades tambÃ©m podem disparar eventos globais e fluxos do Workspace de UI.</p></div></div>
           </section>
         </main>
       </div>
 
       <footer class="player-workspace-footer">
-        <div class="player-footer-status"><span :class="{ dirty }" class="player-status-dot"></span><span>{{ dirty ? 'Alterações não salvas no projeto' : 'Projeto sincronizado' }}</span><small v-if="!canEdit">Pare o jogo para editar as configurações.</small></div>
+        <div class="player-footer-status"><span :class="{ dirty }" class="player-status-dot"></span><span>{{ dirty ? 'AlteraÃ§Ãµes nÃ£o salvas no projeto' : 'Projeto sincronizado' }}</span><small v-if="!canEdit">Pare o jogo para editar as configuraÃ§Ãµes.</small></div>
         <div class="player-footer-actions"><button class="player-secondary-button" type="button" @click="emit('close')">Fechar</button><button class="player-primary-button" type="button" :disabled="!dirty || !canEdit" @click="emit('save-project')">Salvar projeto</button></div>
       </footer>
     </section>
@@ -491,7 +491,7 @@ function commitModelHeight(): void {
 .player-workspace{display:flex;flex-direction:column;width:min(1080px,calc(100vw - 36px));height:min(760px,calc(100dvh - 36px));min-height:380px;overflow:hidden;border:1px solid #39352d;border-radius:10px;background:#12120f;color:#f3efe6;box-shadow:0 24px 80px #0009}
 .player-workspace-header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex:none;padding:17px 22px;border-bottom:1px solid #302c25;background:#181713}
 .player-workspace-brand{display:flex;align-items:center;gap:14px;min-width:0}
-.player-workspace-mark{display:grid;place-items:center;flex:none;width:42px;height:42px;border:1px solid #78472e;border-radius:8px;background:#2d2119;color:#f5a524;font-size:20px;font-weight:800}
+.player-workspace-mark{display:grid;place-items:center;flex:none;width:42px;height:42px;border:1px solid #78472e;border-radius:8px;background:#2d2119;color:var(--accent);font-size:20px;font-weight:800}
 .player-workspace-eyebrow,.player-section-eyebrow,.player-nav-label{color:#b77a4d;font:700 9px/1.35 'IBM Plex Mono',monospace;letter-spacing:.12em}
 .player-workspace-header h1{margin:4px 0 3px;font-size:20px;line-height:1.2;font-weight:700}
 .player-workspace-header p{margin:0;color:#a7a094;font-size:11px;line-height:1.45}
@@ -507,19 +507,19 @@ function commitModelHeight(): void {
 .player-summary-copy small{display:block;margin-top:3px;color:#a8a092;font-size:9px}
 .player-summary-chip{display:block;padding:10px}
 .player-summary-chip strong{font-size:10px}
-.player-workspace-warning{color:#f5a524!important}
+.player-workspace-warning{color:var(--accent)!important}
 .player-workspace-body{display:flex;flex:1;min-height:0}
 .player-workspace-nav{display:flex;flex:none;width:194px;flex-direction:column;gap:4px;padding:15px 10px;border-right:1px solid #302c25;background:#171611}
 .player-nav-label{padding:0 9px 9px;color:#8f887b}
 .player-workspace-nav>button{position:relative;display:flex;align-items:center;gap:10px;min-width:0;min-height:49px;padding:7px 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:#aaa294;text-align:left;cursor:pointer}
 .player-workspace-nav>button:hover{background:#201e18;color:#f1ede4}
-.player-workspace-nav>button.active{border-color:#55402e;background:#2b2118;color:#f5a524}
+.player-workspace-nav>button.active{border-color:#55402e;background:#2b2118;color:var(--accent)}
 .player-nav-icon{display:grid;place-items:center;flex:none;width:25px;height:25px;border:1px solid #3b352b;border-radius:5px;color:#d49a5b;font-size:16px}
 .player-workspace-nav>button.active .player-nav-icon{border-color:#754b2d;background:#3b291b}
 .player-nav-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
 .player-nav-copy strong{font-size:10px;font-weight:650}
 .player-nav-copy small{color:#8d867a;font-size:9px}
-.player-nav-active{position:absolute;top:9px;bottom:9px;left:-1px;width:2px;border-radius:2px;background:#f5a524}
+.player-nav-active{position:absolute;top:9px;bottom:9px;left:-1px;width:2px;border-radius:2px;background:var(--accent)}
 .player-nav-note{display:flex;align-items:flex-start;gap:7px;margin-top:auto;padding:12px 8px;border-top:1px solid #302c25;color:#8f887b;font-size:9px;line-height:1.5}
 .player-nav-note-dot{flex:none;width:6px;height:6px;margin-top:4px;border-radius:50%;background:#78b879}
 .player-workspace-content{flex:1;min-width:0;min-height:0;overflow:auto;padding:22px;background:#11110e}
@@ -563,10 +563,10 @@ function commitModelHeight(): void {
 .player-setting-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
 .player-setting-heading h3{margin:0;color:#eee7da;font-size:12px}
 .player-setting-heading p{margin:5px 0 0;color:#9f988b;font-size:10px;line-height:1.5}
-.player-setting-heading>strong{flex:none;color:#f5a524;font:600 16px 'IBM Plex Mono',monospace;white-space:nowrap}
+.player-setting-heading>strong{flex:none;color:var(--accent);font:600 16px 'IBM Plex Mono',monospace;white-space:nowrap}
 .player-setting-heading>strong small{font-size:9px;color:#a69d8e}
 .player-height-controls{display:grid;grid-template-columns:minmax(0,1fr) 160px;align-items:center;gap:16px}
-.player-range{display:block;width:100%;min-width:0;margin:6px 0;accent-color:#f5a524}
+.player-range{display:block;width:100%;min-width:0;margin:6px 0;accent-color:var(--accent)}
 .player-number-field{display:flex;min-width:0;flex-direction:column;gap:6px;color:#a49c8e;font-size:9px}
 .player-number-field>input{box-sizing:border-box;width:100%;min-width:0;min-height:33px;padding:0 9px;border:1px solid #3b352a;border-radius:5px;background:#10100d;color:#f3efe6;font:11px 'IBM Plex Mono',monospace}
 .player-number-field>input:focus{outline:1px solid #986338;border-color:#a16d3d}
@@ -647,8 +647,8 @@ function commitModelHeight(): void {
 .player-script-enabled span{display:block;width:24px;height:13px;border:1px solid #524638;border-radius:99px;background:#28251e}
 .player-script-enabled span:after{display:block;width:9px;height:9px;margin:1px;border-radius:50%;background:#8d8577;content:'';transition:transform .12s}
 .player-script-enabled input:checked+span{border-color:#8f602f;background:#48301c}
-.player-script-enabled input:checked+span:after{transform:translateX(11px);background:#f5a524}
-.player-script-enabled input:focus-visible+span{outline:2px solid #f5a524;outline-offset:2px}
+.player-script-enabled input:checked+span:after{transform:translateX(11px);background:var(--accent)}
+.player-script-enabled input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
 .player-script-code-label textarea{box-sizing:border-box;width:100%;min-width:0;resize:vertical;min-height:90px;padding:9px;border:1px solid #39332a;border-radius:5px;background:#0c0d0b;color:#d9e0d0;font:10px/1.6 'IBM Plex Mono',monospace;tab-size:2}
 .player-script-code-label textarea:focus{outline:1px solid #986338;border-color:#a16d3d}
 .player-script-event-help{color:#8e8678;font-size:9px;line-height:1.5}
@@ -664,3 +664,4 @@ function commitModelHeight(): void {
 @media(max-width:860px){.player-workspace-summary{grid-template-columns:minmax(0,1fr) repeat(2,minmax(0,1fr))}.player-summary-chip:last-child{display:none}.player-workspace-nav{width:170px}.player-workspace-content{padding:16px}.player-setting-row{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:620px){.player-workspace-overlay{padding:6px}.player-workspace{width:calc(100vw - 12px);height:calc(100dvh - 12px);min-height:0}.player-workspace-header{padding:12px}.player-workspace-mark{width:34px;height:34px}.player-workspace-header h1{font-size:16px}.player-workspace-header p{display:none}.player-workspace-summary{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:7px}.player-summary-model{grid-column:1/-1}.player-workspace-body{min-height:0}.player-workspace-nav{width:58px;padding:10px 5px}.player-nav-label,.player-nav-copy,.player-nav-note,.player-nav-active{display:none}.player-workspace-nav>button{justify-content:center;min-height:42px;padding:5px}.player-nav-icon{width:32px;height:32px}.player-workspace-content{padding:12px}.player-overview-grid,.player-camera-grid,.player-collider-layout{grid-template-columns:minmax(0,1fr)}.player-model-panel{flex-direction:column}.player-model-preview{width:100%;min-height:120px}.player-model-preview svg{height:90px}.player-height-controls{grid-template-columns:minmax(0,1fr)}.player-controls-profile{align-items:flex-start;flex-direction:column}.player-workspace-footer{align-items:flex-start;flex-direction:column}.player-footer-actions{width:100%;justify-content:flex-end}.player-preset-row{align-items:flex-start;flex-direction:column}.player-preset-buttons{width:100%;flex-wrap:wrap}.player-binding-grid{grid-template-columns:minmax(0,1fr)}.player-setting-inputs{grid-template-columns:minmax(0,1fr) 90px}.player-nav-icon{font-size:20px}}
 </style>
+

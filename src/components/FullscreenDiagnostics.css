@@ -46,7 +46,7 @@ button:hover { background: #303d4d; }
   background: #1a222d;
 }
 .state-ok { color: #9ae6b4; }
-.state-warning { color: #f8c66a; }
+.state-warning { color: #f88c6a; }
 dl {
   display: grid;
   grid-template-columns: 145px minmax(0, 1fr);

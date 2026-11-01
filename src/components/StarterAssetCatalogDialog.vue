@@ -271,13 +271,13 @@ function openExternal(url: string) {
 .starter-catalog-backdrop{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;padding:18px;background:#090b0ff0;color:#e5e7eb;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 .starter-catalog{display:flex;flex-direction:column;width:min(1120px,97vw);max-height:94vh;overflow:hidden;border:1px solid #343944;border-radius:8px;background:#15181e;box-shadow:0 28px 90px #000a}
 .starter-catalog-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:21px 24px 16px;border-bottom:1px solid #2c313b;background:#191c22}
-.starter-catalog-kicker{font-size:9px;letter-spacing:.15em;color:#c79a68;font-weight:800}
+.starter-catalog-kicker{font-size:9px;letter-spacing:.15em;color:#c77f68;font-weight:800}
 .starter-catalog-header h2{font-size:20px;font-weight:700;margin:7px 0 4px;color:#f1f2f5}
 .starter-catalog-header p,.starter-pack-section p{font-size:12px;color:#a3aab6;margin:0;line-height:1.5}
 .starter-close{border:1px solid #353b45;background:#21252d;color:#bfc6d1;border-radius:4px;font-size:22px;width:32px;height:32px;cursor:pointer}
 .starter-catalog-tabs{display:flex;gap:5px;padding:9px 20px;border-bottom:1px solid #2b3039;background:#171a20}
 .starter-catalog-tabs button{padding:7px 12px;border:1px solid #343a45;background:#20242c;color:#aeb6c3;font-size:11px;border-radius:4px;cursor:pointer}
-.starter-catalog-tabs button.active{border-color:#a77951;background:#3b2c22;color:#ffe0c0}
+.starter-catalog-tabs button.active{border-color:#a77951;background:#3b2c22;color:#ffcfc0}
 .starter-catalog-content{overflow:auto;padding:16px 20px 20px}
 .starter-message,.starter-error{padding:9px 11px;margin-bottom:12px;border-radius:4px;font-size:11px;line-height:1.5}
 .starter-message{color:#c9e4d4;background:#1c3027;border:1px solid #31513f}
@@ -287,13 +287,13 @@ function openExternal(url: string) {
 .starter-art{display:grid;place-items:center;flex:none;width:110px;min-height:100%;background:radial-gradient(ellipse at center,#393044 0,#22212b 55%,#171a20 100%);border-right:1px solid #333743}
 .starter-art-objects{background:radial-gradient(ellipse at center,#31364a 0,#222530 57%,#171a20 100%);}
 .starter-art-glyph{font-size:47px;color:#c4a2f8;text-shadow:0 0 24px #7f4fba8a}
-.art-objects .starter-art-glyph{color:#e2bc78}
+.art-objects .starter-art-glyph{color:#e29178}
 .starter-asset-content{display:flex;flex-direction:column;align-items:flex-start;padding:12px 13px;min-width:0;flex:1}
 .starter-asset-badge{font-size:8px;letter-spacing:.09em;font-weight:800;color:#c7a075}
 .starter-asset-content h3{font-size:13px;margin:5px 0;color:#e9ebef}
 .starter-asset-content p{font-size:10px;line-height:1.5;color:#a4acb9;margin:0 0 8px}
 .starter-asset-credit{font-size:9px;line-height:1.45;color:#788392;margin-top:auto;padding-bottom:9px}
-.starter-load-button{width:100%;text-align:center;border:1px solid #6d4b35;background:#382a22;color:#f1d5b5;border-radius:4px;padding:8px 10px;font-size:10px;font-weight:700;cursor:pointer}
+.starter-load-button{width:100%;text-align:center;border:1px solid #6d4b35;background:#382a22;color:#f1c3b5;border-radius:4px;padding:8px 10px;font-size:10px;font-weight:700;cursor:pointer}
 .starter-load-button:hover:not(:disabled){background:#4a3427}
 .starter-load-button:disabled{opacity:.48;cursor:wait}
 .starter-pack-section{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.4fr);gap:18px;margin-top:18px;padding:16px;border:1px solid #303641;border-radius:5px;background:#181b22}
@@ -305,6 +305,6 @@ function openExternal(url: string) {
 .starter-footnote{font-size:9px;line-height:1.5;color:#778291;margin:13px 0 0}
 .starter-catalog-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;border-top:1px solid #2b3039;background:#191c22}
 .starter-catalog-footer span{font-size:10px;line-height:1.45;color:#939cab}
-.starter-done{flex:none;border:1px solid #6d4b35;background:#382a22;color:#f1d5b5;padding:8px 14px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer}
+.starter-done{flex:none;border:1px solid #6d4b35;background:#382a22;color:#f1c3b5;padding:8px 14px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer}
 @media(max-width:750px){.starter-asset-grid{grid-template-columns:1fr}.starter-pack-section{grid-template-columns:1fr}.starter-pack-links{grid-template-columns:1fr}.starter-art{width:85px}.starter-catalog-header{padding:15px}.starter-catalog-content{padding:12px}.starter-catalog-footer{align-items:flex-start}.starter-catalog-footer span{max-width:70%}}
 </style>

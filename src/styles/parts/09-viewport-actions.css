@@ -58,11 +58,11 @@
 }
 .viewport-actions .quick-add-trigger:hover,
 .viewport-actions .quick-add-trigger[aria-expanded="true"] {
-  border-color:#765016 !important;
-  background:#211c12 !important;
+  border-color:#762d16 !important;
+  background:#211612 !important;
 }
 .viewport-actions .quick-add-trigger > span:first-child {
-  color:#f5a524 !important;
+  color:#e8572a !important;
   font-size:16px;
 }
 .viewport-actions .quick-add-popover {
@@ -97,8 +97,8 @@
   white-space:nowrap;
 }
 .viewport-actions .model-import-launch:hover {
-  border-color:#765016 !important;
-  background:#211c12 !important;
+  border-color:#762d16 !important;
+  background:#211612 !important;
   color:#e6e8ec !important;
   filter:none;
 }
@@ -109,7 +109,7 @@
   -webkit-text-fill-color:#f3efe6 !important;
 }
 .viewport-actions .model-import-launch > span:first-child {
-  color:#f5a524 !important;
+  color:#e8572a !important;
   font-size:16px !important;
   line-height:1 !important;
 }

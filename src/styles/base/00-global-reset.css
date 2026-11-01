@@ -16,5 +16,5 @@ body { overflow:hidden; background:var(--bg); color:var(--text); font-family:'IB
 button, input, select, textarea { font:inherit; }
 button { min-height:32px; border-radius:6px; }
 input, select, textarea { min-height:32px; border-color:#2c323d; border-radius:6px; background:#0e1013; color:#e6e8ec; }
-input:focus, select:focus, textarea:focus { outline:1px solid #f5a524; border-color:#f5a524; }
+input:focus, select:focus, textarea:focus { outline:1px solid #e8572a; border-color:#e8572a; }
 .mono, code, kbd, .viewport-fps, .variable-id, .variable-type { font-family:'IBM Plex Mono',monospace !important; }

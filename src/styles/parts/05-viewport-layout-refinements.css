@@ -124,8 +124,8 @@
   color: #bfc8d6;
 }
 .panel.right .scroll .meta-copy:hover {
-  border-color: #8a641c;
-  color: #f5c56b;
+  border-color: #8a361c;
+  color: #f58c6b;
 }
 .panel.right .scroll .variable-table-head {
   margin-top: 12px;
@@ -143,11 +143,11 @@
   background: #171c24;
 }
 .panel.right .scroll .variable-row:focus-within {
-  border-color: #76571e;
+  border-color: #76331e;
   background: #1b2028;
 }
 .panel.right .scroll .variable-id {
-  color: #e1c18b;
+  color: #e19f8b;
   font-size: 10px;
 }
 .panel.right .scroll .variable-type {
@@ -188,9 +188,9 @@
   min-height: 34px;
 }
 .panel.right .scroll .variable-create > button:first-of-type {
-  border-color: #67501f;
-  background: #292316;
-  color: #f2c36f;
+  border-color: #67301f;
+  background: #291a16;
+  color: #f28e6f;
 }
 .panel.right .scroll .variable-create > button:last-of-type {
   border-color: #303744;
@@ -205,8 +205,8 @@
   background: #1a2029;
 }
 .panel.right .scroll .attached-rule:hover {
-  border-color: #67501f;
-  background: #242116;
+  border-color: #67301f;
+  background: #241916;
 }
 .panel.right .scroll .attached-rule-status {
   flex: none;
@@ -249,10 +249,10 @@
   overflow-wrap: anywhere;
 }
 .panel.right .scroll input[type="checkbox"],
-.panel.right .scroll input[type="radio"] { accent-color: #f5a524; }
+.panel.right .scroll input[type="radio"] { accent-color: #e8572a; }
 .panel.right .scroll input[type="range"] {
   height: 18px;
-  accent-color: #f5a524;
+  accent-color: #e8572a;
   cursor: pointer;
 }
 .panel.right .scroll input[type="range"]:disabled { cursor: not-allowed; }
@@ -292,9 +292,9 @@
   overflow-wrap: anywhere;
 }
 .panel.right .scroll .collider-visibility-button.active {
-  border-color: #6d5624;
-  background: #2a2518;
-  color: #f5c56b;
+  border-color: #6d3524;
+  background: #2a1c18;
+  color: #f58c6b;
 }
 @media (max-width: 760px) {
   .panel.right .scroll .unity-component-body { padding: 8px; }

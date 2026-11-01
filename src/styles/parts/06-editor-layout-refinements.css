@@ -31,15 +31,15 @@
   font-weight:600;
 }
 .quick-add-trigger > span:first-child {
-  color:#f5c56b;
+  color:#f58c6b;
   font-size:16px;
   line-height:1;
 }
 .quick-add-trigger:hover,
 .quick-add-trigger[aria-expanded="true"] {
-  border-color:#73561f;
-  background:#242116;
-  color:#f6d28b;
+  border-color:#73331f;
+  background:#241916;
+  color:#f6a48b;
 }
 .quick-add-chevron { color:#9aa6b6; font-size:10px; }
 .quick-add-popover {
@@ -88,7 +88,7 @@
   border:1px solid #394250;
   border-radius:5px;
   background:#202631;
-  color:#f2c36f;
+  color:#f28e6f;
   font-size:15px;
 }
 .quick-add-popover > button > span:nth-child(2) {
@@ -159,8 +159,8 @@
   font-weight:700;
 }
 .panel.right .scroll .axis-value:focus-within {
-  border-color:#8a641c;
-  box-shadow:0 0 0 2px #f5a52412;
+  border-color:#8a361c;
+  box-shadow:0 0 0 2px #e8572a12;
 }
 .panel.right .scroll .axis-value > span { flex:none; }
 .panel.right .scroll .axis-value.axis-x > span { color:#ff7777; }
@@ -236,7 +236,7 @@
 }
 .panel.left .library-tabs button.active {
   border-color:transparent;
-  border-bottom:2px solid #f5a524;
+  border-bottom:2px solid #e8572a;
   background:transparent;
   color:#e7ebf2;
 }
@@ -273,7 +273,7 @@
   outline: none;
   background: transparent;
   color: inherit;
-  accent-color: #f5a524;
+  accent-color: #e8572a;
   cursor: pointer;
 }
 .panel.right .scroll input[type="range"]::-webkit-slider-runnable-track {
@@ -291,7 +291,7 @@
 .panel.right .scroll input[type="range"]::-moz-range-progress {
   height: 4px;
   border-radius: 999px;
-  background: #b98228;
+  background: #b94a28;
 }
 .panel.right .scroll input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -301,30 +301,30 @@
   margin-top: -5px;
   border: 2px solid #171c24;
   border-radius: 50%;
-  background: #f5b942;
-  box-shadow: 0 0 0 1px #a97822, 0 1px 3px #0008;
+  background: #e8572a;
+  box-shadow: 0 0 0 1px #a94222, 0 1px 3px #0008;
 }
 .panel.right .scroll input[type="range"]::-moz-range-thumb {
   width: 10px;
   height: 10px;
   border: 2px solid #171c24;
   border-radius: 50%;
-  background: #f5b942;
-  box-shadow: 0 0 0 1px #a97822, 0 1px 3px #0008;
+  background: #e8572a;
+  box-shadow: 0 0 0 1px #a94222, 0 1px 3px #0008;
 }
 .panel.right .scroll input[type="range"]:hover::-webkit-slider-thumb {
-  background: #ffd477;
-  box-shadow: 0 0 0 2px #f5a52424, 0 1px 3px #0008;
+  background: #ff9777;
+  box-shadow: 0 0 0 2px #e8572a24, 0 1px 3px #0008;
 }
 .panel.right .scroll input[type="range"]:hover::-moz-range-thumb {
-  background: #ffd477;
-  box-shadow: 0 0 0 2px #f5a52424, 0 1px 3px #0008;
+  background: #ff9777;
+  box-shadow: 0 0 0 2px #e8572a24, 0 1px 3px #0008;
 }
 .panel.right .scroll input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px #f5a52435, 0 0 0 1px #a97822;
+  box-shadow: 0 0 0 3px #e8572a35, 0 0 0 1px #a94222;
 }
 .panel.right .scroll input[type="range"]:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 3px #f5a52435, 0 0 0 1px #a97822;
+  box-shadow: 0 0 0 3px #e8572a35, 0 0 0 1px #a94222;
 }
 .panel.right .scroll input[type="range"]:disabled {
   opacity: .38;
@@ -347,7 +347,7 @@
   border: 1px solid #333d4b;
   border-radius: 4px;
   background: #11161d;
-  color: #e9c17a;
+  color: #e9947a;
   font: 10px 'IBM Plex Mono', monospace;
   text-align: right;
 }
