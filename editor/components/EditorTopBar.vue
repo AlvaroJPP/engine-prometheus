@@ -310,7 +310,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
                 <option value="precise">Preciso · oculta também áreas parciais</option><option value="fast">Econômico · prioriza desempenho</option>
               </select>
             </label>
-            <p class="render-settings-help">Preciso mantém a subdivisão fina junto Ã s paredes. Econômico ignora somente os cálculos extras das áreas parcialmente cobertas; ainda oculta chunks totalmente atrás de uma parede.</p>
+            <p class="render-settings-help">Preciso mantém a subdivisão fina junto às paredes. Econômico ignora somente os cálculos extras das áreas parcialmente cobertas; ainda oculta chunks totalmente atrás de uma parede.</p>
             <label class="render-settings-field render-settings-fog-field"><span>Frequência da oclusão por paredes</span>
               <select class="render-settings-select" :value="grassOcclusionIntervalMs" :disabled="!grassVisible || !grassOcclusionEnabled" @change="emit('grass-occlusion-interval-change', Number(($event.target as HTMLSelectElement).value))">
                 <option value="250">Precisa · recalcula a cada 250 ms</option><option value="400">Equilibrada · 400 ms</option><option value="800">Leve · 800 ms</option><option value="1200">Economia · 1200 ms</option>
