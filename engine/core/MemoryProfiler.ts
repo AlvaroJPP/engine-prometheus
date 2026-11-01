@@ -66,6 +66,7 @@ export class MemoryProfiler {
     this.tracking = true
     this.snapshots = []
     this.allocations = []
+    this.disposables.clear()
   }
 
   stopTracking(): void {
@@ -185,6 +186,8 @@ export class MemoryProfiler {
     if (tracker) {
       tracker.disposed = true
       tracker.disposeTime = performance.now()
+      // Do not retain disposed Three.js objects: keeping them here prevents GC.
+      this.disposables.delete(resource)
     }
   }
 
@@ -288,7 +291,7 @@ export class MemoryProfiler {
   clear(): void {
     this.snapshots = []
     this.allocations = []
-    // Note: WeakMap entries are automatically cleaned up when objects are GC'd
+    this.disposables.clear()
   }
 
   /**

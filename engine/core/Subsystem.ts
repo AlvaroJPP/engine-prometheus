@@ -6,6 +6,7 @@
  */
 
 import { DIContainer } from './DIContainer.js';
+import type { Lifetime, ServiceToken } from './DIContainer.js';
 import { EngineEventBus, EngineEventMap, EngineEvents } from './EngineEventBus.js';
 import { EngineConfig, SubsystemConfigs } from './EngineConfig.js';
 
@@ -366,8 +367,26 @@ export abstract class Subsystem {
     return this.container?.resolveRequired(token) as T;
   }
 
-  protected register<T>(token: any, factory: (container: DIContainer) => T, lifetime?: 'singleton' | 'transient' | 'scoped'): void {
-    this.container?.registerSingleton(token, factory);
+  protected register<T>(
+    token: ServiceToken<T>,
+    factory: (container: DIContainer) => T,
+    lifetime: Lifetime = 'singleton',
+  ): void {
+    if (!this.container) {
+      throw new Error(`Cannot register service for subsystem "${this.name}" before initialization.`);
+    }
+
+    switch (lifetime) {
+      case 'singleton':
+        this.container.registerSingleton(token, factory);
+        break;
+      case 'transient':
+        this.container.registerTransient(token, factory);
+        break;
+      case 'scoped':
+        this.container.registerScoped(token, factory);
+        break;
+    }
   }
 }
 

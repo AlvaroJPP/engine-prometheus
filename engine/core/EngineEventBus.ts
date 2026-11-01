@@ -43,7 +43,7 @@ export class EngineEventBus<E extends EventMap = EventMap> {
   private listenerId = 0;
   private eventHistory: { name: EventName; data: any; timestamp: number }[] = [];
   private maxHistory = 100;
-  private isDispatching = false;
+  private dispatchDepth = 0;
   private pendingRemovals = new Set<number>();
 
   /**
@@ -117,7 +117,7 @@ export class EngineEventBus<E extends EventMap = EventMap> {
 
     if (index === -1) return false;
 
-    if (this.isDispatching) {
+    if (this.dispatchDepth > 0) {
       this.pendingRemovals.add(listeners[index].id);
     } else {
       listeners.splice(index, 1);
@@ -160,19 +160,22 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    */
   private dispatch(event: EventName, data: any): boolean {
     const specificListeners = this.listeners.get(event) || [];
-    const wildcardListeners = this.listeners.get('*') || [];
-    const allListeners = [...specificListeners, ...wildcardListeners];
+    const wildcardListeners = event === '*' ? [] : (this.listeners.get('*') || []);
+    const allListeners = [
+      ...specificListeners.map(entry => ({ entry, sourceEvent: event })),
+      ...wildcardListeners.map(entry => ({ entry, sourceEvent: '*' })),
+    ];
 
     if (allListeners.length === 0) {
       this.recordHistory(event, data);
       return false;
     }
 
-    this.isDispatching = true;
+    this.dispatchDepth++;
     let handled = false;
 
     try {
-      for (const entry of allListeners) {
+      for (const { entry, sourceEvent } of allListeners) {
         // Check if removed during dispatch
         if (this.pendingRemovals.has(entry.id)) continue;
 
@@ -184,27 +187,13 @@ export class EngineEventBus<E extends EventMap = EventMap> {
           handled = true;
           entry.listener(data);
           if (entry.options.once) {
-            this.off(event, entry.id);
+            this.off(sourceEvent, entry.id);
           }
         }
         // Async listeners are ignored in sync emit (they should use emitAsync)
       }
     } finally {
-      this.isDispatching = false;
-      // Process pending removals
-      if (this.pendingRemovals.size > 0) {
-        for (const [eventName, listeners] of this.listeners) {
-          const filtered = listeners.filter(e => !this.pendingRemovals.has(e.id));
-          if (filtered.length !== listeners.length) {
-            if (filtered.length === 0) {
-              this.listeners.delete(eventName);
-            } else {
-              this.listeners.set(eventName, filtered);
-            }
-          }
-        }
-        this.pendingRemovals.clear();
-      }
+      this.finishDispatch();
     }
 
     this.recordHistory(event, data);
@@ -216,22 +205,25 @@ export class EngineEventBus<E extends EventMap = EventMap> {
    */
   private async dispatchAsync(event: EventName, data: any): Promise<boolean> {
     const specificListeners = this.listeners.get(event) || [];
-    const wildcardListeners = this.listeners.get('*') || [];
-    const allListeners = [...specificListeners, ...wildcardListeners];
+    const wildcardListeners = event === '*' ? [] : (this.listeners.get('*') || []);
+    const allListeners = [
+      ...specificListeners.map(entry => ({ entry, sourceEvent: event })),
+      ...wildcardListeners.map(entry => ({ entry, sourceEvent: '*' })),
+    ];
 
     if (allListeners.length === 0) {
       this.recordHistory(event, data);
       return false;
     }
 
-    this.isDispatching = true;
+    this.dispatchDepth++;
     let handled = false;
     const errors: Error[] = [];
 
     try {
       const promises: Promise<void>[] = [];
 
-      for (const entry of allListeners) {
+      for (const { entry, sourceEvent } of allListeners) {
         // Check if removed during dispatch
         if (this.pendingRemovals.has(entry.id)) continue;
 
@@ -246,7 +238,7 @@ export class EngineEventBus<E extends EventMap = EventMap> {
           });
 
         if (entry.options.once) {
-          this.off(event, entry.id);
+          this.off(sourceEvent, entry.id);
         }
 
         promises.push(listenerPromise);
@@ -262,25 +254,23 @@ export class EngineEventBus<E extends EventMap = EventMap> {
         throw aggregateError;
       }
     } finally {
-      this.isDispatching = false;
-      // Process pending removals
-      if (this.pendingRemovals.size > 0) {
-        for (const [eventName, listeners] of this.listeners) {
-          const filtered = listeners.filter(e => !this.pendingRemovals.has(e.id));
-          if (filtered.length !== listeners.length) {
-            if (filtered.length === 0) {
-              this.listeners.delete(eventName);
-            } else {
-              this.listeners.set(eventName, filtered);
-            }
-          }
-        }
-        this.pendingRemovals.clear();
-      }
+      this.finishDispatch();
     }
 
     this.recordHistory(event, data);
     return handled;
+  }
+
+  private finishDispatch(): void {
+    this.dispatchDepth = Math.max(0, this.dispatchDepth - 1);
+    if (this.dispatchDepth > 0 || this.pendingRemovals.size === 0) return;
+
+    for (const [eventName, listeners] of this.listeners) {
+      const remaining = listeners.filter(entry => !this.pendingRemovals.has(entry.id));
+      if (remaining.length === 0) this.listeners.delete(eventName);
+      else if (remaining.length !== listeners.length) this.listeners.set(eventName, remaining);
+    }
+    this.pendingRemovals.clear();
   }
 
   /**
@@ -291,6 +281,7 @@ export class EngineEventBus<E extends EventMap = EventMap> {
     const eventNameStr = typeof event === 'symbol' ? String(event) : String(event);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
+        this.off(eventName, entryId);
         reject(new Error(`Timeout waiting for event: ${eventNameStr}`));
       }, timeout);
 
@@ -298,11 +289,9 @@ export class EngineEventBus<E extends EventMap = EventMap> {
       const entryId = ++this.listenerId;
       const entry: ListenerEntry<E[K]> = {
         listener: (data) => {
-          if (!filter || filter(data)) {
-            clearTimeout(timer);
-            this.off(eventName, entryId);
-            resolve(data);
-          }
+          clearTimeout(timer);
+          this.off(eventName, entryId);
+          resolve(data);
         },
         options: { once: true, filter },
         id: entryId,

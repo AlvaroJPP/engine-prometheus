@@ -12,6 +12,8 @@ export interface ServiceRegistration<T = any> {
   factory: (container: DIContainer) => T;
   lifetime: Lifetime;
   instance?: T;
+  /** Whether this container owns and should dispose the value. */
+  disposeOnDispose?: boolean;
 }
 
 export type ServiceToken<T = any> = string | symbol | (new (...args: any[]) => T);
@@ -30,7 +32,6 @@ export interface ResolveOptions {
 export class DIContainer {
   private registrations = new Map<ServiceToken, ServiceRegistration>();
   private singletons = new Map<ServiceToken, any>();
-  private scopedInstances = new Map<ServiceToken, any>();
   private currentScope: Map<ServiceToken, any> | null = null;
   private parentContainer: DIContainer | null = null;
 
@@ -73,7 +74,8 @@ export class DIContainer {
       token,
       factory: () => instance,
       lifetime: 'singleton',
-      instance
+      instance,
+      disposeOnDispose: true,
     });
     this.singletons.set(token, instance);
     return this;
@@ -83,7 +85,15 @@ export class DIContainer {
    * Register a constant value
    */
   registerValue<T>(token: ServiceToken<T>, value: T): this {
-    return this.registerInstance(token, value);
+    this.registrations.set(token, {
+      token,
+      factory: () => value,
+      lifetime: 'singleton',
+      instance: value,
+      disposeOnDispose: false,
+    });
+    this.singletons.set(token, value);
+    return this;
   }
 
   /**
@@ -207,17 +217,46 @@ export class DIContainer {
    * Dispose all singletons that implement Disposable
    */
   async dispose(): Promise<void> {
-    for (const [, instance] of this.singletons) {
-      if (instance && typeof instance.dispose === 'function') {
-        try {
-          await instance.dispose();
-        } catch (error) {
-          console.error(`Error disposing singleton:`, error);
+    const ownedInstances = new Set<any>();
+
+    for (const [token, instance] of this.singletons) {
+      if (this.registrations.get(token)?.disposeOnDispose !== false) {
+        ownedInstances.add(instance);
+      }
+    }
+
+    if (this.currentScope) {
+      for (const [token, instance] of this.currentScope) {
+        if (this.findRegistration(token)?.registration.disposeOnDispose !== false) {
+          ownedInstances.add(instance);
         }
       }
     }
+
+    for (const instance of ownedInstances) {
+      if (!instance || typeof instance.dispose !== 'function') continue;
+      try {
+        await instance.dispose();
+      } catch (error) {
+        console.error('Error disposing service:', error);
+      }
+    }
+
     this.singletons.clear();
+    this.currentScope?.clear();
+    this.currentScope = null;
     this.registrations.clear();
+    this.parentContainer = null;
+  }
+
+  private findRegistration(token: ServiceToken): {
+    owner: DIContainer;
+    registration: ServiceRegistration;
+  } | undefined {
+    if (this.registrations.has(token)) {
+      return { owner: this, registration: this.registrations.get(token)! };
+    }
+    return this.parentContainer?.findRegistration(token);
   }
 
   /**

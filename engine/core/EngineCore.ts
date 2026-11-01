@@ -76,6 +76,7 @@ export class EngineCore {
   private animationFrameId: number | null = null;
   private fixedTimestepAccumulator = 0;
   private subsystemInitOrder: Subsystem[] = [];
+  private readonly ownsEvents: boolean;
 
   // Frame budget tracking
   private frameBudget: FrameBudget = {
@@ -106,10 +107,11 @@ export class EngineCore {
     this.config = createDefaultConfig(options.config);
 
     // Create DI container
-    this.container = options.parentContainer || new DIContainer();
+    this.container = options.parentContainer ? options.parentContainer.createChild() : new DIContainer();
 
     // Create event bus
     this.events = options.parentEvents || new EngineEventBus<EngineEventMap>();
+    this.ownsEvents = !options.parentEvents;
 
     // Configure adaptive quality
     if (options.adaptiveQuality) {
@@ -129,12 +131,15 @@ export class EngineCore {
     // Don't register engine:core to avoid circular disposal
     // The engine is available via SubsystemContext.engine
     this.container.registerInstance('engine:config', this.config);
-    this.container.registerInstance('engine:events', this.events);
 
-    // Register ThreeResourcePool for automatic THREE.js resource management
-    const resourcePool = ThreeResourcePool.getInstance()
-    this.container.registerInstance('engine:resourcePool', resourcePool)
+    // Each engine instance owns its resource pool; separate editors/runtimes
+    // must never dispose one another's Three.js resources.
+    const resourcePool = new ThreeResourcePool()
     resourcePool.setEngine(this)
+    this.container.registerInstance('engine:resourcePool', resourcePool)
+
+    // Event buses supplied by an embedding host are borrowed, not owned.
+    this.container.registerValue('engine:events', this.events)
 
     // Note: Don't register container in itself to avoid circular disposal
   }
@@ -363,11 +368,13 @@ export class EngineCore {
       this.subsystemInitOrder = [];
 
       // Dispose core services
-      await this.container.dispose();
-      this.events.dispose();
-
       this.state = 'disposed';
       this.events.emit(EngineEvents.DISPOSE, { timestamp: Date.now() });
+
+      // The container disposes the per-engine resource pool before its event bus
+      // can be released. External event buses are registered as non-owned values.
+      await this.container.dispose();
+      if (this.ownsEvents) this.events.dispose();
       this.log('Engine disposed');
 
     } catch (error) {
@@ -394,16 +401,18 @@ export class EngineCore {
   /**
    * Unregister a subsystem
    */
-  unregisterSubsystem(name: string): boolean {
+  async unregisterSubsystem(name: string): Promise<boolean> {
     const subsystem = this.subsystems.get(name);
     if (!subsystem) return false;
 
-    // Dispose if initialized
-    if (subsystem.getState() !== 'uninitialized') {
-      subsystem.dispose().catch(err => this.logError(`Error disposing subsystem ${name}`, err));
+    // Complete disposal before releasing the registration so callers cannot
+    // race a replacement subsystem against an unfinished teardown.
+    if (subsystem.getState() !== 'uninitialized' && subsystem.getState() !== 'disposed') {
+      await subsystem.dispose();
     }
 
     this.subsystems.delete(name);
+    this.subsystemInitOrder = this.subsystemInitOrder.filter(item => item !== subsystem);
     this.events.emit(EngineEvents.SUBSYSTEM_UNREGISTERED, { name });
     this.log(`Unregistered subsystem: ${name}`);
     return true;
@@ -469,7 +478,7 @@ export class EngineCore {
         if (dep) {
           visit(dep);
         } else {
-          this.logWarn(`Dependency not found: ${depName} (required by ${subsystem.name})`);
+          throw new Error(`Missing required dependency "${depName}" for subsystem "${subsystem.name}".`);
         }
       }
 

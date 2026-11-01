@@ -32,25 +32,19 @@ export interface ResourcePoolStats {
  * on subsystem disposal.
  */
 export class ThreeResourcePool {
-  private static instance: ThreeResourcePool | null = null
   private resources = new Map<string, TrackedResource>()
   private subsystemResources = new Map<string, Set<string>>()
   private idCounter = 0
   private engine: EngineCore | null = null
 
-  static getInstance(): ThreeResourcePool {
-    if (!ThreeResourcePool.instance) {
-      ThreeResourcePool.instance = new ThreeResourcePool()
-    }
-    return ThreeResourcePool.instance
-  }
-
   setEngine(engine: EngineCore): void {
+    if (this.engine === engine) return
+    this.unsubscribeFromEngine?.()
     this.engine = engine
-    // Listen for subsystem disposal
-    engine.events.on(EngineEvents.SUBSYSTEM_UNREGISTERED, (data: { name: string }) => {
-      this.disposeSubsystemResources(data.name)
-    })
+    this.unsubscribeFromEngine = engine.events.on(
+      EngineEvents.SUBSYSTEM_UNREGISTERED,
+      (data: { name: string }) => this.disposeSubsystemResources(data.name),
+    )
   }
 
   /**
@@ -117,7 +111,9 @@ export class ThreeResourcePool {
     if (!tracked) return false
 
     this.resources.delete(id)
-    this.subsystemResources.get(tracked.subsystem)?.delete(id)
+    const ids = this.subsystemResources.get(tracked.subsystem)
+    ids?.delete(id)
+    if (ids?.size === 0) this.subsystemResources.delete(tracked.subsystem)
     return true
   }
 
@@ -128,24 +124,27 @@ export class ThreeResourcePool {
     const ids = this.subsystemResources.get(subsystemName)
     if (!ids) return
 
-    const toDispose: TrackedResource[] = []
+    const toDispose: Array<{ id: string; tracked: TrackedResource }> = []
     for (const id of ids) {
       const tracked = this.resources.get(id)
-      if (tracked) toDispose.push(tracked)
+      if (tracked) toDispose.push({ id, tracked })
     }
 
     // Dispose in correct order: objects first (which may reference geometries/materials),
     // then geometries, materials, textures
     const sorted = toDispose.sort((a, b) => {
       const order = { object3d: 0, geometry: 1, material: 2, texture: 3 }
-      return order[a.type] - order[b.type]
+      return order[a.tracked.type] - order[b.tracked.type]
     })
 
-    for (const tracked of sorted) {
+    for (const { id, tracked } of sorted) {
       try {
-        this.disposeResource(tracked)
+        this.disposeResource(id, tracked)
       } catch (error) {
         console.warn(`[ThreeResourcePool] Failed to dispose ${tracked.type} (${tracked.label || 'unnamed'}):`, error)
+      } finally {
+        this.resources.delete(id)
+        ids.delete(id)
       }
     }
 
@@ -155,7 +154,7 @@ export class ThreeResourcePool {
   /**
    * Dispose a single resource
    */
-  private disposeResource(tracked: TrackedResource): void {
+  private disposeResource(id: string, tracked: TrackedResource): void {
     const { resource, type } = tracked
 
     switch (type) {
@@ -193,9 +192,7 @@ export class ThreeResourcePool {
         break
     }
 
-    this.resources.delete(
-      Array.from(this.resources.entries()).find(([, v]) => v === tracked)?.[0] ?? ''
-    )
+    this.resources.delete(id)
   }
 
   /**
@@ -280,11 +277,18 @@ export class ThreeResourcePool {
    * Clear all resources (for testing/reset)
    */
   clear(): void {
-    for (const [subsystem] of this.subsystemResources) {
+    for (const subsystem of [...this.subsystemResources.keys()]) {
       this.disposeSubsystemResources(subsystem)
     }
     this.resources.clear()
     this.subsystemResources.clear()
+  }
+
+  dispose(): void {
+    this.clear()
+    this.unsubscribeFromEngine?.()
+    this.unsubscribeFromEngine = null
+    this.engine = null
   }
 }
 
@@ -301,7 +305,7 @@ export function withResourceTracking<T extends new (...args: any[]) => Subsystem
 
     protected async onInitialize(context: any): Promise<void> {
       await super.onInitialize(context)
-      this.resourcePool = ThreeResourcePool.getInstance()
+      this.resourcePool = context.container.resolve<ThreeResourcePool>('engine:resourcePool', { required: false }) ?? null
     }
 
     protected async onDispose(): Promise<void> {
