@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import type { Ref } from 'vue'
 import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS, DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '@engine'
-import { replaceUIScreenDefinitions, uiWorkspaceState } from '@/lib/ui/uiWorkspaceState'
+import { replaceUIScreenDefinitions, uiWorkspaceState } from '@editor/lib/ui/uiWorkspaceState'
 import { usePlayerLogicEditor } from './usePlayerLogicEditor'
 import type {
   CameraPreset,
@@ -158,9 +158,9 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const rightPanelWidth = ref(270)
 
   // Runtime mode state
-  const runtimeMode = ref<RuntimeMode>('edit')
-  const isPlayMode = computed(() => runtimeMode.value === 'play')
-  const isEditMode = computed(() => runtimeMode.value === 'edit')
+  const runtimeModeState = ref<RuntimeMode>('edit')
+  const isPlayMode = computed(() => runtimeModeState.value === 'play')
+  const isEditMode = computed(() => runtimeModeState.value === 'edit')
 
   // Generic runtime HUD state
   const hudEntityCount = ref(0)
@@ -427,7 +427,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       if (state.polygonLinesVisible !== undefined) polygonLinesVisible.value = state.polygonLinesVisible
       if (state.performanceMode) performanceMode.value = state.performanceMode
       // Don't auto-restore runtime mode - always start in edit mode
-      // if (state.runtimeMode === 'edit' || state.runtimeMode === 'play') runtimeMode.value = state.runtimeMode
+      // if (state.runtimeMode === 'edit' || state.runtimeMode === 'play') runtimeModeState.value = state.runtimeMode
 
       // Restore camera state if engine is available
       if (state.cameraState && engine) {
@@ -452,7 +452,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         gridVisible: gridVisible.value,
         polygonLinesVisible: polygonLinesVisible.value,
         performanceMode: performanceMode.value,
-        runtimeMode: runtimeMode.value,
+        runtimeMode: runtimeModeState.value,
       }
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(state))
     } catch (error) {
@@ -461,7 +461,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   // Watch for workspace state changes to persist
-  watch([leftPanelWidth, rightPanelWidth, graphOpen, inspectorMode, gridVisible, polygonLinesVisible, performanceMode, runtimeMode], () => {
+  watch([leftPanelWidth, rightPanelWidth, graphOpen, inspectorMode, gridVisible, polygonLinesVisible, performanceMode, runtimeModeState], () => {
     persistWorkspaceState()
   }, { deep: true })
 
@@ -1208,7 +1208,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     const cameraState = engine.orbit.getState()
 
     // Switch to play mode
-    runtimeMode.value = 'play'
+    runtimeMode = true
+    runtimeModeState.value = 'play'
     engine.setRuntimeMode(true)
 
     // Initialize HUD
@@ -1224,7 +1225,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     if (!engine) return
 
     // Switch to edit mode
-    runtimeMode.value = 'edit'
+    runtimeMode = false
+    runtimeModeState.value = 'edit'
     engine.setRuntimeMode(false)
 
     // Stop HUD update loop
@@ -1240,7 +1242,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   }
 
   function togglePlayMode() {
-    if (runtimeMode.value === 'play') {
+    if (runtimeModeState.value === 'play') {
       exitPlayMode()
     } else {
       enterPlayMode()
@@ -1279,7 +1281,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   function startHUDUpdateLoop() {
     if (hudUpdateTimer) return
     hudUpdateTimer = window.setInterval(() => {
-      if (runtimeMode.value === 'play') {
+      if (runtimeModeState.value === 'play') {
         updateHUDFromEngine()
       }
     }, 250) // Update 4 times per second
@@ -2110,7 +2112,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     loadWorkspaceState,
     persistWorkspaceState,
     // Runtime mode
-    runtimeMode,
+    runtimeMode: runtimeModeState,
     isPlayMode,
     isEditMode,
     enterPlayMode,
