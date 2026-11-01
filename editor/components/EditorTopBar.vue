@@ -220,7 +220,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalShortcut
       </div>
     </div>
       <span class="topbar-divider" aria-hidden="true"></span>
-      <button class="topbar-controls" type="button" title="Criar menus, telas, botões, barras e HUDs para o jogo." @click="emit('open-ui-workspace')">
+      <button class="topbar-controls" type="button" aria-label="Abrir Workspace de UI" title="Criar menus, telas, botões, barras e HUDs para o jogo." @click="emit('open-ui-workspace')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="13" height="12" rx="1.5"/><path d="M1.5 5.5h13M5 5.5V14M7.5 8h4M7.5 10.5h4"/></svg>
         <span>Workspace UI</span>
       </button>
