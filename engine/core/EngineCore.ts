@@ -223,6 +223,7 @@ export class EngineCore {
 
     this.state = 'initializing';
     this.error = null;
+    const initializedSubsystems: Subsystem[] = [];
 
     try {
       this.log('Initializing engine...');
@@ -242,6 +243,7 @@ export class EngineCore {
       for (const subsystem of this.subsystemInitOrder) {
         if (subsystem.getState() === 'uninitialized') {
           await subsystem.initialize(context);
+          initializedSubsystems.push(subsystem);
         }
       }
 
@@ -250,7 +252,14 @@ export class EngineCore {
       this.log('Engine initialized');
 
     } catch (error) {
-      const err = error as Error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      for (const subsystem of initializedSubsystems.reverse()) {
+        try {
+          await subsystem.dispose();
+        } catch (disposeError) {
+          this.logError(`Rollback failed for subsystem ${subsystem.name}`, disposeError);
+        }
+      }
       this.error = err;
       this.state = 'error';
       this.events.emit(EngineEvents.ERROR, { error: err, timestamp: Date.now() });
@@ -272,27 +281,50 @@ export class EngineCore {
       return;
     }
 
+    const startedSubsystems: Subsystem[] = [];
+    let startingSubsystem: Subsystem | null = null;
+
     try {
       this.log('Starting engine...');
 
-      // Start all subsystems
       for (const subsystem of this.subsystemInitOrder) {
-        if (subsystem.autoStart && subsystem.isReady()) {
-          await subsystem.start();
-        }
+        if (!subsystem.autoStart || !subsystem.isReady()) continue;
+        startingSubsystem = subsystem;
+        await subsystem.start();
+        startedSubsystems.push(subsystem);
+        startingSubsystem = null;
       }
 
       this.state = 'running';
       this.lastTime = performance.now();
       this.events.emit(EngineEvents.START, { timestamp: Date.now() });
-
-      // Start render loop
       this.startRenderLoop();
-
       this.log('Engine started');
-
     } catch (error) {
-      const err = error as Error;
+      this.stopRenderLoop();
+
+      if (startingSubsystem && startingSubsystem.getState() !== 'disposed') {
+        try {
+          await startingSubsystem.dispose();
+        } catch (disposeError) {
+          this.logError(`Rollback failed for subsystem ${startingSubsystem.name}`, disposeError);
+        }
+      }
+
+      for (const subsystem of startedSubsystems.reverse()) {
+        try {
+          await subsystem.stop();
+        } catch (stopError) {
+          this.logError(`Rollback failed while stopping subsystem ${subsystem.name}`, stopError);
+          try {
+            await subsystem.dispose();
+          } catch (disposeError) {
+            this.logError(`Rollback dispose failed for subsystem ${subsystem.name}`, disposeError);
+          }
+        }
+      }
+
+      const err = error instanceof Error ? error : new Error(String(error));
       this.error = err;
       this.state = 'error';
       this.events.emit(EngineEvents.ERROR, { error: err, timestamp: Date.now() });
@@ -311,32 +343,31 @@ export class EngineCore {
     }
 
     this.state = 'stopping';
+    this.stopRenderLoop();
+    const errors: Error[] = [];
 
-    try {
-      this.log('Stopping engine...');
-
-      // Stop render loop
-      this.stopRenderLoop();
-
-      // Stop all subsystems (reverse order)
-      for (const subsystem of [...this.subsystemInitOrder].reverse()) {
-        if (subsystem.isRunning()) {
-          await subsystem.stop();
-        }
+    this.log('Stopping engine...');
+    for (const subsystem of [...this.subsystemInitOrder].reverse()) {
+      if (!subsystem.isRunning()) continue;
+      try {
+        await subsystem.stop();
+      } catch (error) {
+        errors.push(error instanceof Error ? error : new Error(String(error)));
+        this.logError(`Failed to stop subsystem ${subsystem.name}`, error);
       }
-
-      this.state = 'ready';
-      this.events.emit(EngineEvents.STOP, { timestamp: Date.now() });
-      this.log('Engine stopped');
-
-    } catch (error) {
-      const err = error as Error;
-      this.error = err;
-      this.state = 'error';
-      this.events.emit(EngineEvents.ERROR, { error: err, timestamp: Date.now() });
-      this.logError('Stop failed', err);
-      throw error;
     }
+
+    if (errors.length > 0) {
+      const aggregate = new AggregateError(errors, 'One or more subsystems failed to stop.');
+      this.error = aggregate;
+      this.state = 'error';
+      this.events.emit(EngineEvents.ERROR, { error: aggregate, timestamp: Date.now() });
+      throw aggregate;
+    }
+
+    this.state = 'ready';
+    this.events.emit(EngineEvents.STOP, { timestamp: Date.now() });
+    this.log('Engine stopped');
   }
 
   /**
@@ -348,42 +379,56 @@ export class EngineCore {
       return;
     }
 
-    // Stop if running
+    const errors: Error[] = [];
     if (this.state === 'running') {
-      await this.stop();
+      try {
+        await this.stop();
+      } catch (error) {
+        errors.push(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    this.state = 'stopping';
+    this.stopRenderLoop();
+    this.log('Disposing engine...');
+
+    for (const subsystem of [...this.subsystemInitOrder].reverse()) {
+      if (subsystem.getState() === 'disposed') continue;
+      try {
+        await subsystem.dispose();
+      } catch (error) {
+        errors.push(error instanceof Error ? error : new Error(String(error)));
+        this.logError(`Failed to dispose subsystem ${subsystem.name}`, error);
+      }
+    }
+
+    this.subsystems.clear();
+    this.subsystemInitOrder = [];
+
+    this.state = 'disposed';
+    try {
+      this.events.emit(EngineEvents.DISPOSE, { timestamp: Date.now() });
+    } catch (error) {
+      errors.push(error instanceof Error ? error : new Error(String(error)));
     }
 
     try {
-      this.log('Disposing engine...');
-
-      // Dispose all subsystems (reverse order)
-      for (const subsystem of [...this.subsystemInitOrder].reverse()) {
-        if (subsystem.getState() !== 'disposed') {
-          await subsystem.dispose();
-        }
-      }
-
-      // Clear subsystems
-      this.subsystems.clear();
-      this.subsystemInitOrder = [];
-
-      // Dispose core services
-      this.state = 'disposed';
-      this.events.emit(EngineEvents.DISPOSE, { timestamp: Date.now() });
-
-      // The container disposes the per-engine resource pool before its event bus
-      // can be released. External event buses are registered as non-owned values.
       await this.container.dispose();
-      if (this.ownsEvents) this.events.dispose();
-      this.log('Engine disposed');
-
     } catch (error) {
-      const err = error as Error;
-      this.error = err;
-      this.state = 'error';
-      this.logError('Dispose failed', err);
-      throw error;
+      errors.push(error instanceof Error ? error : new Error(String(error)));
     }
+
+    if (this.ownsEvents) this.events.dispose();
+
+    if (errors.length > 0) {
+      const aggregate = new AggregateError(errors, 'Engine disposal completed with errors.');
+      this.error = aggregate;
+      this.state = 'error';
+      this.logError('Dispose completed with errors', aggregate);
+      throw aggregate;
+    }
+
+    this.log('Engine disposed');
   }
 
   /**
@@ -501,7 +546,6 @@ export class EngineCore {
    * Start the render loop
    */
   private startRenderLoop(): void {
-    // Check if we're in a browser environment
     const hasRAF = typeof requestAnimationFrame !== 'undefined';
     const hasCancelRAF = typeof cancelAnimationFrame !== 'undefined';
 
@@ -511,18 +555,23 @@ export class EngineCore {
     }
 
     const loop = (time: number) => {
+      this.animationFrameId = null;
       if (this.state !== 'running') return;
 
-      const deltaTime = (time - this.lastTime) / 1000; // seconds
+      const deltaTime = (time - this.lastTime) / 1000;
       this.lastTime = time;
       this.frameId++;
 
-      this.updateFrame(deltaTime, time).catch(err => {
-        this.logError('Frame update error', err);
-        this.stop().catch(e => this.logError('Error stopping after frame error', e));
+      // Schedule the next frame only after this frame finishes. This prevents
+      // overlapping update pipelines when a subsystem takes longer than a frame.
+      this.updateFrame(deltaTime, time).then(() => {
+        if (this.state === 'running') {
+          this.animationFrameId = requestAnimationFrame(loop);
+        }
+      }).catch(error => {
+        this.logError('Frame update error', error);
+        this.stop().catch(stopError => this.logError('Error stopping after frame error', stopError));
       });
-
-      this.animationFrameId = requestAnimationFrame(loop);
     };
 
     this.animationFrameId = requestAnimationFrame(loop);
