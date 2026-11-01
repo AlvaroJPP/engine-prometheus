@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=ep-work",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc --noEmit",
     "test": "npm run test:engine-core",
     "test:animation-role-options": "tsx scripts/animation-role-options-self-test.mjs",
     "test:autonomous-behavior": "tsx scripts/autonomous-behavior-self-test.mjs",
@@ -28,7 +28,7 @@
     "test:cooldown-scheduler": "tsx scripts/cooldown-scheduler-self-test.mjs",
     "test:core": "tsx scripts/core-self-test.mjs",
     "test:engine-behavior-tree-runtime": "tsx scripts/engine-behavior-tree-runtime-self-test.mjs",
-    "test:engine-core": "npm run build && node scripts/engine-core-self-test.mjs",
+    "test:engine-core": "tsx scripts/engine-core-self-test.mjs",
     "test:entity-batch-processor": "tsx scripts/entity-batch-processor-self-test.mjs",
     "test:entity-behavior-game-module": "tsx scripts/entity-behavior-game-module-self-test.mjs",
     "test:entity-behavior-runtime": "tsx scripts/entity-behavior-runtime-self-test.mjs",
