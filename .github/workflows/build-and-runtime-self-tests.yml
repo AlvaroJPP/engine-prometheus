@@ -160,6 +160,6 @@ jobs:
 
       - name: Test visual UI screen definitions
         run: npx tsx scripts/ui-workspace-self-test.mjs
-
+\n      - name: Test editor reference layout and viewport background\n        run: npx tsx scripts/editor-reference-layout-self-test.mjs\n
       - name: Test generic runtime phase pipeline
         run: npx tsx scripts/runtime-phase-pipeline-self-test.mjs
