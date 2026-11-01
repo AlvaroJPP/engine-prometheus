@@ -389,7 +389,7 @@ function commitModelHeight(): void {
                 <div class="player-capsule-dim"><span>Diâmetro</span><strong>{{ actualColliderDiameter.toFixed(2) }} u</strong></div>
               </div>
               <div class="player-settings-card player-collider-settings">
-                <div class="player-setting-heading"><div><h3>Raio base</h3><p>O raio é escalado proporcionalmente Ã  altura do modelo.</p></div><strong>{{ playerSettings.colliderRadius.toFixed(2) }} <small>u</small></strong></div>
+                <div class="player-setting-heading"><div><h3>Raio base</h3><p>O raio é escalado proporcionalmente à altura do modelo.</p></div><strong>{{ playerSettings.colliderRadius.toFixed(2) }} <small>u</small></strong></div>
                 <input class="player-range" type="range" min="0.1" max="0.8" step="0.01" :value="playerSettings.colliderRadius" :disabled="!canEdit" aria-label="Raio base do colisor" @input="updateSetting('colliderRadius', Number(($event.target as HTMLInputElement).value))" />
                 <label class="player-number-field"><span>Raio base (unidades a 1,8 u de altura)</span><input type="number" min="0.1" max="0.8" step="0.01" :value="playerSettings.colliderRadius" :disabled="!canEdit" @change="updateSetting('colliderRadius', Number(($event.target as HTMLInputElement).value))" /></label>
                 <div class="player-collider-hint"><strong>O que muda?</strong><p>Aumentar o raio evita que o jogador passe por frestas estreitas; diminuir permite passar por espaços menores. O terreno continua usando as mesmas regras de apoio, degraus e rampas.</p></div>
