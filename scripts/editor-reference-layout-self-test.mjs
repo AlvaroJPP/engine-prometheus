@@ -16,8 +16,17 @@ assert.match(appStyles, /14-html-reference-fidelity\\.css/)
 assert.match(workspace, /<EditorTopBar[\\s\\S]*?<EditorSideRail[\\s\\S]*?<SceneHierarchy[\\s\\S]*?<EditorViewport[\\s\\S]*?<InspectorPanel/)
 
 const files = ['../editor/components/EditorTopBar.vue', '../editor/components/EditorToolbar.vue', '../editor/components/SceneHierarchy.vue', '../editor/viewport/EditorViewport.vue', '../editor/workspaces/PlayerWorkspace.vue', '../editor/workspaces/UIWorkspace.vue', '../src/components/AppWorkspace.vue', '../src/components/EditorSideRail.vue', '../src/components/InspectorPanel.vue']
-const mojibake = new RegExp('(?:\\\\u00c3[\\\\u0080-\\\\u00bf]|\\\\u00c2[\\\\u0080-\\\\u00bf]|\\\\u00e2[\\\\u0080-\\\\u00bf])', 'u')
-for (const path of files) assert.doesNotMatch(read(path), mojibake, 'UTF-8 corrompido: ' + path)
+const invalidUtf8Markers = [
+  String.fromCharCode(0x00c3),
+  String.fromCharCode(0x00c2, 0x00a0),
+  String.fromCharCode(0x00e2, 0x0080),
+]
+for (const path of files) {
+  const source = read(path)
+  for (const marker of invalidUtf8Markers) {
+    assert.equal(source.includes(marker), false, 'UTF-8 corrompido: ' + path)
+  }
+}
 
 const texture = createEditorBackgroundTexture()
 assert.ok(texture instanceof THREE.DataTexture)
