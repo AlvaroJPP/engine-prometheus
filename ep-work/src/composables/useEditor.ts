@@ -83,18 +83,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   const isPlayMode = computed(() => runtimeMode.value === 'play')
   const isEditMode = computed(() => runtimeMode.value === 'edit')
 
-  // Runtime HUD state
+  // Runtime HUD state — generic engine metrics only
   const hudEntityCount = ref(0)
-  const hudPlayerHealth = ref(0)
-  const hudPlayerMaxHealth = ref(100)
-  const hudPlayerStamina = ref(0)
-  const hudPlayerMaxStamina = ref(100)
-  const hudPlayerMana = ref(0)
-  const hudPlayerMaxMana = ref(50)
-  const hudMountStatus = ref<'unmounted' | 'mounting' | 'mounted' | 'dismounting'>('unmounted')
+  const hudMountStatus = ref<'unmounted' | 'mounted'>('unmounted')
   const hudMountName = ref('')
-  const hudMemoryUsage = ref(0)
-  let veilborneModule: import('@engine').VeilborneGameModule | null = null
 
   let engine: Engine | null = null
   let statusTimer = 0
@@ -189,9 +181,6 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     // Initialize HUD
     updateHUDFromEngine()
 
-    // Find Veilborne game module for player stats
-    findVeilborneModule()
-
     // Start HUD update loop
     startHUDUpdateLoop()
 
@@ -233,71 +222,25 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
-  // HUD update functions
-  function findVeilborneModule() {
-    if (!engine) return
-    try {
-      const gameModules = (engine as any).facade?.gameModules
-      if (gameModules) {
-        const modules = gameModules.getAll?.() ?? []
-        for (const module of modules) {
-          if (module.id === 'veilborne' || module.constructor.name === 'VeilborneGameModule') {
-            veilborneModule = module
-            break
-          }
-        }
-      }
-    } catch (e) {
-      veilborneModule = null
-    }
-  }
-
+  // Game-specific statistics are owned by the host application. The editor HUD
+  // reports generic runtime information and the universal mount state.
   function updateHUDFromEngine() {
     if (!engine) return
 
-    // Update entity count
     const objects = engine.listObjects()
     hudEntityCount.value = objects.length
 
-    // Update render stats (basic approximation)
-    hudMemoryUsage.value = Math.round((objects.length * 0.1) * 10) / 10
-
-    // Update player stats from Veilborne module if available
-    if (veilborneModule) {
-      const stats = veilborneModule.getPlayerStats()
-      hudPlayerHealth.value = stats.health
-      hudPlayerMaxHealth.value = stats.maxHealth
-      hudPlayerStamina.value = stats.stamina
-      hudPlayerMaxStamina.value = stats.maxStamina
-      hudPlayerMana.value = stats.mana
-      hudPlayerMaxMana.value = stats.maxMana
-
-      // Mount status
-      if (veilborneModule.isMounted()) {
-        hudMountStatus.value = 'mounted'
-        const mountController = veilborneModule.getMountController()
-        if (mountController) {
-          hudMountName.value = mountController.getMountName?.() ?? 'Montaria'
-        }
-      } else {
-        hudMountStatus.value = 'unmounted'
-        hudMountName.value = ''
-      }
-    }
+    const mountedObjectId = engine.avatar?.getMountedObjectId() ?? null
+    hudMountStatus.value = mountedObjectId ? 'mounted' : 'unmounted'
+    hudMountName.value = mountedObjectId
+      ? objects.find(object => object.id === mountedObjectId)?.name ?? 'Objeto'
+      : ''
   }
 
   function resetHUD() {
     hudEntityCount.value = 0
-    hudPlayerHealth.value = 0
-    hudPlayerMaxHealth.value = 100
-    hudPlayerStamina.value = 0
-    hudPlayerMaxStamina.value = 100
-    hudPlayerMana.value = 0
-    hudPlayerMaxMana.value = 50
     hudMountStatus.value = 'unmounted'
     hudMountName.value = ''
-    hudMemoryUsage.value = 0
-    veilborneModule = null
   }
 
   // Periodic HUD update in play mode
@@ -632,15 +575,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     setRuntimeMode,
     // Runtime HUD
     hudEntityCount,
-    hudPlayerHealth,
-    hudPlayerMaxHealth,
-    hudPlayerStamina,
-    hudPlayerMaxStamina,
-    hudPlayerMana,
-    hudPlayerMaxMana,
     hudMountStatus,
     hudMountName,
-    hudMemoryUsage,
     updateHUDFromEngine,
     startHUDUpdateLoop,
     stopHUDUpdateLoop,
