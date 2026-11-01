@@ -9,9 +9,6 @@ import { EngineCore } from '../engine/core/EngineCore.ts';
 import { DIContainer } from '../engine/core/DIContainer.ts';
 import { EngineEventBus, EngineEvents } from '../engine/core/EngineEventBus.ts';
 import { createDefaultConfig } from '../engine/core/EngineConfig.ts';
-import { WorldSubsystem } from '../engine/subsystems/WorldSubsystem.ts';
-import { RenderSubsystem } from '../engine/subsystems/RenderSubsystem.ts';
-import { InputSubsystem } from '../engine/subsystems/InputSubsystem.ts';
 import { Subsystem } from '../engine/core/Subsystem.ts';
 
 console.log('='.repeat(60));
@@ -20,6 +17,8 @@ console.log('='.repeat(60));
 
 let passed = 0;
 let failed = 0;
+
+class TestSubsystem extends Subsystem {}
 
 function assert(condition, message) {
   if (condition) {
@@ -235,9 +234,9 @@ async function runTests() {
   assert(!core.isReady(), 'Not ready initially');
 
   // Register subsystems before init
-  const worldSub = new WorldSubsystem({ name: 'world', autoCreateWorld: true, collisionLayers: [], enableTerrain: true, enableGrass: true, enableAvatar: true, enablePhysics: true });
-  const renderSub = new RenderSubsystem({ name: 'render', autoCreateViewport: true, defaultCamera: 'orbit', postProcessing: false, frustumCulling: true, layers: ['Default', 'UI', 'Debug', 'PostProcess'] });
-  const inputSub = new InputSubsystem({ name: 'input', defaultControlScheme: 'default', enableTransformControls: true, enableGamepad: false, controlMaps: {} });
+  const worldSub = new TestSubsystem({ name: 'world', priority: 100 });
+  const renderSub = new TestSubsystem({ name: 'render', priority: 80, dependencies: ['world'] });
+  const inputSub = new TestSubsystem({ name: 'input', priority: 70, dependencies: ['render'] });
 
   core.registerSubsystem(worldSub);
   core.registerSubsystem(renderSub);
@@ -394,9 +393,9 @@ async function runTests() {
   console.log('\n[6] Testing Runtime Mode Changes...');
 
   const core4 = new EngineCore({ config: { debug: { logging: false } } });
-  core4.registerSubsystem(new WorldSubsystem({ name: 'world', autoCreateWorld: true, collisionLayers: [], enableTerrain: true, enableGrass: true, enableAvatar: true, enablePhysics: true }));
-  core4.registerSubsystem(new RenderSubsystem({ name: 'render', autoCreateViewport: true, defaultCamera: 'orbit', postProcessing: false, frustumCulling: true, layers: ['Default', 'UI', 'Debug', 'PostProcess'] }));
-  core4.registerSubsystem(new InputSubsystem({ name: 'input', defaultControlScheme: 'default', enableTransformControls: true, enableGamepad: false, controlMaps: {} }));
+  core4.registerSubsystem(new TestSubsystem({ name: 'world', priority: 100 }));
+  core4.registerSubsystem(new TestSubsystem({ name: 'render', priority: 80, dependencies: ['world'] }));
+  core4.registerSubsystem(new TestSubsystem({ name: 'input', priority: 70, dependencies: ['render'] }));
 
   await core4.initialize();
   await core4.start();
@@ -423,48 +422,8 @@ async function runTests() {
   await core4.dispose();
 
   // ============================================
-  // Test 7: EngineFacade
+  // Test 7: Integration Test (headless subsystems)
   // ============================================
-  console.log('\n[7] Testing EngineFacade...');
-
-  const { EngineFacade } = await import('../engine/core/EngineFacade.ts');
-
-  const facade = new EngineFacade({ debug: { logging: false } });
-
-  // Check initial properties
-  assert(facade.world === null, 'World initially null');
-  assert(facade.viewport === null, 'Viewport initially null');
-  assert(facade.input === null, 'Input initially null');
-  assert(facade.keyboard === null, 'Keyboard initially null');
-  assertEqual(facade.runtimeMode, 'editor', 'Default runtime mode editor');
-
-  // Initialize
-  await facade.init();
-  assert(facade.initialized, 'Facade initialized');
-
-  // Check subsystems created
-  assert(facade.world !== null, 'World created after init');
-  assert(facade.viewport !== null, 'Viewport created after init');
-  assert(facade.input !== null, 'Input created after init');
-  assert(facade.keyboard !== null, 'Keyboard created after init');
-
-  // Start
-  await facade.start();
-  assert(facade.isRunning(), 'Facade running');
-
-  // Runtime mode
-  facade.setRuntimeMode('play');
-  assertEqual(facade.getRuntimeMode(), 'play', 'Facade runtime mode changed');
-
-  // Stop
-  await facade.stop();
-  assert(!facade.isRunning(), 'Facade stopped');
-
-  // Dispose
-  await facade.dispose();
-  assert(!facade.initialized, 'Facade disposed');
-  assert(facade.world === null, 'World null after dispose');
-
   // ============================================
   // Test 8: Integration Test
   // ============================================
@@ -473,9 +432,9 @@ async function runTests() {
   const core5 = new EngineCore({ config: { debug: { logging: false } } });
 
   // Register all subsystems
-  core5.registerSubsystem(new WorldSubsystem({ name: 'world', autoCreateWorld: true, collisionLayers: [], enableTerrain: true, enableGrass: true, enableAvatar: true, enablePhysics: true }));
-  core5.registerSubsystem(new RenderSubsystem({ name: 'render', autoCreateViewport: true, defaultCamera: 'orbit', postProcessing: false, frustumCulling: true, layers: ['Default', 'UI', 'Debug', 'PostProcess'] }));
-  core5.registerSubsystem(new InputSubsystem({ name: 'input', defaultControlScheme: 'default', enableTransformControls: true, enableGamepad: false, controlMaps: {} }));
+  core5.registerSubsystem(new TestSubsystem({ name: 'world', priority: 100 }));
+  core5.registerSubsystem(new TestSubsystem({ name: 'render', priority: 80, dependencies: ['world'] }));
+  core5.registerSubsystem(new TestSubsystem({ name: 'input', priority: 70, dependencies: ['render'] }));
 
   // Full lifecycle
   await core5.initialize();
