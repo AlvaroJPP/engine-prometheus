@@ -276,8 +276,8 @@
   overflow-x:hidden;
   overflow-y:auto;
   overscroll-behavior:contain;
-  scrollbar-width:thin;
-  scrollbar-color:#5a5a63 transparent;
+  scrollbar-width:none;
+  scrollbar-color:transparent transparent;
   touch-action:pan-y;
 }
 .viewport-tool-dock .viewport-tool-button { flex:0 0 auto; min-height:41px; }
@@ -288,9 +288,9 @@
   margin:4px 3px;
   background:#44444b;
 }
-.viewport-tool-dock::-webkit-scrollbar { width:4px; }
+.viewport-tool-dock::-webkit-scrollbar { display:none; width:0; height:0; }
 .viewport-tool-dock::-webkit-scrollbar-track { background:transparent; }
-.viewport-tool-dock::-webkit-scrollbar-thumb { border-radius:4px; background:#5a5a63; }
+.viewport-tool-dock::-webkit-scrollbar-thumb { background:transparent; }
 @media (min-width:981px) and (max-width:1360px) {
   .viewport-tool-dock {
     height:180px;
