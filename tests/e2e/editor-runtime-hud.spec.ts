@@ -46,6 +46,30 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.getByText('Horário do mundo')).toBeVisible()
   })
 
+  test('mantém o inspetor direito rolável sem scrollbar visível', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.locator('.inspector-tabs button').first().click()
+    const inspector = page.locator('.inspector-panel .inspector-scroll')
+    await expect(inspector).toBeVisible()
+
+    const initial = await inspector.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: getComputedStyle(element).overflowY,
+      scrollbarWidth: getComputedStyle(element).scrollbarWidth,
+      webkitScrollbarDisplay: getComputedStyle(element, '::-webkit-scrollbar').display,
+    }))
+    expect(initial.scrollHeight).toBeGreaterThan(initial.clientHeight)
+    expect(initial.overflowY).toBe('auto')
+    expect(initial.scrollbarWidth).toBe('none')
+    expect(initial.webkitScrollbarDisplay).toBe('none')
+
+    const previousScroll = await inspector.evaluate(element => element.scrollTop)
+    await inspector.evaluate(element => { element.scrollTop = element.scrollHeight })
+    const nextScroll = await inspector.evaluate(element => element.scrollTop)
+    expect(nextScroll).toBeGreaterThan(previousScroll)
+  })
+
   test('mantém o menu de ferramentas compacto e rolável', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
     const dock = page.getByTestId('viewport-tool-dock')
