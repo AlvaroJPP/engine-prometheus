@@ -20,3 +20,123 @@
 @media(max-width:1180px){.editor-shell{grid-template-columns:64px 220px minmax(340px,1fr) 275px}.topbar{gap:7px}.brand-emblem{width:36px;height:36px;flex-basis:36px}.brand-wordmark strong{font-size:12px;letter-spacing:.25em}.brand-wordmark>span{font-size:8px}.mode-button{min-width:105px;padding-inline:10px}.topbar-tools{flex-basis:230px}.global-search kbd{display:none}.inspector-scroll{padding-inline:10px}}
 @media(max-width:980px){.editor-shell{grid-template-columns:60px 205px minmax(300px,1fr);grid-template-rows:58px minmax(0,1fr) 34px}.topbar{gap:9px}.topbar-mode{display:none}.inspector-panel{display:none}.viewport-panel{grid-column:3}}
 @media(max-width:700px){.editor-shell{grid-template-columns:54px minmax(0,1fr);grid-template-rows:54px minmax(0,1fr) 32px}.topbar{gap:8px;padding-inline:8px}.brand-wordmark,.topbar-project{display:none}.topbar-tools{margin-left:auto}.global-search{width:min(45vw,230px)}.side-rail{padding-inline:5px}.rail-item{min-height:58px;font-size:9px}.rail-icon{font-size:20px}.hierarchy-panel{display:none}.viewport-panel{grid-column:2}.viewport-commandbar{gap:5px;padding-inline:6px}.command-button{height:36px;padding-inline:9px;font-size:10px}.viewport-preset{display:none}.viewport-tool-dock{top:8px;left:7px}.viewport-coordinate{display:none}.viewport-status-right,.statusbar-right{display:none}.statusbar{padding-inline:8px;font-size:10px}}
+
+
+/* Compact desktop density — calibrated for the native 1280×720 window. */
+@media (min-width: 981px) and (max-width: 1366px) {
+  .editor-shell {
+    grid-template-columns: 60px 230px minmax(0, 1fr) 280px;
+    grid-template-rows: 54px minmax(0, 1fr) 30px;
+  }
+  .topbar { gap: 8px; padding-inline: 11px; }
+  .topbar-brand { min-width: 164px; gap: 8px; }
+  .brand-emblem { width: 35px; height: 35px; flex-basis: 35px; }
+  .brand-wordmark { gap: 2px; }
+  .brand-wordmark strong { font-size: 12px; letter-spacing: .28em; }
+  .brand-wordmark > span { font-size: 8px; letter-spacing: .34em; }
+  .brand-wordmark small { font-size: 8px; }
+  .topbar-project { gap: 5px; }
+  .file-menu summary { height: 35px; min-width: 94px; gap: 8px; padding-inline: 10px; border-radius: 8px; font-size: 12px; }
+  .topbar-button { height: 35px; gap: 6px; padding-inline: 10px; border-radius: 8px; font-size: 12px; }
+  .button-glyph { font-size: 15px; }
+  .topbar-icon-button { width: 35px; height: 35px; border-radius: 8px; font-size: 20px; }
+  .topbar-mode { gap: 7px; }
+  .mode-button { height: 36px; min-width: 112px; gap: 7px; padding-inline: 11px; border-radius: 8px; font-size: 12px; }
+  .topbar-tools { flex-basis: 248px; gap: 7px; }
+  .global-search { height: 35px; gap: 7px; padding-inline: 9px; border-radius: 8px; }
+  .global-search > span { font-size: 19px; }
+  .global-search input { font-size: 11px; }
+  .global-search kbd { padding: 2px 4px; font-size: 8px; }
+  .theme-button { font-size: 19px; }
+
+  .side-rail { padding: 8px 6px 9px; }
+  .rail-main { gap: 4px; }
+  .rail-item { min-height: 56px; gap: 3px; padding: 5px 2px; border-radius: 10px; font-size: 9px; }
+  .rail-icon { font-size: 21px; }
+  .rail-settings { min-height: 54px; }
+
+  .hierarchy-tabs { height: 44px; min-height: 44px; }
+  .hierarchy-tabs button { font-size: 12px; }
+  .hierarchy-search { height: 37px; min-height: 37px; gap: 7px; margin: 9px 10px 8px; padding-inline: 9px; border-radius: 8px; }
+  .hierarchy-search span { font-size: 19px; }
+  .hierarchy-search input { font-size: 11px; }
+  .hierarchy-scroll { padding-inline: 8px; }
+  .tree-root { height: 31px; gap: 6px; padding-inline: 7px; border-radius: 7px; }
+  .tree-root strong { font-size: 11px; }
+  .tree-root small, .tree-folder-row small { font-size: 9px; }
+  .tree-chevron { font-size: 15px; }
+  .tree-folder { font-size: 14px; }
+  .tree-folder-row { height: 29px; gap: 6px; padding-left: 12px; font-size: 11px; }
+  .tree-children { padding-left: 25px; }
+  .tree-object { height: 29px; gap: 7px; padding-inline: 6px; }
+  .tree-object-name { font-size: 11px; }
+  .object-type-icon { font-size: 12px; }
+  .tree-eye { width: 18px; font-size: 13px; }
+  .hierarchy-hint { margin: 12px 8px; font-size: 10px; }
+  .hierarchy-actions { gap: 6px; padding: 8px 9px 7px; }
+  .hierarchy-action-row { gap: 6px; }
+  .hierarchy-action-row button { height: 32px; border-radius: 8px; font-size: 10px; }
+  .hierarchy-icon-row button { height: 23px; font-size: 17px; }
+
+  .viewport-commandbar { height: 46px; min-height: 46px; gap: 7px; padding-inline: 9px; }
+  .command-button { height: 35px; gap: 7px; padding-inline: 10px; border-radius: 8px; font-size: 11px; }
+  .command-button .plus { font-size: 18px; }
+  .viewport-preset { min-width: 108px; }
+  .render-control { min-width: 92px; }
+  .viewport-fullscreen { width: 35px; padding: 0; font-size: 16px; }
+  .viewport-tool-dock { top: 12px; left: 10px; width: 39px; padding: 4px; border-radius: 9px; }
+  .viewport-tool-dock button { width: 29px; height: 34px; border-radius: 6px; font-size: 17px; }
+  .viewport-axis { top: 13px; right: 13px; width: 64px; height: 64px; }
+  .viewport-coordinate { bottom: 9px; left: 10px; gap: 8px; padding: 7px 9px; border-radius: 8px; font-size: 9px; }
+  .viewport-stats { right: 10px; bottom: 9px; gap: 6px; padding: 7px 9px; border-radius: 8px; font-size: 9px; }
+  .viewport-status { height: 26px; min-height: 26px; gap: 7px; padding-inline: 9px; font-size: 9px; }
+  .viewport-status-left, .viewport-status-right { gap: 7px; }
+  .keycap { min-width: 18px; padding: 2px 4px; font-size: 8px; }
+
+  .inspector-tabs { height: 44px; min-height: 44px; }
+  .inspector-tabs button { font-size: 11px; }
+  .inspector-scroll { padding: 10px 10px 12px; }
+  .inspector-summary { min-height: 67px; gap: 9px; margin-bottom: 8px; padding: 8px 9px; border-radius: 9px; }
+  .summary-icon { width: 43px; height: 43px; flex-basis: 43px; border-radius: 9px; font-size: 21px; }
+  .summary-copy { gap: 3px; }
+  .summary-copy strong { font-size: 12px; }
+  .summary-copy small { font-size: 10px; }
+  .summary-delete { width: 26px; height: 26px; }
+  .inspector-section { padding: 8px 2px 9px; }
+  .inspector-section h3 { gap: 6px; margin-bottom: 8px; font-size: 11px; }
+  .inspector-property, .inspector-field { gap: 7px; margin: 6px 0; font-size: 10px; }
+  .inspector-property select, .inspector-property input, .inspector-field input { height: 30px; padding-inline: 7px; border-radius: 6px; font-size: 10px; }
+  .inspector-property input[type=number], .inspector-field input[type=number] { font-size: 10px; }
+  .inspector-toggle-row { min-height: 35px; gap: 8px; font-size: 10px; }
+  .switch { width: 34px; height: 20px; flex-basis: 34px; }
+  .switch i { top: 2px; left: 2px; width: 16px; height: 16px; }
+  .switch.on i { transform: translateX(14px); }
+  .select-like, .readonly-value { min-width: 90px; height: 29px; gap: 7px; padding-inline: 7px; font-size: 10px; }
+  .terrain-meta { margin: 5px 0; font-size: 8px; }
+  .compact-actions { gap: 5px; }
+  .compact-actions button { height: 26px; font-size: 9px; }
+  .range-row { min-height: 35px; gap: 7px; font-size: 10px; }
+  .file-chip { padding: 6px 7px; font-size: 9px; }
+  .editor-tip { gap: 8px; margin-top: 8px; padding: 10px; border-radius: 8px; }
+  .editor-tip > span { font-size: 17px; }
+  .editor-tip strong { font-size: 10px; }
+  .editor-tip p { margin-top: 3px; font-size: 10px; line-height: 1.4; }
+  .model-name-card { gap: 7px; padding: 8px; }
+  .model-name-card strong { font-size: 10px; }
+  .model-name-card small { font-size: 9px; }
+  .time-readout { font-size: 20px; }
+
+  .statusbar { gap: 8px; padding-inline: 11px; font-size: 10px; }
+  .statusbar-left, .statusbar-right { gap: 11px; }
+  .statusbar-right b { font-size: 9px; }
+}
+
+@media (min-width: 981px) and (max-width: 1100px) {
+  .editor-shell { grid-template-columns: 56px 210px minmax(0,1fr) 255px; }
+  .topbar-brand { min-width: 130px; }
+  .brand-wordmark strong { font-size: 10px; letter-spacing: .2em; }
+  .brand-wordmark > span { font-size: 7px; letter-spacing: .22em; }
+  .topbar-tools { flex-basis: 200px; }
+  .topbar-mode .mode-button { min-width: 94px; }
+  .viewport-status-right { gap: 4px; }
+}

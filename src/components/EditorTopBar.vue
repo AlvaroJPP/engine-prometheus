@@ -32,7 +32,7 @@ defineEmits<{
     </div>
     <div class="topbar-mode">
       <button class="mode-button edit-mode" :class="{selected:!isRunning}" type="button" @click="isRunning && $emit('toggle-play')"><span>⌁</span>Editar</button>
-      <button class="mode-button play-mode" :class="{selected:isRunning}" type="button" aria-label="Jogar" @click="!isRunning && $emit('toggle-play')"><span>{{isRunning?'■':'▶'}}</span>{{isRunning?'Parar':'Jogar'}}<b>⌄</b></button>
+      <button class="mode-button play-mode" :class="{selected:isRunning}" type="button" aria-label="Jogar" @click="$emit('toggle-play')"><span>{{isRunning?'■':'▶'}}</span>{{isRunning?'Parar':'Jogar'}}<b>⌄</b></button>
     </div>
     <div class="topbar-tools">
       <label class="global-search"><span>⌕</span><input :value="searchQuery" type="search" placeholder="Pesquisar no editor…" aria-label="Pesquisar no editor" @input="$emit('update:searchQuery',($event.target as HTMLInputElement).value)"/><kbd>Ctrl K</kbd></label>
