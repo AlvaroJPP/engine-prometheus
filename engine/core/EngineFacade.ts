@@ -718,7 +718,6 @@ export class EngineFacade {
   // ========================================================================
 
   setRuntimeMode(enabled: boolean): void {
-    this.world.setEditorAppearance(!enabled)
     const wasRuntimeActive = this.runtimeModeActive;
     configureRuntimeMode(enabled, {
       avatar: this.avatarInstance!,

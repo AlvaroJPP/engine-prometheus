@@ -22,7 +22,6 @@ export class TerrainMesh {
   private posAttr: THREE.BufferAttribute
   private colAttr: THREE.BufferAttribute
   private disposed = false
-  private editorAppearance = true
   // Raycast direto na grade de alturas: não depende do BVH assíncrono.
   private raycastRay = new THREE.Ray()
   private raycastInverseMatrix = new THREE.Matrix4()
@@ -183,20 +182,9 @@ export class TerrainMesh {
     return undefined
   }
 
-  /** Recalcula a malha inteira apenas ao criar ou carregar um terreno. */
-  /** Switches between the graphite editor floor and the natural game terrain. */
-  setEditorAppearance(enabled: boolean): void {
-    if (this.editorAppearance === enabled) return
-    this.editorAppearance = enabled
-    this.refresh()
-  }
-
+  /** Usa sempre a paleta natural do mundo, tanto em edição quanto em execução. */
   private vertexColor(height: number, x: number, z: number): [number, number, number] {
-    if (!this.editorAppearance) return colorForHeight(height, x, z)
-    const relief = THREE.MathUtils.clamp((height + 2.5) / 12, 0, 1)
-    const variation = (Math.sin(x * 0.17 + z * 0.11) + 1) * 0.0012
-    const value = 0.025 + relief * 0.006 + variation
-    return [value, value * 1.035, value * 1.12]
+    return colorForHeight(height, x, z)
   }
 
   refresh(): void {

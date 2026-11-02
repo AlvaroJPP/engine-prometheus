@@ -9,7 +9,6 @@ import { TERRAIN_ID, TerrainMesh } from './map/TerrainMesh'
 import { DEFAULT_SEED } from './worldGeneration/Heightfield'
 import { clamp } from '../lib/math'
 import { reserveId } from '../lib/id'
-import { createEditorBackgroundTexture } from './EditorBackgroundTexture'
 import type { ObjectType, TerrainData } from '../project/format'
 import { getEntity as toEntity } from '../model/entity/Entity'
 import type { Entity } from '../model/entity/Entity'
@@ -33,11 +32,9 @@ export class World {
   readonly scene = new THREE.Scene()
   readonly events = new EventBus<EngineEvents>()
   readonly terrain = new TerrainMesh(DEFAULT_SEED)
-  private readonly editorBackgroundTexture = createEditorBackgroundTexture()
   private grid = new THREE.GridHelper(100, 100, 0x4a5060, 0x2a2f3a)
   private objects = new Map<string, GameObject>()
   private readonly worldFog = new THREE.Fog(BACKGROUND, 42, 68)
-  private editorAppearance = true
   private worldFogEnabled = true
   private fogDistanceScale = 1
   private readonly fogNightColor = new THREE.Color(0x080d22)
@@ -149,15 +146,6 @@ export class World {
     this.applyDayNight()
   }
 
-  /** Applies the graphite viewport look while editing and restores natural visuals in Play. */
-  setEditorAppearance(enabled: boolean): void {
-    if (this.editorAppearance === enabled) return
-    this.editorAppearance = enabled
-    this.terrain.setEditorAppearance(enabled)
-    this.applyDayNight()
-    this.events.emit('renderInvalidated', undefined)
-  }
-
   getEnvironment() {
     return { skyTextureDataUrl: this.skyTextureDataUrl, timeOfDay: this.timeOfDay, cycleEnabled: this.cycleEnabled, cycleSpeed: this.cycleSpeed }
   }
@@ -213,23 +201,6 @@ export class World {
   private applyDayNight(): void {
     const angle = (this.timeOfDay / 24) * Math.PI * 2 - Math.PI / 2
     const daylight = Math.max(0, Math.sin(angle))
-    if (this.editorAppearance) {
-      const horizon = new THREE.Color(0x30394d).lerp(new THREE.Color(0x3a4258), daylight * 0.32)
-      this.sunLight.position.set(Math.cos(angle) * 60, Math.sin(angle) * 60, 20)
-      this.sunLight.intensity = 0.5 + daylight * 0.16
-      this.sunLight.color.set(0xc7d2ec)
-      this.hemisphereLight.intensity = 0.36 + daylight * 0.12
-      this.hemisphereLight.color.set(0x7181a2)
-      this.hemisphereLight.groundColor.set(0x11141d)
-      this.fillLight.intensity = 0.12
-      this.proceduralSky.visible = false
-      this.stars.visible = false
-      this.moonVisual.visible = false
-      this.sunVisual.visible = false
-      this.worldFog.color.copy(horizon)
-      this.scene.background = this.skyTextureDataUrl && this.skyBackgroundTexture ? this.skyBackgroundTexture : this.editorBackgroundTexture
-      return
-    }
     this.sunLight.position.set(Math.cos(angle) * 60, Math.sin(angle) * 60, 20)
     this.sunLight.intensity = 0.04 + daylight * 2.2
     this.sunLight.color.setRGB(1, 0.72 + daylight * 0.25, 0.48 + daylight * 0.52)
