@@ -67,7 +67,7 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(dock.getByRole('button', { name: 'Pintar grama' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('mantém a viewport utilizável em 1280×720', async ({ page }) =>
+  test('mantém a viewport utilizável em 1280×720', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
     const measurements = await page.evaluate(() => {
       const shell = document.querySelector('.editor-shell')!.getBoundingClientRect()
