@@ -46,7 +46,28 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.getByText('Horário do mundo')).toBeVisible()
   })
 
-  test('mantém a viewport utilizável em 1280×720', async ({ page }) => {
+  test('mantém o menu de ferramentas compacto e rolável', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    const dock = page.getByTestId('viewport-tool-dock')
+    await expect(dock).toBeVisible()
+    await expect(dock.locator('.viewport-tool-button')).toHaveCount(16)
+    const initial = await dock.evaluate(element => ({
+      height: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: getComputedStyle(element).overflowY,
+    }))
+    expect(initial.height).toBeLessThanOrEqual(180)
+    expect(initial.scrollHeight).toBeGreaterThan(initial.height)
+    expect(initial.overflowY).toBe('auto')
+
+    await dock.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await expect(dock.getByRole('button', { name: 'Alternar modo de desempenho' })).toBeInViewport()
+    await expect(dock.getByRole('button', { name: 'Criar exemplo clicável' })).toBeInViewport()
+    await dock.getByRole('button', { name: 'Pintar grama' }).click()
+    await expect(dock.getByRole('button', { name: 'Pintar grama' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('mantém a viewport utilizável em 1280×720', async ({ page }) =>
     await page.setViewportSize({ width: 1280, height: 720 })
     const measurements = await page.evaluate(() => {
       const shell = document.querySelector('.editor-shell')!.getBoundingClientRect()

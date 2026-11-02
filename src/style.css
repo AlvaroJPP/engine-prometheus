@@ -267,3 +267,44 @@
   .topbar-tools { flex-basis:185px; }
   .viewport-status-right { display:none; }
 }
+
+
+/* More viewport tools, same dock footprint: scroll instead of growing. */
+.viewport-tool-dock {
+  height:217px;
+  max-height:calc(100% - 24px);
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#5a5a63 transparent;
+  touch-action:pan-y;
+}
+.viewport-tool-dock .viewport-tool-button { flex:0 0 auto; min-height:41px; }
+.viewport-tool-separator {
+  display:block;
+  flex:0 0 1px;
+  height:1px;
+  margin:4px 3px;
+  background:#44444b;
+}
+.viewport-tool-dock::-webkit-scrollbar { width:4px; }
+.viewport-tool-dock::-webkit-scrollbar-track { background:transparent; }
+.viewport-tool-dock::-webkit-scrollbar-thumb { border-radius:4px; background:#5a5a63; }
+@media (min-width:981px) and (max-width:1360px) {
+  .viewport-tool-dock {
+    height:180px;
+    max-height:calc(100% - 24px);
+    width:38px;
+    padding:4px;
+  }
+  .viewport-tool-dock .viewport-tool-button {
+    width:28px;
+    min-width:28px;
+    height:34px;
+    min-height:34px;
+    flex:0 0 34px;
+    font-size:17px;
+  }
+  .viewport-tool-separator { margin:3px 2px; }
+}

@@ -23,7 +23,7 @@ const {
  projectName,dirty,status,fps,renderStats,objects,selectedId,groupSelection,tool,transform,cameraPreset,gridVisible,engineInstance,isPlayMode,
  setTool,setTransform,cycleCamera,addPrimitive,selectItem,toggleVisible,toggleGrid,toggleTerrain,regenerateTerrain,clearTerrain,removeSelected,
  markDirty,newProject,openProject,saveProject,enterPlayMode,exitPlayMode,undo,redo,copySelectedObject,pasteObject,groupSelectedObjects,ungroupSelectedObjects,
- addSpawnPlatform,addImportedModel,playerModelName,playerModelHeight,playerSettings,setPlayerSettings,timeOfDay,dayNightCycleEnabled,dayNightCycleSpeed,
+ addSpawnPlatform,addImportedModel,addClickableCubeExample,togglePerformanceMode,playerModelName,playerModelHeight,playerSettings,setPlayerSettings,timeOfDay,dayNightCycleEnabled,dayNightCycleSpeed,
  setSkyTexture,setTimeOfDay,setDayNightCycleEnabled,setDayNightCycleSpeed,skyTextureDataUrl,renderFogEnabled,renderFogDistanceScale,setRenderFogEnabled,
  setRenderFogDistanceScale,performanceMode,setPerformanceMode,renderFpsLimit,setRenderFpsLimit,renderDistance,renderAll,setRenderDistance,setRenderAll,
  onRename,onNumber,togglePolygonLines,polygonLinesVisible,terrain
@@ -107,12 +107,67 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
     <canvas ref="canvas" class="engine-canvas" data-testid="engine-canvas" aria-label="Área de renderização 3D"></canvas>
     <div class="viewport-overlay-label">PERSPECTIVA 3D</div>
     <div class="viewport-axis" aria-hidden="true"><svg viewBox="0 0 78 78" fill="none"><path d="M39 39 39 5" stroke="#4cc775" stroke-width="1.7"/><path d="M39 39 65 54" stroke="#f06a54" stroke-width="1.7"/><path d="M39 39 11 52" stroke="#4da8ed" stroke-width="1.7"/><circle cx="39" cy="39" r="2.7" fill="#c6ccd7"/><text x="34" y="10" fill="#4cc775" font-size="10">Y</text><text x="67" y="61" fill="#f06a54" font-size="10">X</text><text x="3" y="58" fill="#4da8ed" font-size="10">Z</text></svg></div>
-    <div class="viewport-tool-dock" aria-label="Ferramentas do viewport">
-     <button type="button" :class="{active:tool==='select'&&transform==='move'}" aria-label="Selecionar" title="Selecionar (Q)" @click="setTool('select')">↖</button>
-     <button type="button" :class="{active:tool==='select'&&transform==='move'}" aria-label="Mover" title="Mover (W)" @click="setTool('select');setTransform('move')">✥</button>
-     <button type="button" :class="{active:tool==='select'&&transform==='rotate'}" aria-label="Rotacionar" title="Rotacionar (E)" @click="setTool('select');setTransform('rotate')">⟳</button>
-     <button type="button" :class="{active:tool==='select'&&transform==='scale'}" aria-label="Escalar" title="Escalar (R)" @click="setTool('select');setTransform('scale')">⤢</button>
-     <button type="button" :class="{active:tool==='terrain'}" aria-label="Terreno" title="Ferramenta de terreno" @click="setTool('terrain')">⌁</button>
+    <div
+     class="viewport-tool-dock"
+     data-testid="viewport-tool-dock"
+     role="toolbar"
+     aria-label="Ferramentas do viewport"
+     aria-orientation="vertical"
+     tabindex="0"
+     @wheel.stop
+    >
+     <button class="viewport-tool-button" data-testid="tool-select" type="button"
+      :class="{active:tool==='select'&&transform==='move'}" :aria-pressed="tool==='select'&&transform==='move'"
+      aria-label="Selecionar" title="Selecionar (Q)" @click="setTool('select');setTransform('move')">↖</button>
+     <button class="viewport-tool-button" data-testid="tool-build" type="button"
+      :class="{active:tool==='build'}" :aria-pressed="tool==='build'"
+      aria-label="Construir" title="Construir: clique no mundo para posicionar o objeto atual" @click="setTool('build')">＋</button>
+     <button class="viewport-tool-button" data-testid="tool-terrain" type="button"
+      :class="{active:tool==='terrain'}" :aria-pressed="tool==='terrain'"
+      aria-label="Terreno" title="Esculpir terreno; segure Shift para rebaixar" @click="setTool('terrain')">⌁</button>
+     <button class="viewport-tool-button" data-testid="tool-grass" type="button"
+      :class="{active:tool==='grass'}" :aria-pressed="tool==='grass'"
+      aria-label="Pintar grama" title="Pintar grama; segure Shift para apagar grama pintada" @click="setTool('grass')">♧</button>
+
+     <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
+
+     <button class="viewport-tool-button" data-testid="tool-move" type="button"
+      :class="{active:tool==='select'&&transform==='move'}" :aria-pressed="tool==='select'&&transform==='move'"
+      aria-label="Mover" title="Mover (W): transforma o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('move')">✥</button>
+     <button class="viewport-tool-button" data-testid="tool-rotate" type="button"
+      :class="{active:tool==='select'&&transform==='rotate'}" :aria-pressed="tool==='select'&&transform==='rotate'"
+      aria-label="Rotacionar" title="Rotacionar (E): gira o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('rotate')">⟳</button>
+     <button class="viewport-tool-button" data-testid="tool-scale" type="button"
+      :class="{active:tool==='select'&&transform==='scale'}" :aria-pressed="tool==='select'&&transform==='scale'"
+      aria-label="Escalar" title="Escalar (R): altera a escala pelos eixos X, Y e Z" @click="setTool('select');setTransform('scale')">⤢</button>
+
+     <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
+
+     <button class="viewport-tool-button" data-testid="tool-import-model" type="button"
+      aria-label="Importar modelo 3D" title="Importar um modelo 3D .glb ou .gltf" @click="importModel">▧</button>
+     <button class="viewport-tool-button" data-testid="tool-visual-script" type="button"
+      :class="{active:activeSection==='scripts'}" :aria-pressed="activeSection==='scripts'"
+      aria-label="Visual Script" title="Abrir a área de Scripts e eventos" @click="activeSection='scripts'">⌘</button>
+     <button class="viewport-tool-button" data-testid="tool-add-cube" type="button"
+      aria-label="Adicionar cubo" title="Adicionar um cubo à cena" @click="addPrimitive('cube')">◇</button>
+     <button class="viewport-tool-button" data-testid="tool-add-platform" type="button"
+      aria-label="Adicionar plataforma" title="Adicionar uma plataforma retangular à cena" @click="addPrimitive('platform')">▱</button>
+     <button class="viewport-tool-button" data-testid="tool-add-spawn" type="button"
+      aria-label="Adicionar spawn do jogador" title="Criar o ponto inicial do jogador" @click="addSpawnPlatform">◎</button>
+     <button class="viewport-tool-button" data-testid="tool-add-clickable" type="button"
+      aria-label="Criar exemplo clicável" title="Criar um objeto de exemplo com evento de clique" @click="addClickableCubeExample">▣</button>
+
+     <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
+
+     <button class="viewport-tool-button" data-testid="tool-grid" type="button"
+      :class="{active:gridVisible}" :aria-pressed="gridVisible"
+      aria-label="Alternar grade" title="Mostrar ou ocultar a grade do chão" @click="toggleGrid">▦</button>
+     <button class="viewport-tool-button" data-testid="tool-wireframe" type="button"
+      :class="{active:polygonLinesVisible}" :aria-pressed="polygonLinesVisible"
+      aria-label="Alternar linhas dos polígonos" title="Mostrar ou ocultar as linhas dos polígonos" @click="togglePolygonLines">⬡</button>
+     <button class="viewport-tool-button" data-testid="tool-performance" type="button"
+      :class="{active:performanceMode!=='quality'}" :aria-pressed="performanceMode!=='quality'"
+      aria-label="Alternar modo de desempenho" :title="'Perfil atual: '+performanceMode+'. Clique para alternar.'" @click="togglePerformanceMode">ϟ</button>
     </div>
     <div class="viewport-coordinate"><span><b class="axis-x">X</b> {{selectedCoordinates.x.toFixed(1)}}</span><span><b class="axis-y">Y</b> {{selectedCoordinates.y.toFixed(1)}}</span><span><b class="axis-z">Z</b> {{selectedCoordinates.z.toFixed(1)}}</span></div>
     <div class="viewport-stats"><i class="stats-live"></i><strong>{{renderFps}} FPS</strong><span>{{renderStats.cpuRenderMs.toFixed(1)}} ms</span><span>{{renderStats.drawCalls}} draw calls</span></div>
