@@ -1,6 +1,5 @@
 import { createApp } from 'vue'
+import '../../src/style.css'
 import App from '../../src/App.vue'
-import { installTooltipManager } from '../../src/lib/tooltipManager'
 
-installTooltipManager()
 createApp(App).mount('#app')

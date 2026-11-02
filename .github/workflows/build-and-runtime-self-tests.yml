@@ -161,8 +161,8 @@ jobs:
       - name: Test visual UI screen definitions
         run: npx tsx scripts/ui-workspace-self-test.mjs
 
-      - name: Test editor reference layout and viewport background
-        run: npx tsx scripts/editor-reference-layout-self-test.mjs
+      - name: Test fresh frontend foundation
+        run: npx tsx scripts/frontend-foundation-self-test.mjs
 
       - name: Test generic runtime phase pipeline
         run: npx tsx scripts/runtime-phase-pipeline-self-test.mjs
