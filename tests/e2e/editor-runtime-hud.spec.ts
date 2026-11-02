@@ -55,10 +55,14 @@ test.describe('Editor Prometheus — nova disposição', () => {
       height: element.clientHeight,
       scrollHeight: element.scrollHeight,
       overflowY: getComputedStyle(element).overflowY,
+      scrollbarWidth: getComputedStyle(element).scrollbarWidth,
+      webkitScrollbarDisplay: getComputedStyle(element, '::-webkit-scrollbar').display,
     }))
     expect(initial.height).toBeLessThanOrEqual(180)
     expect(initial.scrollHeight).toBeGreaterThan(initial.height)
     expect(initial.overflowY).toBe('auto')
+    expect(initial.scrollbarWidth).toBe('none')
+    expect(initial.webkitScrollbarDisplay).toBe('none')
 
     await dock.evaluate(element => { element.scrollTop = element.scrollHeight })
     await expect(dock.getByRole('button', { name: 'Alternar modo de desempenho' })).toBeInViewport()
