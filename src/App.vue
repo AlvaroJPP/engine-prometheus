@@ -34,8 +34,8 @@ const selectedCoordinates=computed(()=>selectedObject.value?{x:selectedObject.va
 const cameraLabel=computed(()=>({free:'Perspectiva',isometric:'Isométrica',top:'Topo'}[cameraPreset.value]??'Perspectiva'))
 const renderFps=computed(()=>Math.round(renderStats.value.fps||fps.value))
 const drawCalls=computed(()=>renderStats.value.drawCalls||0)
-const workspaceTitle=computed(()=>({interface:'Interface',player:'Jogador',scripts:'Scripts',controls:'Controles',settings:'Configurações'}[activeSection.value]??'Cena'))
-const workspaceDescription=computed(()=>({interface:'Crie e organize as telas da interface do seu jogo.',player:'Configure o personagem, seus movimentos e variáveis.',scripts:'Organize eventos, regras e pacotes de comportamento.',controls:'Consulte e configure os controles do jogador.',settings:'Ajuste as preferências gerais do editor.'}[activeSection.value]??''))
+const workspaceTitle=computed(()=>({scene:'Cena',interface:'Interface',player:'Jogador',scripts:'Scripts',controls:'Controles',settings:'Configurações'}[activeSection.value]??'Cena'))
+const workspaceDescription=computed(()=>({scene:'Organize os objetos e componentes do mundo principal.',interface:'Crie e organize as telas da interface do seu jogo.',player:'Configure o personagem, seus movimentos e variáveis.',scripts:'Organize eventos, regras e pacotes de comportamento.',controls:'Consulte e configure os controles do jogador.',settings:'Ajuste as preferências gerais do editor.'}[activeSection.value]??''))
 
 function updateProjectName(value:string){projectName.value=value;markDirty()}
 function selectSceneObject(id:string,additive:boolean){selectItem(id,additive);inspectorTab.value='scene'}
