@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="496 349 448 448" width="448" height="448" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">Símbolo Prometeu Engine</title>
+  <g fill="none" stroke="#F2EDE4" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M671.8,384.0 L680.6,349.4 L759.4,349.4 L768.2,384.0 L819.6,405.3 L850.2,387.1 L905.9,442.8 L887.7,473.4 L909.0,524.8 L943.6,533.6 L943.6,612.4 L909.0,621.2 L887.7,672.6 L905.9,703.2 L850.2,758.9 L819.6,740.7 L768.2,762.0 L759.4,796.6 L680.6,796.6 L671.8,762.0 L620.4,740.7 L589.8,758.9 L534.1,703.2 L552.3,672.6 L531.0,621.2 L496.4,612.4 L496.4,533.6 L531.0,524.8 L552.3,473.4 L534.1,442.8 L589.8,387.1 L620.4,405.3 Z"/>
+    <path d="M720,418 L630.2,577.5 A103,103 0 1 0 809.8,577.5 Z"/>
+    <path d="M720,577 L685.5,630.9 A41,41 0 1 0 754.5,630.9 Z" fill="#E8552B" stroke="#E8552B" stroke-width="1" stroke-linejoin="round"/>
+  </g>
+</svg>

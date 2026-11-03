@@ -9,14 +9,10 @@ defineEmits<{
 <template>
   <header class="topbar">
     <div class="topbar-brand">
-      <div class="brand-emblem" aria-hidden="true">
-        <svg viewBox="0 0 48 48" fill="none">
-          <path d="M24 3.5 29.2 7l6.1-.8 3 5.4 5.8 2.3-.2 6.2 3.1 5.3-3.5 5.1.8 6.1-5.4 3-2.3 5.8-6.2-.2-5.3 3.1-5.1-3.5-6.1.8-3-5.4-5.8-2.3.2-6.2-3.1-5.3 3.5-5.1-.8-6.1 5.4-3 2.3-5.8 6.2.2L24 3.5Z" stroke="currentColor" stroke-width="1.15"/>
-          <path d="M24 12.5c-1.8 5.1-7.2 8.1-7.2 14.1a7.2 7.2 0 1 0 14.4 0c0-6-5.4-9-7.2-14.1Z" stroke="currentColor" stroke-width="1.3"/>
-          <path d="M24 23.4c-1.2 2.1-3.1 3.4-3.1 5.7a3.1 3.1 0 1 0 6.2 0c0-2.3-1.9-3.6-3.1-5.7Z" fill="#F15A24"/>
-        </svg>
-      </div>
-      <div class="brand-wordmark"><strong>PROMETHEUS</strong><span>ENGINE <small>v0.1.0</small></span></div>
+      <picture class="brand-logo-picture">
+        <source media="(max-width:700px)" srcset="/logo-prometeu-mark.svg" />
+        <img class="brand-logo" src="/logo-prometeu-header.svg" alt="Prometeu Engine" draggable="false" />
+      </picture>
     </div>
     <div class="topbar-project">
       <details class="file-menu">

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 194 48" width="194" height="48" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">Prometeu Engine</title>
+  <g transform="matrix(0.097 0 0 0.097 -48.112 -31.853)" fill="none" stroke="#F2EDE4" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M671.8,384.0 L680.6,349.4 L759.4,349.4 L768.2,384.0 L819.6,405.3 L850.2,387.1 L905.9,442.8 L887.7,473.4 L909.0,524.8 L943.6,533.6 L943.6,612.4 L909.0,621.2 L887.7,672.6 L905.9,703.2 L850.2,758.9 L819.6,740.7 L768.2,762.0 L759.4,796.6 L680.6,796.6 L671.8,762.0 L620.4,740.7 L589.8,758.9 L534.1,703.2 L552.3,672.6 L531.0,621.2 L496.4,612.4 L496.4,533.6 L531.0,524.8 L552.3,473.4 L534.1,442.8 L589.8,387.1 L620.4,405.3 Z"/>
+    <path d="M720,418 L630.2,577.5 A103,103 0 1 0 809.8,577.5 Z"/>
+    <path d="M720,577 L685.5,630.9 A41,41 0 1 0 754.5,630.9 Z" fill="#E8552B" stroke="#E8552B" stroke-width="1"/>
+  </g>
+  <g fill="none" stroke="#F2EDE4" stroke-width="4" stroke-linecap="butt" stroke-linejoin="miter" transform="matrix(0.205 0 0 0.205 -25.9250 -183.6700)">
+    <path d="M385,986 V934 H397 A15,15 0 0 1 397,964 H385"/>
+    <path d="M469,986 V934 H481 A15,15 0 0 1 481,964 H469 M481,964 L498,986"/>
+    <circle cx="578.5" cy="960" r="26"/>
+    <path d="M660,986 L665,934 L686,976 L707,934 L712,986"/>
+    <path d="M799,934 H771 V986 H799 M771,960 H796"/>
+    <path d="M850,934 H884 M867,934 V986"/>
+    <path d="M966,934 H938 V986 H966 M938,960 H963"/>
+    <path d="M1025,934 V970 A16,16 0 0 0 1057,970 V934"/>
+  </g>
+  <g fill="none" stroke="#E8552B" stroke-width="3.5" stroke-linecap="butt" stroke-linejoin="miter" transform="matrix(0.205 0 0 0.205 -25.9250 -183.6700)">
+    <path d="M591,1068 H577 V1092 H591 M577,1080 H589"/>
+    <path d="M630,1092 V1068 L648,1092 V1068"/>
+    <path d="M709,1072.5 A12.5,12.5 0 1 0 711.5,1080 H700"/>
+    <path d="M749,1068 V1092"/>
+    <path d="M792,1092 V1068 L810,1092 V1068"/>
+    <path d="M866,1068 H852 V1092 H866 M852,1080 H864"/>
+  </g>
+</svg>

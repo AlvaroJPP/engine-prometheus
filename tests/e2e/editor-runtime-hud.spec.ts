@@ -20,6 +20,22 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.getByRole('button', { name: 'Jogar' })).toBeVisible()
   })
 
+  test('exibe a nova logo Prometeu em desktop e o símbolo em telas estreitas', async ({ page }) => {
+    const logo = page.locator('.brand-logo-picture img')
+    await expect(logo).toHaveAttribute('alt', 'Prometeu Engine')
+    await page.waitForFunction(() => {
+      const image = document.querySelector<HTMLImageElement>('.brand-logo-picture img')
+      return Boolean(image?.complete && image.naturalWidth > 0 && image.currentSrc.endsWith('logo-prometeu-header.svg'))
+    })
+    expect(await logo.evaluate(image => image.naturalWidth)).toBeGreaterThan(0)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.waitForFunction(() => {
+      const image = document.querySelector<HTMLImageElement>('.brand-logo-picture img')
+      return Boolean(image?.complete && image.naturalWidth > 0 && image.currentSrc.endsWith('logo-prometeu-mark.svg'))
+    })
+  })
+
   test('adiciona, seleciona e inspeciona um cubo', async ({ page }) => {
     const before = await page.locator('.tree-object').count()
     await page.getByRole('button', { name: 'Adicionar cubo' }).first().click()
