@@ -122,7 +122,7 @@ test.describe('Editor Prometheus — nova disposição', () => {
 
     await page.getByRole('tab', { name: 'Ambiente' }).click()
     await expect(page.getByText('Horário e ciclo dia/noite')).toBeVisible()
-    await expect(page.getByRole('switch', { name: 'Névoa ativada' })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Névoa atmosférica' })).toBeVisible()
 
     await page.getByRole('tab', { name: 'Render' }).click()
     await expect(page.getByText('Resolução dinâmica')).toBeVisible()
