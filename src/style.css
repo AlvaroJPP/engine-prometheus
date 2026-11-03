@@ -385,3 +385,68 @@
     object-position:center;
   }
 }
+
+
+/* SVG sprite icons are shared across the entire editor. */
+.ui-icon { display:inline-block; flex:0 0 auto; vertical-align:middle; overflow:visible; }
+.topbar .ui-icon { color:currentColor; }
+.file-menu summary { display:flex; align-items:center; }
+.global-search>.ui-icon { flex:0 0 auto; }
+.rail-icon { display:grid; place-items:center; }
+.mode-button .ui-icon { flex:0 0 auto; }
+.viewport-commandbar .ui-icon { flex:0 0 auto; }
+.viewport-tool-dock .ui-icon { display:block; }
+.inspector-section .section-diamond { display:inline-flex; align-items:center; }
+.day-range b { display:inline-flex; align-items:center; justify-content:center; }
+
+.hierarchy-search-tools { display:flex; align-items:center; gap:7px; padding:9px 10px 8px; }
+.hierarchy-search-tools .hierarchy-search { flex:1; min-width:0; height:38px; min-height:38px; margin:0; padding-inline:9px; }
+.hierarchy-new-folder {
+  display:grid; width:36px; height:36px; flex:0 0 36px; place-items:center;
+  border:1px solid #6b3a22; border-radius:8px; background:#2e1d17; color:#ff864f;
+}
+.hierarchy-new-folder:hover { border-color:#a9542c; background:#41241a; }
+.tree-root {
+  display:flex; width:100%; min-width:0; height:32px; align-items:center; gap:7px; padding:0 8px;
+  border:1px solid transparent; border-radius:7px; background:#3a2119; color:#ededf0; text-align:left; cursor:pointer;
+}
+.tree-root strong { flex:1; min-width:0; overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.tree-root small,.tree-folder-count { color:#a7a7af; font:9px var(--mono); }
+.tree-root .tree-folder { color:#f3ad37; }
+.tree-root.drop-target,.tree-folder-row.drop-target { border-color:#f15a24; background:#4b2a1d; }
+.tree-root-drop { margin:8px 4px 0; padding:7px 6px; border:1px dashed #414149; border-radius:6px; color:#72727b; font-size:9px; text-align:center; }
+.tree-root-drop.drop-target { border-color:#f15a24; background:#302018; color:#ff9462; }
+.tree-folder-row {
+  display:flex; width:100%; min-width:0; height:30px; align-items:center; gap:6px; padding-right:5px;
+  border:1px solid transparent; border-radius:6px; background:transparent; color:#dedee3; font-size:11px; text-align:left; cursor:pointer;
+}
+.tree-folder-row:hover { background:#202024; }
+.tree-folder-row.drag-source { opacity:.4; }
+.tree-folder-row.drop-target { border-color:#f15a24; background:#3b251e; }
+.tree-folder-row .tree-chevron { display:grid; width:11px; flex:0 0 11px; place-items:center; color:#c7c7cf; }
+.tree-folder-row .tree-chevron.collapsed { transform:rotate(-90deg); }
+.tree-folder-row .tree-folder { display:grid; width:16px; flex:0 0 16px; place-items:center; color:#f3ad37; }
+.tree-folder-name { flex:1; min-width:0; overflow:hidden; color:#e0e0e5; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.tree-folder-count { min-width:10px; text-align:right; }
+.tree-folder-rename { width:78px; min-width:0; height:22px; padding:0 4px; border:1px solid #8f4d2d; border-radius:4px; background:#19191d; color:#fff; font-size:10px; }
+.tree-folder-actions { display:none; align-items:center; gap:1px; flex:0 0 auto; margin-left:2px; }
+.tree-folder-row:hover .tree-folder-actions,.tree-folder-row:focus-within .tree-folder-actions { display:flex; }
+.tree-folder-actions button { display:grid; width:19px; height:21px; place-items:center; padding:0; border:0; border-radius:4px; background:transparent; color:#a9a9b2; }
+.tree-folder-actions button:hover { background:#34343a; color:#ff9a6e; }
+.tree-object {
+  display:flex; width:100%; min-width:0; height:29px; align-items:center; gap:7px; padding-right:5px;
+  border:1px solid transparent; border-radius:6px; color:#d0d0d6; cursor:grab;
+}
+.tree-object:hover { background:#202024; }
+.tree-object:active { cursor:grabbing; }
+.tree-object.selected { border-color:#73371f; background:#3b241d; color:#fff; }
+.tree-object.multi { background:#29211e; }
+.tree-object .object-type-icon { display:grid; width:15px; flex:0 0 15px; place-items:center; color:#bfc4cf; }
+.tree-object-name { flex:1; min-width:0; overflow:hidden; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.tree-object .tree-eye {
+  display:grid; width:20px; height:22px; flex:0 0 20px; place-items:center; padding:0;
+  border:0; border-radius:4px; background:transparent; color:#96969f;
+}
+.tree-object .tree-eye:hover { color:#fff; background:#34343a; }
+.hierarchy-scroll { padding-top:0; }
+.hierarchy-actions { margin-top:auto; }

@@ -9,6 +9,7 @@ import EditorTopBar from './components/EditorTopBar.vue'
 import EditorSideRail from './components/EditorSideRail.vue'
 import SceneHierarchyPanel from './components/SceneHierarchyPanel.vue'
 import EditorInspector from './components/EditorInspector.vue'
+import UiIcon from './components/UiIcon.vue'
 
 type RailSection='scene'|'interface'|'player'|'scripts'|'controls'|'settings'
 type InspectorTab='scene'|'player'|'sky'
@@ -20,9 +21,9 @@ const searchQuery=ref('')
 const theme=ref<'dark'|'light'>('dark')
 const workspaceFull=ref(false)
 const {
- projectName,dirty,status,fps,renderStats,objects,selectedId,groupSelection,tool,transform,cameraPreset,gridVisible,engineInstance,isPlayMode,
+ projectName,dirty,status,fps,renderStats,objects,sceneFolders,selectedId,groupSelection,tool,transform,cameraPreset,gridVisible,engineInstance,isPlayMode,
  setTool,setTransform,cycleCamera,addPrimitive,selectItem,toggleVisible,toggleGrid,toggleTerrain,regenerateTerrain,clearTerrain,removeSelected,
- markDirty,newProject,openProject,saveProject,enterPlayMode,exitPlayMode,undo,redo,copySelectedObject,pasteObject,groupSelectedObjects,ungroupSelectedObjects,
+ markDirty,newProject,openProject,saveProject,enterPlayMode,exitPlayMode,undo,redo,copySelectedObject,pasteObject,groupSelectedObjects,ungroupSelectedObjects,createSceneFolder,renameSceneFolder,moveSceneObjectToFolder,moveSceneFolderToParent,deleteSceneFolder,
  addSpawnPlatform,addImportedModel,addClickableCubeExample,togglePerformanceMode,playerModelName,playerModelHeight,playerSettings,setPlayerSettings,timeOfDay,dayNightCycleEnabled,dayNightCycleSpeed,
  setSkyTexture,setTimeOfDay,setDayNightCycleEnabled,setDayNightCycleSpeed,skyTextureDataUrl,renderFogEnabled,renderFogDistanceScale,setRenderFogEnabled,
  setRenderFogDistanceScale,performanceMode,setPerformanceMode,renderFpsLimit,setRenderFpsLimit,renderDistance,renderAll,setRenderDistance,setRenderAll,
@@ -72,8 +73,9 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
   <EditorTopBar :project-name="projectName" :dirty="dirty" :is-running="isPlayMode" :search-query="searchQuery" :theme="theme"
    @new-project="newProject" @open-project="openProject" @save-project="saveProject()" @undo="undo" @redo="redo" @toggle-play="togglePlay" @update:search-query="searchQuery=$event" @toggle-theme="toggleAppearance"/>
   <EditorSideRail :active-section="activeSection" @navigate="activeSection=$event"/>
-  <SceneHierarchyPanel v-if="activeSection==='scene'" :objects="objects" :selected-id="selectedId" :group-selection="groupSelection" :project-name="projectName" :search-query="searchQuery"
-   @select="selectSceneObject" @toggle-visibility="toggleVisible" @add-object="addPrimitive" @add-spawn="addSpawnPlatform" @group="groupSelectedObjects" @ungroup="ungroupSelectedObjects" @copy="copySelectedObject" @paste="pasteObject" @remove="removeSelected" @import-model="importModel" @update:search-query="searchQuery=$event"/>
+  <SceneHierarchyPanel v-if="activeSection==='scene'" :objects="objects" :folders="sceneFolders" :selected-id="selectedId" :group-selection="groupSelection" :project-name="projectName" :search-query="searchQuery"
+   @select="selectSceneObject" @toggle-visibility="toggleVisible" @add-object="addPrimitive" @add-spawn="addSpawnPlatform" @group="groupSelectedObjects" @ungroup="ungroupSelectedObjects" @copy="copySelectedObject" @paste="pasteObject" @remove="removeSelected" @import-model="importModel" @update:search-query="searchQuery=$event"
+   @create-folder="createSceneFolder" @rename-folder="renameSceneFolder" @delete-folder="deleteSceneFolder" @move-object="moveSceneObjectToFolder" @move-folder="moveSceneFolderToParent"/>
   <section v-else class="workspace-placeholder">
    <span class="eyebrow">WORKSPACE</span><h2>{{workspaceTitle}}</h2><p>{{workspaceDescription}}</p>
    <div class="workspace-count" v-if="activeSection==='player'">{{playerModelName}} · {{playerSettings.walkSpeed.toFixed(1)}} u/s</div>
@@ -85,14 +87,14 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
 
   <section class="viewport-panel" aria-label="Viewport 3D" data-testid="viewport-panel">
    <div class="viewport-commandbar">
-    <details class="add-menu"><summary class="command-button primary"><span class="plus">＋</span>Adicionar<span class="command-caret">⌄</span></summary>
-     <div class="file-menu-popover"><button type="button" @click="addPrimitive('cube')"><span>◆</span>Cubo</button><button type="button" @click="addPrimitive('platform')"><span>▰</span>Plataforma</button><button type="button" @click="addSpawnPlatform"><span>▱</span>Plataforma de spawn</button></div>
+    <details class="add-menu"><summary class="command-button primary"><UiIcon name="plus" :size="17" />Adicionar<UiIcon name="chevron-down" :size="13" /></summary>
+     <div class="file-menu-popover"><button type="button" @click="addPrimitive('cube')"><UiIcon name="square" :size="14" />Cubo</button><button type="button" @click="addPrimitive('platform')"><UiIcon name="terreno" :size="14" />Plataforma</button><button type="button" @click="addSpawnPlatform"><UiIcon name="player" :size="14" />Plataforma de spawn</button></div>
     </details>
-    <button class="command-button import-button" type="button" aria-label="Importar modelo 3D" @click="importModel"><span>⬡</span>Importar 3D</button>
+    <button class="command-button import-button" type="button" aria-label="Importar modelo 3D" @click="importModel"><UiIcon name="box" :size="15" />Importar 3D</button>
     <input ref="modelInput" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden @change="onModelFileSelected"/>
     <div class="command-spacer"></div>
-    <button class="command-button viewport-preset" type="button" title="Alternar câmera" @click="cycleCamera"><span>◉</span>{{cameraLabel}} <b>⌄</b></button>
-    <details class="render-menu"><summary class="command-button render-control"><span class="render-dot"></span>Render <b>⌄</b></summary>
+    <button class="command-button viewport-preset" type="button" title="Alternar câmera" @click="cycleCamera"><UiIcon name="camera" :size="15" />{{cameraLabel}} <UiIcon name="chevron-down" :size="13" /></button>
+    <details class="render-menu"><summary class="command-button render-control"><span class="render-dot"></span>Render <UiIcon name="chevron-down" :size="13" /></summary>
      <div class="render-popover">
       <label>Qualidade<select :value="performanceMode" @change="setPerformanceMode(($event.target as HTMLSelectElement).value as 'quality'|'balanced'|'economy'|'auto')"><option value="quality">Alta</option><option value="balanced">Equilibrada</option><option value="economy">Econômica</option><option value="auto">Automática</option></select></label>
       <label>FPS alvo<select :value="renderFpsLimit" @change="setRenderFpsLimit(Number(($event.target as HTMLSelectElement).value))"><option value="0">Sem limite</option><option value="30">30</option><option value="45">45</option><option value="60">60</option><option value="90">90</option><option value="120">120</option></select></label>
@@ -101,7 +103,7 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
       <label class="popover-toggle"><span>Linhas dos polígonos</span><input type="checkbox" :checked="polygonLinesVisible" @change="togglePolygonLines"/></label>
      </div>
     </details>
-    <button class="command-button viewport-fullscreen" type="button" aria-label="Expandir viewport" title="Expandir viewport" @click="toggleViewportFull">⛶</button>
+    <button class="command-button viewport-fullscreen" type="button" aria-label="Expandir viewport" title="Expandir viewport" @click="toggleViewportFull"><UiIcon name="maximize" :size="17" /></button>
    </div>
    <div class="viewport-stage">
     <canvas ref="canvas" class="engine-canvas" data-testid="engine-canvas" aria-label="Área de renderização 3D"></canvas>
@@ -118,56 +120,56 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
     >
      <button class="viewport-tool-button" data-testid="tool-select" type="button"
       :class="{active:tool==='select'&&transform==='move'}" :aria-pressed="tool==='select'&&transform==='move'"
-      aria-label="Selecionar" title="Selecionar (Q)" @click="setTool('select');setTransform('move')">↖</button>
+      aria-label="Selecionar" title="Selecionar (Q)" @click="setTool('select');setTransform('move')"><UiIcon name="select" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-build" type="button"
       :class="{active:tool==='build'}" :aria-pressed="tool==='build'"
-      aria-label="Construir" title="Construir: clique no mundo para posicionar o objeto atual" @click="setTool('build')">＋</button>
+      aria-label="Construir" title="Construir: clique no mundo para posicionar o objeto atual" @click="setTool('build')"><UiIcon name="plus" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-terrain" type="button"
       :class="{active:tool==='terrain'}" :aria-pressed="tool==='terrain'"
-      aria-label="Terreno" title="Esculpir terreno; segure Shift para rebaixar" @click="setTool('terrain')">⌁</button>
+      aria-label="Terreno" title="Esculpir terreno; segure Shift para rebaixar" @click="setTool('terrain')"><UiIcon name="terreno" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-grass" type="button"
       :class="{active:tool==='grass'}" :aria-pressed="tool==='grass'"
-      aria-label="Pintar grama" title="Pintar grama; segure Shift para apagar grama pintada" @click="setTool('grass')">♧</button>
+      aria-label="Pintar grama" title="Pintar grama; segure Shift para apagar grama pintada" @click="setTool('grass')"><UiIcon name="floresta" :size="17" /></button>
 
      <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
 
      <button class="viewport-tool-button" data-testid="tool-move" type="button"
       :class="{active:tool==='select'&&transform==='move'}" :aria-pressed="tool==='select'&&transform==='move'"
-      aria-label="Mover" title="Mover (W): transforma o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('move')">✥</button>
+      aria-label="Mover" title="Mover (W): transforma o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('move')"><UiIcon name="move" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-rotate" type="button"
       :class="{active:tool==='select'&&transform==='rotate'}" :aria-pressed="tool==='select'&&transform==='rotate'"
-      aria-label="Rotacionar" title="Rotacionar (E): gira o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('rotate')">⟳</button>
+      aria-label="Rotacionar" title="Rotacionar (E): gira o objeto pelos eixos X, Y e Z" @click="setTool('select');setTransform('rotate')"><UiIcon name="rotate" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-scale" type="button"
       :class="{active:tool==='select'&&transform==='scale'}" :aria-pressed="tool==='select'&&transform==='scale'"
-      aria-label="Escalar" title="Escalar (R): altera a escala pelos eixos X, Y e Z" @click="setTool('select');setTransform('scale')">⤢</button>
+      aria-label="Escalar" title="Escalar (R): altera a escala pelos eixos X, Y e Z" @click="setTool('select');setTransform('scale')"><UiIcon name="scale" :size="17" /></button>
 
      <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
 
      <button class="viewport-tool-button" data-testid="tool-import-model" type="button"
-      aria-label="Importar modelo 3D" title="Importar um modelo 3D .glb ou .gltf" @click="importModel">▧</button>
+      aria-label="Importar modelo 3D" title="Importar um modelo 3D .glb ou .gltf" @click="importModel"><UiIcon name="box" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-visual-script" type="button"
       :class="{active:activeSection==='scripts'}" :aria-pressed="activeSection==='scripts'"
-      aria-label="Visual Script" title="Abrir a área de Scripts e eventos" @click="activeSection='scripts'">⌘</button>
+      aria-label="Visual Script" title="Abrir a área de Scripts e eventos" @click="activeSection='scripts'"><UiIcon name="route" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-add-cube" type="button"
-      aria-label="Adicionar cubo" title="Adicionar um cubo à cena" @click="addPrimitive('cube')">◇</button>
+      aria-label="Adicionar cubo" title="Adicionar um cubo à cena" @click="addPrimitive('cube')"><UiIcon name="square" :size="16" /></button>
      <button class="viewport-tool-button" data-testid="tool-add-platform" type="button"
-      aria-label="Adicionar plataforma" title="Adicionar uma plataforma retangular à cena" @click="addPrimitive('platform')">▱</button>
+      aria-label="Adicionar plataforma" title="Adicionar uma plataforma retangular à cena" @click="addPrimitive('platform')"><UiIcon name="terreno" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-add-spawn" type="button"
-      aria-label="Adicionar spawn do jogador" title="Criar o ponto inicial do jogador" @click="addSpawnPlatform">◎</button>
+      aria-label="Adicionar spawn do jogador" title="Criar o ponto inicial do jogador" @click="addSpawnPlatform"><UiIcon name="player" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-add-clickable" type="button"
-      aria-label="Criar exemplo clicável" title="Criar um objeto de exemplo com evento de clique" @click="addClickableCubeExample">▣</button>
+      aria-label="Criar exemplo clicável" title="Criar um objeto de exemplo com evento de clique" @click="addClickableCubeExample"><UiIcon name="diamond" :size="17" /></button>
 
      <span class="viewport-tool-separator" role="separator" aria-orientation="horizontal"></span>
 
      <button class="viewport-tool-button" data-testid="tool-grid" type="button"
       :class="{active:gridVisible}" :aria-pressed="gridVisible"
-      aria-label="Alternar grade" title="Mostrar ou ocultar a grade do chão" @click="toggleGrid">▦</button>
+      aria-label="Alternar grade" title="Mostrar ou ocultar a grade do chão" @click="toggleGrid"><UiIcon name="layers" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-wireframe" type="button"
       :class="{active:polygonLinesVisible}" :aria-pressed="polygonLinesVisible"
-      aria-label="Alternar linhas dos polígonos" title="Mostrar ou ocultar as linhas dos polígonos" @click="togglePolygonLines">⬡</button>
+      aria-label="Alternar linhas dos polígonos" title="Mostrar ou ocultar as linhas dos polígonos" @click="togglePolygonLines"><UiIcon name="box" :size="17" /></button>
      <button class="viewport-tool-button" data-testid="tool-performance" type="button"
       :class="{active:performanceMode!=='quality'}" :aria-pressed="performanceMode!=='quality'"
-      aria-label="Alternar modo de desempenho" :title="'Perfil atual: '+performanceMode+'. Clique para alternar.'" @click="togglePerformanceMode">ϟ</button>
+      aria-label="Alternar modo de desempenho" :title="'Perfil atual: '+performanceMode+'. Clique para alternar.'" @click="togglePerformanceMode"><UiIcon name="lightbulb" :size="17" /></button>
     </div>
     <div class="viewport-coordinate"><span><b class="axis-x">X</b> {{selectedCoordinates.x.toFixed(1)}}</span><span><b class="axis-y">Y</b> {{selectedCoordinates.y.toFixed(1)}}</span><span><b class="axis-z">Z</b> {{selectedCoordinates.z.toFixed(1)}}</span></div>
     <div class="viewport-stats"><i class="stats-live"></i><strong>{{renderFps}} FPS</strong><span>{{renderStats.cpuRenderMs.toFixed(1)}} ms</span><span>{{renderStats.drawCalls}} draw calls</span></div>
