@@ -20,6 +20,7 @@ const inspectorTab=ref<InspectorTab>('scene')
 const searchQuery=ref('')
 const theme=ref<'dark'|'light'>('dark')
 const workspaceFull=ref(false)
+const hierarchyCollapsed=ref(false)
 const {
  projectName,dirty,status,fps,renderStats,objects,sceneFolders,selectedId,groupSelection,tool,transform,cameraPreset,gridVisible,engineInstance,isPlayMode,
  setTool,setTransform,cycleCamera,addPrimitive,selectItem,toggleVisible,toggleGrid,toggleTerrain,regenerateTerrain,clearTerrain,removeSelected,
@@ -69,10 +70,10 @@ function toggleAppearance(){theme.value=theme.value==='dark'?'light':'dark'}
 function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
 </script>
 <template>
- <main class="editor-shell" :class="{'theme-light':theme==='light','viewport-expanded':workspaceFull,'is-running':isPlayMode}" data-testid="editor-shell">
+ <main class="editor-shell" :class="{'theme-light':theme==='light','viewport-expanded':workspaceFull,'hierarchy-collapsed':hierarchyCollapsed,'is-running':isPlayMode}" data-testid="editor-shell">
   <EditorTopBar :project-name="projectName" :dirty="dirty" :is-running="isPlayMode" :search-query="searchQuery" :theme="theme"
    @new-project="newProject" @open-project="openProject" @save-project="saveProject()" @undo="undo" @redo="redo" @toggle-play="togglePlay" @update:search-query="searchQuery=$event" @toggle-theme="toggleAppearance"/>
-  <EditorSideRail :active-section="activeSection" @navigate="activeSection=$event"/>
+  <EditorSideRail :active-section="activeSection" :hierarchy-collapsed="hierarchyCollapsed" @navigate="activeSection=$event" @toggle-hierarchy="hierarchyCollapsed=!hierarchyCollapsed"/>
   <SceneHierarchyPanel v-if="activeSection==='scene'" :objects="objects" :folders="sceneFolders" :selected-id="selectedId" :group-selection="groupSelection" :project-name="projectName" :search-query="searchQuery"
    @select="selectSceneObject" @toggle-visibility="toggleVisible" @add-object="addPrimitive" @add-spawn="addSpawnPlatform" @group="groupSelectedObjects" @ungroup="ungroupSelectedObjects" @copy="copySelectedObject" @paste="pasteObject" @remove="removeSelected" @import-model="importModel" @update:search-query="searchQuery=$event"
    @create-folder="createSceneFolder" @rename-folder="renameSceneFolder" @delete-folder="deleteSceneFolder" @move-object="moveSceneObjectToFolder" @move-folder="moveSceneFolderToParent"/>

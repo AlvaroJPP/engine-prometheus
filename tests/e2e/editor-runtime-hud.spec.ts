@@ -20,6 +20,27 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.getByRole('button', { name: 'Jogar' })).toBeVisible()
   })
 
+
+  test('recolhe o painel esquerdo para a barra lateral e expande a viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    const hierarchy = page.locator('.hierarchy-panel')
+    const viewport = page.locator('.viewport-panel')
+    const before = await viewport.evaluate(element => element.getBoundingClientRect().width)
+
+    const collapseButton = page.getByRole('button', { name: 'Recolher painel esquerdo' })
+    await expect(collapseButton).toBeVisible()
+    await collapseButton.click()
+
+    await expect(hierarchy).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Expandir painel esquerdo' })).toBeVisible()
+    const after = await viewport.evaluate(element => element.getBoundingClientRect().width)
+    expect(after).toBeGreaterThan(before + 180)
+
+    await page.getByRole('button', { name: 'Expandir painel esquerdo' }).click()
+    await expect(hierarchy).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Recolher painel esquerdo' })).toBeVisible()
+  })
+
   test('exibe a nova logo Prometeu em desktop e o símbolo em telas estreitas', async ({ page }) => {
     const logo = page.locator('.brand-logo-picture img')
     await expect(logo).toHaveAttribute('alt', 'Prometeu Engine')
