@@ -96,7 +96,41 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.locator('.tree-object')).toHaveCount(before + 1)
     await page.locator('.tree-object').last().click()
     await expect(page.locator('.inspector-summary')).toBeVisible()
-    await expect(page.locator('.vector-grid')).toBeVisible()
+    await expect(page.locator('.inspector-axis-grid')).toBeVisible()
+  })
+
+  test('expõe controles reais de objeto, jogador, ambiente e renderização', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.getByRole('button', { name: 'Adicionar cubo' }).first().click()
+    await page.locator('.tree-object').last().click()
+
+    await expect(page.getByTestId('inspector-object-name')).toBeVisible()
+    await expect(page.getByTestId('inspector-object-folder')).toBeVisible()
+    await expect(page.getByTestId('inspector-object-color')).toBeVisible()
+    await expect(page.getByTestId('inspector-texture-preset')).toBeVisible()
+    await expect(page.getByTestId('inspector-collider-type')).toBeVisible()
+    await expect(page.getByTestId('inspector-object-mass')).toBeVisible()
+
+    const physicsGroup = page.locator('.inspector-group').filter({ hasText: 'Física e colisor' })
+    await physicsGroup.locator('summary').click()
+    await page.getByTestId('inspector-collider-type').selectOption('box')
+    await expect(page.getByTestId('inspector-collider-type')).toHaveValue('box')
+
+    await page.getByRole('tab', { name: 'Jogador' }).click()
+    await expect(page.getByText('Velocidade de caminhada')).toBeVisible()
+    await expect(page.getByText('Importar modelo GLB')).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Ambiente' }).click()
+    await expect(page.getByText('Horário e ciclo dia/noite')).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Névoa ativada' })).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Render' }).click()
+    await expect(page.getByText('Resolução dinâmica')).toBeVisible()
+    await page.getByRole('switch', { name: 'Resolução dinâmica' }).click()
+    await expect(page.getByLabel('FPS desejado')).toBeVisible()
+    await expect(page.getByLabel('Resolução mínima')).toBeVisible()
+    await expect(page.getByText('Grama e vegetação')).toBeVisible()
+    await expect(page.getByText('Oclusão da grama')).toBeVisible()
   })
 
   test('alterna entre modo de edição e modo de jogo', async ({ page }) => {
@@ -118,9 +152,14 @@ test.describe('Editor Prometheus — nova disposição', () => {
 
   test('mantém o inspetor direito rolável sem scrollbar visível', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
-    await page.locator('.inspector-tabs button').first().click()
+    await page.getByRole('button', { name: 'Adicionar cubo' }).first().click()
+    await page.locator('.tree-object').last().click()
+
     const inspector = page.locator('.inspector-panel .inspector-scroll')
     await expect(inspector).toBeVisible()
+    await inspector.locator('details.inspector-group').evaluateAll(nodes => {
+      nodes.forEach(node => { (node as HTMLDetailsElement).open = true })
+    })
 
     const initial = await inspector.evaluate(element => ({
       clientHeight: element.clientHeight,

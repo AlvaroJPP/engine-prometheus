@@ -329,7 +329,7 @@ function formatNumber(value: number, digits = 1) {
           <summary class="inspector-group-heading"><UiIcon name="box" :size="14" /> Física e colisor</summary>
           <label class="inspector-property">
             <span>Massa</span>
-            <input type="number" min="0" max="10000" step=".1" :value="selectedObject.mass" @change="setObjectNumber('mass', $event)" />
+            <input type="number" min="0" max="10000" step=".1" :value="selectedObject.mass" data-testid="inspector-object-mass" @change="setObjectNumber('mass', $event)" />
           </label>
           <label class="inspector-property">
             <span>Tipo de colisor</span>
