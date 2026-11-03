@@ -27,7 +27,8 @@ const {
  renderDynamicResolution,renderDynamicResolutionTargetFps,renderDynamicResolutionMinScale,
  grassVisible,grassUseDetailedModel,grassDensityPercent,grassRenderDistanceMode,grassRenderDistance,grassNearDetailDistance,grassMiddleDetailDistance,
  grassOcclusionEnabled,grassOcclusionIntervalMs,wallOcclusionQuality,grassWindPercent,
- playerModelName,playerModelCustom,playerModelHeight,playerSettings,setPlayerSettings,
+ playerModelName,playerModelCustom,playerModelHeight,playerSettings,setPlayerSettings,timeOfDay,dayNightCycleEnabled,dayNightCycleSpeed,
+ skyTextureDataUrl,setSkyTexture,setTimeOfDay,setDayNightCycleEnabled,setDayNightCycleSpeed,
  setTool,setTransform,cycleCamera,addPrimitive,selectItem,toggleVisible,toggleGrid,toggleTerrain,regenerateTerrain,clearTerrain,removeSelected,
  markDirty,newProject,openProject,saveProject,enterPlayMode,exitPlayMode,undo,redo,copySelectedObject,pasteObject,groupSelectedObjects,ungroupSelectedObjects,createSceneFolder,renameSceneFolder,moveSceneObjectToFolder,moveSceneFolderToParent,deleteSceneFolder,
  addSpawnPlatform,addImportedModel,addClickableCubeExample,togglePerformanceMode,setPerformanceMode,setRenderDistance,setRenderAll,setRenderResolutionScale,setRenderFpsLimit,
@@ -35,7 +36,7 @@ const {
  setGrassVisible,setGrassUseDetailedModel,setGrassDensityPercent,setGrassRenderDistance,setGrassDetailDistance,setGrassOcclusionEnabled,setGrassOcclusionInterval,setWallOcclusionQuality,setGrassWindPercent,
  setPlayerModelHeight,setPlayerModelFile,resetPlayerModel,
  onRename,onNumber,toggleObjectLock,toggleObjectWireframe,onColliderChange,onColliderVectorChange,colliderDebugVisible,toggleColliderDebug,onColor,onTexture,onTextureRepeat,onFaceTexture,colorHex,
- togglePolygonLines,polygonLinesVisible,terrain
+ togglePolygonLines,terrain
 }=useEditor(canvas)
 const selectedObject=computed<ObjectInfo|null>(()=>objects.value.find(o=>o.id===selectedId.value)??null)
 const engineReady=computed(()=>Boolean(engineInstance.value))
