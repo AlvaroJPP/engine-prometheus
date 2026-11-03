@@ -30,6 +30,7 @@ export interface ObjectInfo {
   locked: boolean
   wireframeVisible: boolean
   groupId: string | null
+  folderId: string | null
   color: number
   texturePreset: 'none' | 'grass' | 'stone' | 'brick' | 'wood' | 'sand' | 'metal'
   textureRepeat: number
@@ -61,6 +62,7 @@ export interface ObjectPatch {
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
+  folderId?: string | null
   mass?: number
   colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize?: [number, number, number]

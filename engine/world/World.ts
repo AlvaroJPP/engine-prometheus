@@ -448,6 +448,7 @@ export class World {
       })
     }
     if (patch.groupId !== undefined) m.userData.groupId = patch.groupId
+    if (patch.folderId !== undefined) m.userData.folderId = patch.folderId
     if (patch.mass !== undefined && Number.isFinite(patch.mass)) m.userData.mass = Math.max(0, patch.mass)
     if (patch.colliderType !== undefined && ['auto', 'box', 'sphere', 'capsule', 'mesh', 'none'].includes(patch.colliderType)) m.userData.colliderType = patch.colliderType
     if (patch.colliderSize !== undefined && patch.colliderSize.length === 3 && patch.colliderSize.every(Number.isFinite)) m.userData.colliderSize = patch.colliderSize.map(value => clamp(value, 0.05, 100))
@@ -627,6 +628,7 @@ export class World {
       locked: o.mesh.userData.locked === true,
       wireframeVisible: o.mesh.userData.wireframeVisible !== false,
       groupId: typeof o.mesh.userData.groupId === 'string' ? o.mesh.userData.groupId : null,
+      folderId: typeof o.mesh.userData.folderId === 'string' ? o.mesh.userData.folderId : null,
       mass: typeof o.mesh.userData.mass === 'number' && Number.isFinite(o.mesh.userData.mass) ? Math.max(0, o.mesh.userData.mass) : 1,
       colliderType: o.mesh.userData.colliderType === 'box' || o.mesh.userData.colliderType === 'sphere' || o.mesh.userData.colliderType === 'capsule' || o.mesh.userData.colliderType === 'mesh' || o.mesh.userData.colliderType === 'none' ? o.mesh.userData.colliderType : 'auto',
       colliderSize: Array.isArray(o.mesh.userData.colliderSize) && o.mesh.userData.colliderSize.length === 3 ? [...o.mesh.userData.colliderSize] as [number, number, number] : [baseColliderSize.x, baseColliderSize.y, baseColliderSize.z],

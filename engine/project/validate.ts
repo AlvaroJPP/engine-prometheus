@@ -7,6 +7,7 @@ import type {
   ProjectFile,
   SceneFile,
   SceneObjectData,
+  SceneFolderData,
   TerrainData,
   Vec3,
 } from './format'
@@ -60,6 +61,47 @@ function parseControlBindings(value: unknown): Partial<ModelControlBindings> | u
     if (typeof candidate === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate)) result[key] = candidate
   }
   return Object.keys(result).length ? result : undefined
+}
+
+
+function parseSceneFolders(value: unknown, label: string): SceneFolderData[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) fail(`${label}: "folders" deve ser uma lista.`)
+  if (value.length > 1000) fail(`${label}: a hierarquia excede o limite de 1000 pastas.`)
+
+  const folders: SceneFolderData[] = []
+  const ids = new Set<string>()
+  for (const candidate of value) {
+    if (!isRecord(candidate)) fail(`${label}: pasta inválida na hierarquia.`)
+    const id = reqString(candidate, 'id', label)
+    if (ids.has(id)) fail(`${label}: id de pasta repetido "${id}".`)
+    ids.add(id)
+    const name = candidate.name
+    if (typeof name !== 'string' || name.trim() === '' || name.trim().length > 64) {
+      fail(`${label}: nome de pasta inválido em "${id}".`)
+    }
+    const parentId = candidate.parentId === undefined || candidate.parentId === null
+      ? null
+      : typeof candidate.parentId === 'string' && candidate.parentId.trim() !== ''
+        ? candidate.parentId
+        : fail(`${label}: pasta pai inválida em "${id}".`)
+    folders.push({ id, name: name.trim(), parentId })
+  }
+
+  const byId = new Map(folders.map(folder => [folder.id, folder]))
+  for (const folder of folders) {
+    if (folder.parentId !== null && !byId.has(folder.parentId)) {
+      fail(`${label}: pasta pai inexistente em "${folder.id}".`)
+    }
+    const visited = new Set<string>([folder.id])
+    let parentId = folder.parentId
+    while (parentId !== null) {
+      if (visited.has(parentId)) fail(`${label}: ciclo detectado na hierarquia de pastas.`)
+      visited.add(parentId)
+      parentId = byId.get(parentId)?.parentId ?? null
+    }
+  }
+  return folders
 }
 
 function parseJson(text: string, label: string): Record<string, unknown> {
@@ -230,6 +272,8 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
   const obj = value
   const version = checkVersion(obj, label)
   if (!Array.isArray(obj.objects)) fail(`${label}: "objects" deve ser uma lista.`)
+  const folders = parseSceneFolders(obj.folders, label)
+  const folderIds = new Set(folders.map(folder => folder.id))
 
   const seen = new Set<string>()
   const objects: SceneObjectData[] = []
@@ -268,6 +312,11 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       locked: item.locked === true,
       wireframeVisible: item.wireframeVisible !== false,
       groupId: typeof item.groupId === 'string' && item.groupId.trim() !== '' ? item.groupId : null,
+      folderId: item.folderId === undefined || item.folderId === null
+        ? null
+        : typeof item.folderId === 'string' && folderIds.has(item.folderId)
+          ? item.folderId
+          : fail(`${label}: pasta inexistente para o objeto "${id}".`),
       mass: isNum(item.mass) ? Math.max(0, Math.min(1000000, item.mass)) : 1,
       colliderType: item.colliderType === 'box' || item.colliderType === 'sphere' || item.colliderType === 'capsule' || item.colliderType === 'none' || item.colliderType === 'auto' || item.colliderType === 'mesh' ? item.colliderType : undefined,
       colliderSize: item.colliderSize === undefined ? undefined : vec3(item.colliderSize, null, `${label} (${id}.colliderSize)`),
@@ -318,6 +367,7 @@ export function parseSceneObject(value: unknown, label = 'cena'): SceneFile {
       cycleSpeed: isNum(environment.cycleSpeed) ? Math.min(4, Math.max(0.01, environment.cycleSpeed)) : 0.1,
     } : undefined,
     playerModel,
+    folders,
     objects,
   }
 }

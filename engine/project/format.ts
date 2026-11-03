@@ -13,6 +13,12 @@ export type TextureFace = 'right' | 'left' | 'top' | 'bottom' | 'front' | 'back'
 export interface FaceTextureData { imageDataUrl: string; pixelWidth: number; pixelHeight: number }
 export type FaceTextureMap = Partial<Record<TextureFace, FaceTextureData>>
 
+export interface SceneFolderData {
+  id: string
+  name: string
+  parentId: string | null
+}
+
 export interface SceneObjectData {
   id: string
   name: string
@@ -29,6 +35,8 @@ export interface SceneObjectData {
   locked?: boolean
   wireframeVisible?: boolean
   groupId?: string | null
+  /** Pasta editável da hierarquia; null representa a raiz da cena. */
+  folderId?: string | null
   mass?: number
   colliderType?: 'auto' | 'box' | 'sphere' | 'capsule' | 'mesh' | 'none'
   colliderSize?: Vec3
@@ -95,6 +103,8 @@ export interface SceneFile {
   environment?: EnvironmentData
   /** Visual personalizado do jogador, opcional para manter projetos antigos compatíveis. */
   playerModel?: PlayerModelData
+  /** Pastas manuais da hierarquia da cena. Opcional em projetos antigos. */
+  folders?: SceneFolderData[]
   objects: SceneObjectData[]
 }
 

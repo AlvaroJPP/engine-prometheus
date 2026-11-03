@@ -26,7 +26,7 @@ export type { UIScreenDefinition, UIElementDefinition, UIElementKind, UIElementA
 export { TERRAIN_ID } from './world/map/TerrainMesh'
 export { LineOfSightSystem } from './world/LineOfSightSystem'
 export type { LineOfSightOptions, LineOfSightResult } from './world/LineOfSightSystem'
-export type { ProjectBundle, ProjectFile, SceneFile, SceneObjectData, ObjectType, CameraPreset, TextureFace, FaceTextureData, FaceTextureMap } from './project/format'
+export type { ProjectBundle, ProjectFile, SceneFile, SceneObjectData, SceneFolderData, ObjectType, CameraPreset, TextureFace, FaceTextureData, FaceTextureMap } from './project/format'
 export type { ObjectInfo, ObjectPatch } from './model/object/GameObject'
 export { getEntity, isEntityRoot, markEntity } from './model/entity/Entity'
 export type { Entity, EntityMetadata } from './model/entity/Entity'

@@ -31,6 +31,7 @@ export function buildBundle(
       locked: m.userData.locked === true,
       wireframeVisible: m.userData.wireframeVisible !== false,
       groupId: typeof m.userData.groupId === 'string' ? m.userData.groupId : null,
+      folderId: typeof m.userData.folderId === 'string' ? m.userData.folderId : null,
       mass: typeof m.userData.mass === 'number' && Number.isFinite(m.userData.mass) ? Math.max(0, m.userData.mass) : 1,
       colliderType: m.userData.colliderType === 'box' || m.userData.colliderType === 'sphere' || m.userData.colliderType === 'capsule' || m.userData.colliderType === 'mesh' || m.userData.colliderType === 'none' ? m.userData.colliderType : 'auto',
       colliderSize: Array.isArray(m.userData.colliderSize) ? [...m.userData.colliderSize] as [number, number, number] : undefined,
@@ -80,6 +81,7 @@ export function buildBundle(
         camera,
         terrain,
         environment: { timeOfDay: 12, cycleEnabled: false, cycleSpeed: 0.1 },
+        folders: [],
         objects: data,
       },
     },
@@ -110,6 +112,7 @@ export function objectFromData(d: SceneObjectData): GameObject {
   // sceneKind é metadado semântico, independente de o visual ser primitivo ou GLB.
   // Isso evita que entidades não importadas voltem como objetos comuns ao reabrir.
   object.mesh.userData.sceneKind = d.sceneKind === 'entity' ? 'entity' : 'object'
+  object.mesh.userData.folderId = d.folderId ?? null
   object.mesh.userData.componentId = d.componentId
   object.mesh.userData.importedModelHeight = d.importedModelHeight
   object.mesh.userData.sourceUrl = d.sourceUrl

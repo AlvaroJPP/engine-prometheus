@@ -4,10 +4,12 @@ import type { Object3D } from 'three'
 import { Engine, TERRAIN_ID, DEFAULT_CONTROL_MAPS, DEFAULT_PLAYER_SETTINGS, sanitizePlayerSettings } from '@engine'
 import { replaceUIScreenDefinitions, uiWorkspaceState } from '@editor/lib/ui/uiWorkspaceState'
 import { usePlayerLogicEditor } from './usePlayerLogicEditor'
+import { moveSceneFolder, removeSceneFolder } from '../hierarchy/SceneHierarchyModel'
 import type {
   CameraPreset,
   ObjectInfo,
   ObjectPatch,
+  SceneFolderData,
   ObjectType,
   TerrainInfo,
   ToolMode,
@@ -96,6 +98,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
   })
   const ioProgress = ref<{ active: boolean; kind: 'save' | 'load'; message: string; percent: number }>({ active: false, kind: 'save', message: '', percent: 0 })
   const objects = ref<ObjectInfo[]>([])
+  const sceneFolders = ref<SceneFolderData[]>([])
   const selectedModelNodes = ref<Array<{ path: string; name: string; meshCount: number }>>([])
   const terrain = ref<TerrainInfo>({ visible: true, seed: 0, edits: 0 })
   const selectedId = ref<string | null>(null)
@@ -209,7 +212,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         rotationX: state.rotationX, rotationY: state.rotationY, rotationZ: state.rotationZ,
         scaleX: state.scaleX, scaleY: state.scaleY, scaleZ: state.scaleZ,
         color: state.color, texturePreset: state.texturePreset, textureRepeat: state.textureRepeat, faceTextures: state.faceTextures, visible: state.visible, locked: state.locked,
-        wireframeVisible: state.wireframeVisible, groupId: state.groupId, mass: state.mass,
+        wireframeVisible: state.wireframeVisible, groupId: state.groupId, folderId: state.folderId, mass: state.mass,
         colliderType: state.colliderType, colliderSize: [...state.colliderSize], colliderOffset: [...state.colliderOffset],
       })
       engine.renameObject(id, state.name)
@@ -266,7 +269,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
           rotationX: entry.after.rotationX, rotationY: entry.after.rotationY, rotationZ: entry.after.rotationZ,
           scaleX: entry.after.scaleX, scaleY: entry.after.scaleY, scaleZ: entry.after.scaleZ,
           color: entry.after.color, texturePreset: entry.after.texturePreset, textureRepeat: entry.after.textureRepeat, faceTextures: entry.after.faceTextures, visible: entry.after.visible, locked: false,
-          wireframeVisible: entry.after.wireframeVisible, groupId: null, mass: entry.after.mass,
+          wireframeVisible: entry.after.wireframeVisible, groupId: null, folderId: entry.after.folderId, mass: entry.after.mass,
           colliderType: entry.after.colliderType, colliderSize: [...entry.after.colliderSize], colliderOffset: [...entry.after.colliderOffset],
         })
         engine.renameObject(created.id, entry.after.name)
@@ -365,7 +368,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
         rotationX: pastedState.rotationX, rotationY: pastedState.rotationY, rotationZ: pastedState.rotationZ,
         scaleX: pastedState.scaleX, scaleY: pastedState.scaleY, scaleZ: pastedState.scaleZ,
         color: pastedState.color, texturePreset: pastedState.texturePreset, textureRepeat: pastedState.textureRepeat, faceTextures: pastedState.faceTextures, visible: pastedState.visible, locked: false,
-        wireframeVisible: pastedState.wireframeVisible, groupId: null, mass: pastedState.mass,
+        wireframeVisible: pastedState.wireframeVisible, groupId: null, folderId: pastedState.folderId, mass: pastedState.mass,
         colliderType: pastedState.colliderType, colliderSize: [...pastedState.colliderSize], colliderOffset: [...pastedState.colliderOffset],
       })
       engine.renameObject(created.id, pastedState.name)
@@ -1294,6 +1297,73 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     }
   }
 
+
+  // ---- hierarquia real da cena ----
+  function createSceneFolder(folder: SceneFolderData) {
+    const name = folder.name.trim().slice(0, 64)
+    if (!folder.id || !name) return
+    if (folder.parentId !== null && !sceneFolders.value.some(item => item.id === folder.parentId)) return
+    const siblingExists = sceneFolders.value.some(item =>
+      item.parentId === folder.parentId && item.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    )
+    if (siblingExists) {
+      say('Já existe uma pasta com esse nome neste nível da hierarquia.')
+      return
+    }
+    if (sceneFolders.value.some(item => item.id === folder.id)) return
+    sceneFolders.value = [...sceneFolders.value, { id: folder.id, name, parentId: folder.parentId }]
+    dirty.value = true
+    say(`Pasta "${name}" criada.`)
+  }
+
+  function renameSceneFolder(id: string, nextName: string) {
+    const name = nextName.trim().slice(0, 64)
+    const folder = sceneFolders.value.find(item => item.id === id)
+    if (!folder || !name) return
+    if (sceneFolders.value.some(item =>
+      item.id !== id && item.parentId === folder.parentId && item.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    )) {
+      say('Já existe uma pasta com esse nome neste nível da hierarquia.')
+      return
+    }
+    sceneFolders.value = sceneFolders.value.map(item => item.id === id ? { ...item, name } : item)
+    dirty.value = true
+  }
+
+  function moveSceneObjectToFolder(objectId: string, folderId: string | null) {
+    if (!engine || !objects.value.some(object => object.id === objectId)) return
+    if (folderId !== null && !sceneFolders.value.some(folder => folder.id === folderId)) return
+    const object = objects.value.find(item => item.id === objectId)
+    if (object?.folderId === folderId) return
+    engine.updateObject(objectId, { folderId })
+    dirty.value = true
+    refresh()
+  }
+
+  function moveSceneFolderToParent(folderId: string, parentId: string | null) {
+    const next = moveSceneFolder(sceneFolders.value, folderId, parentId)
+    if (!next) {
+      say('Não é possível mover uma pasta para dentro dela mesma ou de uma subpasta.')
+      return
+    }
+    sceneFolders.value = next
+    dirty.value = true
+  }
+
+  function deleteSceneFolder(folderId: string) {
+    const folder = sceneFolders.value.find(item => item.id === folderId)
+    if (!folder) return
+    const next = removeSceneFolder(sceneFolders.value, folderId)
+    if (!next) return
+    for (const object of objects.value) {
+      if (object.folderId === folderId) engine?.updateObject(object.id, { folderId: folder.parentId })
+    }
+    sceneFolders.value = next
+    dirty.value = true
+    refresh()
+    say(`Pasta "${folder.name}" excluída; seu conteúdo foi movido para a pasta pai.`)
+  }
+
   // ---- hierarquia / inspetor ----
   function selectItem(id: string, additive = false) {
     if (additive && objects.value.some(object => object.id === id)) {
@@ -1852,6 +1922,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     applyingProjectSettings = true
     try {
       eng.newProject()
+      sceneFolders.value = []
       playerModelName.value = eng.getPlayerModelName()
       playerModelCustom.value = eng.hasCustomPlayerModel()
       playerModelHeight.value = eng.getPlayerModelHeight()
@@ -1899,6 +1970,8 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
           ioProgress.value = { active: true, kind: 'load', message, percent }
           status.value = message
         })
+        const activeScenePath = bundle.project.scenes[0] ?? Object.keys(bundle.scenes)[0]
+        sceneFolders.value = activeScenePath ? [...(bundle.scenes[activeScenePath]?.folders ?? [])] : []
         playerModelName.value = eng.getPlayerModelName()
         playerModelCustom.value = eng.hasCustomPlayerModel()
         playerModelHeight.value = eng.getPlayerModelHeight()
@@ -1954,6 +2027,10 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
       ioProgress.value = { active: true, kind: 'save', message: 'Preparando os recursos para salvar…', percent: 0 }
       eng.setProjectName(projectName.value)
       const bundle = eng.exportProject()
+      const activeScenePath = bundle.project.scenes[0] ?? Object.keys(bundle.scenes)[0]
+      if (activeScenePath && bundle.scenes[activeScenePath]) {
+        bundle.scenes[activeScenePath].folders = JSON.parse(JSON.stringify(sceneFolders.value))
+      }
       bundle.uiScreens = JSON.parse(JSON.stringify(uiWorkspaceState.screens))
       await saveProjectTo(dir, bundle, (message, percent) => {
         ioProgress.value = { active: true, kind: 'save', message, percent }
@@ -2038,6 +2115,7 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     renderStats,
     ioProgress,
     objects,
+    sceneFolders,
     selectedModelNodes,
     terrain,
     selectedId,
@@ -2130,6 +2208,11 @@ export function useEditor(canvas: Ref<HTMLCanvasElement | null>) {
     startHUDUpdateLoop,
     stopHUDUpdateLoop,
     selectItem,
+    createSceneFolder,
+    renameSceneFolder,
+    moveSceneObjectToFolder,
+    moveSceneFolderToParent,
+    deleteSceneFolder,
     groupSelectedObjects,
     ungroupSelectedObjects,
     toggleVisible,
