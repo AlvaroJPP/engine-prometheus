@@ -96,7 +96,7 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.locator('.tree-object')).toHaveCount(before + 1)
     await page.locator('.tree-object').last().click()
     await expect(page.locator('.inspector-summary')).toBeVisible()
-    await expect(page.locator('.inspector-axis-grid')).toBeVisible()
+    await expect(page.locator('.inspector-group').filter({ hasText: 'Transformação' }).locator('.inspector-axis-grid').first()).toBeVisible()
   })
 
   test('expõe controles reais de objeto, jogador, ambiente e renderização', async ({ page }) => {
@@ -108,11 +108,11 @@ test.describe('Editor Prometheus — nova disposição', () => {
     await expect(page.getByTestId('inspector-object-folder')).toBeVisible()
     await expect(page.getByTestId('inspector-object-color')).toBeVisible()
     await expect(page.getByTestId('inspector-texture-preset')).toBeVisible()
-    await expect(page.getByTestId('inspector-collider-type')).toBeVisible()
-    await expect(page.getByTestId('inspector-object-mass')).toBeVisible()
 
     const physicsGroup = page.locator('.inspector-group').filter({ hasText: 'Física e colisor' })
     await physicsGroup.locator('summary').click()
+    await expect(page.getByTestId('inspector-collider-type')).toBeVisible()
+    await expect(page.getByTestId('inspector-object-mass')).toBeVisible()
     await page.getByTestId('inspector-collider-type').selectOption('box')
     await expect(page.getByTestId('inspector-collider-type')).toHaveValue('box')
 
