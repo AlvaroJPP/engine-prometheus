@@ -16,6 +16,8 @@ const terrainMesh = read('../engine/world/map/TerrainMesh.ts')
 const engineFacade = read('../engine/core/EngineFacade.ts')
 const brandHeader = read('../ep-work/public/logo-prometeu-header.svg')
 const brandMark = read('../ep-work/public/logo-prometeu-mark.svg')
+const icons = read('../ep-work/public/icons.svg')
+const hierarchyModel = read('../editor/hierarchy/SceneHierarchyModel.ts')
 
 assert.ok(app.includes('useEditor(canvas)'), 'A interface deve continuar conectada ao motor real')
 assert.ok(app.includes('data-testid="engine-canvas"'), 'Viewport 3D deve existir')

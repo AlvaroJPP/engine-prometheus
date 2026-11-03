@@ -36,6 +36,39 @@ test.describe('Editor Prometheus — nova disposição', () => {
     })
   })
 
+
+  test('cria pastas reais, subpastas e move objetos por arrastar e soltar', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.getByRole('button', { name: 'Criar pasta na raiz' }).click()
+    const renameInput = page.getByRole('textbox', { name: 'Nome da pasta' })
+    await expect(renameInput).toBeVisible()
+    await renameInput.fill('Cenário')
+    await renameInput.press('Enter')
+
+    const sceneFolder = page.locator('.tree-folder-row').filter({ hasText: 'Cenário' })
+    await expect(sceneFolder).toBeVisible()
+    await sceneFolder.hover()
+    await sceneFolder.getByRole('button', { name: 'Criar subpasta em Cenário' }).click()
+    await expect(renameInput).toBeVisible()
+    await renameInput.fill('Floresta')
+    await renameInput.press('Enter')
+
+    const forestFolder = page.locator('.tree-folder-row').filter({ hasText: 'Floresta' })
+    await expect(forestFolder).toBeVisible()
+    await page.getByRole('button', { name: 'Adicionar cubo' }).first().click()
+    const objectRow = page.locator('.tree-object').first()
+    await expect(objectRow).toBeVisible()
+    await objectRow.dragTo(forestFolder)
+    const folderId = await forestFolder.getAttribute('data-folder-id')
+    await expect(objectRow).toHaveAttribute('data-folder-id', folderId!)
+    await forestFolder.hover()
+    await forestFolder.getByRole('button', { name: 'Renomear pasta Floresta' }).click()
+    await expect(renameInput).toBeVisible()
+    await renameInput.fill('Árvores')
+    await renameInput.press('Enter')
+    await expect(page.locator('.tree-folder-row').filter({ hasText: 'Árvores' })).toBeVisible()
+  })
+
   test('adiciona, seleciona e inspeciona um cubo', async ({ page }) => {
     const before = await page.locator('.tree-object').count()
     await page.getByRole('button', { name: 'Adicionar cubo' }).first().click()
