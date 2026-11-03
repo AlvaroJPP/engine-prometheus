@@ -23,12 +23,19 @@ const workspaceFull=ref(false)
 const hierarchyCollapsed=ref(false)
 const {
  projectName,dirty,status,fps,renderStats,objects,sceneFolders,selectedId,groupSelection,tool,transform,cameraPreset,gridVisible,engineInstance,isPlayMode,
+ brushStrength,brushRadius,polygonLinesVisible,performanceMode,renderDistance,renderAll,renderResolutionScale,renderFpsLimit,renderFogEnabled,renderFogDistanceScale,
+ renderDynamicResolution,renderDynamicResolutionTargetFps,renderDynamicResolutionMinScale,
+ grassVisible,grassUseDetailedModel,grassDensityPercent,grassRenderDistanceMode,grassRenderDistance,grassNearDetailDistance,grassMiddleDetailDistance,
+ grassOcclusionEnabled,grassOcclusionIntervalMs,wallOcclusionQuality,grassWindPercent,
+ playerModelName,playerModelCustom,playerModelHeight,playerSettings,setPlayerSettings,
  setTool,setTransform,cycleCamera,addPrimitive,selectItem,toggleVisible,toggleGrid,toggleTerrain,regenerateTerrain,clearTerrain,removeSelected,
  markDirty,newProject,openProject,saveProject,enterPlayMode,exitPlayMode,undo,redo,copySelectedObject,pasteObject,groupSelectedObjects,ungroupSelectedObjects,createSceneFolder,renameSceneFolder,moveSceneObjectToFolder,moveSceneFolderToParent,deleteSceneFolder,
- addSpawnPlatform,addImportedModel,addClickableCubeExample,togglePerformanceMode,playerModelName,playerModelHeight,playerSettings,setPlayerSettings,timeOfDay,dayNightCycleEnabled,dayNightCycleSpeed,
- setSkyTexture,setTimeOfDay,setDayNightCycleEnabled,setDayNightCycleSpeed,skyTextureDataUrl,renderFogEnabled,renderFogDistanceScale,setRenderFogEnabled,
- setRenderFogDistanceScale,performanceMode,setPerformanceMode,renderFpsLimit,setRenderFpsLimit,renderDistance,renderAll,setRenderDistance,setRenderAll,
- onRename,onNumber,togglePolygonLines,polygonLinesVisible,terrain
+ addSpawnPlatform,addImportedModel,addClickableCubeExample,togglePerformanceMode,setPerformanceMode,setRenderDistance,setRenderAll,setRenderResolutionScale,setRenderFpsLimit,
+ setRenderFogEnabled,setRenderFogDistanceScale,setRenderDynamicResolution,setRenderDynamicResolutionTargetFps,setRenderDynamicResolutionMinScale,
+ setGrassVisible,setGrassUseDetailedModel,setGrassDensityPercent,setGrassRenderDistance,setGrassDetailDistance,setGrassOcclusionEnabled,setGrassOcclusionInterval,setWallOcclusionQuality,setGrassWindPercent,
+ setPlayerModelHeight,setPlayerModelFile,resetPlayerModel,
+ onRename,onNumber,toggleObjectLock,toggleObjectWireframe,onColliderChange,onColliderVectorChange,colliderDebugVisible,toggleColliderDebug,onColor,onTexture,onTextureRepeat,onFaceTexture,colorHex,
+ togglePolygonLines,polygonLinesVisible,terrain
 }=useEditor(canvas)
 const selectedObject=computed<ObjectInfo|null>(()=>objects.value.find(o=>o.id===selectedId.value)??null)
 const engineReady=computed(()=>Boolean(engineInstance.value))
@@ -58,6 +65,10 @@ async function onModelFileSelected(event:Event){
   await new Promise<void>((resolve,reject)=>loader.parse(data,'',gltf=>{addImportedModel(file.name.replace(/\.(glb|gltf)$/i,''),gltf.scene as Object3D,1.8);resolve()},reject))
  }catch(error){console.error('[Editor] Falha ao importar modelo 3D.',error)}
 }
+function updateBrushStrength(value:number){brushStrength.value=value}
+function updateBrushRadius(value:number){brushRadius.value=value}
+function onPlayerModelFile(file:File){void setPlayerModelFile(file)}
+function clearSkyTexture(){setSkyTexture('')}
 function onSkyFile(file:File){
  if(!file.type.startsWith('image/'))return
  const reader=new FileReader()
@@ -178,8 +189,98 @@ function toggleViewportFull(){workspaceFull.value=!workspaceFull.value}
    <div class="viewport-status"><div class="viewport-status-left"><span class="status-ready"><i></i>{{engineReady?'Motor 3D ativo':'Inicializando motor'}}</span><span>{{gridVisible?'Grade ativada':'Grade desativada'}}</span></div><div class="viewport-status-right"><span>Selecionar</span><kbd class="keycap">Q</kbd><span>Mover</span><kbd class="keycap">W</kbd><span>Rotacionar</span><kbd class="keycap">E</kbd><span>Escalar</span><kbd class="keycap">R</kbd><span>Zoom</span><kbd class="keycap">Scroll</kbd></div></div>
   </section>
 
-  <EditorInspector :active-tab="inspectorTab" :project-name="projectName" :selected-object="selectedObject" :terrain="terrain" :player-model-name="playerModelName" :player-model-height="playerModelHeight" :player-settings="playerSettings" :time-of-day="timeOfDay" :day-night-cycle-enabled="dayNightCycleEnabled" :day-night-cycle-speed="dayNightCycleSpeed" :render-fog-enabled="renderFogEnabled" :render-fog-distance-scale="renderFogDistanceScale" :performance-mode="performanceMode" :render-fps-limit="renderFpsLimit" :render-distance="renderDistance" :render-all="renderAll" :has-sky-texture="Boolean(skyTextureDataUrl)"
-   @update:active-tab="inspectorTab=$event" @rename-object="renameObject" @object-number="changeObjectNumber" @remove-object="removeSelected" @toggle-object-visibility="toggleObjectVisibility" @toggle-terrain="toggleTerrain" @regenerate-terrain="regenerateTerrain" @clear-terrain="clearTerrain" @player-setting="updatePlayerSetting" @time-of-day="setTimeOfDay" @toggle-cycle="setDayNightCycleEnabled(!dayNightCycleEnabled)" @cycle-speed="setDayNightCycleSpeed" @fog="setRenderFogEnabled" @fog-distance="setRenderFogDistanceScale" @performance="setPerformanceMode" @fps-limit="setRenderFpsLimit" @render-distance="setRenderDistance" @render-all="setRenderAll" @sky-file="onSkyFile"/>
+  <EditorInspector
+   :active-tab="inspectorTab"
+   :project-name="projectName"
+   :selected-object="selectedObject"
+   :folders="sceneFolders"
+   :terrain="terrain"
+   :brush-strength="brushStrength"
+   :brush-radius="brushRadius"
+   :grid-visible="gridVisible"
+   :polygon-lines-visible="polygonLinesVisible"
+   :collider-debug-visible="colliderDebugVisible"
+   :player-model-name="playerModelName"
+   :player-model-custom="playerModelCustom"
+   :player-model-height="playerModelHeight"
+   :player-settings="playerSettings"
+   :time-of-day="timeOfDay"
+   :day-night-cycle-enabled="dayNightCycleEnabled"
+   :day-night-cycle-speed="dayNightCycleSpeed"
+   :render-fog-enabled="renderFogEnabled"
+   :render-fog-distance-scale="renderFogDistanceScale"
+   :performance-mode="performanceMode"
+   :render-fps-limit="renderFpsLimit"
+   :render-distance="renderDistance"
+   :render-all="renderAll"
+   :render-resolution-scale="renderResolutionScale"
+   :render-dynamic-resolution="renderDynamicResolution"
+   :render-dynamic-resolution-target-fps="renderDynamicResolutionTargetFps"
+   :render-dynamic-resolution-min-scale="renderDynamicResolutionMinScale"
+   :grass-visible="grassVisible"
+   :grass-use-detailed-model="grassUseDetailedModel"
+   :grass-density-percent="grassDensityPercent"
+   :grass-render-distance-mode="grassRenderDistanceMode"
+   :grass-render-distance="grassRenderDistance"
+   :grass-near-detail-distance="grassNearDetailDistance"
+   :grass-middle-detail-distance="grassMiddleDetailDistance"
+   :grass-occlusion-enabled="grassOcclusionEnabled"
+   :grass-occlusion-interval-ms="grassOcclusionIntervalMs"
+   :wall-occlusion-quality="wallOcclusionQuality"
+   :grass-wind-percent="grassWindPercent"
+   :render-stats="renderStats"
+   :has-sky-texture="Boolean(skyTextureDataUrl)"
+   @update:active-tab="inspectorTab=$event"
+   @rename-object="renameObject"
+   @object-number="changeObjectNumber"
+   @remove-object="removeSelected"
+   @toggle-object-visibility="toggleObjectVisibility"
+   @toggle-object-lock="toggleObjectLock"
+   @toggle-object-wireframe="toggleObjectWireframe"
+   @object-folder="moveSceneObjectToFolder"
+   @object-color="onColor"
+   @object-texture="onTexture"
+   @texture-repeat="onTextureRepeat"
+   @face-texture="onFaceTexture"
+   @collider-type="onColliderChange"
+   @collider-vector="onColliderVectorChange"
+   @toggle-collider-debug="toggleColliderDebug"
+   @toggle-terrain="toggleTerrain"
+   @regenerate-terrain="regenerateTerrain"
+   @clear-terrain="clearTerrain"
+   @brush-strength="updateBrushStrength"
+   @brush-radius="updateBrushRadius"
+   @toggle-grid="toggleGrid"
+   @toggle-polygon-lines="togglePolygonLines"
+   @player-setting="updatePlayerSetting"
+   @player-model-file="onPlayerModelFile"
+   @player-model-height="setPlayerModelHeight"
+   @reset-player-model="resetPlayerModel"
+   @time-of-day="setTimeOfDay"
+   @toggle-cycle="setDayNightCycleEnabled(!dayNightCycleEnabled)"
+   @cycle-speed="setDayNightCycleSpeed"
+   @fog="setRenderFogEnabled"
+   @fog-distance="setRenderFogDistanceScale"
+   @sky-file="onSkyFile"
+   @clear-sky="clearSkyTexture"
+   @performance="setPerformanceMode"
+   @fps-limit="setRenderFpsLimit"
+   @render-distance="setRenderDistance"
+   @render-all="setRenderAll"
+   @render-resolution="setRenderResolutionScale"
+   @dynamic-resolution="setRenderDynamicResolution"
+   @dynamic-target-fps="setRenderDynamicResolutionTargetFps"
+   @dynamic-min-scale="setRenderDynamicResolutionMinScale"
+   @grass-visible="setGrassVisible"
+   @grass-detailed="setGrassUseDetailedModel"
+   @grass-density="setGrassDensityPercent"
+   @grass-distance="setGrassRenderDistance"
+   @grass-detail-distance="setGrassDetailDistance"
+   @grass-occlusion="setGrassOcclusionEnabled"
+   @grass-occlusion-interval="setGrassOcclusionInterval"
+   @wall-occlusion-quality="setWallOcclusionQuality"
+   @grass-wind="setGrassWindPercent"
+/>
 
   <footer class="statusbar"><div class="statusbar-left"><span class="status-ready"><i></i>{{status||'Pronto'}}</span><span>Motor 3D ativo</span><span>{{terrain.edits>0?'Terreno editado':'Terreno procedural'}}</span></div><div class="statusbar-right"><span>{{isPlayMode?'MODO JOGO':'MODO EDIÇÃO'}}</span><b>v0.1.0</b></div></footer>
  </main>
