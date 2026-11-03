@@ -29,6 +29,7 @@ assert.ok(topbar.includes('logo-prometeu-header.svg') && topbar.includes('logo-p
 assert.ok(!topbar.includes('PROMETHEUS'))
 assert.ok(brandHeader.includes('PROMETEU') === false && brandHeader.includes('#E8552B'))
 assert.ok(brandHeader.includes('Prometeu Engine'))
+assert.ok(brandHeader.includes('matrix(0.205 0 0 0.205 -25.9250 -191.6700)'), 'ENGINE deve ficar visualmente mais próximo do lettering PROMETEU')
 assert.ok(brandMark.includes('Símbolo Prometeu Engine'))
 assert.ok(rail.includes('Controles') && rail.includes('Configurações'))
 assert.ok(hierarchy.includes('Agrupar') && hierarchy.includes('Componentes (0)'))
